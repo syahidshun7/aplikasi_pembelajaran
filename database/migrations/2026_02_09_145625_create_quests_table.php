@@ -12,14 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('quests', function (Blueprint $table) {
-    $table->id();
-    $table->string('title');
-    $table->text('description');
-    $table->integer('xp_reward')->default(100);
-    $table->enum('difficulty', ['Easy', 'Medium', 'Hard']);
-    $table->boolean('is_completed')->default(false);
-    $table->timestamps();
-});
+        $table->id();
+        $table->string('title');
+        $table->text('description')->nullable();
+        $table->enum('difficulty', ['C-Rank', 'B-Rank', 'A-Rank', 'S-Rank'])->default('C-Rank');
+        $table->integer('reward_gold')->default(0);
+        $table->integer('reward_xp')->default(0);
+        $table->enum('status', ['Available', 'In-Progress', 'Done'])->default('Available');
+        $table->timestamps();
+    });
     }
 
     /**

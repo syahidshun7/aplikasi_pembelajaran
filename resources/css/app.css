@@ -1,12 +1,11 @@
-/* 1. Import harus di paling atas */
+/* 1. Import Font */
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
-/* 2. Baru Tailwind directives */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 3. Baru Custom Layer kamu */
+/* 3. Custom Layer RPG */
 @layer components {
   .rpg-panel {
     @apply bg-[#1a1c2c] border-4 border-[#3d4153] p-4 relative;
@@ -26,5 +25,9 @@
 
   .btn-rpg {
     @apply px-3 py-1 bg-[#facc15] text-black border-b-4 border-r-4 border-[#854d0e] font-bold active:border-0 active:translate-y-1;
+  }
+
+  .btn-pixel {
+    @apply border-b-4 border-r-4 transition-all active:translate-y-1 active:border-0;
   }
 }
