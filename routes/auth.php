@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DashboardController;
 
 
-Route::get('/', [DashboardController::class, 'index']); // Gunakan ::class, bukan .php
+// Route::get('/', [DashboardController::class, 'index']); // Gunakan ::class, bukan .php
 
 Route::middleware('guest')->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])
