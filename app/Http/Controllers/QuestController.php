@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Quest;
@@ -25,5 +26,25 @@ class QuestController extends Controller
         Quest::create($validated);
 
         return redirect()->back()->with('message', 'New Quest Added to Board!');
+    }
+
+    public function update(Request $request, Quest $quest)
+    {
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'difficulty' => 'required',
+            'reward_gold' => 'required|integer',
+        ]);
+
+        $quest->update($validated);
+
+        return redirect()->back()->with('message', 'Quest metadata updated successfully.');
+    }
+
+    public function destroy(Quest $quest)
+    {
+        $quest->delete();
+
+        return redirect()->back()->with('message', 'Mission aborted and removed from board.');
     }
 }

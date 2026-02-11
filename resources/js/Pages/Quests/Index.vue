@@ -1,21 +1,53 @@
 <script setup>
 import { Head, useForm, Link } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 const props = defineProps({
     quests: Array
 });
 
-// Form helper dari Inertia untuk menangani input
+// State untuk tahu sama ada kita sedang edit atau tambah baru
+const isEditing = ref(false);
+const editId = ref(null);
+
 const form = useForm({
     title: '',
     difficulty: 'C-Rank',
     reward_gold: 0,
 });
 
+// Fungsi untuk isi data ke dalam form apabila klik EDIT
+const startEdit = (quest) => {
+    isEditing.value = true;
+    editId.value = quest.id;
+    form.title = quest.title;
+    form.difficulty = quest.difficulty;
+    form.reward_gold = quest.reward_gold;
+};
+
+// Fungsi untuk cancel edit
+const cancelEdit = () => {
+    isEditing.value = false;
+    editId.value = null;
+    form.reset();
+};
+
 const submit = () => {
-    form.post(route('quests.store'), {
-        onSuccess: () => form.reset(),
-    });
+    if (isEditing.value) {
+        form.patch(route('quests.update', editId.value), {
+            onSuccess: () => cancelEdit(),
+        });
+    } else {
+        form.post(route('quests.store'), {
+            onSuccess: () => form.reset(),
+        });
+    }
+};
+
+const deleteQuest = (id) => {
+    if (confirm('TERMINATE MISSION: Are you sure you want to abort this quest?')) {
+        form.delete(route('quests.destroy', id));
+    }
 };
 </script>
 
@@ -33,8 +65,10 @@ const submit = () => {
             <div class="grid grid-cols-12 gap-8">
                 
                 <div class="col-span-12 lg:col-span-5">
-                    <div class="rpg-panel border-yellow-500/50">
-                        <h2 class="text-yellow-500 mb-6 uppercase tracking-tighter">>> ISSUE_NEW_QUEST</h2>
+                    <div class="rpg-panel" :class="isEditing ? 'border-green-500/50' : 'border-yellow-500/50'">
+                        <h2 class="mb-6 uppercase tracking-tighter" :class="isEditing ? 'text-green-500' : 'text-yellow-500'">
+                            >> {{ isEditing ? 'UPDATE_CONTRACT_ID_' + editId : 'ISSUE_NEW_QUEST' }}
+                        </h2>
                         
                         <form @submit.prevent="submit" class="space-y-6">
                             <div>
@@ -63,10 +97,18 @@ const submit = () => {
                                 </div>
                             </div>
 
-                            <button type="submit" :disabled="form.processing"
-                                class="w-full py-3 bg-cyan-900/30 border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-black transition-all uppercase font-bold">
-                                {{ form.processing ? 'UPLOADING...' : 'CONFIRM_MISSION' }}
-                            </button>
+                            <div class="flex gap-2">
+                                <button type="submit" :disabled="form.processing"
+                                    class="flex-1 py-3 border-2 uppercase font-bold transition-all"
+                                    :class="isEditing ? 'border-green-500 text-green-500 hover:bg-green-500 hover:text-black' : 'border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-black'">
+                                    {{ form.processing ? 'PROCESSING...' : (isEditing ? 'UPDATE_CONTRACT' : 'CONFIRM_MISSION') }}
+                                </button>
+                                
+                                <button v-if="isEditing" @click="cancelEdit" type="button"
+                                    class="px-4 py-3 border-2 border-slate-500 text-slate-500 hover:bg-slate-500 hover:text-black uppercase">
+                                    X
+                                </button>
+                            </div>
                         </form>
                     </div>
                 </div>
@@ -75,10 +117,6 @@ const submit = () => {
                     <div class="rpg-panel border-slate-700 h-full">
                         <h2 class="text-white mb-6 uppercase tracking-tighter">>> ACTIVE_MISSIONS_BOARD</h2>
                         
-                        <div v-if="quests.length === 0" class="text-center py-20 text-slate-600 italic">
-                            No missions available on the board...
-                        </div>
-
                         <div class="space-y-4">
                             <div v-for="q in quests" :key="q.id" 
                                 class="flex justify-between items-center p-4 bg-slate-900/50 border-l-4 border-cyan-500 hover:bg-slate-800 transition-all">
@@ -88,7 +126,14 @@ const submit = () => {
                                     <div class="text-yellow-500 text-[8px] mt-1">+{{ q.reward_gold }} GOLD</div>
                                 </div>
                                 <div class="flex gap-2">
-                                    <button class="text-red-500 hover:text-white text-[8px] border border-red-900 p-1">ABORT</button>
+                                    <button @click="startEdit(q)" 
+                                        class="text-green-500 hover:text-white text-[8px] border border-green-900 p-2 uppercase">
+                                        Edit
+                                    </button>
+                                    <button @click="deleteQuest(q.id)" 
+                                        class="text-red-500 hover:text-white text-[8px] border border-red-900 p-2 uppercase">
+                                        Abort
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -99,20 +144,3 @@ const submit = () => {
         </div>
     </div>
 </template>
-
-<style scoped>
-.rpg-panel {
-    @apply bg-[#1a1c2c] border-4 p-6 relative shadow-[8px_8px_0px_0px_rgba(0,0,0,0.5)];
-}
-
-input::placeholder {
-    @apply text-slate-700;
-}
-
-/* Chrome, Safari, Edge, Opera */
-input::-webkit-outer-spin-button,
-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-</style>
