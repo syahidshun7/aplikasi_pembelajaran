@@ -22,6 +22,6 @@ class HomeController extends Controller
         ];
 
         // Mengirim data ke Blade view
-        return view('home', $data);
+        return view('welcome', $data);
     }
 }
