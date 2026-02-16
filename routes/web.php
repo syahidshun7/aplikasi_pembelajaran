@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use App\Http\Controllers\QuestController;
+use App\Http\Controllers\SubmissionController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -17,7 +18,7 @@ Route::get('/', function () {
 
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware(['auth', 'verified','admin'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -27,13 +28,17 @@ Route::middleware('auth')->group(function () {
 
 
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified','admin'])->group(function () {
     Route::get('/quests', [QuestController::class, 'index'])->name('quests.index');
     Route::post('/quests', [QuestController::class, 'store'])->name('quests.store');
     Route::patch('/quests/{quest}', [QuestController::class, 'update'])->name('quests.update');
     Route::delete('/quests/{quest}', [QuestController::class, 'destroy'])->name('quests.destroy');
+    Route::get('/quests/{quest}', [QuestController::class, 'show'])->name('quests.show');
+
 });
 
+
+Route::post('/quests/{quest}/submissions', [SubmissionController::class, 'store'])->name('submissions.store');
 
 
 

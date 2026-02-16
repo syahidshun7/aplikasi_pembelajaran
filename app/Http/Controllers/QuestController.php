@@ -21,6 +21,8 @@ class QuestController extends Controller
             'title' => 'required|string|max:255',
             'difficulty' => 'required',
             'reward_gold' => 'required|integer',
+            'description' => 'nullable|string',
+            'status' => 'required',
         ]);
 
         Quest::create($validated);
@@ -33,7 +35,9 @@ class QuestController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'difficulty' => 'required',
+            'description' => 'nullable|string',
             'reward_gold' => 'required|integer',
+            'status' => 'required',
         ]);
 
         $quest->update($validated);
@@ -46,5 +50,13 @@ class QuestController extends Controller
         $quest->delete();
 
         return redirect()->back()->with('message', 'Mission aborted and removed from board.');
+    }
+
+
+    public function show(Quest $quest)
+    {
+        return Inertia::render('Quests/Show', [
+            'quest' => $quest
+        ]);
     }
 }

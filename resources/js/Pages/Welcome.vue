@@ -1,7 +1,38 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { Head, Link, usePage, router } from '@inertiajs/vue3';
+import { ref, computed } from 'vue';
+const auth = computed(() => page.props.auth);
 
+const page = usePage();
+
+
+
+import Swal from 'sweetalert2';
+
+const handleLogout = () => {
+    Swal.fire({
+        title: 'QUIT GAME?',
+        text: "Are you sure you want to return to the real world?",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'YES, LOGOUT',
+        cancelButtonText: 'CANCEL',
+        // Styling agar cocok dengan tema gelap/cyan RPG kamu
+        background: '#1a1c2c',
+        color: '#4ed4d4',
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        // Tambahkan class CSS kustom jika ingin font pixel
+        customClass: {
+            popup: 'border-4 border-[#3d415f] font-mono',
+            title: 'text-red-500 uppercase',
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            router.post(route('logout'));
+        }
+    });
+};
 
 // Tambahkan baris ini jika kamu menggunakan Ziggy Laravel
 // Jika di setup Laravel kamu sudah ada Ziggy, ini akan memanggilnya
@@ -45,26 +76,46 @@ const quests = ref([
 
     <div class="min-h-screen bg-[#0d1117] p-4 md:p-8 font-['Press_Start_2P'] text-[#F7F7F7] selection:bg-[#009999]">
 
-      <nav class="border-b-4 border-[#333333] mb-8 pb-4 flex justify-between items-center">
-    <div class="flex items-center gap-4">
-        <div class="w-10 h-10 bg-[#0a0c10] flex items-center justify-center border-b-4 border-r-4 border-[#1a1c2c] overflow-hidden">
-    <img src="images/logo.png" alt="Logo" class="w-7 h-7 object-contain pixelated">
-</div>
-        <h1 class="text-[#009999] text-sm md:text-xl tracking-tighter uppercase">Lobby_Room_01</h1>
-    </div>
+        <nav class="border-b-4 border-[#333333] mb-8 pb-4 flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <div
+                    class="w-10 h-10 bg-[#0a0c10] flex items-center justify-center border-b-4 border-r-4 border-[#1a1c2c] overflow-hidden">
+                    <img src="images/logo.png" alt="Logo" class="w-7 h-7 object-contain pixelated">
+                </div>
+                <h1 class="text-[#009999] text-sm md:text-xl tracking-tighter uppercase">Lobby_Room_01</h1>
+            </div>
 
-    <div class="flex gap-4">
-        <Link :href="route('register')"
-            class="text-[8px] bg-[#facc15] text-black px-4 py-2 btn-pixel border-[#854d0e] uppercase font-bold hover:bg-yellow-400 transition-colors">
-            Register
-        </Link>
+            <div class="flex gap-4">
+                <template v-if="!auth.user">
+                    <Link :href="route('register')"
+                        class="text-[8px] bg-[#facc15] text-black px-4 py-2 btn-pixel border-[#854d0e] uppercase font-bold hover:bg-yellow-400 transition-colors">
+                        Register
+                    </Link>
 
-        <Link :href="route('login')"
-            class="text-[8px] bg-[#009999] text-black px-4 py-2 btn-pixel border-[#006666] uppercase font-bold hover:bg-[#4ed4d4] transition-colors">
-            Login
-        </Link>
-    </div>
-</nav>
+                    <Link :href="route('login')"
+                        class="text-[8px] bg-[#009999] text-black px-4 py-2 btn-pixel border-[#006666] uppercase font-bold hover:bg-[#4ed4d4] transition-colors">
+                        Login
+                    </Link>
+                </template>
+
+                <template v-else>
+                    <Link v-if="auth.user.role === 'admin'" :href="route('dashboard')"
+                        class="text-[8px] bg-purple-600 text-white px-4 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors">
+                        Admin_Panel
+                    </Link>
+
+                    <Link :href="route('profile.edit')"
+                        class="text-[8px] bg-[#3d415f] text-white px-4 py-2 btn-pixel border-[#1a1c2c] uppercase font-bold hover:bg-slate-600 transition-colors">
+                        Profile
+                    </Link>
+
+                    <button @click="handleLogout"
+                        class="text-[8px] bg-red-900 text-white px-4 py-2 btn-pixel border-red-950 uppercase font-bold hover:bg-red-700 transition-colors">
+                        Logout [X]
+                    </button>
+                </template>
+            </div>
+        </nav>
 
         <div class="grid grid-cols-12 gap-8">
 
@@ -94,49 +145,54 @@ const quests = ref([
             </div>
 
             <div class="col-span-12 lg:col-span-8">
-    <div class="rpg-panel h-[600px] flex flex-col">
-        
-        <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-4 flex-shrink-0">
-            <h2 class="text-yellow-400 text-xs uppercase tracking-widest animate-pulse">
-                Available_Quests
-            </h2>
-            <span class="text-[8px] text-slate-500 uppercase">Sort: Difficulty ▲</span>
-        </div>
+                <div class="rpg-panel h-[600px] flex flex-col">
 
-        <div class="overflow-y-auto pr-2 custom-scroll flex-1">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div v-for="quest in quests" :key="quest.id"
-                    class="rpg-panel bg-[#161b22] border-slate-700 hover:border-[#009999] transition-all group cursor-pointer h-fit">
-                    <div class="flex flex-col h-full gap-4">
-                        <div class="flex justify-between items-start">
-                            <span class="text-[7px] px-2 py-1 bg-slate-800 text-slate-400 border border-slate-600">
-                                ID:{{ quest.id }}
-                            </span>
-                            <span :class="{
-                                'text-red-500': quest.difficulty === 'S-Rank',
-                                'text-orange-500': quest.difficulty === 'A-Rank',
-                                'text-cyan-500': quest.difficulty === 'B-Rank',
-                                'text-green-500': quest.difficulty === 'C-Rank'
-                            }" class="text-[8px] font-bold tracking-widest">{{ quest.difficulty }}</span>
-                        </div>
+                    <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-4 flex-shrink-0">
+                        <h2 class="text-yellow-400 text-xs uppercase tracking-widest animate-pulse">
+                            Available_Quests
+                        </h2>
+                        <span class="text-[8px] text-slate-500 uppercase">Sort: Difficulty ▲</span>
+                    </div>
 
-                        <h3 class="text-[10px] text-white group-hover:text-[#4ed4d4] leading-relaxed transition-colors uppercase">
-                            {{ quest.title }}
-                        </h3>
+                    <div class="overflow-y-auto pr-2 custom-scroll flex-1">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div v-for="quest in quests" :key="quest.id"
+                                class="rpg-panel bg-[#161b22] border-slate-700 hover:border-[#009999] transition-all group cursor-pointer h-fit">
+                                <div class="flex flex-col h-full gap-4">
+                                    <div class="flex justify-between items-start">
+                                        <span
+                                            class="text-[7px] px-2 py-1 bg-slate-800 text-slate-400 border border-slate-600">
+                                            ID:{{ quest.id }}
+                                        </span>
+                                        <span :class="{
+                                            'text-red-500': quest.difficulty === 'S-Rank',
+                                            'text-orange-500': quest.difficulty === 'A-Rank',
+                                            'text-cyan-500': quest.difficulty === 'B-Rank',
+                                            'text-green-500': quest.difficulty === 'C-Rank'
+                                        }" class="text-[8px] font-bold tracking-widest">{{ quest.difficulty }}</span>
+                                    </div>
 
-                        <div class="mt-auto pt-4 flex justify-between items-center border-t border-slate-800">
-                            <span class="text-yellow-500 text-[8px] tracking-tighter">
-                                REWARD: {{ quest.reward }}
-                            </span>
-                            <button class="text-[7px] text-black bg-[#4ed4d4] px-3 py-1 btn-pixel border-[#2da1a1] uppercase opacity-80 group-hover:opacity-100">
-                                Take
-                            </button>
+                                    <h3
+                                        class="text-[10px] text-white group-hover:text-[#4ed4d4] leading-relaxed transition-colors uppercase">
+                                        {{ quest.title }}
+                                    </h3>
+
+                                    <div
+                                        class="mt-auto pt-4 flex justify-between items-center border-t border-slate-800">
+                                        <span class="text-yellow-500 text-[8px] tracking-tighter">
+                                            REWARD: {{ quest.reward }}
+                                        </span>
+                                        <button
+                                            class="text-[7px] text-black bg-[#4ed4d4] px-3 py-1 btn-pixel border-[#2da1a1] uppercase opacity-80 group-hover:opacity-100">
+                                            Take
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div> </div>
-</div>
 
         </div>
 
@@ -150,9 +206,9 @@ const quests = ref([
 .rpg-panel {
     /* Gunakan @apply untuk utility standar */
     @apply bg-[#1a1c2c] border-4 border-[#3d415f] p-4;
-    
+
     /* Gunakan CSS murni untuk shadow agar tidak error di Vite/PostCSS */
-    box-shadow: 8px 8px 0px 0px rgba(0,0,0,0.5);
+    box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 0.5);
 }
 
 .btn-pixel {
