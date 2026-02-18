@@ -1,27 +1,39 @@
 <?php
 
 namespace App\Http\Controllers;
-use App\Models\Project;
-use Illuminate\Http\Request;
+
+use App\Models\Quest;
+use App\Models\User;
+use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
 
 class HomeController extends Controller
 {
     public function index()
     {
+       $userId = Auth::id();
 
-        $projects = Project::all();
+        // Ambil Quest dan tambahkan status apakah user sudah submit
+        $quests = Quest::where('status', 'available')
+            ->latest()
+            ->get()
+            ->map(function ($quest) use ($userId) {
+                // Kita tambahkan properti 'user_has_submitted' secara on-the-fly
+                $quest->user_has_submitted = $userId 
+                    ? $quest->submissions()->where('user_id', $userId)->exists() 
+                    : false;
+                return $quest;
+            });
 
-        // Data yang akan dikirim ke view 
-        $data = [
-            'nama' => "Syahid Hussein",
-            'profesi' => "Web Developer",
-            'tentang' => 'Saya seorang developer yang berpengalaman membangun website dan aplikasi web modern.',
-            'email' => 'syahid@example.com',
-            'projects' => $projects
-            
-        ];
-
-        // Mengirim data ke Blade view
-        return view('home', $data);
+        return Inertia::render('Welcome', [
+            'canLogin' => Route::has('login'),
+            'canRegister' => Route::has('register'),
+            'quests' => $quests, // Kirim data quest yang sudah diproses
+            'players' => User::select('id', 'name')->latest()->get(),
+            'laravelVersion' => Application::VERSION,
+            'phpVersion' => PHP_VERSION,
+        ]);
     }
 }

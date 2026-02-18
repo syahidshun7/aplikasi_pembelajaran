@@ -12,7 +12,9 @@ class Submission extends Model
     'content', 
     'status', 
     'admin_notes',
-    'file_path'
+    'file_path',
+    'grade',    
+    'feedback', 
 ];
 
 public function quest()

@@ -1,5 +1,5 @@
 <script setup>
-import { Head, useForm, Link,usePage } from '@inertiajs/vue3';
+import { Head, useForm, Link, usePage } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
 const props = defineProps({
@@ -100,10 +100,9 @@ const executeAbort = () => {
                             </div>
 
                             <div>
-                                <label class="block mb-2 text-white">MISSION_DETAILS:</label>
-                                <textarea v-model="form.description" rows="5"
-                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-cyan-400 outline-none text-slate-400 text-[8px] leading-relaxed uppercase"
-                                    placeholder="Describe the objective..."></textarea>
+                                <textarea v-model="form.description"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 text-[8px] uppercase focus:border-cyan-400 focus:ring-0"
+                                    style="resize: vertical !important; min-height: 120px; display: block; position: relative; z-index: 10;"></textarea>
                             </div>
 
                             <div class="grid grid-cols-2 gap-4">
@@ -173,7 +172,7 @@ const executeAbort = () => {
                                 </div>
 
                                 <div class="flex gap-4 self-end mt-2">
-                                    <Link :href="route('quests.show', q.id)"
+                                    <Link :href="route('admin.quests.submissions', q.id)"
                                         class="text-cyan-400 hover:text-white text-[8px] uppercase">
                                         [Detail]
                                     </Link>

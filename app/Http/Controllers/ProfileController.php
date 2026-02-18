@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use App\Models\Submission;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -18,10 +19,30 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): Response
     {
-        return Inertia::render('Profile/Edit', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
-            'status' => session('status'),
-        ]);
+       
+       $user = $request->user();
+
+    // Mengambil riwayat pengiriman tugas user
+    // Kita "join" dengan data Quest-nya agar bisa menampilkan Judul Quest
+    $userQuests = \App\Models\Submission::where('user_id', $user->id)
+        ->with('quest') // Memanggil relasi 'quest' di model Submission
+        ->orderBy('created_at', 'desc')
+        ->get()
+        ->map(function ($submission) {
+            return [
+                'id' => $submission->id,
+                'title' => $submission->quest->title, // Ambil judul dari tabel quests
+                'status' => $submission->status,      // Status: 'pending', 'approved', 'rejected'
+                'submitted_at' => $submission->created_at->diffForHumans(),
+                'quest_id' => $submission->quest_id
+            ];
+        });
+
+    return Inertia::render('Profile/Edit', [
+        'mustVerifyEmail' => $user instanceof MustVerifyEmail,
+        'status' => session('status'),
+        'userQuests' => $userQuests, 
+    ]);
     }
 
     /**

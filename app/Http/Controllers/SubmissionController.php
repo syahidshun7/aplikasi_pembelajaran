@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Models\Submission;
 use App\Models\Quest;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 
 class SubmissionController extends Controller
@@ -34,4 +35,8 @@ class SubmissionController extends Controller
 
         return back()->with('message', 'MISSION_REPORT_SENT_WAITING_FOR_REVIEW');
     }
+
+    
+
+ 
 }

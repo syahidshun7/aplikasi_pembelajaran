@@ -14,6 +14,9 @@
         @routes
         @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
         @inertiaHead
+
+    <link rel="preload" as="image" href="/images/bg-loby.png">
+    <link rel="preload" as="image" href="/images/logo.png">
     </head>
     <body class="font-sans antialiased">
         @inertia

@@ -55,8 +55,14 @@ class QuestController extends Controller
 
     public function show(Quest $quest)
     {
+        $submission = $quest->submissions()->where('user_id', auth()->id())->first();
+
         return Inertia::render('Quests/Show', [
-            'quest' => $quest
+            'quest' => $quest,
+            'hasSubmitted' => !!$submission,
+            'existingSubmission' => $submission // Kirim datanya ke Vue
         ]);
     }
+
+    
 }
