@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Quest extends Model
 {
    
-protected $fillable = ['uuid','title','status', 'description', 'xp_reward', 'reward_gold','difficulty', 'is_completed'];
+protected $fillable = ['uuid','title','status', 'description', 'xp_reward', 'reward_gold','difficulty', 'is_completed','study_group_id'];
 
 protected static function booted()
     {
@@ -26,4 +26,12 @@ public function submissions()
 
     return $this->hasMany(Submission::class);
 }
+
+public function studyGroup()
+{
+    return $this->belongsTo(StudyGroup::class);
+}
+
+
+
 }

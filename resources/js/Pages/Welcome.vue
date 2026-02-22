@@ -1,34 +1,30 @@
 <script setup>
-import { Head, Link, usePage, router } from '@inertiajs/vue3';
-import { computed } from 'vue';
-import { toast } from '@/Utils/Alert';
+import { Head, Link } from '@inertiajs/vue3';
+import { useLobby } from '@/Composables/useLobby';
 
 const props = defineProps({
     players: Array,
     quests: Array,
-    materi: Array, // Data dari GuideController
+    studyGroups: Array, 
+    materi: Array, 
     auth: Object
 });
 
-const page = usePage();
-const auth = computed(() => page.props.auth);
-
-const players = computed(() => props.players || []);
-const quests = computed(() => props.quests || []);
-const guides = computed(() => props.materi || []);
-
-const handleLogout = () => {
-    toast.confirm('QUIT GAME?', 'Are you sure you want to exit?')
-        .then((result) => {
-            if (result.isConfirmed) {
-                router.post(route('logout'));
-            }
-        });
-};
+// Memanggil Logic tanpa mengubah isinya
+const {
+    joinForm,
+    handleLeave,
+    handleJoin,
+    auth,
+    players,
+    quests,
+    studyGroups,
+    guides,
+    handleLogout
+} = useLobby(props);
 </script>
 
 <template>
-
     <Head title="P-QUEST | Game Lobby" />
 
     <div class="min-h-screen bg-[#0a0c10] bg-cover bg-center bg-no-repeat bg-fixed relative font-['Press_Start_2P']"
@@ -88,8 +84,6 @@ const handleLogout = () => {
 
                 <div class="col-span-12 lg:col-span-4 space-y-6">
 
-
-
                     <div
                         class="rpg-panel border-indigo-500/50 h-[380px] flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm relative">
                         <div
@@ -117,7 +111,7 @@ const handleLogout = () => {
                                             class="text-[5px] text-indigo-400 font-['Press_Start_2P'] uppercase tracking-tighter">[
                                             STUDY_MATERIAL ]</span>
                                         <span class="text-[5px] text-slate-600 font-mono italic uppercase">Ref.{{
-                                            item.uuid.substring(0,5) }}</span>
+                                            item.uuid.substring(0, 5) }}</span>
                                     </div>
 
                                     <h3
@@ -151,8 +145,6 @@ const handleLogout = () => {
                                     Database_Empty</p>
                             </div>
                         </div>
-
-
                     </div>
 
                     <div class="rpg-panel border-[#3d415f] h-[350px] flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm">
@@ -180,8 +172,61 @@ const handleLogout = () => {
                     </div>
                 </div>
 
-                <div class="col-span-12 lg:col-span-8">
-                    <div class="rpg-panel h-[745px] flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm border-[#3d415f]">
+                <div class="col-span-12 lg:col-span-8 space-y-6">
+
+                    <div class="rpg-panel flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm border-emerald-500/50">
+                        <div class="flex justify-between items-center mb-4 border-b border-emerald-900 pb-2">
+                            <h2 class="text-emerald-400 text-[10px] uppercase tracking-widest flex items-center gap-2">
+                                <span class="animate-pulse">▶</span> Active_Parties [{{ studyGroups.length }}]
+                            </h2>
+                            <span class="text-[8px] text-slate-500 uppercase font-mono">Join_via_Code</span>
+                        </div>
+
+                        <div
+                            class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[250px] overflow-y-auto pr-2 custom-scroll">
+                            <div v-for="group in studyGroups" :key="group.uuid"
+                                class="p-3 bg-[#0d1117] border-2 border-slate-800 hover:border-emerald-500 transition-all group relative overflow-hidden">
+                                <div class="absolute top-0 left-0 w-1 h-full bg-emerald-600"></div>
+
+                                <div class="flex justify-between items-start mb-1">
+                                    <h3
+                                        class="text-[10px] text-white uppercase group-hover:text-emerald-400 font-bold tracking-tight">
+                                        {{ group.name }}
+                                    </h3>
+                                    <span class="text-[7px] text-yellow-500 font-mono">{{ group.users_count || 0 }}/{{
+                                        group.max_members }}</span>
+                                </div>
+
+                                <p class="text-[8px] text-slate-500 italic line-clamp-1 mb-3">
+                                    {{ group.description || 'In pursuit of higher knowledge...' }}
+                                </p>
+
+                                <div class="flex justify-between items-center">
+                                    <span class="text-[6px] text-slate-600 uppercase font-mono tracking-tighter">
+                                        Code: {{ group.invite_code }}
+                                    </span>
+
+                                    <button v-if="group.is_member" @click="handleLeave(group.uuid)"
+                                        class="text-[7px] bg-red-900/50 text-red-400 px-3 py-1 border border-red-700 hover:bg-red-600 hover:text-white transition-all uppercase font-['Press_Start_2P']">
+                                        Leave_Party
+                                    </button>
+
+                                    <button v-else @click="handleJoin(group.invite_code)"
+                                        :disabled="joinForm.processing"
+                                        class="text-[7px] bg-emerald-900/50 text-emerald-400 px-3 py-1 border border-emerald-700 hover:bg-emerald-500 hover:text-black transition-all uppercase font-['Press_Start_2P']">
+                                        {{ joinForm.processing ? 'Joining...' : 'Join_Party' }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div v-if="studyGroups.length === 0" class="col-span-2 text-center py-4">
+                                <p class="text-slate-700 text-[8px] uppercase italic tracking-tighter">
+                                    No_Parties_Found_In_This_Realm</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rpg-panel h-[480px] flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm border-[#3d415f]">
                         <div
                             class="flex justify-between items-center mb-6 border-b border-slate-700 pb-4 flex-shrink-0">
                             <h2 class="text-yellow-400 text-xs uppercase tracking-widest animate-pulse">Available_Quests
@@ -203,7 +248,7 @@ const handleLogout = () => {
                                         <div class="flex justify-between items-start mb-3">
                                             <span
                                                 class="text-[7px] px-2 py-1 bg-slate-800 text-slate-400 border border-slate-600 uppercase">ID:{{
-                                                quest.id }}</span>
+                                                    quest.id }}</span>
                                             <span :class="{
                                                 'text-red-500': quest.difficulty === 'S-Rank',
                                                 'text-orange-500': quest.difficulty === 'A-Rank',
@@ -265,43 +310,6 @@ const handleLogout = () => {
 </template>
 
 <style scoped>
-.rpg-panel {
-    @apply border-4 p-4;
-    box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 0.5);
-}
-
-.btn-pixel {
-    @apply border-b-4 border-r-4 transition-all active:translate-y-1 active:translate-x-1 active:border-0;
-}
-
-.pixelated {
-    image-rendering: pixelated;
-}
-
-/* Scrollbars */
-.custom-scroll {
-    scrollbar-width: thin;
-    scrollbar-color: #009999 #0d1117;
-}
-
-.custom-scroll::-webkit-scrollbar {
-    width: 4px;
-}
-
-.custom-scroll::-webkit-scrollbar-thumb {
-    background: #009999;
-}
-
-.custom-scroll-indigo {
-    scrollbar-width: thin;
-    scrollbar-color: #6366f1 #0d1117;
-}
-
-.custom-scroll-indigo::-webkit-scrollbar {
-    width: 4px;
-}
-
-.custom-scroll-indigo::-webkit-scrollbar-thumb {
-    background: #4338ca;
-}
+/* Vite akan otomatis memproses file ini dan meng-enkapsulasinya ke komponen ini saja */
+@import "../../css/lobby-style.css";;
 </style>

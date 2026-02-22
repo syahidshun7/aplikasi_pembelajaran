@@ -60,6 +60,10 @@ const getGradeColor = (grade) => {
                             class="menu-btn border-indigo-500 text-indigo-400 bg-indigo-900/10 hover:bg-indigo-500 hover:text-black">
                             [O] STUDENT_DB
                         </Link>
+                         <Link href="/admin/students"
+                            class="menu-btn border-indigo-500 text-indigo-400 bg-indigo-900/10 hover:bg-grey-500 hover:text-black">
+                            [O] STUDY_GROUP
+                        </Link>
                     </nav>
                 </div>
             </div>

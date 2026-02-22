@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Models;
-
+use App\Models\StudyGroup;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -49,7 +49,14 @@ class User extends Authenticatable
 
 
     public function submissions()
+    {
+        return $this->hasMany(Submission::class);
+    }
+
+   public function studyGroups()
 {
-    return $this->hasMany(Submission::class);
+    return $this->belongsToMany(StudyGroup::class, 'group_user', 'user_id', 'study_group_id')
+                ->withPivot('role')
+                ->withTimestamps();
 }
 }

@@ -5,7 +5,8 @@ import AdminNavbar from '@/Components/AdminNavbar.vue'; // Integrasi Navbar
 import Swal from 'sweetalert2';
 
 const props = defineProps({
-    quests: Array
+    quests: Array,
+    studyGroups: Array // DATA BARU: Untuk dropdown pilihan kelompok
 });
 
 // 1. DATA MAPS (Standar Gold Fix per Rank) - TETAP 100% ORISINIL
@@ -39,13 +40,14 @@ const editId = ref(null);
 const showDeleteModal = ref(false);
 const questIdToDelete = ref(null);
 
-// 2. FORM INITIALIZATION
+// 2. FORM INITIALIZATION (Updated with study_group_id)
 const form = useForm({
     title: '',
     difficulty: 'C-Rank', 
     reward_gold: 500,     // Default awal mengikuti C-Rank
     description: '',
     status: 'Available',
+    study_group_id: null, // Default: Global Quest
 });
 
 // 3. LOGIC OTOMATISASI (Watch Difficulty) - TETAP DIPERTAHANKAN
@@ -74,6 +76,7 @@ const startEdit = (quest) => {
     form.reward_gold = quest.reward_gold;
     form.description = quest.description || '';
     form.status = quest.status || 'Available';
+    form.study_group_id = quest.study_group_id; // Ambil ID kelompok jika ada
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     Toast.fire({
@@ -218,6 +221,18 @@ const executeAbort = () => {
                                 </select>
                             </div>
 
+                            <div>
+                                <label class="block mb-2 text-white">ASSIGN_TO_PARTY:</label>
+                                <select v-model="form.study_group_id"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-emerald-400 uppercase">
+                                    <option :value="null">-- GLOBAL_QUEST (PUBLIC) --</option>
+                                    <option v-for="group in studyGroups" :key="group.id" :value="group.id">
+                                        >> PARTY: {{ group.name }}
+                                    </option>
+                                </select>
+                                <p class="mt-1 text-[7px] text-slate-500 italic uppercase">Assign mission to specific group</p>
+                            </div>
+
                             <div class="flex gap-2">
                                 <button type="submit" :disabled="form.processing"
                                     class="flex-1 py-3 border-2 uppercase font-bold transition-all"
@@ -243,7 +258,11 @@ const executeAbort = () => {
 
                                 <div class="flex justify-between items-start mb-2">
                                     <div class="flex-1">
-                                        <div class="text-[8px] text-slate-500 mb-1 uppercase tracking-tighter">ID: {{ q.uuid.substring(0,8) }} // RANK: {{ q.difficulty }}</div>
+                                        <div class="text-[8px] text-slate-500 mb-1 uppercase tracking-tighter">
+                                            ID: {{ q.uuid.substring(0,8) }} // RANK: {{ q.difficulty }}
+                                            <span v-if="q.study_group" class="text-emerald-500 ml-2">// [PARTY: {{ q.study_group.name }}]</span>
+                                            <span v-else class="text-cyan-600 ml-2">// [GLOBAL]</span>
+                                        </div>
                                         <div class="text-white uppercase">{{ q.title }}</div>
                                     </div>
                                     <div class="text-yellow-500 text-[8px] tracking-widest">+{{ q.reward_gold }} GOLD</div>
