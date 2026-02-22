@@ -25,7 +25,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/quests/{quest}/submissions', [SubmissionController::class, 'store'])->name('submissions.store');
     Route::get('/submissions/{submission}', [SubmissionController::class, 'showSubmission'])
         ->name('submissions.show');
-    
+
     // --- USER AREA ---
     Route::get('/study-groups', [StudyGroupController::class, 'index'])->name('groups.index');
     Route::post('/study-groups/join', [StudyGroupController::class, 'join'])->name('groups.join');
@@ -55,6 +55,8 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         ->name('admin.submissions.verdict');
     Route::post('/submissions/{submission}/check-ai', [AdminSubmissionController::class, 'checkWithAI'])
         ->name('admin.submissions.checkAI');
+    Route::put('/submissions/{uuid}', [SubmissionController::class, 'update'])
+        ->name('submissions.update');
 });
 
 
@@ -78,7 +80,7 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
 
 
     // --- ADMIN AREA ---    
-    Route::get('/admin/study-groups/manage', [AdminStudyGroupController::class, 'manage'])->name('groups.manage');
+    Route::get('/admin/study-groups/index', [AdminStudyGroupController::class, 'manage'])->name('groups.manage');
     Route::post('/admin/study-groups', [AdminStudyGroupController::class, 'store'])->name('groups.store');
     Route::put('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'update'])->name('groups.update');
     Route::delete('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'destroy'])->name('groups.destroy');

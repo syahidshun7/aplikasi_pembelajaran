@@ -57,6 +57,10 @@ const handleLogout = () => {
                   class="nav-item hover:text-cyan-400 transition-colors">
                 QUEST
             </Link>
+             <Link :href="route('groups.manage')" 
+                  class="nav-item hover:text-cyan-400 transition-colors">
+                STUDY_GROUP
+            </Link>
 
             <button @click="handleLogout" 
                     class="nav-item text-red-500 hover:bg-red-500/10 px-2 transition-all border border-transparent hover:border-red-500/50">

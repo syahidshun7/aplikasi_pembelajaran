@@ -55,5 +55,34 @@ class SubmissionController extends Controller
         ]
     ]);
 }
- 
+public function update(Request $request, $uuid)
+{
+    // 1. Cari data berdasarkan UUID (karena dari Vue kirim UUID)
+    $submission = Submission::where('uuid', $uuid)->firstOrFail();
+
+    // 2. Validasi (Sama dengan store)
+    $request->validate([
+        'content' => 'required|string',
+        'file' => 'nullable', // Sesuaikan dengan store kamu
+    ]);
+
+    // 3. Siapkan Data Dasar
+    $submission->content = $request->content;
+    $submission->status = 'Pending'; // Reset status supaya direview lagi
+
+    // 4. Logika File (Gaya identik dengan store kamu)
+    if ($request->hasFile('file')) {
+        // Hapus file lama jika ada agar tidak jadi sampah
+        if ($submission->file_path && Storage::disk('public')->exists($submission->file_path)) {
+            Storage::disk('public')->delete($submission->file_path);
+        }
+
+        // Simpan file baru (Sama persis logic store kamu)
+        $submission->file_path = $request->file('file')->store('submissions', 'public');
+    }
+
+    $submission->save();
+
+    return back()->with('message', 'MISSION_REPORT_UPDATED_RE-EVALUATING');
+}
 }
