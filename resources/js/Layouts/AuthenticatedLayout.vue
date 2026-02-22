@@ -2,29 +2,20 @@
 import { Link, usePage, router } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import Swal from 'sweetalert2';
-
+import { toast } from '@/Utils/Alert'; // Satukan import di atas
 const page = usePage();
 const auth = computed(() => page.props.auth);
 
 const handleLogout = () => {
-    Swal.fire({
-        title: 'LEAVING THE GUILD?',
-        text: "Your session will be closed.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'YES, LOGOUT',
-        cancelButtonText: 'STAY',
-        background: '#1a1c2c',
-        color: '#4ed4d4',
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3d415f',
-        customClass: { popup: 'border-4 border-[#3d415f] font-mono' }
-    }).then((result) => {
-        if (result.isConfirmed) {
-            router.post(route('logout'));
-        }
-    });
+    toast.confirm('QUIT GAME?', 'Are you sure you want to exit?')
+        .then((result) => {
+            if (result.isConfirmed) {
+                // Gunakan route() langsung, Inertia/Ziggy akan menanganinya
+                router.post(route('logout'));
+            }
+        });
 };
+
 </script>
 
 <template>

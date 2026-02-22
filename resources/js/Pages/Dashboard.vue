@@ -1,192 +1,130 @@
 <script setup>
-import { Head, usePage, Link, router } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import Swal from 'sweetalert2';
+import AdminNavbar from '@/Components/AdminNavbar.vue';
 
-const auth = computed(() => page.props.auth);
-
-// Definisikan fungsi logout
-const handleLogout = () => {
-    Swal.fire({
-        title: 'LEAVING THE GUILD?',
-        text: "Your session will be closed.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'YES, LOGOUT',
-        cancelButtonText: 'STAY HERE',
-        background: '#1a1c2c',
-        color: '#4ed4d4',
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3d415f',
-    }).then((result) => {
-        if (result.isConfirmed) {
-            router.post(route('logout'));
-        }
-    });
-};
+const props = defineProps({
+    stats: Object,
+    topUsers: Array, // Data user dengan grade > 75
+    recentLogs: Array
+});
 
 const page = usePage();
 
-// DATA DUMMY (Tetap sebagai fallback)
-const defaultHero = {
-    name: "Adventurer",
-    gold: 0,
-    level: 1,
-    exp: 10,
-    str: 5,
-    int: 5
+// Helper untuk warna grade
+const getGradeColor = (grade) => {
+    if (grade >= 90) return 'text-yellow-400';
+    return 'text-green-400';
 };
-
-const defaultQuests = [
-    { id: 1, title: "Connecting to Realm", xp: "Low", status: "Wait" },
-    { id: 2, title: "Loading Assets", xp: "Low", status: "Wait" }
-];
-
-const defaultLogs = [
-    "System initializing...",
-    "Waiting for server response..."
-];
-
-// PROPS: Mengambil data asli dari Laravel jika ada
-const hero = computed(() => {
-    return {
-        ...defaultHero,
-        name: page.props.auth?.user?.name || defaultHero.name,
-        // Jika Anda mengirim data 'hero' dari DashboardController, akan masuk ke sini
-        ...(page.props.hero || {})
-    };
-});
-
-// Mengambil data quest asli dari database yang dikirim lewat controller
-const quests = computed(() => page.props.quests || defaultQuests);
-const logs = computed(() => page.props.logs || defaultLogs);
-
 </script>
 
 <template>
 
-    <Head title="DASHBOARD | P-QUEST" />
+    <Head title="ADMIN_PANEL | P-QUEST" />
 
     <div
         class="min-h-screen bg-[#0f101a] p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px] leading-relaxed">
 
-        <div class="rpg-panel mb-6 flex flex-col md:flex-row items-center gap-6 border-cyan-500/50 relative">
-            <div class="w-20 h-20 border-4 border-cyan-400 bg-slate-800 shadow-[0_0_15px_rgba(78,212,212,0.3)]">
-                <img src="https://api.dicebear.com/7.x/pixel-art/svg?seed=Adventurer"
-                    class="w-full h-full object-cover">
+        <AdminNavbar />
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+                <p class="text-[8px] text-slate-500 uppercase italic mb-2">Total_Materi</p>
+                <div class="text-xl font-bold text-indigo-400">{{ stats?.total_materi || 0 }}</div>
             </div>
-
-            <div class="flex-1 w-full space-y-3">
-                <div class="flex justify-between items-center">
-                    <span class="text-white text-xs">Hero Name: {{ hero.name }}</span>
-                    <span class="text-yellow-400">GOLD: {{ hero.gold }} G</span>
-                </div>
-
-                <div class="flex items-center gap-4">
-                    <span class="whitespace-nowrap">LVL: {{ hero.level }}</span>
-                    <div class="flex-1 h-5 bg-black border-2 border-slate-700 overflow-hidden">
-                        <div class="xp-bar-fill h-full transition-all duration-1000 bg-cyan-400"
-                            :style="{ width: hero.exp + '%' }"></div>
-                    </div>
-                </div>
-
-                <div class="flex justify-between items-end">
-                    <div class="flex gap-10 text-slate-400 text-[8px]">
-                        <span>STR: {{ hero.str }}</span>
-                        <span>INT: {{ hero.int }}</span>
-                        <span class="text-cyan-500 uppercase">Status: Online</span>
-                    </div>
-
-                    <button @click="handleLogout" type="button"
-                        class="text-[10px] bg-red-900/20 border-2 border-red-600 p-2 text-red-500 hover:bg-red-600 hover:text-white transition-all btn-pixel">
-                        [X] DISCONNECT_SESSION
-                    </button>
-                </div>
+            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+                <p class="text-[8px] text-slate-500 uppercase italic mb-2">Total_Siswa</p>
+                <div class="text-xl font-bold text-cyan-400">{{ stats?.total_students || 0 }}</div>
+            </div>
+            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+                <p class="text-[8px] text-slate-500 uppercase italic mb-2">Pending_Reviews</p>
+                <div class="text-xl font-bold text-red-500 animate-pulse">{{ stats?.pending_verdicts || 0 }}</div>
             </div>
         </div>
 
         <div class="grid grid-cols-12 gap-6">
-            <div class="col-span-12 lg:col-span-3 rpg-panel flex flex-col gap-6">
-                <h2 class="text-center text-white border-b-2 border-slate-700 pb-2 uppercase">Menu</h2>
-                <nav class="space-y-2">
-                    <Link :href="route('quests.index')"
-                        class="p-2 bg-cyan-900/30 border-r-4 border-cyan-400 flex justify-between cursor-pointer hover:bg-cyan-400 hover:text-black transition-all">
-                        <span>Quests</span> <span>▶</span>
-                    </Link>
-                    <div class="p-2 opacity-30 cursor-not-allowed uppercase">Battle Arena</div>
-                    <div class="p-2 opacity-30 cursor-not-allowed uppercase">Inventory</div>
-                    <div class="p-2 opacity-30 cursor-not-allowed uppercase">Options</div>
-                </nav>
+
+            <div class="col-span-12 lg:col-span-3 space-y-4">
+                <div class="rpg-panel bg-slate-900/60 border-indigo-500/30">
+                    <h2 class="text-white mb-6 border-b-2 border-slate-700 pb-2 uppercase text-center">Menu</h2>
+                    <nav class="space-y-3">
+                        <Link :href="route('materi.index')"
+                            class="menu-btn border-yellow-500 text-yellow-500 bg-yellow-900/10 hover:bg-yellow-500 hover:text-black">
+                            [+] MANAGE_GUIDE
+                        </Link>
+                        <Link :href="route('quests.index')"
+                            class="menu-btn border-cyan-500 text-cyan-400 bg-cyan-900/10 hover:bg-cyan-400 hover:text-black">
+                            [⚔] QUEST_BOARD
+                        </Link>
+                        <Link href="/admin/students"
+                            class="menu-btn border-indigo-500 text-indigo-400 bg-indigo-900/10 hover:bg-indigo-500 hover:text-black">
+                            [O] STUDENT_DB
+                        </Link>
+                    </nav>
+                </div>
             </div>
 
-            <div class="col-span-12 lg:col-span-9 flex flex-col gap-6">
-                <div class="rpg-panel flex-1 min-h-[300px]">
-                    <h2 class="text-cyan-400 mb-6 flex items-center gap-2 uppercase tracking-tighter">
-                        <span class="animate-pulse">●</span> Active Quests (Tasks)
-                    </h2>
-                    <div class="space-y-4">
-                        <div v-for="q in quests" :key="q.id"
-                            class="flex justify-between items-center p-3 border-b border-slate-800 hover:bg-white/5 transition-colors">
-                            <span
-                                :class="q.difficulty === 'A-Rank' || q.difficulty === 'S-Rank' ? 'text-red-400' : 'text-cyan-400'">
-                                {{ q.difficulty === 'S-Rank' ? '⚔' : '⚓' }} {{ q.title }}
-                                <span class="text-[8px] opacity-50 ml-2">[{{ q.difficulty }}]</span>
-                            </span>
-
-                            <Link :href="route('quests.show', q.id)" class="btn-rpg text-[8px]"
-                                :class="q.status === 'Completed' ? 'bg-green-600 border-green-800 text-white' : ''">
-                                {{ q.status || 'VIEW' }}
-                            </Link>
+            <div class="col-span-12 lg:col-span-9 space-y-6">
+                <div class="rpg-panel min-h-[450px]">
+                    <div class="flex justify-between items-center mb-6 border-l-4 border-green-500 pl-3">
+                        <div>
+                            <h3 class="text-green-400 uppercase tracking-widest text-[12px]">Elite_Performers_Monitor
+                            </h3>
+                            <p class="text-[7px] text-slate-500 mt-1 italic">Target: Users with Avg. Grade > 75%</p>
                         </div>
-                        <p v-if="quests.length === 0" class="text-slate-600 italic">No quests available in the board...
-                        </p>
+                        <span
+                            class="text-[8px] bg-green-900/30 text-green-400 p-1 border border-green-500">QUALIFIED</span>
+                    </div>
+
+                    <div class="w-full overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b-2 border-slate-800 text-slate-500 text-[8px]">
+                                    <th class="py-3 px-2">HERO_NAME</th>
+                                    <th class="py-3 px-2">LVL</th>
+                                    <th class="py-3 px-2">QUESTS_DONE</th>
+                                    <th class="py-3 px-2 text-right">AVG_GRADE</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-[10px]">
+                                <tr v-for="user in topUsers" :key="user.id"
+                                    class="border-b border-slate-800/50 hover:bg-white/5 transition-colors">
+                                    <td class="py-4 px-2 text-white uppercase">{{ user.name }}</td>
+                                    <td class="py-4 px-2 text-cyan-500">{{ user.lvl }}</td>
+                                    <td class="py-4 px-2 text-slate-400">{{ user.total_completed }} Missions</td>
+                                    <td class="py-4 px-2 text-right font-bold" :class="getGradeColor(user.avg_grade)">
+                                        {{ user.avg_grade }}%
+                                    </td>
+                                </tr>
+                                <tr v-if="!topUsers || topUsers.length === 0">
+                                    <td colspan="4" class="py-10 text-center text-slate-600 italic">
+                                        No elite performers detected in this realm yet...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
-                <div class="rpg-panel h-32 overflow-y-auto border-slate-600">
-                    <h2 class="text-white text-[8px] mb-2 uppercase opacity-50">Battle Log</h2>
-                    <div class="space-y-1 text-[8px] text-slate-300">
-                        <p v-for="(log, i) in logs" :key="i" class="animate-in fade-in slide-in-from-left duration-500">
-                            > {{ log }}
-                        </p>
+                <div class="rpg-panel h-32 overflow-y-auto border-slate-700 bg-black/20">
+                    <h2 class="text-[8px] text-slate-500 mb-2 uppercase italic">Admin_Action_Log</h2>
+                    <div class="space-y-1 text-[8px] text-green-500/70 font-mono">
+                        <p v-for="(log, i) in recentLogs" :key="i">> {{ log }}</p>
                     </div>
                 </div>
             </div>
+
         </div>
     </div>
 </template>
 
 <style scoped>
-.xp-bar-fill {
-    background: repeating-linear-gradient(90deg,
-            #4ed4d4,
-            #4ed4d4 10px,
-            #2a7a7a 10px,
-            #2a7a7a 12px);
-}
-
-/* PERBAIKAN: Hapus spasi di dalam rgba agar Tailwind JIT tidak error */
 .rpg-panel {
-    /* Gunakan @apply untuk warna dan border saja */
-    @apply bg-[#1a1c2c] border-4 border-[#3d415f] p-4 relative;
-    
-    /* Gunakan CSS murni untuk shadow agar tidak bentrok dengan compiler Tailwind */
+    @apply p-6 relative border-4 border-[#3d415f] bg-[#1a1c2c];
     box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 0.5);
 }
 
-.btn-rpg {
-    @apply px-3 py-1 bg-[#facc15] text-black border-b-4 border-r-4 border-[#854d0e] 
-           font-bold active:border-0 active:translate-y-1 active:translate-x-1 
-           transition-all uppercase text-[10px] inline-block;
-}
-
-/* Tambahan: Efek Hover untuk tombol agar lebih "gamey" */
-.btn-rpg:hover {
-    @apply bg-yellow-400;
-}
-/* Animasi tambahan */
-.btn-pixel:active {
-    box-shadow: none;
-    transform: translate(2px, 2px);
+.menu-btn {
+    @apply block w-full p-3 text-left border-r-4 transition-all uppercase text-[10px] hover:translate-x-2;
 }
 </style>

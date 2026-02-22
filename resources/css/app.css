@@ -5,7 +5,15 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 3. Custom Layer RPG */
+/* 2. Base Fixes */
+@layer base {
+  /* Memastikan font global jika kamu mau seluruh aplikasi pakai font ini */
+  body {
+    font-family: 'Press Start 2P', cursive;
+  }
+}
+
+/* 3. Custom Layer RPG Components */
 @layer components {
   .rpg-panel {
     @apply bg-[#1a1c2c] border-4 border-[#3d4153] p-4 relative;
@@ -30,4 +38,88 @@
   .btn-pixel {
     @apply border-b-4 border-r-4 transition-all active:translate-y-1 active:border-0;
   }
+
+  /* Kita pindahkan style alert ke utility agar lebih kuat */
+  .btn-pixel-alert {
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 8px !important;
+    padding: 10px 20px !important;
+    text-transform: uppercase !important;
+    border-bottom: 4px solid rgba(0,0,0,0.4) !important;
+    border-right: 4px solid rgba(0,0,0,0.4) !important;
+    margin: 5px !important;
+  }
+}
+
+/* --- RPG SWEETALERT OVERRIDE --- */
+
+/* 1. Box Popup Utama */
+.rpg-popup-box {
+    border: 4px solid #3d4153 !important;
+    border-radius: 0 !important;
+    box-shadow: 10px 10px 0px 0px rgba(0,0,0,0.5) !important;
+    padding: 2rem !important;
+}
+
+/* 2. Judul dan Teks */
+.rpg-title, .swal2-title {
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 14px !important;
+    text-transform: uppercase !important;
+    margin-bottom: 15px !important;
+}
+
+.rpg-text, .swal2-html-container {
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 8px !important;
+    line-height: 1.6 !important;
+    text-transform: uppercase !important;
+    color: #94a3b8 !important; /* Slate 400 */
+}
+
+/* 3. Tombol (Tombol Biru Akan Hilang Di Sini) */
+.btn-pixel-alert {
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 8px !important;
+    padding: 12px 20px !important;
+    text-transform: uppercase !important;
+    border-radius: 0 !important;
+    cursor: pointer !important;
+    margin: 10px !important;
+    border: none !important;
+    /* Efek Pixel 3D */
+    border-right: 4px solid rgba(0,0,0,0.4) !important;
+    border-bottom: 4px solid rgba(0,0,0,0.4) !important;
+    display: inline-block !important;
+}
+
+.btn-confirm-rpg {
+    background-color: #009999 !important; /* Hijau/Cyan */
+    color: #000 !important;
+}
+
+.btn-confirm-rpg:hover {
+    background-color: #4ed4d4 !important;
+}
+
+.btn-cancel-rpg {
+    background-color: #7f1d1d !important; /* Merah */
+    color: #fff !important;
+}
+
+.btn-cancel-rpg:hover {
+    background-color: #b91c1c !important;
+}
+
+/* Efek Tekan */
+.btn-pixel-alert:active {
+    transform: translate(2px, 2px) !important;
+    border-right-width: 0 !important;
+    border-bottom-width: 0 !important;
+}
+
+/* Merapikan container tombol agar tidak berantakan */
+.rpg-actions {
+    margin-top: 20px !important;
+    gap: 10px !important;
 }

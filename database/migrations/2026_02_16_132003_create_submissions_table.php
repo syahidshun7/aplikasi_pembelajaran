@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('submissions', function (Blueprint $table) {
             // Menghubungkan ke tabel quests
             $table->id();
+            $table->uuid('uuid')->unique();
             $table->foreignId('quest_id')->constrained()->onDelete('cascade');
             // Menghubungkan ke tabel users (yang mengerjakan)
             $table->foreignId('user_id')->constrained()->onDelete('cascade');

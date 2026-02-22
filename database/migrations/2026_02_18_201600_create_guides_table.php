@@ -11,15 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('quests', function (Blueprint $table) {
+        Schema::create('guides', function (Blueprint $table) {
         $table->id();
-        $table->uuid('uuid')->unique();
+        $table->uuid('uuid')->unique(); // Untuk keamanan link industri
         $table->string('title');
         $table->text('description')->nullable();
-        $table->enum('difficulty', ['C-Rank', 'B-Rank', 'A-Rank', 'S-Rank'])->default('C-Rank');
-        $table->integer('reward_gold')->default(0);
-        $table->integer('reward_xp')->default(0);
-        $table->enum('status', ['Available', 'In-Progress', 'Done'])->default('Available');
+        $table->string('file_path')->nullable(); // Lokasi penyimpanan file PDF/Image
         $table->timestamps();
     });
     }
@@ -29,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('quests');
+        Schema::dropIfExists('guides');
     }
 };

@@ -18,7 +18,7 @@ const submit = () => {
 <template>
     <GuestLayout>
         <Head title="Log In | P-QUEST" />
-
+ 
         <form @submit.prevent="submit" class="space-y-6">
             <div>
                 <label class="block text-[#009999] text-[10px] uppercase mb-2">> USER_ID (EMAIL)</label>

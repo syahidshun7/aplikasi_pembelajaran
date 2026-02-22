@@ -1,9 +1,10 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
-// use Illuminate\Foundation\Application;
 use App\Http\Controllers\QuestController;
 use App\Http\Controllers\AdminQuestController;
+use App\Http\Controllers\AdminSubmissionController;
+use App\Http\Controllers\AdminGuideController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\SubmissionController;
 use Illuminate\Support\Facades\Route;
@@ -20,6 +21,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/quests/{quest}', [QuestController::class, 'show'])->name('quests.show');
     Route::post('/quests/{quest}/submissions', [SubmissionController::class, 'store'])->name('submissions.store');
+   Route::get('/submissions/{submission}', [SubmissionController::class, 'showSubmission'])
+    ->name('submissions.show');
 });
 
 
@@ -34,19 +37,39 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::patch('/quests/{quest}', [QuestController::class, 'update'])->name('quests.update');
     Route::delete('/quests/{quest}', [QuestController::class, 'destroy'])->name('quests.destroy');
 
-    // Pastikan route ini berada di dalam group admin kamu
-    Route::get('/admin/quests/{quest}/submissions', [AdminQuestController::class, 'submissions'])
+    
+    Route::get('/quests/{quest}/submissions', [AdminQuestController::class, 'submissions'])
         ->name('admin.quests.submissions');
-    Route::get('/submissions/{submission}/inspect', [AdminQuestController::class, 'inspect'])
+
+
+    Route::get('/submissions/{submission}/inspect', [AdminSubmissionController::class, 'inspect'])
         ->name('admin.submissions.inspect');
-    Route::post('/submissions/{submission}/verdict', [AdminQuestController::class, 'verdict'])
+    Route::post('/submissions/{submission}/verdict', [AdminSubmissionController::class, 'verdict'])
         ->name('admin.submissions.verdict');
-    Route::post('/submissions/{submission}/check-ai', [AdminQuestController::class, 'checkWithAI'])
+    Route::post('/submissions/{submission}/check-ai', [AdminSubmissionController::class, 'checkWithAI'])
     ->name('admin.submissions.checkAI');
+
+
+
+    
 });
 
 
-
+Route::middleware(['auth', 'verified'])->prefix('admin')->group(function () {
+    
+    // Halaman Utama CRUD (List & Form Jadi Satu)
+    Route::get('/materi', [AdminGuideController::class, 'index'])->name('materi.index');
+    
+    // Proses Simpan Data Baru
+    Route::post('/materi', [AdminGuideController::class, 'store'])->name('materi.store');
+    
+    // Proses Update (Gunakan POST + Spoofing PATCH di Vue agar upload file aman)
+    Route::post('/materi/{uuid}', [AdminGuideController::class, 'update'])->name('materi.update');
+    
+    // Proses Hapus
+    Route::delete('/materi/{uuid}', [AdminGuideController::class, 'destroy'])->name('materi.destroy');
+    
+});
 
 
 

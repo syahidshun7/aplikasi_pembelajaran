@@ -1,7 +1,6 @@
 <?php
 
 namespace App\Http\Controllers;
-
 use App\Http\Requests\ProfileUpdateRequest;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
@@ -17,34 +16,59 @@ class ProfileController extends Controller
     /**
      * Display the user's profile form.
      */
-    public function edit(Request $request): Response
-    {
-       
-       $user = $request->user();
+ public function edit(Request $request): Response
+{
+    $user = $request->user();
 
-    // Mengambil riwayat pengiriman tugas user
-    // Kita "join" dengan data Quest-nya agar bisa menampilkan Judul Quest
+    // 1. Ambil semua submission yang sudah diproses (sudah ada nilainya)
+    $completedSubmissions = \App\Models\Submission::where('user_id', $user->id)
+        ->whereIn('status', ['Approved', 'Rejected']) // Hanya hitung yang sudah dinilai
+        ->get();
+
+    $totalCompleted = $completedSubmissions->count();
+
+    // 2. Hitung rata-rata Grade
+    // Kita gunakan collection sum() dan dibagi totalnya
+    $averageGrade = $totalCompleted > 0 
+        ? round($completedSubmissions->sum('grade') / $totalCompleted, 1) 
+        : 0;
+
+    $userData = [
+        'id'    => $user->id,
+        'uuid'  => $user->uuid,
+        'name'  => $user->name,
+        'email' => $user->email,
+        'gold'  => $user->gold ?? 0,
+        'lvl'   => $user->lvl ?? 1,
+        'exp'   => $user->exp ?? 0, // [TAMBAHAN] Masukkan EXP agar bar di frontend jalan
+        'role'  => $user->role,
+    ];
+
     $userQuests = \App\Models\Submission::where('user_id', $user->id)
-        ->with('quest') // Memanggil relasi 'quest' di model Submission
+        ->with('quest')
         ->orderBy('created_at', 'desc')
         ->get()
         ->map(function ($submission) {
             return [
-                'id' => $submission->id,
-                'title' => $submission->quest->title, // Ambil judul dari tabel quests
-                'status' => $submission->status,      // Status: 'pending', 'approved', 'rejected'
+                'id'           => $submission->id,
+                'uuid'         => $submission->uuid,
+                'title'        => $submission->quest?->title ?? 'Unknown Quest',
+                'status'       => $submission->status,
+                'grade'        => $submission->grade, // [OPSIONAL] Jika ingin tampilkan grade per baris
                 'submitted_at' => $submission->created_at->diffForHumans(),
-                'quest_id' => $submission->quest_id
+                'quest_uuid'   => $submission->quest?->uuid 
             ];
         });
 
     return Inertia::render('Profile/Edit', [
-        'mustVerifyEmail' => $user instanceof MustVerifyEmail,
-        'status' => session('status'),
-        'userQuests' => $userQuests, 
+        'user'            => $userData,
+        'mustVerifyEmail' => $user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail,
+        'status'          => session('status'),
+        'userQuests'      => $userQuests,
+        'averageGrade'    => $averageGrade,    // [DIKIRIM KE FRONTEND]
+        'totalCompleted'  => $totalCompleted,  // [DIKIRIM KE FRONTEND]
     ]);
-    }
-
+}
     /**
      * Update the user's profile information.
      */
@@ -81,4 +105,6 @@ class ProfileController extends Controller
 
         return Redirect::to('/');
     }
+
+    
 }

@@ -15,20 +15,32 @@ class QuestController extends Controller
         ]);
     }
 
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'difficulty' => 'required',
-            'reward_gold' => 'required|integer',
-            'description' => 'nullable|string',
-            'status' => 'required',
-        ]);
+   public function store(Request $request)
+{
+    $validated = $request->validate([
+        'title' => 'required|string|max:255',
+        'difficulty' => 'required',
+        'reward_gold' => 'nullable|integer', // Buat nullable karena akan kita timpa/isi otomatis
+        'description' => 'nullable|string',
+        'status' => 'required',
+    ]);
 
-        Quest::create($validated);
+    $goldTable = [
+        'S-Rank' => 5000,
+        'A-Rank' => 2500,
+        'B-Rank' => 1000,
+        'C-Rank' => 500,
+        'D-Rank' => 100,
+    ];
 
-        return redirect()->back()->with('message', 'New Quest Added to Board!');
-    }
+    // Otomatis isi reward_gold ke dalam array validated berdasarkan difficulty
+    $validated['reward_gold'] = $goldTable[$request->difficulty] ?? ($request->reward_gold ?? 0);
+
+    // Simpan hanya satu kali dengan data lengkap
+    Quest::create($validated);
+
+    return redirect()->back()->with('message', 'New Quest Added to Board!');
+}
 
     public function update(Request $request, Quest $quest)
     {

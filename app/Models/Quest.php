@@ -1,16 +1,29 @@
 <?php
 
 namespace App\Models;
-
+use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Model;
 
 class Quest extends Model
 {
    
-protected $fillable = ['title','status', 'description', 'xp_reward', 'reward_gold','difficulty', 'is_completed'];
+protected $fillable = ['uuid','title','status', 'description', 'xp_reward', 'reward_gold','difficulty', 'is_completed'];
+
+protected static function booted()
+    {
+        static::creating(function ($quest) {
+            $quest->uuid = (string) Str::uuid();
+        });
+    }
+
+    public function getRouteKeyName()
+    {
+        return 'uuid';
+    }
 
 public function submissions()
 {
+
     return $this->hasMany(Submission::class);
 }
 }

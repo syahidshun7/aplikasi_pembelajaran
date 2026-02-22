@@ -37,6 +37,23 @@ class SubmissionController extends Controller
     }
 
     
+    public function showSubmission(Submission $submission) // Laravel otomatis mencari data berdasarkan ID
+{
+    // Cek izin lewat Policy 'view'
+    $this->authorize('view', $submission);
 
+    return Inertia::render('Quests/SubmissionDetail', [
+        'submission' => [
+            'id' => $submission->id,
+            'uuid' => $submission->uuid,
+            'status' => $submission->status,
+            'content' => $submission->content,
+            'feedback' => $submission->feedback,
+            'submitted_at' => $submission->created_at->format('d M Y | H:i'),
+            'quest' => $submission->quest,
+            'grade' => $submission->grade
+        ]
+    ]);
+}
  
 }

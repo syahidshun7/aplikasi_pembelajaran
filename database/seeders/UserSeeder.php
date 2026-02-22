@@ -13,8 +13,8 @@ class UserSeeder extends Seeder
         // 1. Buat Akun Admin
         User::create([
             'name'     => 'Zoro Admin',
-            'email'    => 'admin@guild.com',
-            'password' => Hash::make('password123'), // Password untuk login
+            'email'    => 'syahidshun7@gmail.com',
+            'password' => Hash::make('12345678'), // Password untuk login
             'role'     => 'admin', // Pastikan kolom role sudah ada di tabel users
         ]);
 
@@ -22,7 +22,7 @@ class UserSeeder extends Seeder
         User::create([
             'name'     => 'Luffy Player',
             'email'    => 'player@guild.com',
-            'password' => Hash::make('password123'),
+            'password' => Hash::make('12345678'),
             'role'     => 'user',
         ]);
 
