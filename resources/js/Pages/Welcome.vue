@@ -108,9 +108,9 @@ const {
                                 <div class="p-3 pl-5 relative">
                                     <div class="flex justify-between items-center mb-1">
                                         <span
-                                            class="text-[5px] text-indigo-400 font-['Press_Start_2P'] uppercase tracking-tighter">[
+                                            class="text-[7px] text-indigo-400 font-['Press_Start_2P'] uppercase tracking-tighter">[
                                             STUDY_MATERIAL ]</span>
-                                        <span class="text-[5px] text-slate-600 font-mono italic uppercase">Ref.{{
+                                        <span class="text-[10px] text-slate-600 font-mono italic uppercase">Ref.{{
                                             item.uuid.substring(0, 5) }}</span>
                                     </div>
 
@@ -120,7 +120,7 @@ const {
                                     </h3>
 
                                     <p
-                                        class="text-[10px] font-sans text-slate-500 italic mb-4 line-clamp-2 leading-snug">
+                                        class="text-[12px] font-sans text-slate-500 italic mb-4 line-clamp-2 leading-snug">
                                         {{ item.description || 'Accessing knowledge database...' }}
                                     </p>
 
@@ -128,11 +128,11 @@ const {
                                         <div class="flex items-center gap-1">
                                             <span class="w-1 h-1 bg-green-500 rounded-full animate-pulse"></span>
                                             <span
-                                                class="text-[5px] text-slate-500 font-['Press_Start_2P'] uppercase">Verified</span>
+                                                class="text-[8px] text-slate-500 font-['Press_Start_2P'] uppercase">Verified</span>
                                         </div>
 
                                         <a v-if="item.file_path" :href="'/storage/' + item.file_path" target="_blank"
-                                            class="text-[7px] bg-[#1a1c2c] text-indigo-300 px-3 py-1.5 border-b-2 border-r-2 border-indigo-900 hover:bg-indigo-500 hover:text-white transition-all uppercase font-['Press_Start_2P']">
+                                            class="text-[8px] bg-[#1a1c2c] text-indigo-300 px-3 py-1.5 border-b-2 border-r-2 border-indigo-900 hover:bg-indigo-500 hover:text-white transition-all uppercase font-['Press_Start_2P']">
                                             LEARN
                                         </a>
                                     </div>
@@ -162,9 +162,9 @@ const {
                                 <div class="flex-1">
                                     <div class="flex justify-between text-[8px] font-sans font-bold">
                                         <span class="text-[14px] text-white uppercase">{{ player.name }}</span>
-                                        <span class="text-[#009999]">LVL.{{ player.lvl || 1 }}</span>
+                                        <span class="text-[10px] text-[#009999]">LVL.{{ player.lvl || 1 }}</span>
                                     </div>
-                                    <p class="text-[6px] text-slate-400 mt-1 uppercase">{{ player.job || 'Adventurer' }}
+                                    <p class="text-[8px] text-slate-400 mt-1 uppercase">{{ player.job || 'Adventurer' }}
                                     </p>
                                 </div>
                             </div>
@@ -179,7 +179,7 @@ const {
                             <h2 class="text-emerald-400 text-[10px] uppercase tracking-widest flex items-center gap-2">
                                 <span class="animate-pulse">▶</span> Active_Parties [{{ studyGroups.length }}]
                             </h2>
-                            <span class="text-[8px] text-slate-500 uppercase font-mono">Join_via_Code</span>
+                            <span class="text-[10px] text-slate-500 uppercase font-mono">Join_via_Code</span>
                         </div>
 
                         <div
@@ -190,10 +190,10 @@ const {
 
                                 <div class="flex justify-between items-start mb-1">
                                     <h3
-                                        class="text-[10px] text-white uppercase group-hover:text-emerald-400 font-bold tracking-tight">
+                                        class="text-[14px] text-white uppercase group-hover:text-emerald-400 font-bold tracking-tight">
                                         {{ group.name }}
                                     </h3>
-                                    <span class="text-[7px] text-yellow-500 font-mono">{{ group.users_count || 0 }}/{{
+                                    <span class="text-[12px] text-yellow-500 font-mono">{{ group.users_count || 0 }}/{{
                                         group.max_members }}</span>
                                 </div>
 
@@ -202,18 +202,18 @@ const {
                                 </p>
 
                                 <div class="flex justify-between items-center">
-                                    <span class="text-[6px] text-slate-600 uppercase font-mono tracking-tighter">
+                                    <span class="text-[10px] text-slate-600 uppercase font-mono tracking-tighter">
                                         Code: {{ group.invite_code }}
                                     </span>
 
                                     <button v-if="group.is_member" @click="handleLeave(group.uuid)"
-                                        class="text-[7px] bg-red-900/50 text-red-400 px-3 py-1 border border-red-700 hover:bg-red-600 hover:text-white transition-all uppercase font-['Press_Start_2P']">
+                                        class="text-[9px] bg-red-900/50 text-red-400 px-3 py-1 border border-red-700 hover:bg-red-600 hover:text-white transition-all uppercase font-['Press_Start_2P']">
                                         Leave_Party
                                     </button>
 
                                     <button v-else @click="handleJoin(group.invite_code)"
                                         :disabled="joinForm.processing"
-                                        class="text-[7px] bg-emerald-900/50 text-emerald-400 px-3 py-1 border border-emerald-700 hover:bg-emerald-500 hover:text-black transition-all uppercase font-['Press_Start_2P']">
+                                        class="text-[9px] bg-emerald-900/50 text-emerald-400 px-3 py-1 border border-emerald-700 hover:bg-emerald-500 hover:text-black transition-all uppercase font-['Press_Start_2P']">
                                         {{ joinForm.processing ? 'Joining...' : 'Join_Party' }}
                                     </button>
                                 </div>
