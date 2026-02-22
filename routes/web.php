@@ -25,7 +25,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/quests/{quest}/submissions', [SubmissionController::class, 'store'])->name('submissions.store');
     Route::get('/submissions/{submission}', [SubmissionController::class, 'showSubmission'])
         ->name('submissions.show');
-
+    Route::put('/submissions/{uuid}', [SubmissionController::class, 'update'])
+        ->name('submissions.update');
     // --- USER AREA ---
     Route::get('/study-groups', [StudyGroupController::class, 'index'])->name('groups.index');
     Route::post('/study-groups/join', [StudyGroupController::class, 'join'])->name('groups.join');
@@ -55,8 +56,7 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         ->name('admin.submissions.verdict');
     Route::post('/submissions/{submission}/check-ai', [AdminSubmissionController::class, 'checkWithAI'])
         ->name('admin.submissions.checkAI');
-    Route::put('/submissions/{uuid}', [SubmissionController::class, 'update'])
-        ->name('submissions.update');
+        
 });
 
 
