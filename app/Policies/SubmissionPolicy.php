@@ -18,7 +18,7 @@ class SubmissionPolicy
         }
 
         // 2. Jika user biasa, cek apakah ID-nya sama dengan pemilik submission
-        return $user->id === $submission->user_id;
+       return (string) $user->id === (string) $submission->user_id;
     }
 
     /**
