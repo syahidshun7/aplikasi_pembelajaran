@@ -5,8 +5,8 @@ import { useLobby } from '@/Composables/useLobby';
 const props = defineProps({
     players: Array,
     quests: Array,
-    studyGroups: Array, 
-    materi: Array, 
+    studyGroups: Array,
+    materi: Array,
     auth: Object
 });
 
@@ -25,6 +25,7 @@ const {
 </script>
 
 <template>
+
     <Head title="P-QUEST | Game Lobby" />
 
     <div class="min-h-screen bg-[#0a0c10] bg-cover bg-center bg-no-repeat bg-fixed relative font-['Press_Start_2P']"
@@ -150,21 +151,49 @@ const {
                     <div class="rpg-panel border-[#3d415f] h-[350px] flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm">
                         <h2
                             class="text-[#4ed4d4] text-[10px] mb-4 flex items-center gap-2 border-b border-slate-700 pb-2 flex-shrink-0 uppercase">
-                            <span>●</span> Players[{{ players.length }}]
+                            <span>●</span> Leaderboard - Players[{{ players.length }}]
                         </h2>
                         <div class="space-y-4 overflow-y-auto pr-2 custom-scroll flex-1">
-                            <div v-for="player in players" :key="player.id"
-                                class="flex items-center gap-4 p-2 hover:bg-[#009999]/10 border-l-4 border-transparent hover:border-[#009999] transition-all">
-                                <div class="w-10 h-10 bg-slate-800 border-2 border-slate-600 flex-shrink-0">
-                                    <img :src="`https://api.dicebear.com/7.x/pixel-art/svg?seed=${player.name}`"
-                                        class="w-full h-full">
-                                </div>
-                                <div class="flex-1">
-                                    <div class="flex justify-between text-[8px] font-sans font-bold">
-                                        <span class="text-[14px] text-white uppercase">{{ player.name }}</span>
-                                        <span class="text-[10px] text-[#009999]">LVL.{{ player.lvl || 1 }}</span>
+                            <div v-for="(player, index) in players" :key="player.id"
+                                class="flex items-center gap-4 p-2 hover:bg-[#009999]/10 border-l-4 border-transparent hover:border-[#009999] transition-all relative">
+
+                                <div class="relative">
+                                    <div v-if="index < 3"
+                                        class="absolute -top-3 -left-2 z-10 drop-shadow-[0_0_5px_rgba(0,0,0,0.5)]">
+                                        <span v-if="index === 0" class="text-xl">👑</span>
+                                        <span v-else-if="index === 1" class="text-xl">🥈</span>
+                                        <span v-else-if="index === 2" class="text-xl">🥉</span>
                                     </div>
-                                    <p class="text-[8px] text-slate-400 mt-1 uppercase">{{ player.job || 'Adventurer' }}
+
+                                    <div class="w-10 h-10 bg-slate-800 border-2 flex-shrink-0 overflow-hidden shadow-lg"
+                                        :class="{
+                                            'border-yellow-400 shadow-yellow-500/50 animate-pulse': index === 0,
+                                            'border-slate-300 shadow-slate-400/50': index === 1,
+                                            'border-amber-600 shadow-amber-700/50': index === 2,
+                                            'border-slate-600': index > 2
+                                        }">
+                                        <img v-if="player.profile_photo" :src="'/storage/' + player.profile_photo"
+                                            class="w-full h-full object-cover">
+                                        <img v-else
+                                            :src="`https://api.dicebear.com/7.x/pixel-art/svg?seed=${player.username || player.name}`"
+                                            class="w-full h-full">
+                                    </div>
+                                </div>
+
+                                <div class="flex-1">
+                                    <div class="flex justify-between text-[8px] font-sans font-bold items-center">
+                                        <span class="text-[14px] text-white uppercase truncate max-w-[120px]"
+                                            :class="{ 'text-yellow-400 font-black': index === 0 }">
+                                            {{ player.username || player.name }}
+                                        </span>
+                                        <span class="text-[10px]" :class="index < 3 ? 'text-white' : 'text-[#009999]'">
+                                            LVL.{{ player.lvl || 1 }}
+                                        </span>
+                                    </div>
+                                    <p class="text-[8px] text-slate-400 mt-1 uppercase flex justify-between">
+                                        <span>{{ player.role || 'Adventurer' }}</span>
+                                        <span v-if="index < 3" class="italic text-slate-500">Rank #{{ index + 1
+                                        }}</span>
                                     </p>
                                 </div>
                             </div>
@@ -235,7 +264,7 @@ const {
                         </div>
 
                         <div class="overflow-y-auto pr-2 custom-scroll flex-1">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4">
+                            <div v-if="quests.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4">
                                 <div v-for="quest in quests" :key="quest.uuid"
                                     class="rpg-panel bg-[#161b22] transition-all group cursor-pointer shadow-none flex flex-col h-[200px]"
                                     :class="[
@@ -248,7 +277,7 @@ const {
                                         <div class="flex justify-between items-start mb-3">
                                             <span
                                                 class="text-[7px] px-2 py-1 bg-slate-800 text-slate-400 border border-slate-600 uppercase">ID:{{
-                                                    quest.id }}</span>
+                                                quest.id }}</span>
                                             <span :class="{
                                                 'text-red-500': quest.difficulty === 'S-Rank',
                                                 'text-orange-500': quest.difficulty === 'A-Rank',
@@ -295,6 +324,20 @@ const {
                                     </div>
                                 </div>
                             </div>
+
+                            <div v-else
+                                class="flex flex-col items-center justify-center h-[300px] border-2 border-dashed border-slate-800 rounded-lg p-6 text-center">
+                                <div class="text-slate-600 text-4xl mb-4 italic">!</div>
+                                <h3 class="text-[#4ed4d4] text-[12px] uppercase tracking-[0.2em] mb-2 font-bold">No
+                                    Quests Available
+                                </h3>
+                                <p class="text-slate-500 text-[9px] uppercase leading-relaxed max-w-[250px]">
+                                    Your quest journal is empty. Please join a <span class="text-white underline">Party
+                                        / Study
+                                        Group</span> to unlock exclusive missions and challenges.
+                                </p>
+                                <div class="mt-6 h-[1px] w-20 bg-slate-800"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -311,5 +354,6 @@ const {
 
 <style scoped>
 /* Vite akan otomatis memproses file ini dan meng-enkapsulasinya ke komponen ini saja */
-@import "../../css/lobby-style.css";;
+@import "../../css/lobby-style.css";
+;
 </style>

@@ -8,8 +8,8 @@ import DeleteUserForm from './Partials/DeleteUserForm.vue';
 
 // 1. Definisikan Props
 const props = defineProps({
-    user: Object,        
-    userQuests: Array,   
+    user: Object,
+    userQuests: Array,
     averageGrade: Number,   // Nilai rata-rata dari Controller
     totalCompleted: Number, // Total quest selesai dari Controller
     mustVerifyEmail: Boolean,
@@ -33,32 +33,46 @@ const getGradeColor = (grade) => {
 
 <template>
     <AuthenticatedLayout>
+
         <Head title="HERO_STATUS | P-QUEST" />
 
         <div class="max-w-7xl mx-auto space-y-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px] leading-relaxed">
 
-            <div class="rpg-panel flex flex-col md:flex-row items-center gap-6 border-cyan-500/50 bg-[#1a1c2c]/80 backdrop-blur-md">
-                <div class="w-20 h-20 border-4 border-cyan-400 bg-slate-800 shadow-[0_0_15px_rgba(78,212,212,0.3)] relative">
-                    <img :src="`https://api.dicebear.com/7.x/pixel-art/svg?seed=${userData.name}`"
+            <div
+                class="rpg-panel flex flex-col md:flex-row items-center gap-6 border-cyan-500/50 bg-[#1a1c2c]/80 backdrop-blur-md">
+                <div
+                    class="w-20 h-20 border-4 border-cyan-400 bg-slate-800 shadow-[0_0_15px_rgba(78,212,212,0.3)] relative overflow-hidden">
+                    <img v-if="userData.profile_photo" :src="'/storage/' + userData.profile_photo"
+                        class="w-full h-full object-cover">
+
+                    <img v-else
+                        :src="`https://api.dicebear.com/7.x/pixel-art/svg?seed=${userData.username || 'guild-member'}`"
                         class="w-full h-full object-cover">
                 </div>
+
                 <div class="flex-1 w-full space-y-4">
                     <div class="flex justify-between items-center">
-                        <h1 class="text-white text-lg uppercase italic tracking-tighter">{{ userData.name }}</h1>
-                        <span class="text-yellow-400 text-sm">{{ userData.gold || 0 }} <span
-                                class="text-[8px]">G</span></span>
+                        <h1 class="text-white text-lg uppercase italic tracking-tighter">
+                            {{ userData.username || userData.name }}
+                        </h1>
+                        <span class="text-yellow-400 text-sm">
+                            {{ userData.gold || 0 }}
+                            <span class="text-[8px]">G</span>
+                        </span>
                     </div>
+
                     <div class="w-full h-4 bg-black border-2 border-slate-700 p-[2px] overflow-hidden relative">
                         <div class="h-full bg-cyan-500 shadow-[0_0_10px_#06b6d4] transition-all duration-1000"
-                            :style="{ width: (userData.exp ? (userData.exp % 1000) / 10 : 0) + '%' }"></div>
+                            :style="{ width: (userData.exp ? (userData.exp % 1000) / 10 : 0) + '%' }">
+                        </div>
                     </div>
+
                     <div class="flex justify-between text-[8px] text-slate-400">
                         <span>LVL. {{ userData.lvl || 1 }}</span>
                         <span>EXP: {{ userData.exp % 1000 }} / 1000</span>
                     </div>
                 </div>
             </div>
-
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
                     <p class="text-[7px] text-slate-500 uppercase italic mb-2">Overall_Grade_AVG</p>
@@ -67,9 +81,9 @@ const getGradeColor = (grade) => {
                             {{ averageGrade || 0 }}%
                         </span>
                         <div class="flex-1 h-1 bg-slate-800 ml-2 relative overflow-hidden">
-                            <div class="h-full bg-current transition-all duration-1000" 
-                                 :class="getGradeColor(averageGrade)"
-                                 :style="{ width: (averageGrade || 0) + '%' }"></div>
+                            <div class="h-full bg-current transition-all duration-1000"
+                                :class="getGradeColor(averageGrade)" :style="{ width: (averageGrade || 0) + '%' }">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -151,7 +165,8 @@ const getGradeColor = (grade) => {
                                 </div>
                                 <div v-else class="text-center py-10">
                                     <p class="text-slate-600 italic">No missions taken yet...</p>
-                                    <Link :href="route('lobby')" class="text-cyan-400 underline mt-4 inline-block hover:text-white">
+                                    <Link :href="route('lobby')"
+                                        class="text-cyan-400 underline mt-4 inline-block hover:text-white">
                                         Browse_Quests
                                     </Link>
                                 </div>
@@ -162,12 +177,14 @@ const getGradeColor = (grade) => {
                             <h3 class="text-cyan-400 mb-6 uppercase tracking-widest border-l-4 border-cyan-400 pl-3">
                                 Update_Identity</h3>
                             <div class="form-container">
-                                <UpdateProfileInformationForm :must-verify-email="mustVerifyEmail" :status="status" />
+                                <UpdateProfileInformationForm :must-verify-email="mustVerifyEmail" :status="status"
+                                    :user="user" class="max-w-xl" />
                             </div>
                         </div>
 
                         <div v-if="activeTab === 'password'" class="space-y-6">
-                            <h3 class="text-yellow-500 mb-6 uppercase tracking-widest border-l-4 border-yellow-500 pl-3">
+                            <h3
+                                class="text-yellow-500 mb-6 uppercase tracking-widest border-l-4 border-yellow-500 pl-3">
                                 Security_Protocol</h3>
                             <div class="form-container">
                                 <UpdatePasswordForm />
@@ -191,7 +208,8 @@ const getGradeColor = (grade) => {
 
                 <div class="col-span-12 lg:col-span-3">
                     <div class="rpg-panel border-indigo-500/50 bg-indigo-900/20">
-                        <h2 class="text-indigo-400 mb-6 border-b-2 border-indigo-900 pb-2 uppercase text-center text-[8px]">
+                        <h2
+                            class="text-indigo-400 mb-6 border-b-2 border-indigo-900 pb-2 uppercase text-center text-[8px]">
                             Rank_Status</h2>
                         <div class="flex flex-col items-center gap-6 py-4">
                             <div class="text-3xl animate-bounce">
@@ -199,9 +217,11 @@ const getGradeColor = (grade) => {
                             </div>
                             <div class="text-center">
                                 <p class="text-slate-400 text-[6px] mb-2">CLASS_TITLE</p>
-                                <p class="text-white text-sm tracking-widest uppercase">{{ userData.role || 'NOVICE' }}</p>
+                                <p class="text-white text-sm tracking-widest uppercase">{{ userData.role || 'NOVICE' }}
+                                </p>
                                 <p class="text-[6px] mt-2" :class="getGradeColor(averageGrade)">
-                                    GRADE_RANK: {{ averageGrade >= 90 ? 'S-CLASS' : (averageGrade >= 80 ? 'A-CLASS' : 'B-CLASS') }}
+                                    GRADE_RANK: {{ averageGrade >= 90 ? 'S-CLASS' : (averageGrade >= 80 ? 'A-CLASS' :
+                                        'B-CLASS') }}
                                 </p>
                             </div>
                         </div>
