@@ -3,37 +3,57 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Models\User;
 
 return new class extends Migration
 {
     /**
      * Run the migrations.
      */
-   public function up(): void
-{
-    Schema::table('users', function (Blueprint $table) {
-        // 1. Buat kolom tanpa unique dulu
-        $table->string('username')->nullable()->after('name');
-    });
+    public function up(): void
+    {
+        // 1. Tahap Pertama: Buat kolom sebagai Nullable agar tidak ada error "Default Value"
+        Schema::table('users', function (Blueprint $table) {
+            if (!Schema::hasColumn('users', 'username')) {
+                $table->string('username')->nullable()->after('name');
+            }
+            if (!Schema::hasColumn('users', 'profile_photo')) {
+                $table->string('profile_photo')->nullable()->after('username');
+            }
+        });
 
-    // 2. Isi data username sementara (misal disamakan dengan email/id)
-    // Ini agar tidak ada data kosong yang dianggap duplikat
-    \App\Models\User::all()->each(function ($user) {
-        $user->update(['username' => 'user_' . $user->id]);
-    });
+        // 2. Tahap Kedua: Isi data username untuk User yang sudah ada
+        // Kita gunakan ID agar dijamin unik dan tidak error saat penambahan Index Unique nanti
+        User::whereNull('username')->orWhere('username', '')->each(function ($user) {
+            $user->update([
+                'username' => 'player_' . $user->id . rand(10, 99)
+            ]);
+        });
 
-    Schema::table('users', function (Blueprint $table) {
-        // 3. Baru tambahkan index unique
-        $table->unique('username');
-    });
-}
+        // 3. Tahap Ketiga: Tambahkan Index Unique pada kolom username
+        Schema::table('users', function (Blueprint $table) {
+            // Kita bungkus dalam try-catch supaya jika index sudah ada, migrasi tidak berhenti (crash)
+            try {
+                $table->unique('username');
+            } catch (\Exception $e) {
+                // Index sudah ada, abaikan errornya
+            }
+        });
+    }
+
     /**
      * Reverse the migrations.
      */
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-           $table->dropColumn(['username', 'profile_photo']);
+            if (Schema::hasColumn('users', 'username')) {
+                $table->dropUnique(['username']);
+                $table->dropColumn('username');
+            }
+            if (Schema::hasColumn('users', 'profile_photo')) {
+                $table->dropColumn('profile_photo');
+            }
         });
     }
 };
