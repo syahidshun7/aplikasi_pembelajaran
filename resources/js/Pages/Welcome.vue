@@ -187,7 +187,7 @@ const {
                                             {{ player.username || player.name }}
                                         </span>
                                         <span class="text-[10px]" :class="index < 3 ? 'text-white' : 'text-[#009999]'">
-                                            LVL.{{ player.lvl || 1 }}
+                                            LVL.{{ player.level || 1 }}
                                         </span>
                                     </div>
                                     <p class="text-[8px] text-slate-400 mt-1 uppercase flex justify-between">
