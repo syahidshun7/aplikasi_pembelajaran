@@ -193,7 +193,7 @@ const {
                                     <p class="text-[8px] text-slate-400 mt-1 uppercase flex justify-between">
                                         <span>{{ player.role || 'Adventurer' }}</span>
                                         <span v-if="index < 3" class="italic text-slate-500">Rank #{{ index + 1
-                                        }}</span>
+                                            }}</span>
                                     </p>
                                 </div>
                             </div>
@@ -277,20 +277,35 @@ const {
                                         <div class="flex justify-between items-start mb-3">
                                             <span
                                                 class="text-[7px] px-2 py-1 bg-slate-800 text-slate-400 border border-slate-600 uppercase">ID:{{
-                                                quest.id }}</span>
+                                                    quest.id }}</span>
                                             <span :class="{
                                                 'text-red-500': quest.difficulty === 'S-Rank',
                                                 'text-orange-500': quest.difficulty === 'A-Rank',
                                                 'text-cyan-500': quest.difficulty === 'B-Rank',
                                                 'text-green-500': quest.difficulty === 'C-Rank'
                                             }" class="text-[8px] font-bold tracking-widest">{{ quest.difficulty
-                                                }}</span>
+                                            }}</span>
                                         </div>
 
                                         <h3
                                             class="text-[10px] text-white group-hover:text-[#4ed4d4] leading-relaxed transition-colors uppercase line-clamp-3 mb-2">
                                             {{ quest.title }}
                                         </h3>
+
+                                        <div class="mb-2 flex items-center gap-1">
+                                            <span
+                                                class="text-orange-500 text-[6px] uppercase tracking-tighter">Deadline:</span>
+                                            <span :class="[
+                                                'text-[7px] uppercase font-bold tracking-tighter',
+                                                (new Date(quest.deadline) < new Date()) ? 'text-red-500 animate-pulse' : 'text-orange-300'
+                                            ]">
+                                                {{ quest.deadline ? new Date(quest.deadline).toLocaleString('id-ID',
+                                                    {
+                                                        day: '2-digit',
+                                                month:'short', hour:'2-digit', minute:'2-digit'}).toUpperCase() :
+                                                'NO_LIMIT' }}
+                                            </span>
+                                        </div>
 
                                         <div class="flex-grow">
                                             <p v-if="quest.status === 'Done' && !quest.user_has_submitted"

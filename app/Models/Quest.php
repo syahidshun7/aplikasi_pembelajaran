@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Quest extends Model
 {
    
-protected $fillable = ['uuid','title','status', 'description', 'xp_reward', 'reward_gold','difficulty', 'is_completed','study_group_id'];
+protected $fillable = ['uuid','title','status', 'description', 'exp_reward', 'reward_gold','difficulty', 'is_completed','study_group_id','deadline'];
 
 protected static function booted()
     {
@@ -31,6 +31,10 @@ public function studyGroup()
 {
     return $this->belongsTo(StudyGroup::class);
 }
+
+protected $casts = [
+    'deadline' => 'datetime',
+];
 
 
 

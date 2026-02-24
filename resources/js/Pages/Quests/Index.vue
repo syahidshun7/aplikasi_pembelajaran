@@ -1,15 +1,14 @@
 <script setup>
 import { Head, useForm, Link, usePage } from '@inertiajs/vue3';
-import { ref, watch, computed } from 'vue'; 
-import AdminNavbar from '@/Components/AdminNavbar.vue'; // Integrasi Navbar
+import { ref, watch } from 'vue'; 
+import AdminNavbar from '@/Components/AdminNavbar.vue';
 import Swal from 'sweetalert2';
 
 const props = defineProps({
     quests: Array,
-    studyGroups: Array // DATA BARU: Untuk dropdown pilihan kelompok
+    studyGroups: Array
 });
 
-// 1. DATA MAPS (Standar Gold Fix per Rank) - TETAP 100% ORISINIL
 const rankGoldMap = {
     'S-Rank': 5000,
     'A-Rank': 2500,
@@ -18,7 +17,6 @@ const rankGoldMap = {
     'D-Rank': 100
 };
 
-// INITIALIZE SWEETALERT TOAST
 const Toast = Swal.mixin({
     toast: true,
     position: 'top-end',
@@ -35,29 +33,25 @@ const Toast = Swal.mixin({
 
 const isEditing = ref(false);
 const editId = ref(null);
-
-// State untuk Modal Konfirmasi
 const showDeleteModal = ref(false);
 const questIdToDelete = ref(null);
 
-// 2. FORM INITIALIZATION (Updated with study_group_id)
 const form = useForm({
     title: '',
     difficulty: 'C-Rank', 
-    reward_gold: 500,     // Default awal mengikuti C-Rank
+    reward_gold: 500,
     description: '',
     status: 'Available',
-    study_group_id: null, // Default: Global Quest
+    study_group_id: null,
+    deadline: '', // NEW_FIELD
 });
 
-// 3. LOGIC OTOMATISASI (Watch Difficulty) - TETAP DIPERTAHANKAN
 watch(() => form.difficulty, (newDifficulty) => {
     if (newDifficulty) {
         form.reward_gold = rankGoldMap[newDifficulty] || 0;
     }
 });
 
-// Pantau Flash Message dari Server
 watch(() => usePage().props.flash, (flash) => {
     if (flash?.message) {
         Toast.fire({
@@ -67,7 +61,24 @@ watch(() => usePage().props.flash, (flash) => {
     }
 }, { deep: true });
 
-// 4. METHODS
+// HELPER: Format date for display
+const formatDeadline = (date) => {
+    if (!date) return 'PERMANENT_CONTRACT';
+    return new Date(date).toLocaleString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    }).toUpperCase();
+};
+
+// HELPER: Check if expired
+const isExpired = (date) => {
+    if (!date) return false;
+    return new Date(date) < new Date();
+};
+
 const startEdit = (quest) => {
     isEditing.value = true;
     editId.value = quest.uuid;
@@ -76,13 +87,19 @@ const startEdit = (quest) => {
     form.reward_gold = quest.reward_gold;
     form.description = quest.description || '';
     form.status = quest.status || 'Available';
-    form.study_group_id = quest.study_group_id; // Ambil ID kelompok jika ada
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    form.study_group_id = quest.study_group_id;
+    
+    // Format deadline for datetime-local input (YYYY-MM-DDTHH:mm)
+    if (quest.deadline) {
+        const d = new Date(quest.deadline);
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        form.deadline = d.toISOString().slice(0, 16);
+    } else {
+        form.deadline = '';
+    }
 
-    Toast.fire({
-        icon: 'info',
-        title: 'MODIFYING_CONTRACT'
-    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    Toast.fire({ icon: 'info', title: 'MODIFYING_CONTRACT' });
 };
 
 const cancelEdit = () => {
@@ -96,18 +113,8 @@ const submit = () => {
         form.patch(route('quests.update', editId.value), {
             onSuccess: () => {
                 cancelEdit();
-                Toast.fire({ icon: 'success', title: 'CONTRACT_UPDATED' });
+                // Alert dihilangkan sesuai permintaan, hanya Toast
             },
-            onError: (err) => {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'UPDATE_FAILED',
-                    text: Object.values(err)[0],
-                    background: '#1a1c2c',
-                    color: '#ff4d4d',
-                    confirmButtonColor: '#4f46e5'
-                });
-            }
         });
     } else {
         form.post(route('quests.store'), {
@@ -115,18 +122,7 @@ const submit = () => {
                 form.reset();
                 form.difficulty = 'C-Rank';
                 form.reward_gold = 500;
-                Toast.fire({ icon: 'success', title: 'QUEST_PUBLISHED' });
             },
-            onError: (err) => {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'PUBLISH_FAILED',
-                    text: Object.values(err)[0],
-                    background: '#1a1c2c',
-                    color: '#facc15',
-                    confirmButtonColor: '#4f46e5'
-                });
-            }
         });
     }
 };
@@ -142,10 +138,6 @@ const executeAbort = () => {
             onSuccess: () => {
                 showDeleteModal.value = false;
                 questIdToDelete.value = null;
-                Toast.fire({ icon: 'success', title: 'QUEST_TERMINATED' });
-            },
-            onError: () => {
-                Toast.fire({ icon: 'error', title: 'ABORT_FAILED' });
             }
         });
     }
@@ -184,7 +176,7 @@ const executeAbort = () => {
                                 <label class="block mb-2 text-white">DESCRIPTION:</label>
                                 <textarea v-model="form.description"
                                     class="w-full bg-black border-2 border-slate-700 p-2 text-[8px] uppercase focus:border-cyan-400 focus:ring-0"
-                                    style="resize: vertical; min-height: 120px;"></textarea>
+                                    style="resize: vertical; min-height: 100px;"></textarea>
                             </div>
 
                             <div class="grid grid-cols-2 gap-4">
@@ -201,24 +193,27 @@ const executeAbort = () => {
                                 </div>
                                 
                                 <div>
-                                    <label class="block mb-2 text-white">GOLD_REWARD (FIXED):</label>
-                                    <div class="relative">
-                                        <input v-model="form.reward_gold" type="number" readonly
-                                            class="w-full bg-slate-900 border-2 border-slate-800 p-2 text-yellow-400 cursor-not-allowed opacity-80 outline-none"
-                                            placeholder="Auto-calculated...">
-                                        <span class="absolute right-3 top-2 text-[10px] text-slate-500 italic">AUTO</span>
-                                    </div>
+                                    <label class="block mb-2 text-white">GOLD_REWARD:</label>
+                                    <input v-model="form.reward_gold" type="number" readonly
+                                        class="w-full bg-slate-900 border-2 border-slate-800 p-2 text-yellow-400 cursor-not-allowed opacity-80 outline-none">
                                 </div>
                             </div>
 
-                            <div>
-                                <label class="block mb-2 text-white">MISSION_STATUS:</label>
-                                <select v-model="form.status"
-                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-cyan-400 outline-none text-orange-400 uppercase">
-                                    <option value="Available">Available</option>
-                                    <option value="In-Progress">Ongoing</option>
-                                    <option value="Done">Completed</option>
-                                </select>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block mb-2 text-white">MISSION_STATUS:</label>
+                                    <select v-model="form.status"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 focus:border-cyan-400 outline-none text-orange-400 uppercase">
+                                        <option value="Available">Available</option>
+                                        <option value="In-Progress">Ongoing</option>
+                                        <option value="Done">Completed</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block mb-2 text-white text-orange-500">SET_DEADLINE:</label>
+                                    <input v-model="form.deadline" type="datetime-local"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 focus:border-orange-500 outline-none text-orange-400 uppercase text-[8px]">
+                                </div>
                             </div>
 
                             <div>
@@ -230,7 +225,6 @@ const executeAbort = () => {
                                         >> PARTY: {{ group.name }}
                                     </option>
                                 </select>
-                                <p class="mt-1 text-[7px] text-slate-500 italic uppercase">Assign mission to specific group</p>
                             </div>
 
                             <div class="flex gap-2">
@@ -254,26 +248,33 @@ const executeAbort = () => {
 
                         <div class="space-y-4">
                             <div v-for="q in quests" :key="q.uuid"
-                                class="flex flex-col p-4 bg-slate-900/50 border-l-4 border-cyan-500 hover:bg-slate-800 transition-all">
-
-                                <div class="flex justify-between items-start mb-2">
+                                class="flex flex-col p-4 bg-slate-900/50 border-l-4 border-cyan-500 hover:bg-slate-800 transition-all relative overflow-hidden">
+                                
+                                <div class="flex justify-between items-start mb-1">
                                     <div class="flex-1">
-                                        <div class="text-[8px] text-slate-500 mb-1 uppercase tracking-tighter">
+                                        <div class="text-[7px] text-slate-500 mb-1 uppercase tracking-tighter">
                                             ID: {{ q.uuid.substring(0,8) }} // RANK: {{ q.difficulty }}
                                             <span v-if="q.study_group" class="text-emerald-500 ml-2">// [PARTY: {{ q.study_group.name }}]</span>
-                                            <span v-else class="text-cyan-600 ml-2">// [GLOBAL]</span>
                                         </div>
-                                        <div class="text-white uppercase">{{ q.title }}</div>
+                                        <div class="text-white uppercase text-[9px]">{{ q.title }}</div>
                                     </div>
                                     <div class="text-yellow-500 text-[8px] tracking-widest">+{{ q.reward_gold }} GOLD</div>
                                 </div>
 
+                                <div class="text-[7px] mb-3 flex items-center gap-1">
+                                    <span class="text-orange-500">>> DEADLINE:</span>
+                                    <span :class="isExpired(q.deadline) ? 'text-red-500 animate-pulse font-bold' : 'text-orange-300'">
+                                        {{ q.deadline ? formatDeadline(q.deadline) : 'NO_TIME_LIMIT' }}
+                                    </span>
+                                    <span v-if="isExpired(q.deadline)" class="text-red-600 ml-1">[EXPIRED]</span>
+                                </div>
+
                                 <div v-if="q.description"
-                                    class="text-[7px] text-slate-500 italic mb-4 border-t border-slate-800 pt-2 leading-loose">
+                                    class="text-[7px] text-slate-500 italic mb-4 border-t border-slate-800 pt-2 leading-loose line-clamp-2">
                                     > {{ q.description }}
                                 </div>
 
-                                <div class="flex gap-4 self-end mt-2">
+                                <div class="flex gap-4 self-end mt-auto">
                                     <Link :href="route('admin.quests.submissions', q.uuid)"
                                         class="text-cyan-400 hover:text-white text-[8px] uppercase font-bold">[Detail]</Link>
                                     <button @click="startEdit(q)"
@@ -290,23 +291,23 @@ const executeAbort = () => {
 
         <div v-if="showDeleteModal"
             class="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-            <div class="w-full max-w-lg bg-[#121212] border-2 border-red-600 shadow-[0_0_30px_rgba(220,38,38,0.3)] overflow-hidden rounded-lg">
+            <div class="w-full max-w-lg bg-[#121212] border-2 border-red-600 shadow-[0_0_30px_rgba(220,38,38,0.3)] overflow-hidden rounded-lg font-['Press_Start_2P']">
                 <div class="bg-red-600/10 border-b-2 border-red-600 p-4 flex items-center gap-3">
                     <span class="text-red-500 text-lg">⚠</span>
                     <h2 class="text-red-500 font-bold uppercase tracking-tighter text-[10px]">» WARNING: TERMINATION_PROTOCOL</h2>
                 </div>
                 <div class="p-8 space-y-6">
                     <div class="border-l-2 border-red-900 pl-4">
-                        <p class="text-slate-200 text-[10px] leading-relaxed uppercase">Are you sure you want to abort this mission contract?</p>
+                        <p class="text-slate-200 text-[10px] leading-relaxed uppercase">Abort this mission contract?</p>
                     </div>
                 </div>
                 <div class="p-6 pt-0 flex gap-4">
                     <button @click="executeAbort" :disabled="form.processing"
-                        class="flex-1 py-3 bg-red-600/20 border-2 border-red-600 text-red-500 hover:bg-red-600 hover:text-white transition-all uppercase font-bold text-[9px] rounded active:scale-95">
+                        class="flex-1 py-3 bg-red-600/20 border-2 border-red-600 text-red-500 hover:bg-red-600 hover:text-white transition-all uppercase font-bold text-[9px]">
                         {{ form.processing ? 'PURGING...' : 'PROCEED' }}
                     </button>
                     <button @click="showDeleteModal = false"
-                        class="flex-1 py-3 bg-slate-800 border-2 border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white transition-all uppercase font-bold text-[9px] rounded active:scale-95">
+                        class="flex-1 py-3 bg-slate-800 border-2 border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white transition-all uppercase font-bold text-[9px]">
                         CANCEL
                     </button>
                 </div>
@@ -319,21 +320,18 @@ const executeAbort = () => {
 .rpg-panel {
     background-color: #1a1c2c;
     border-width: 4px;
-    padding: 1rem;
+    padding: 1.5rem;
     position: relative;
     box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 0.5);
 }
 
-textarea {
-    resize: none;
-}
+textarea { resize: none; }
+.fixed { animation: fadeIn 0.2s ease-out; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-.fixed {
-    animation: fadeIn 0.2s ease-out;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-calendar-picker-indicator {
+    filter: invert(0.8) sepia(100%) saturate(500%) hue-rotate(10deg);
+    cursor: pointer;
 }
 </style>

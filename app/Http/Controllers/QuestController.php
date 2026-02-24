@@ -10,77 +10,76 @@ use Illuminate\Support\Str;
 
 class QuestController extends Controller
 {
-   public function index()
-{
-    return Inertia::render('Quests/Index', [
-        // 1. Ambil semua quest beserta data kelompoknya (Eager Loading)
-        'quests' => Quest::with('studyGroup')
-            ->latest()
-            ->get(),
+    public function index()
+    {
+        return Inertia::render('Quests/Index', [
+            // 1. Ambil semua quest beserta data kelompoknya (Eager Loading)
+            'quests' => Quest::with('studyGroup')
+                ->latest()
+                ->get(),
 
-        // 2. Kirim daftar kelompok untuk pilihan di dropdown form
-        'studyGroups' => StudyGroup::select('id', 'name')->get(),
-    ]);
-}
+            // 2. Kirim daftar kelompok untuk pilihan di dropdown form
+            'studyGroups' => StudyGroup::select('id', 'name')->get(),
+        ]);
+    }
 
-   public function store(Request $request)
-{
-    $validated = $request->validate([
-        'title' => 'required|string|max:255',
-        'difficulty' => 'required',
-        'reward_gold' => 'nullable|integer', 
-        'description' => 'nullable|string',
-        'status' => 'required',
-        'study_group_id' => 'nullable|exists:study_groups,id',
-    ]);
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'difficulty' => 'required',
+            'reward_gold' => 'nullable|integer',
+            'description' => 'nullable|string',
+            'status' => 'required',
+            'study_group_id' => 'nullable|exists:study_groups,id',
+            'deadline' => 'nullable|date', // Tambahkan validasi date
+        ]);
 
-    $goldTable = [
-        'S-Rank' => 5000,
-        'A-Rank' => 2500,
-        'B-Rank' => 1000,
-        'C-Rank' => 500,
-        'D-Rank' => 100,
-    ];
+        $goldTable = [
+            'S-Rank' => 5000,
+            'A-Rank' => 2500,
+            'B-Rank' => 1000,
+            'C-Rank' => 500,
+            'D-Rank' => 100,
+        ];
 
-    // Sinkronisasi Gold di sisi server (Security Check)
-    $validated['reward_gold'] = $goldTable[$request->difficulty] ?? 0;
-    
-    // GENERATE UUID: Penting jika tabel menggunakan UUID sebagai primary/lookup key
-    $validated['uuid'] = (string) Str::uuid();
+        $validated['reward_gold'] = $goldTable[$request->difficulty] ?? 0;
+        $validated['uuid'] = (string) \Illuminate\Support\Str::uuid();
 
-    Quest::create($validated);
+        Quest::create($validated);
 
-    return redirect()->back()->with('message', 'NEW_QUEST_DEPLOYED_SUCCESSFULLY');
-}
+        return redirect()->back()->with('message', 'NEW_QUEST_DEPLOYED_SUCCESSFULLY');
+    }
 
-public function update(Request $request, $uuid)
-{
-    // Cari berdasarkan UUID karena Vue mengirimkan editId (uuid)
-    $quest = Quest::where('uuid', $uuid)->firstOrFail();
+    public function update(Request $request, $uuid)
+    {
+        $quest = Quest::where('uuid', $uuid)->firstOrFail();
 
-    $validated = $request->validate([
-        'title' => 'required|string|max:255',
-        'difficulty' => 'required',
-        'description' => 'nullable|string',
-        'reward_gold' => 'required|integer',
-        'status' => 'required',
-        'study_group_id' => 'nullable|exists:study_groups,id', // Tambahkan ini agar bisa diupdate
-    ]);
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'difficulty' => 'required',
+            'description' => 'nullable|string',
+            'reward_gold' => 'required|integer',
+            'status' => 'required',
+            'study_group_id' => 'nullable|exists:study_groups,id',
+            'deadline' => 'nullable|date', // Tambahkan validasi date
+        ]);
 
-    // Update Gold otomatis jika admin mengubah difficulty saat edit
-    $goldTable = [
-        'S-Rank' => 5000,
-        'A-Rank' => 2500,
-        'B-Rank' => 1000,
-        'C-Rank' => 500,
-        'D-Rank' => 100,
-    ];
-    $validated['reward_gold'] = $goldTable[$request->difficulty] ?? $validated['reward_gold'];
+        $goldTable = [
+            'S-Rank' => 5000,
+            'A-Rank' => 2500,
+            'B-Rank' => 1000,
+            'C-Rank' => 500,
+            'D-Rank' => 100,
+        ];
 
-    $quest->update($validated);
+        // Logika update gold jika difficulty berubah
+        $validated['reward_gold'] = $goldTable[$request->difficulty] ?? $validated['reward_gold'];
 
-    return redirect()->back()->with('message', 'QUEST_CONTRACT_SYNCHRONIZED');
-}
+        $quest->update($validated);
+
+        return redirect()->back()->with('message', 'QUEST_CONTRACT_SYNCHRONIZED');
+    }
 
     public function destroy(Quest $quest)
     {
@@ -100,6 +99,4 @@ public function update(Request $request, $uuid)
             'existingSubmission' => $submission // Kirim datanya ke Vue
         ]);
     }
-
-    
 }
