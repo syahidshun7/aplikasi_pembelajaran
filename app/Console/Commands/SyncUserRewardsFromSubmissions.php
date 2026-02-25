@@ -78,7 +78,8 @@ class SyncUserRewardsFromSubmissions extends Command
                     $updateData[$levelColumn] = (int) floor($newExp / 1000) + 1;
                 }
 
-                $user->update($updateData);
+                // Use query update to bypass fillable restrictions on User model.
+                User::query()->whereKey($user->id)->update($updateData);
             }
         });
 
