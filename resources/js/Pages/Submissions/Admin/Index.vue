@@ -26,6 +26,7 @@ const editForm = useForm({
 });
 
 const rows = computed(() => props.submissions?.data || []);
+const paginationLinks = computed(() => props.submissions?.links || []);
 
 const applyFilters = () => {
     router.get(route('admin.submissions.manage.index'), filterForm.data(), {
@@ -99,6 +100,15 @@ const statusClass = (status) => {
     if (status === 'Approved') return 'text-green-400 border-green-900 bg-green-900/20';
     if (status === 'Rejected') return 'text-red-400 border-red-900 bg-red-900/20';
     return 'text-yellow-400 border-yellow-900 bg-yellow-900/20';
+};
+
+const goToPage = (url) => {
+    if (!url) return;
+
+    router.get(url, {}, {
+        preserveState: true,
+        preserveScroll: true,
+    });
 };
 </script>
 
@@ -228,6 +238,30 @@ const statusClass = (status) => {
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <div class="mt-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <p class="text-[8px] text-slate-500 uppercase">
+                        PAGE {{ submissions.current_page || 1 }} / {{ submissions.last_page || 1 }}
+                        | TOTAL {{ submissions.total || 0 }}
+                    </p>
+
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            v-for="(link, idx) in paginationLinks"
+                            :key="`${idx}-${link.label}`"
+                            @click="goToPage(link.url)"
+                            :disabled="!link.url"
+                            class="px-3 py-1 border text-[8px] uppercase transition-all"
+                            :class="[
+                                link.active
+                                    ? 'border-cyan-400 text-cyan-400 bg-cyan-900/20'
+                                    : 'border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white',
+                                !link.url ? 'opacity-40 cursor-not-allowed' : ''
+                            ]"
+                            v-html="link.label"
+                        />
+                    </div>
                 </div>
             </div>
         </div>

@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Submission;
+use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
@@ -35,62 +35,28 @@ class AdminSubmissionController extends Controller
         'scores_detail' => 'nullable|array',
     ]);
 
-    $user  = $submission->user;
     $quest = $submission->quest;
+    $newScore   = (int) $request->final_score;
+    $newPortion = $newScore / 100;
 
-    // Kita tidak perlu lagi $multipliers di sini karena $quest->reward_gold 
-    // sudah dikunci berdasarkan Rank saat Quest dibuat. 
-    // Cukup gunakan $quest->reward_gold sebagai Max Reward.
+    $finalGold = 0;
+    $finalExp  = 0;
 
-    DB::transaction(function () use ($request, $submission, $user, $quest) {
-        
-        // 1. ROLLBACK REWARD LAMA (Hanya jika status sebelumnya Approved)
-        // Kita gunakan pengecekan status, bukan grade > 0 agar lebih akurat
-        if ($submission->status === 'Approved') {
-            $oldGold = (int) ($submission->earned_gold ?? 0);
-            $oldExp  = (int) ($submission->earned_exp ?? 0);
+    if ($request->status === 'Approved') {
+        $finalGold = (int) floor($quest->reward_gold * $newPortion);
+        $finalExp  = (int) floor(1000 * $newPortion);
+    }
 
-            // Gunakan max(0, ...) agar gold tidak minus jika admin salah input
-            if ($oldGold > 0) {
-                $user->decrement('gold', $oldGold);
-            }
-            if ($oldExp > 0) {
-                $user->decrement('exp', $oldExp);
-            }
-        }
+    $submission->update([
+        'grade'    => $newScore,
+        'feedback' => $request->feedback,
+        'status'   => $request->status,
+        'earned_gold' => $finalGold,
+        'earned_exp' => $finalExp,
+        'scores_detail' => $request->input('scores_detail'),
+    ]);
 
-        // 2. HITUNG REWARD BARU (Hanya jika status Approved)
-        $newScore   = $request->final_score;
-        $newPortion = $newScore / 100;
-        
-        $finalGold = 0;
-        $finalExp  = 0;
-
-        if ($request->status === 'Approved') {
-            $finalGold  = floor($quest->reward_gold * $newPortion);
-            $finalExp   = floor(1000 * $newPortion); // Samakan basis dengan rollback
-
-            // 3. UPDATE USER
-            $user->increment('gold', $finalGold);
-            $user->increment('exp', $finalExp);
-        }
-
-        // 4. UPDATE SUBMISSION
-        $submission->update([
-            'grade'    => $newScore,
-            'feedback' => $request->feedback,
-            'status'   => $request->status,
-            'earned_gold' => $finalGold,
-            'earned_exp' => $finalExp,
-            'scores_detail' => $request->input('scores_detail'),
-        ]);
-
-        // 5. UPDATE LEVEL (Logic: Setiap 1000 EXP naik 1 Level)
-        $user->refresh();
-        $newLevel = floor($user->exp / 1000) + 1;
-        $levelColumn = Schema::hasColumn('users', 'lvl') ? 'lvl' : 'level';
-        $user->update([$levelColumn => $newLevel]);
-    });
+    $this->syncUserRewardTotals((int) $submission->user_id);
 
     return redirect()->back()->with('message', 'Verdict Processed & Rewards Calculated!');
 }
@@ -143,5 +109,30 @@ class AdminSubmissionController extends Controller
             'clean'  => $scoreClean,
             'feedback' => $aiFeedback,
         ]);
+    }
+
+    private function syncUserRewardTotals(int $userId): void
+    {
+        $totals = Submission::query()
+            ->where('user_id', $userId)
+            ->where('status', 'Approved')
+            ->selectRaw('COALESCE(SUM(earned_exp),0) as exp_total, COALESCE(SUM(earned_gold),0) as gold_total')
+            ->first();
+
+        $newExp = (int) ($totals->exp_total ?? 0);
+        $newGold = (int) ($totals->gold_total ?? 0);
+
+        $updateData = [
+            'exp' => $newExp,
+            'gold' => $newGold,
+        ];
+
+        if (Schema::hasColumn('users', 'lvl')) {
+            $updateData['lvl'] = (int) floor($newExp / 1000) + 1;
+        } elseif (Schema::hasColumn('users', 'level')) {
+            $updateData['level'] = (int) floor($newExp / 1000) + 1;
+        }
+
+        User::query()->whereKey($userId)->update($updateData);
     }
 }

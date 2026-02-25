@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 use App\Models\Submission;
 use App\Models\Quest;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 class SubmissionController extends Controller
@@ -39,6 +41,8 @@ class SubmissionController extends Controller
             $filePath = $request->file('file')->store('submissions', 'public');
         }
 
+        $wasApproved = $submission->status === 'Approved';
+
         $submission->content = $request->content;
         $submission->file_path = $filePath;
         $submission->status = 'Pending';
@@ -48,6 +52,10 @@ class SubmissionController extends Controller
         $submission->earned_gold = 0;
         $submission->scores_detail = null;
         $submission->save();
+
+        if ($wasApproved) {
+            $this->syncUserRewardTotals((int) $submission->user_id);
+        }
 
         // Opsional: Ubah status quest menjadi Ongoing saat ada submission masuk
         // $quest->update(['status' => 'Ongoing']);
@@ -85,6 +93,8 @@ public function update(Request $request, $uuid)
         abort(403);
     }
 
+    $wasApproved = $submission->status === 'Approved';
+
     // 2. Validasi (Sama dengan store)
     $request->validate([
         'content' => 'required|string',
@@ -113,6 +123,35 @@ public function update(Request $request, $uuid)
 
     $submission->save();
 
+    if ($wasApproved) {
+        $this->syncUserRewardTotals((int) $submission->user_id);
+    }
+
     return back()->with('message', 'MISSION_REPORT_UPDATED_RE-EVALUATING');
+}
+
+private function syncUserRewardTotals(int $userId): void
+{
+    $totals = Submission::query()
+        ->where('user_id', $userId)
+        ->where('status', 'Approved')
+        ->selectRaw('COALESCE(SUM(earned_exp),0) as exp_total, COALESCE(SUM(earned_gold),0) as gold_total')
+        ->first();
+
+    $newExp = (int) ($totals->exp_total ?? 0);
+    $newGold = (int) ($totals->gold_total ?? 0);
+
+    $updateData = [
+        'exp' => $newExp,
+        'gold' => $newGold,
+    ];
+
+    if (Schema::hasColumn('users', 'lvl')) {
+        $updateData['lvl'] = (int) floor($newExp / 1000) + 1;
+    } elseif (Schema::hasColumn('users', 'level')) {
+        $updateData['level'] = (int) floor($newExp / 1000) + 1;
+    }
+
+    User::query()->whereKey($userId)->update($updateData);
 }
 }
