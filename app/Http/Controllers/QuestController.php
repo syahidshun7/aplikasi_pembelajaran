@@ -91,7 +91,10 @@ class QuestController extends Controller
 
     public function show(Quest $quest)
     {
-        $submission = $quest->submissions()->where('user_id', auth()->id())->first();
+        $submission = $quest->submissions()
+            ->where('user_id', auth()->id())
+            ->latest('id')
+            ->first();
 
         return Inertia::render('Quests/Show', [
             'quest' => $quest,

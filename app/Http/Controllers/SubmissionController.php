@@ -16,24 +16,45 @@ class SubmissionController extends Controller
             'file' => 'nullable', // Max 2MB
         ]);
 
-        $filePath = null;
+        $submission = Submission::where('quest_id', $quest->id)
+            ->where('user_id', auth()->id())
+            ->latest('id')
+            ->first();
+
+        $isUpdate = (bool) $submission;
+        $filePath = $submission?->file_path;
+
+        if (! $submission) {
+            $submission = new Submission();
+            $submission->quest_id = $quest->id;
+            $submission->user_id = auth()->id();
+        }
+
         if ($request->hasFile('file')) {
-            // Simpan file ke folder 'submissions' di dalam disk 'public'
+            // Hapus file lama agar storage tidak menumpuk.
+            if ($isUpdate && $submission->file_path && Storage::disk('public')->exists($submission->file_path)) {
+                Storage::disk('public')->delete($submission->file_path);
+            }
+
             $filePath = $request->file('file')->store('submissions', 'public');
         }
 
-        Submission::create([
-            'quest_id' => $quest->id,
-            'user_id' => auth()->id(),
-            'content' => $request->content,
-            'file_path' => $filePath,
-            'status' => 'Pending',
-        ]);
+        $submission->content = $request->content;
+        $submission->file_path = $filePath;
+        $submission->status = 'Pending';
+        $submission->grade = 0;
+        $submission->feedback = null;
+        $submission->earned_exp = 0;
+        $submission->earned_gold = 0;
+        $submission->scores_detail = null;
+        $submission->save();
 
         // Opsional: Ubah status quest menjadi Ongoing saat ada submission masuk
         // $quest->update(['status' => 'Ongoing']);
 
-        return back()->with('message', 'MISSION_REPORT_SENT_WAITING_FOR_REVIEW');
+        return back()->with('message', $isUpdate
+            ? 'MISSION_REPORT_UPDATED_RE-EVALUATING'
+            : 'MISSION_REPORT_SENT_WAITING_FOR_REVIEW');
     }
 
     
@@ -59,6 +80,10 @@ public function update(Request $request, $uuid)
 {
     // 1. Cari data berdasarkan UUID (karena dari Vue kirim UUID)
     $submission = Submission::where('uuid', $uuid)->firstOrFail();
+
+    if ((int) $submission->user_id !== (int) auth()->id()) {
+        abort(403);
+    }
 
     // 2. Validasi (Sama dengan store)
     $request->validate([

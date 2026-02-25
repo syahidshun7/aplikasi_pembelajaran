@@ -8,6 +8,7 @@ use App\Http\Controllers\AdminQuestController;
 use App\Http\Controllers\AdminSubmissionController;
 use App\Http\Controllers\AdminGuideController;
 use App\Http\Controllers\AdminUserController;
+use App\Http\Controllers\AdminSubmissionManagementController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\SubmissionController;
 use Illuminate\Support\Facades\Route;
@@ -61,6 +62,12 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         Route::get('/', [AdminUserController::class, 'index'])->name('index');
         Route::patch('/{user}/role', [AdminUserController::class, 'updateRole'])->name('role.update');
         Route::patch('/{user}/reset-password', [AdminUserController::class, 'resetPassword'])->name('password.reset');
+    });
+
+    Route::prefix('admin/submissions')->name('admin.submissions.manage.')->group(function () {
+        Route::get('/', [AdminSubmissionManagementController::class, 'index'])->name('index');
+        Route::patch('/{submission}', [AdminSubmissionManagementController::class, 'update'])->name('update');
+        Route::delete('/{submission}', [AdminSubmissionManagementController::class, 'destroy'])->name('destroy');
     });
 });
 

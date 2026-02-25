@@ -61,6 +61,10 @@ const handleLogout = () => {
                   class="nav-item hover:text-cyan-400 transition-colors">
                 STUDY_GROUP
             </Link>
+            <Link :href="route('admin.submissions.manage.index')"
+                  class="nav-item hover:text-yellow-400 transition-colors">
+                SUBMISSIONS
+            </Link>
             <Link :href="route('admin.users.index')"
                   class="nav-item hover:text-emerald-400 transition-colors">
                 USERS
