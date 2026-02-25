@@ -7,6 +7,7 @@ use App\Http\Controllers\AdminStudyGroupController;
 use App\Http\Controllers\AdminQuestController;
 use App\Http\Controllers\AdminSubmissionController;
 use App\Http\Controllers\AdminGuideController;
+use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\SubmissionController;
 use Illuminate\Support\Facades\Route;
@@ -55,6 +56,12 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         ->name('admin.submissions.verdict');
     Route::post('/submissions/{submission}/check-ai', [AdminSubmissionController::class, 'checkWithAI'])
         ->name('admin.submissions.checkAI');
+
+    Route::prefix('admin/users')->name('admin.users.')->group(function () {
+        Route::get('/', [AdminUserController::class, 'index'])->name('index');
+        Route::patch('/{user}/role', [AdminUserController::class, 'updateRole'])->name('role.update');
+        Route::patch('/{user}/reset-password', [AdminUserController::class, 'resetPassword'])->name('password.reset');
+    });
 });
 
 

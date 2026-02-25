@@ -9,14 +9,24 @@ class Submission extends Model
 {
     protected $fillable = [
         'uuid', // Tambahkan ini
-        'quest_id', 
-        'user_id', 
-        'content', 
-        'status', 
+        'quest_id',
+        'user_id',
+        'content',
+        'status',
+        'earned_exp',
+        'earned_gold',
+        'scores_detail',
         'admin_notes',
         'file_path',
-        'grade',    
-        'feedback', 
+        'grade',
+        'feedback',
+    ];
+
+    protected $casts = [
+        'grade' => 'integer',
+        'earned_exp' => 'integer',
+        'earned_gold' => 'integer',
+        'scores_detail' => 'array',
     ];
 
     protected static function booted()

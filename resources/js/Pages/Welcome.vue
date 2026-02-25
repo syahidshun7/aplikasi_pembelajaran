@@ -264,6 +264,7 @@ const {
                         </div>
 
                         <div class="overflow-y-auto pr-2 custom-scroll flex-1">
+                            
                             <div v-if="quests.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4">
                                 <div v-for="quest in quests" :key="quest.uuid"
                                     class="rpg-panel bg-[#161b22] transition-all group cursor-pointer shadow-none flex flex-col h-[200px]"

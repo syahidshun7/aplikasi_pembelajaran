@@ -230,7 +230,19 @@ const getStatusClass = (status) => {
 const isImage = (path) => /\.(jpg|jpeg|png|webp|avif|gif)$/i.test(path);
 
 onMounted(() => {
-    // Restore criteria state jika sudah pernah dinilai
+    const savedScores = props.submission.scores_detail;
+    if (savedScores && typeof savedScores === 'object') {
+        criteria.value.forEach((item) => {
+            const value = Number(savedScores[item.id] ?? 0);
+            if (value > 0) {
+                item.checked = true;
+                item.weight = Math.min(value, item.maxWeight);
+            }
+        });
+        return;
+    }
+
+    // Fallback untuk data lama yang belum punya scores_detail
     if (props.submission.grade > 0) {
         let remainingGrade = props.submission.grade;
         // Logic ini mencoba mencocokkan checklist dengan grade yang ada
@@ -305,12 +317,16 @@ const submitEvaluation = () => {
         cancelButtonColor: '#1e293b',
     }).then((result) => {
         if (result.isConfirmed) {
+            const scoresDetail = criteria.value.reduce((acc, item) => {
+                acc[item.id] = item.checked ? Number(item.weight) : 0;
+                return acc;
+            }, {});
+
             router.post(route('admin.submissions.verdict', { submission: props.submission.uuid }), {
                 final_score: totalScore.value,
                 feedback: feedbackText.value,
                 status: status,
-                // Kita kirim gold dan exp sebagai referensi jika dibutuhkan backend
-                reward_gold: calculatedGold.value,
+                scores_detail: scoresDetail,
             }, {
                 onSuccess: () => {
                     Swal.fire({

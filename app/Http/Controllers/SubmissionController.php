@@ -69,6 +69,11 @@ public function update(Request $request, $uuid)
     // 3. Siapkan Data Dasar
     $submission->content = $request->content;
     $submission->status = 'Pending'; // Reset status supaya direview lagi
+    $submission->grade = 0;
+    $submission->feedback = null;
+    $submission->earned_exp = 0;
+    $submission->earned_gold = 0;
+    $submission->scores_detail = null;
 
     // 4. Logika File (Gaya identik dengan store kamu)
     if ($request->hasFile('file')) {

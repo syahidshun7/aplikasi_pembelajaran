@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Submission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class AdminSubmissionController extends Controller
@@ -30,7 +31,8 @@ class AdminSubmissionController extends Controller
     $request->validate([
         'final_score' => 'required|numeric|min:0|max:100',
         'feedback'    => 'nullable|string',
-        'status'      => 'required|in:Approved,Rejected'
+        'status'      => 'required|in:Approved,Rejected',
+        'scores_detail' => 'nullable|array',
     ]);
 
     $user  = $submission->user;
@@ -45,13 +47,16 @@ class AdminSubmissionController extends Controller
         // 1. ROLLBACK REWARD LAMA (Hanya jika status sebelumnya Approved)
         // Kita gunakan pengecekan status, bukan grade > 0 agar lebih akurat
         if ($submission->status === 'Approved') {
-            $oldPortion = $submission->grade / 100;
-            $oldGold = floor($quest->reward_gold * $oldPortion);
-            $oldExp  = floor(1000 * $oldPortion); // Gunakan basis EXP yang sama (misal 1000)
+            $oldGold = (int) ($submission->earned_gold ?? 0);
+            $oldExp  = (int) ($submission->earned_exp ?? 0);
 
             // Gunakan max(0, ...) agar gold tidak minus jika admin salah input
-            $user->decrement('gold', $oldGold);
-            $user->decrement('exp', $oldExp);
+            if ($oldGold > 0) {
+                $user->decrement('gold', $oldGold);
+            }
+            if ($oldExp > 0) {
+                $user->decrement('exp', $oldExp);
+            }
         }
 
         // 2. HITUNG REWARD BARU (Hanya jika status Approved)
@@ -74,13 +79,17 @@ class AdminSubmissionController extends Controller
         $submission->update([
             'grade'    => $newScore,
             'feedback' => $request->feedback,
-            'status'   => $request->status
+            'status'   => $request->status,
+            'earned_gold' => $finalGold,
+            'earned_exp' => $finalExp,
+            'scores_detail' => $request->input('scores_detail'),
         ]);
 
         // 5. UPDATE LEVEL (Logic: Setiap 1000 EXP naik 1 Level)
         $user->refresh();
         $newLevel = floor($user->exp / 1000) + 1;
-        $user->update(['lvl' => $newLevel]);
+        $levelColumn = Schema::hasColumn('users', 'lvl') ? 'lvl' : 'level';
+        $user->update([$levelColumn => $newLevel]);
     });
 
     return redirect()->back()->with('message', 'Verdict Processed & Rewards Calculated!');
@@ -122,6 +131,13 @@ class AdminSubmissionController extends Controller
 
         return response()->json([
             'status' => 'success',
+            'scores' => [
+                'func' => $scoreFunc,
+                'logic' => $scoreLogic,
+                'neat' => $scoreClean,
+                'extra' => 0,
+                'att' => 0,
+            ],
             'func'   => $scoreFunc,
             'logic'  => $scoreLogic,
             'clean'  => $scoreClean,
