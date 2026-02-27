@@ -1,5 +1,6 @@
 /* 1. Import Font */
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@import '@flaticon/flaticon-uicons/css/all/all.css';
 
 @tailwind base;
 @tailwind components;

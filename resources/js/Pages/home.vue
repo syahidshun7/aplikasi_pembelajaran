@@ -26,7 +26,7 @@ const {
 
 <template>
 
-    <Head title="P-QUEST | Game Lobby" />
+    <Head title="DOOPTECH" />
 
     <div class="min-h-screen bg-[#0a0c10] bg-cover bg-center bg-no-repeat bg-fixed relative font-['Press_Start_2P']"
         style="background-image: url('/images/bg-loby.png');">
@@ -45,7 +45,7 @@ const {
                         </div>
                         <h1
                             class="text-[#009999] text-[8px] md:text-sm tracking-tighter uppercase group-hover:text-[#4ed4d4]">
-                            Lobby_Room_01
+                            DOOPTECH
                         </h1>
                     </Link>
                 </div>
@@ -98,7 +98,7 @@ const {
                                 :href="auth.user ? route('guides.user.index') : route('login')"
                                 class="bg-indigo-900/40 p-2 border-b-4 border-r-4 border-indigo-500 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.5)] flex items-center justify-center hover:bg-indigo-500/50 transition-colors"
                                 title="Lihat semua materi">
-                                <span class="text-2xl leading-none">📚</span>
+                                <i class="fi fi-rr-book-alt text-xl leading-none text-indigo-200"></i>
                             </Link>
                         </div>
 
@@ -157,7 +157,7 @@ const {
                     <div class="rpg-panel border-[#3d415f] h-[350px] flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm">
                         <h2
                             class="text-[#4ed4d4] text-[10px] mb-4 flex items-center gap-2 border-b border-slate-700 pb-2 flex-shrink-0 uppercase">
-                            <span>●</span> Leaderboard - Players[{{ players.length }}]
+                            <i class="fi fi-rr-user text-[11px] text-[#4ed4d4]"></i> Leaderboard - Players[{{ players.length }}]
                         </h2>
                         <div class="space-y-4 overflow-y-auto pr-2 custom-scroll flex-1">
                             <div v-for="(player, index) in players" :key="player.id"
@@ -212,7 +212,7 @@ const {
                     <div class="rpg-panel flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm border-emerald-500/50">
                         <div class="flex justify-between items-center mb-4 border-b border-emerald-900 pb-2">
                             <h2 class="text-emerald-400 text-[10px] uppercase tracking-widest flex items-center gap-2">
-                                <span class="animate-pulse">▶</span> Active_Parties [{{ studyGroups.length }}]
+                                <i class="fi fi-rr-users text-[12px] text-emerald-300 animate-pulse"></i> Active_Parties [{{ studyGroups.length }}]
                             </h2>
                             <span class="text-[10px] text-slate-500 uppercase font-mono">Join_via_Code</span>
                         </div>
@@ -274,7 +274,7 @@ const {
                             <Link :href="auth.user ? route('quests.user.index') : route('login')"
                                 class="bg-yellow-900/30 p-2 border-b-4 border-r-4 border-yellow-700 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.5)] flex items-center justify-center hover:bg-yellow-500/40 transition-colors"
                                 title="Lihat semua quest">
-                                <span class="text-2xl leading-none">🗂️</span>
+                                <i class="fi fi-rr-target text-xl leading-none text-yellow-200"></i>
                             </Link>
                         </div>
 
@@ -389,3 +389,4 @@ const {
 @import "../../css/lobby-style.css";
 ;
 </style>
+

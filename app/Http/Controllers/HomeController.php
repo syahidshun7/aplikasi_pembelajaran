@@ -16,6 +16,15 @@ class HomeController extends Controller
 {
    public function index()
 {
+    if (!Auth::check()) {
+        return Inertia::render('Landing', [
+            'canLogin' => Route::has('login'),
+            'canRegister' => Route::has('register'),
+            'laravelVersion' => Application::VERSION,
+            'phpVersion' => PHP_VERSION,
+        ]);
+    }
+
     $userId = Auth::id();
 
     // 1. Ambil Quest dengan status submission (Logika Kelompok Party)

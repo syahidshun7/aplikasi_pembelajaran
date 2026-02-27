@@ -35,7 +35,7 @@ const handleLogout = () => {
                         <img src="/images/logo.png" alt="Logo" class="w-7 h-7 object-contain pixelated">
                     </div>
                     <h1 class="text-[#009999] text-[8px] md:text-sm tracking-tighter uppercase group-hover:text-[#4ed4d4]">
-                        Lobby_Room_01
+                        DOOPTECH
                     </h1>
                 </Link>
             </div>
