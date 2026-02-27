@@ -9,7 +9,7 @@ class Guide extends Model
 {
     use HasUuids;
 
-    protected $fillable = ['title', 'description', 'file_path'];
+    protected $fillable = ['title', 'description', 'study_group_id', 'file_path'];
 
     // Menentukan kolom UUID sebagai pengenal di route (opsional tapi bagus)
    public function uniqueIds(): array
@@ -23,6 +23,11 @@ class Guide extends Model
     public function getRouteKeyName()
     {
         return 'uuid';
+    }
+
+    public function studyGroup()
+    {
+        return $this->belongsTo(StudyGroup::class);
     }
    
 }

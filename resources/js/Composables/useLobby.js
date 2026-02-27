@@ -28,9 +28,9 @@ export function useLobby(props) {
             onSuccess: () => {
                 joinForm.reset();
                 if (toast.success) {
-                    toast.success('SUCCESS', 'You have joined the party!');
+                    toast.success('SUCCESS', 'Join request sent. Waiting for admin approval.');
                 } else {
-                    console.log('Joined successfully');
+                    console.log('Join request sent');
                 }
             },
             onError: (errors) => {

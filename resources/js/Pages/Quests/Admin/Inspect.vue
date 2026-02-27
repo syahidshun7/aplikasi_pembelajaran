@@ -1,26 +1,26 @@
 <template>
-    <div class="min-h-screen bg-[#0d1117] p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4]">
+    <div class="min-h-screen bg-[#0d1117] p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px]">
+        <div class="max-w-7xl mx-auto space-y-8">
+            <AdminNavbar />
 
-        <div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center border-b-4 border-slate-800 pb-6 gap-4">
-            <div>
-                <h1 class="text-xl text-white uppercase mb-2 tracking-tighter">Manual_Inspection_Console</h1>
-                <div class="flex flex-wrap items-center gap-4">
-                    <span class="text-[8px] text-slate-500 italic">SUBMISSION_UUID: {{ submission.uuid.substring(0, 8) }}...</span>
-                    <span class="text-[8px] bg-yellow-900/30 text-yellow-500 px-2 py-1 border border-yellow-700">
-                        DIFFICULTY: {{ submission.quest.difficulty }}
-                    </span>
-                    <span class="text-[8px] bg-blue-900/30 text-blue-400 px-2 py-1 border border-blue-700 uppercase">
-                        MAX_REWARD: {{ submission.quest.reward_gold }} G
-                    </span>
+            <div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center border-b-4 border-slate-800 pb-6 gap-4">
+                <div>
+                    <h1 class="text-xl text-white uppercase mb-2 tracking-tighter">Manual_Inspection_Console</h1>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <span class="text-[8px] text-slate-500 italic">SUBMISSION_UUID: {{ submission.uuid.substring(0, 8) }}...</span>
+                        <span class="text-[8px] bg-yellow-900/30 text-yellow-500 px-2 py-1 border border-yellow-700">
+                            DIFFICULTY: {{ submission.quest.difficulty }}
+                        </span>
+                        <span class="text-[8px] bg-blue-900/30 text-blue-400 px-2 py-1 border border-blue-700 uppercase">
+                            MAX_REWARD: {{ submission.quest.reward_gold }} G
+                        </span>
+                    </div>
                 </div>
+                <Link :href="route('admin.quests.submissions', { quest: submission.quest.uuid })"
+                    class="text-[8px] bg-red-900/20 text-red-500 px-6 py-3 border-2 border-red-900 hover:bg-red-900 hover:text-white transition-all">
+                    [ CLOSE_TERMINAL ]
+                </Link>
             </div>
-            <Link :href="route('admin.quests.submissions', { quest: submission.quest.uuid })"
-                class="text-[8px] bg-red-900/20 text-red-500 px-6 py-3 border-2 border-red-900 hover:bg-red-900 hover:text-white transition-all">
-                [ CLOSE_TERMINAL ]
-            </Link>
-        </div>
-
-        <div class="max-w-7xl mx-auto space-y-10">
 
             <section class="bg-[#161b22] border-4 border-slate-700 shadow-2xl overflow-hidden">
                 <div class="bg-slate-900 p-4 border-b-4 border-slate-700 flex justify-between items-center">
@@ -172,6 +172,7 @@ import { Link, router } from '@inertiajs/vue3';
 import { ref, computed, onMounted, watch } from 'vue';
 import Swal from 'sweetalert2';
 import axios from 'axios';
+import AdminNavbar from '@/Components/AdminNavbar.vue';
 
 const props = defineProps({
     submission: Object

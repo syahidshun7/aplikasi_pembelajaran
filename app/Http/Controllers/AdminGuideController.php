@@ -4,6 +4,7 @@ namespace App\Http\Controllers;// Sesuaikan dengan folder Admin kamu
 
 use App\Http\Controllers\Controller;
 use App\Models\Guide;
+use App\Models\StudyGroup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -13,10 +14,33 @@ class AdminGuideController extends Controller
     /**
      * Menampilkan daftar materi (guides)
      */
-    public function index()
+    public function index(Request $request)
     {
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $search = trim((string) ($validated['search'] ?? ''));
+
         return Inertia::render('Guide/Index', [
-            'materi' => Guide::orderBy('created_at', 'desc')->get()
+            'materi' => Guide::query()
+                ->with('studyGroup:id,name')
+                ->when($search !== '', function ($query) use ($search) {
+                    $query->where(function ($q) use ($search) {
+                        $q->where('title', 'like', "%{$search}%")
+                            ->orWhere('description', 'like', "%{$search}%")
+                            ->orWhereHas('studyGroup', function ($sq) use ($search) {
+                                $sq->where('name', 'like', "%{$search}%");
+                            });
+                    });
+                })
+                ->orderBy('created_at', 'desc')
+                ->paginate(10)
+                ->withQueryString(),
+            'studyGroups' => StudyGroup::select('id', 'name')->orderBy('name')->get(),
+            'filters' => [
+                'search' => $search,
+            ],
         ]);
     }
 
@@ -28,6 +52,7 @@ class AdminGuideController extends Controller
     $request->validate([
         'title' => 'required|string|max:255',
         'description' => 'nullable|string',
+        'study_group_id' => 'nullable|exists:study_groups,id',
         'file' => 'nullable|file|mimes:pdf,jpg,png,zip|max:10240',
     ]);
 
@@ -40,6 +65,7 @@ class AdminGuideController extends Controller
     Guide::create([
         'title'       => $request->title,
         'description' => $request->description,
+        'study_group_id' => $request->study_group_id,
         'file_path'   => $filePath, 
     ]);
 
@@ -57,12 +83,14 @@ class AdminGuideController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'file' => 'nullable|file|max:10240',
+            'study_group_id' => 'nullable|exists:study_groups,id',
+            'file' => 'nullable|file|mimes:pdf,jpg,png,zip|max:10240',
         ]);
 
         $data = [
             'title'       => $request->title,
             'description' => $request->description,
+            'study_group_id' => $request->study_group_id,
         ];
 
         if ($request->hasFile('file')) {

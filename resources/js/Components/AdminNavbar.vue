@@ -25,7 +25,7 @@ const handleLogout = () => {
 </script>
 
 <template>
-    <nav class="rpg-panel mb-8 flex flex-col md:flex-row justify-between items-center gap-4 border-indigo-500/50 bg-[#1a1c2c]/90 backdrop-blur-md">
+    <nav class="rpg-panel relative z-[120] overflow-visible mb-8 flex flex-col md:flex-row justify-between items-center gap-4 border-indigo-500/50 bg-[#1a1c2c]/90 backdrop-blur-md">
         
         <div class="flex items-center gap-4">
             <div class="flex flex-col">
@@ -41,39 +41,32 @@ const handleLogout = () => {
             </div>
         </div>
 
-        <div class="flex flex-wrap justify-center gap-4 md:gap-8">
+        <div class="flex flex-wrap justify-center items-center gap-3 md:gap-4">
+            <Link :href="route('dashboard')"
+                  class="nav-item hover:text-indigo-300 transition-colors">
+                ADMIN_DASHBOARD
+            </Link>
+
             <Link :href="route('lobby')" 
-                  class="nav-item hover:text-white transition-colors"
-                  :class="{ 'text-indigo-400 border-b-2 border-indigo-400': $page.component === 'Dashboard' }">
-                DASHBOARD USER
-            </Link>
-            
-            <Link href="/admin/materi" 
-                  class="nav-item hover:text-yellow-400 transition-colors">
-                GUIDE
+                  class="nav-item hover:text-white transition-colors">
+                USER_DASHBOARD
             </Link>
 
-            <Link :href="route('quests.index')" 
-                  class="nav-item hover:text-cyan-400 transition-colors">
-                QUEST
-            </Link>
-            <Link :href="route('groups.manage')" 
-                  class="nav-item hover:text-cyan-400 transition-colors">
-                STUDY_GROUP
-            </Link>
-            <Link :href="route('admin.submissions.manage.index')"
-                  class="nav-item hover:text-yellow-400 transition-colors">
-                SUBMISSIONS
-            </Link>
-            <Link :href="route('admin.users.index')"
-                  class="nav-item hover:text-emerald-400 transition-colors">
-                USERS
-            </Link>
-
-            <button @click="handleLogout" 
-                    class="nav-item text-red-500 hover:bg-red-500/10 px-2 transition-all border border-transparent hover:border-red-500/50">
-                DISCONNECT
-            </button>
+            <details class="relative z-[130]">
+                <summary class="nav-item cursor-pointer list-none border border-slate-600 px-3 py-1 hover:border-cyan-400 hover:text-cyan-300">
+                    MENU
+                </summary>
+                <div class="absolute right-0 mt-2 min-w-[220px] bg-[#0f101a] border-2 border-slate-700 shadow-xl p-2 z-[140]">
+                    <Link href="/admin/materi" class="dropdown-item">GUIDE</Link>
+                    <Link :href="route('quests.index')" class="dropdown-item">QUEST</Link>
+                    <Link :href="route('groups.manage')" class="dropdown-item">STUDY_GROUP</Link>
+                    <Link :href="route('admin.submissions.manage.index')" class="dropdown-item">SUBMISSIONS</Link>
+                    <Link :href="route('admin.users.index')" class="dropdown-item">USERS</Link>
+                    <button @click="handleLogout" class="dropdown-item w-full text-left text-red-400 hover:text-white">
+                        DISCONNECT
+                    </button>
+                </div>
+            </details>
         </div>
     </nav>
 </template>
@@ -86,6 +79,10 @@ const handleLogout = () => {
 
 .nav-item {
     @apply text-[10px] tracking-tighter uppercase font-bold py-1;
+}
+
+.dropdown-item {
+    @apply block w-full px-3 py-2 text-[10px] uppercase text-slate-300 hover:bg-slate-800 hover:text-cyan-300 transition-colors;
 }
 
 /* Garis pemisah estetik di samping navigasi */

@@ -1,12 +1,13 @@
 <script setup>
-import { Head, useForm, Link, usePage } from '@inertiajs/vue3';
-import { ref, watch } from 'vue'; 
+import { Head, useForm, Link, usePage, router } from '@inertiajs/vue3';
+import { ref, watch, computed } from 'vue'; 
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 import Swal from 'sweetalert2';
 
 const props = defineProps({
-    quests: Array,
-    studyGroups: Array
+    quests: Object,
+    studyGroups: Array,
+    filters: Object,
 });
 
 const rankGoldMap = {
@@ -35,6 +36,12 @@ const isEditing = ref(false);
 const editId = ref(null);
 const showDeleteModal = ref(false);
 const questIdToDelete = ref(null);
+const filterForm = useForm({
+    search: props.filters?.search || '',
+});
+
+const questItems = computed(() => props.quests?.data || []);
+const paginationLinks = computed(() => props.quests?.links || []);
 
 const form = useForm({
     title: '',
@@ -142,13 +149,33 @@ const executeAbort = () => {
         });
     }
 };
+
+const applyFilters = () => {
+    router.get(route('quests.index'), filterForm.data(), {
+        preserveState: true,
+        preserveScroll: true,
+    });
+};
+
+const resetFilters = () => {
+    filterForm.search = '';
+    applyFilters();
+};
+
+const goToPage = (url) => {
+    if (!url) return;
+    router.get(url, {}, {
+        preserveState: true,
+        preserveScroll: true,
+    });
+};
 </script>
 
 <template>
     <Head title="GUILD_BOARD" />
 
     <div class="min-h-screen bg-[#0d1117] p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px] relative">
-        <div class="max-w-6xl mx-auto space-y-8">
+        <div class="max-w-7xl mx-auto space-y-8">
 
             <AdminNavbar />
 
@@ -245,9 +272,26 @@ const executeAbort = () => {
                 <div class="col-span-12 lg:col-span-7">
                     <div class="rpg-panel border-slate-700 h-full">
                         <h2 class="text-white mb-6 uppercase tracking-tighter">>> ACTIVE_MISSIONS_BOARD</h2>
+                        <div class="mb-4 flex flex-col md:flex-row gap-2">
+                            <input
+                                v-model="filterForm.search"
+                                type="text"
+                                placeholder="SEARCH QUEST / PARTY / STATUS"
+                                class="flex-1 bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
+                                @keyup.enter="applyFilters"
+                            />
+                            <button @click="applyFilters"
+                                class="px-3 py-2 border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-black uppercase">
+                                APPLY
+                            </button>
+                            <button @click="resetFilters"
+                                class="px-3 py-2 border-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white uppercase">
+                                RESET
+                            </button>
+                        </div>
 
-                        <div class="space-y-4">
-                            <div v-for="q in quests" :key="q.uuid"
+                        <div class="space-y-4 max-h-[560px] overflow-y-auto pr-2 custom-scroll">
+                            <div v-for="q in questItems" :key="q.uuid"
                                 class="flex flex-col p-4 bg-slate-900/50 border-l-4 border-cyan-500 hover:bg-slate-800 transition-all relative overflow-hidden">
                                 
                                 <div class="flex justify-between items-start mb-1">
@@ -282,6 +326,28 @@ const executeAbort = () => {
                                     <button @click="confirmAbort(q.uuid)"
                                         class="text-red-500 hover:text-white text-[8px] uppercase font-bold">[Abort]</button>
                                 </div>
+                            </div>
+                        </div>
+                        <div class="mt-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <p class="text-[8px] text-slate-500 uppercase">
+                                PAGE {{ quests.current_page || 1 }} / {{ quests.last_page || 1 }}
+                                | TOTAL {{ quests.total || 0 }}
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <button
+                                    v-for="(link, idx) in paginationLinks"
+                                    :key="`${idx}-${link.label}`"
+                                    @click="goToPage(link.url)"
+                                    :disabled="!link.url"
+                                    class="px-3 py-1 border text-[8px] uppercase transition-all"
+                                    :class="[
+                                        link.active
+                                            ? 'border-cyan-400 text-cyan-400 bg-cyan-900/20'
+                                            : 'border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white',
+                                        !link.url ? 'opacity-40 cursor-not-allowed' : ''
+                                    ]"
+                                    v-html="link.label"
+                                />
                             </div>
                         </div>
                     </div>
@@ -320,7 +386,7 @@ const executeAbort = () => {
 .rpg-panel {
     background-color: #1a1c2c;
     border-width: 4px;
-    padding: 1.5rem;
+    padding: 1rem;
     position: relative;
     box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 0.5);
 }
@@ -333,5 +399,22 @@ textarea { resize: none; }
 input::-webkit-calendar-picker-indicator {
     filter: invert(0.8) sepia(100%) saturate(500%) hue-rotate(10deg);
     cursor: pointer;
+}
+
+.custom-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+    background: #0d1117;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 999px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+    background: #4ed4d4;
 }
 </style>

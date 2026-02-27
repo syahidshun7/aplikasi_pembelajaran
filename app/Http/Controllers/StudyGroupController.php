@@ -2,6 +2,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\StudyGroup;
+use App\Models\StudyGroupJoinRequest;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
@@ -29,24 +30,33 @@ class StudyGroupController extends Controller
     // Logic JOIN Party
     public function join(Request $request)
     {
-        $request->validate(['invite_code' => 'required|string']);
+        $validated = $request->validate(['invite_code' => 'required|string|max:255']);
+        $inviteCode = strtoupper(trim($validated['invite_code']));
+        $userId = (int) Auth::id();
 
-        $group = StudyGroup::where('invite_code', $request->invite_code)->first();
-
-        if (!$group) {
+        $group = StudyGroup::where('invite_code', $inviteCode)->first();
+        if (! $group) {
             return back()->withErrors(['invite_code' => 'KODE_INVALID: Party tidak ditemukan.']);
         }
 
-        if ($group->users()->where('user_id', Auth::id())->exists()) {
+        if ($group->users()->where('user_id', $userId)->exists()) {
             return back()->withErrors(['invite_code' => 'ALREADY_MEMBER: Kamu sudah di dalam party ini.']);
         }
 
-        if ($group->users()->count() >= $group->max_members) {
-            return back()->withErrors(['invite_code' => 'PARTY_FULL: Kapasitas party sudah maksimal.']);
+        $joinRequest = StudyGroupJoinRequest::firstOrNew([
+            'study_group_id' => $group->id,
+            'user_id' => $userId,
+        ]);
+
+        if ($joinRequest->exists && $joinRequest->status === 'pending') {
+            return back()->withErrors(['invite_code' => 'REQUEST_PENDING: Menunggu persetujuan admin group.']);
         }
 
-        $group->users()->attach(Auth::id());
-        return back()->with('message', 'JOINED_SUCCESSFULLY');
+        $joinRequest->status = 'pending';
+        $joinRequest->processed_by = null;
+        $joinRequest->save();
+
+        return back()->with('message', 'JOIN_REQUEST_SENT_WAITING_APPROVAL');
     }
 
     // Logic LEAVE Party

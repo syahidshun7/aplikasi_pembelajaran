@@ -9,6 +9,8 @@ use App\Http\Controllers\AdminSubmissionController;
 use App\Http\Controllers\AdminGuideController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminSubmissionManagementController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\SubmissionController;
 use Illuminate\Support\Facades\Route;
@@ -29,19 +31,22 @@ Route::middleware('auth')->group(function () {
         ->name('submissions.show');
     Route::put('/submissions/{uuid}', [SubmissionController::class, 'update'])
         ->name('submissions.update');
+    Route::get('/quests-user', [QuestController::class, 'userIndex'])->name('quests.user.index');
 
     // --- USER AREA ---
     Route::get('/study-groups', [StudyGroupController::class, 'index'])->name('groups.index');
     Route::post('/study-groups/join', [StudyGroupController::class, 'join'])->name('groups.join');
     Route::post('/study-groups/{uuid}/leave', [StudyGroupController::class, 'leave'])->name('groups.leave');
+    Route::get('/guides', [GuideController::class, 'userIndex'])->name('guides.user.index');
 });
 
 
 
 Route::middleware(['auth', 'verified', 'admin'])->group(function () {
-    Route::get('/dashboard', function () {
-        return Inertia::render('Dashboard');
-    })->name('dashboard'); // Beri nama agar mudah dipanggil
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/admin/dashboard', function () {
+        return redirect()->route('dashboard');
+    })->name('admin.dashboard');
 
     Route::get('/quests', [QuestController::class, 'index'])->name('quests.index');
     Route::post('/quests', [QuestController::class, 'store'])->name('quests.store');
@@ -72,7 +77,7 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
 });
 
 
-Route::middleware(['auth', 'verified'])->prefix('admin')->group(function () {
+Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->group(function () {
 
     // Halaman Utama CRUD (List & Form Jadi Satu)
     Route::get('/materi', [AdminGuideController::class, 'index'])->name('materi.index');
@@ -93,8 +98,15 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
 
     // --- ADMIN AREA ---    
     Route::get('/admin/study-groups/index', [AdminStudyGroupController::class, 'manage'])->name('groups.manage');
+    Route::get('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'detail'])->name('groups.detail');
     Route::post('/admin/study-groups', [AdminStudyGroupController::class, 'store'])->name('groups.store');
     Route::put('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'update'])->name('groups.update');
+    Route::post('/admin/study-groups/{uuid}/requests/{requestId}/approve', [AdminStudyGroupController::class, 'approveRequest'])
+        ->name('groups.requests.approve');
+    Route::post('/admin/study-groups/{uuid}/requests/{requestId}/reject', [AdminStudyGroupController::class, 'rejectRequest'])
+        ->name('groups.requests.reject');
+    Route::delete('/admin/study-groups/{uuid}/members/{userId}', [AdminStudyGroupController::class, 'removeMember'])
+        ->name('groups.members.remove');
     Route::delete('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'destroy'])->name('groups.destroy');
 });
 

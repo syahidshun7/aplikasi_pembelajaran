@@ -21,6 +21,8 @@ const userData = computed(() => props.user || page.props.auth.user);
 
 // 2. State untuk Tab
 const activeTab = ref('quests');
+const questItems = computed(() => Array.isArray(props.userQuests) ? props.userQuests : (props.userQuests?.data || []));
+const questPaginationLinks = computed(() => Array.isArray(props.userQuests) ? [] : (props.userQuests?.links || []));
 
 // 3. Helper Warna Berdasarkan Nilai (Agar tetap tema RPG)
 const getGradeColor = (grade) => {
@@ -89,7 +91,7 @@ const getGradeColor = (grade) => {
                 </div>
 
                 <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
-                    <p class="text-[7px] text-slate-500 uppercase italic mb-2">Missions_Completed</p>
+                    <p class="text-[7px] text-slate-500 uppercase italic mb-2">Quests_Completed</p>
                     <div class="flex items-center gap-2 text-white">
                         <span class="text-xl font-bold font-mono">{{ totalCompleted || 0 }}</span>
                         <span class="text-[7px] text-slate-600 tracking-widest">SUCCESSFUL_LOGS</span>
@@ -114,7 +116,7 @@ const getGradeColor = (grade) => {
                             <button @click="activeTab = 'quests'"
                                 :class="activeTab === 'quests' ? 'bg-yellow-500 text-black' : 'bg-slate-800 text-yellow-500'"
                                 class="w-full p-3 text-left border-r-4 border-black hover:translate-x-1 transition-all uppercase text-[8px]">
-                                [1] Mission_Log
+                                [1] Quest_Log
                             </button>
                             <button @click="activeTab = 'profile'"
                                 :class="activeTab === 'profile' ? 'bg-cyan-400 text-black' : 'bg-slate-800 text-cyan-400'"
@@ -140,31 +142,46 @@ const getGradeColor = (grade) => {
 
                         <div v-if="activeTab === 'quests'" class="space-y-6">
                             <h3 class="text-green-400 mb-6 uppercase tracking-widest border-l-4 border-green-400 pl-3">
-                                Mission_Log</h3>
+                                Quest_Log</h3>
                             <div class="space-y-4">
-                                <div v-if="userQuests && userQuests.length > 0" v-for="q in userQuests" :key="q.uuid"
-                                    class="p-3 border-2 border-slate-700 bg-black/40 flex justify-between items-center hover:border-cyan-500/50 transition-colors">
-                                    <div>
-                                        <p class="text-white text-[8px]">{{ q.title }}</p>
-                                        <p class="text-[6px] text-slate-500 mt-1 uppercase">
-                                            Status:
-                                            <span :class="{
-                                                'text-yellow-500': q.status.toLowerCase() === 'pending',
-                                                'text-green-500': q.status.toLowerCase() === 'approved',
-                                                'text-red-500': q.status.toLowerCase() === 'rejected'
-                                            }" class="font-bold">
-                                                {{ q.status }}
-                                            </span>
-                                            <span class="ml-2 text-slate-600">| {{ q.submitted_at }}</span>
-                                        </p>
+                                <template v-if="questItems.length > 0">
+                                    <div v-for="q in questItems" :key="q.uuid"
+                                        class="p-3 border-2 border-slate-700 bg-black/40 flex justify-between items-center hover:border-cyan-500/50 transition-colors">
+                                        <div>
+                                            <p class="text-white text-[8px]">{{ q.title }}</p>
+                                            <p class="text-[6px] text-slate-500 mt-1 uppercase">
+                                                Status:
+                                                <span :class="{
+                                                    'text-yellow-500': q.status.toLowerCase() === 'pending',
+                                                    'text-green-500': q.status.toLowerCase() === 'approved',
+                                                    'text-red-500': q.status.toLowerCase() === 'rejected'
+                                                }" class="font-bold">
+                                                    {{ q.status }}
+                                                </span>
+                                                <span class="ml-2 text-slate-600">| {{ q.submitted_at }}</span>
+                                            </p>
+                                        </div>
+                                        <Link :href="route('submissions.show', { submission: q.uuid })"
+                                            class="text-yellow-500 text-[8px] hover:underline hover:text-white transition-colors">
+                                            VIEW >
+                                        </Link>
                                     </div>
-                                    <Link :href="route('submissions.show', { submission: q.uuid })"
-                                        class="text-yellow-500 text-[8px] hover:underline hover:text-white transition-colors">
-                                        VIEW >
-                                    </Link>
-                                </div>
+                                    <div v-if="questPaginationLinks.length > 0" class="flex flex-wrap gap-2 pt-3">
+                                        <Link v-for="(link, idx) in questPaginationLinks"
+                                            :key="`${idx}-${link.label}`"
+                                            :href="link.url || '#'"
+                                            class="px-3 py-1 border text-[8px] uppercase transition-all"
+                                            :class="[
+                                                link.active
+                                                    ? 'border-cyan-400 text-cyan-400 bg-cyan-900/20'
+                                                    : 'border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white',
+                                                !link.url ? 'opacity-40 pointer-events-none' : ''
+                                            ]"
+                                            v-html="link.label" />
+                                    </div>
+                                </template>
                                 <div v-else class="text-center py-10">
-                                    <p class="text-slate-600 italic">No missions taken yet...</p>
+                                    <p class="text-slate-600 italic">No quests taken yet...</p>
                                     <Link :href="route('lobby')"
                                         class="text-cyan-400 underline mt-4 inline-block hover:text-white">
                                         Browse_Quests

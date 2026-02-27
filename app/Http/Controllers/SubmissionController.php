@@ -77,10 +77,13 @@ class SubmissionController extends Controller
             'uuid' => $submission->uuid,
             'status' => $submission->status,
             'content' => $submission->content,
+            'file_path' => $submission->file_path,
             'feedback' => $submission->feedback,
             'submitted_at' => $submission->created_at->format('d M Y | H:i'),
             'quest' => $submission->quest,
-            'grade' => $submission->grade
+            'grade' => $submission->grade,
+            'earned_exp' => (int) ($submission->earned_exp ?? 0),
+            'earned_gold' => (int) ($submission->earned_gold ?? 0),
         ]
     ]);
 }

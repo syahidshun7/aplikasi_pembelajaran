@@ -1,16 +1,20 @@
 <script setup>
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import Swal from 'sweetalert2';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 
 const props = defineProps({
-    users: Array,
+    users: Object,
     availableRoles: Array,
+    filters: Object,
 });
 
-const search = ref('');
-const roleFilter = ref('all');
+const filterForm = useForm({
+    search: props.filters?.search || '',
+    role: props.filters?.role || 'all',
+});
+
 const selectedUser = ref(null);
 const roleForm = useForm({
     role: '',
@@ -20,6 +24,30 @@ const passwordForm = useForm({
     password: '',
     password_confirmation: '',
 });
+
+const rows = computed(() => props.users?.data || []);
+const paginationLinks = computed(() => props.users?.links || []);
+
+const applyFilters = () => {
+    router.get(route('admin.users.index'), filterForm.data(), {
+        preserveState: true,
+        preserveScroll: true,
+    });
+};
+
+const resetFilters = () => {
+    filterForm.search = '';
+    filterForm.role = 'all';
+    applyFilters();
+};
+
+const goToPage = (url) => {
+    if (!url) return;
+    router.get(url, {}, {
+        preserveState: true,
+        preserveScroll: true,
+    });
+};
 
 const openRoleModal = (user) => {
     selectedUser.value = user;
@@ -85,29 +113,6 @@ const formatDate = (date) => {
     }).toUpperCase();
 };
 
-const filteredUsers = computed(() => {
-    const keyword = search.value.trim().toLowerCase();
-
-    return (props.users || []).filter((user) => {
-        const roleOk = roleFilter.value === 'all' || user.role === roleFilter.value;
-        if (!roleOk) return false;
-
-        if (!keyword) return true;
-
-        const haystack = [
-            user.name,
-            user.username,
-            user.email,
-            user.role,
-            String(user.id),
-        ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-
-        return haystack.includes(keyword);
-    });
-});
 </script>
 
 <template>
@@ -125,18 +130,29 @@ const filteredUsers = computed(() => {
             <div class="rpg-panel border-slate-700 overflow-x-auto">
                 <div class="flex flex-col md:flex-row gap-3 mb-4">
                     <input
-                        v-model="search"
+                        v-model="filterForm.search"
                         type="text"
                         placeholder="SEARCH: NAME / USERNAME / EMAIL"
                         class="flex-1 bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
+                        @keyup.enter="applyFilters"
                     />
                     <select
-                        v-model="roleFilter"
+                        v-model="filterForm.role"
                         class="w-full md:w-56 bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
                     >
                         <option value="all">ALL_ROLES</option>
                         <option v-for="role in availableRoles" :key="role" :value="role">{{ role }}</option>
                     </select>
+                </div>
+                <div class="flex gap-2 mb-4">
+                    <button @click="applyFilters"
+                        class="px-3 py-2 border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-black uppercase">
+                        APPLY_FILTER
+                    </button>
+                    <button @click="resetFilters"
+                        class="px-3 py-2 border-2 border-slate-600 text-slate-300 hover:bg-slate-600 hover:text-white uppercase">
+                        RESET
+                    </button>
                 </div>
 
                 <table class="w-full min-w-[980px] text-left">
@@ -147,12 +163,13 @@ const filteredUsers = computed(() => {
                             <th class="py-3 px-2">Email</th>
                             <th class="py-3 px-2">Role</th>
                             <th class="py-3 px-2">Progress</th>
+                            <th class="py-3 px-2">Avg_Grade</th>
                             <th class="py-3 px-2">Joined</th>
                             <th class="py-3 px-2 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="user in filteredUsers" :key="user.id" class="border-b border-slate-800 hover:bg-slate-900/40">
+                        <tr v-for="user in rows" :key="user.id" class="border-b border-slate-800 hover:bg-slate-900/40">
                             <td class="py-4 px-2 text-slate-400">{{ user.id }}</td>
                             <td class="py-4 px-2">
                                 <p class="text-white uppercase">{{ user.username || user.name }}</p>
@@ -172,6 +189,14 @@ const filteredUsers = computed(() => {
                                 <p class="text-yellow-500">GOLD {{ user.gold || 0 }}</p>
                                 <p class="text-slate-500">SUBMISSIONS {{ user.submissions_count || 0 }}</p>
                             </td>
+                            <td class="py-4 px-2">
+                                <span class="px-2 py-1 border text-[8px] uppercase"
+                                    :class="(Number(user.avg_grade || 0) >= 75)
+                                        ? 'text-emerald-400 border-emerald-800 bg-emerald-900/20'
+                                        : 'text-orange-400 border-orange-800 bg-orange-900/20'">
+                                    {{ Number(user.avg_grade || 0).toFixed(1) }}%
+                                </span>
+                            </td>
                             <td class="py-4 px-2 text-slate-500 text-[8px]">{{ formatDate(user.created_at) }}</td>
                             <td class="py-4 px-2 text-right space-x-2">
                                 <button
@@ -188,13 +213,35 @@ const filteredUsers = computed(() => {
                                 </button>
                             </td>
                         </tr>
-                        <tr v-if="filteredUsers.length === 0">
-                            <td colspan="7" class="py-8 px-2 text-center text-slate-500 uppercase">
+                        <tr v-if="rows.length === 0">
+                            <td colspan="8" class="py-8 px-2 text-center text-slate-500 uppercase">
                                 NO_USERS_MATCH_FILTER
                             </td>
                         </tr>
                     </tbody>
                 </table>
+
+                <div class="mt-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <p class="text-[8px] text-slate-500 uppercase">
+                        PAGE {{ users.current_page || 1 }} / {{ users.last_page || 1 }} | TOTAL {{ users.total || 0 }}
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            v-for="(link, idx) in paginationLinks"
+                            :key="`${idx}-${link.label}`"
+                            @click="goToPage(link.url)"
+                            :disabled="!link.url"
+                            class="px-3 py-1 border text-[8px] uppercase transition-all"
+                            :class="[
+                                link.active
+                                    ? 'border-cyan-400 text-cyan-400 bg-cyan-900/20'
+                                    : 'border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white',
+                                !link.url ? 'opacity-40 cursor-not-allowed' : ''
+                            ]"
+                            v-html="link.label"
+                        />
+                    </div>
+                </div>
             </div>
         </div>
 

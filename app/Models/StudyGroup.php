@@ -44,4 +44,9 @@ class StudyGroup extends Model
     {
         return $this->hasMany(Quest::class);
     }
+
+    public function joinRequests()
+    {
+        return $this->hasMany(StudyGroupJoinRequest::class);
+    }
 }

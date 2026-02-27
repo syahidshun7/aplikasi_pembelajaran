@@ -1,11 +1,12 @@
 <script setup>
-import { Head, useForm, Link, usePage } from '@inertiajs/vue3';
-import { ref, watch } from 'vue'; 
+import { Head, useForm, Link, usePage, router } from '@inertiajs/vue3';
+import { ref, watch, computed } from 'vue'; 
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 import Swal from 'sweetalert2';
 
 const props = defineProps({
-    groups: Array
+    groups: Object,
+    filters: Object,
 });
 
 // INITIALIZE SWEETALERT TOAST
@@ -32,6 +33,11 @@ const form = useForm({
     description: '',
     max_members: 5,
 });
+const filterForm = useForm({
+    search: props.filters?.search || '',
+});
+const groupItems = computed(() => props.groups?.data || []);
+const paginationLinks = computed(() => props.groups?.links || []);
 
 // Pantau Flash Message dari Server
 watch(() => usePage().props.flash, (flash) => {
@@ -116,13 +122,33 @@ const executeAbort = () => {
         });
     }
 };
+
+const applyFilters = () => {
+    router.get(route('groups.manage'), filterForm.data(), {
+        preserveState: true,
+        preserveScroll: true,
+    });
+};
+
+const resetFilters = () => {
+    filterForm.search = '';
+    applyFilters();
+};
+
+const goToPage = (url) => {
+    if (!url) return;
+    router.get(url, {}, {
+        preserveState: true,
+        preserveScroll: true,
+    });
+};
 </script>
 
 <template>
     <Head title="PARTY_REGISTRY" />
 
     <div class="min-h-screen bg-[#0d1117] p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px] relative">
-        <div class="max-w-6xl mx-auto space-y-8">
+        <div class="max-w-7xl mx-auto space-y-8">
 
             <AdminNavbar />
 
@@ -176,9 +202,26 @@ const executeAbort = () => {
                 <div class="col-span-12 lg:col-span-7">
                     <div class="rpg-panel border-slate-700 h-full">
                         <h2 class="text-white mb-6 uppercase tracking-tighter">>> ACTIVE_PARTY_BOARD</h2>
+                        <div class="mb-4 flex flex-col md:flex-row gap-2">
+                            <input
+                                v-model="filterForm.search"
+                                type="text"
+                                placeholder="SEARCH PARTY / CODE"
+                                class="flex-1 bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-emerald-400 uppercase"
+                                @keyup.enter="applyFilters"
+                            />
+                            <button @click="applyFilters"
+                                class="px-3 py-2 border-2 border-emerald-400 text-emerald-400 hover:bg-emerald-400 hover:text-black uppercase">
+                                APPLY
+                            </button>
+                            <button @click="resetFilters"
+                                class="px-3 py-2 border-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white uppercase">
+                                RESET
+                            </button>
+                        </div>
 
-                        <div class="space-y-4">
-                            <div v-for="g in groups" :key="g.uuid"
+                        <div class="space-y-4 max-h-[560px] overflow-y-auto pr-2 custom-scroll">
+                            <div v-for="g in groupItems" :key="g.uuid"
                                 class="flex flex-col p-4 bg-slate-900/50 border-l-4 border-emerald-500 hover:bg-slate-800 transition-all">
 
                                 <div class="flex justify-between items-start mb-2">
@@ -188,6 +231,9 @@ const executeAbort = () => {
                                     </div>
                                     <div class="text-yellow-500 text-[8px] tracking-widest">{{ g.users_count || 0 }} / {{ g.max_members }} MEMBERS</div>
                                 </div>
+                                <div class="text-[8px] text-orange-400 mb-2 uppercase tracking-tighter">
+                                    PENDING_REQUESTS: {{ g.pending_requests_count || 0 }}
+                                </div>
 
                                 <div v-if="g.description"
                                     class="text-[7px] text-slate-500 italic mb-4 border-t border-slate-800 pt-2 leading-loose">
@@ -195,11 +241,35 @@ const executeAbort = () => {
                                 </div>
 
                                 <div class="flex gap-4 self-end mt-2">
+                                    <Link :href="route('groups.detail', g.uuid)"
+                                        class="text-cyan-400 hover:text-white text-[8px] uppercase font-bold">[Detail]</Link>
                                     <button @click="startEdit(g)"
                                         class="text-emerald-500 hover:text-white text-[8px] uppercase font-bold">[Edit]</button>
                                     <button @click="confirmAbort(g.uuid)"
                                         class="text-red-500 hover:text-white text-[8px] uppercase font-bold">[Purge]</button>
                                 </div>
+                            </div>
+                        </div>
+                        <div class="mt-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <p class="text-[8px] text-slate-500 uppercase">
+                                PAGE {{ groups.current_page || 1 }} / {{ groups.last_page || 1 }}
+                                | TOTAL {{ groups.total || 0 }}
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <button
+                                    v-for="(link, idx) in paginationLinks"
+                                    :key="`${idx}-${link.label}`"
+                                    @click="goToPage(link.url)"
+                                    :disabled="!link.url"
+                                    class="px-3 py-1 border text-[8px] uppercase transition-all"
+                                    :class="[
+                                        link.active
+                                            ? 'border-emerald-400 text-emerald-400 bg-emerald-900/20'
+                                            : 'border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white',
+                                        !link.url ? 'opacity-40 cursor-not-allowed' : ''
+                                    ]"
+                                    v-html="link.label"
+                                />
                             </div>
                         </div>
                     </div>
@@ -254,5 +324,22 @@ textarea {
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
+}
+
+.custom-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+    background: #0d1117;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 999px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+    background: #34d399;
 }
 </style>

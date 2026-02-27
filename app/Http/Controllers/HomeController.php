@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Quest;
+use App\Models\Submission;
+use App\Models\StudyGroupJoinRequest;
 use App\Models\User;
 use App\Models\Guide; // Ganti dengan nama model materimu jika berbeda
 use Illuminate\Support\Facades\Auth;
@@ -20,22 +22,38 @@ class HomeController extends Controller
     $userGroupIds = $userId 
         ? Auth::user()->studyGroups()->pluck('study_groups.id')->toArray() 
         : [];
+    $userSubmissions = $userId
+        ? Submission::where('user_id', $userId)
+            ->latest('id')
+            ->get(['quest_id', 'status'])
+            ->unique('quest_id')
+        : collect();
+
+    $submittedQuestIds = $userSubmissions->pluck('quest_id')->toArray();
+    $submissionStatusesByQuest = $userSubmissions->pluck('status', 'quest_id')->toArray();
 
     $quests = Quest::where(function ($query) use ($userGroupIds) {
             $query->whereNull('study_group_id')
                   ->orWhereIn('study_group_id', $userGroupIds);
         })
         ->latest()
+        ->take(10)
         ->get()
-        ->map(function ($quest) use ($userId) {
-            $quest->user_has_submitted = $userId 
-                ? $quest->submissions()->where('user_id', $userId)->exists() 
-                : false;
+        ->map(function ($quest) use ($submittedQuestIds, $submissionStatusesByQuest) {
+            $quest->user_has_submitted = in_array($quest->id, $submittedQuestIds, true);
+            $quest->user_submission_status = $submissionStatusesByQuest[$quest->id] ?? null;
             return $quest;
         });
 
-    // 2. Ambil Data Materi / Guide
-    $materi = Guide::latest()->get();
+    // 2. Ambil Data Materi / Guide (Global + sesuai study group user)
+    $materi = Guide::where(function ($query) use ($userGroupIds) {
+            $query->whereNull('study_group_id')
+                ->orWhereIn('study_group_id', $userGroupIds);
+        })
+        ->with('studyGroup:id,name')
+        ->latest()
+        ->take(10)
+        ->get();
 
     // 3. UPDATE: Ambil Data Player Berdasarkan EXP Tertinggi (Leaderboard)
     $players = User::select('id', 'name', 'username', 'profile_photo', 'level', 'exp', 'role')
@@ -52,15 +70,19 @@ class HomeController extends Controller
     // 4. Ambil Data Kelompok Belajar (Study Groups)
     $studyGroups = \App\Models\StudyGroup::withCount('users')
         ->latest()
-        ->get()
-        ->map(function ($group) use ($userId) {
-            $group->is_member = $userId
-                ? $group->users()->where('user_id', $userId)->exists()
-                : false;
+        ->get();
+
+    $groupRequestStatuses = $userId
+        ? StudyGroupJoinRequest::where('user_id', $userId)->pluck('status', 'study_group_id')->toArray()
+        : [];
+
+    $studyGroups = $studyGroups->map(function ($group) use ($userGroupIds, $groupRequestStatuses) {
+            $group->is_member = in_array($group->id, $userGroupIds, true);
+            $group->join_request_status = $groupRequestStatuses[$group->id] ?? null;
             return $group;
         });
 
-    return Inertia::render('Welcome', [
+    return Inertia::render('home', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
         'quests' => $quests,

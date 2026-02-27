@@ -1,11 +1,13 @@
 <script setup>
-import { Head, useForm, Link, usePage } from '@inertiajs/vue3';
+import { Head, useForm, Link, usePage, router } from '@inertiajs/vue3';
 import { ref, computed, watch } from 'vue';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 import Swal from 'sweetalert2';
 
 const props = defineProps({
-    materi: Array // Data dari tabel 'guides'
+    materi: [Array, Object], // Data dari tabel 'guides'
+    studyGroups: Array,
+    filters: Object,
 });
 
 // State untuk UI
@@ -33,19 +35,53 @@ const Toast = Swal.mixin({
 const form = useForm({
     title: '',
     description: '',
+    study_group_id: null,
     file: null,
+});
+const searchForm = useForm({
+    search: props.filters?.search || '',
 });
 
 // 3. COMPUTED
 const getOldFileName = computed(() => {
     if (isEditing.value && editId.value) {
-        const currentItem = props.materi.find(item => item.uuid === editId.value);
+        const currentItem = guideItems.value.find(item => item.uuid === editId.value);
         if (currentItem && currentItem.file_path) {
             return currentItem.file_path.split('/').pop();
         }
     }
     return null;
 });
+
+const guideItems = computed(() => {
+    if (Array.isArray(props.materi)) return props.materi;
+    return props.materi?.data || [];
+});
+
+const paginationLinks = computed(() => {
+    if (Array.isArray(props.materi)) return [];
+    return props.materi?.links || [];
+});
+
+const goToPage = (url) => {
+    if (!url) return;
+    router.get(url, {}, {
+        preserveState: true,
+        preserveScroll: true,
+    });
+};
+
+const applySearch = () => {
+    router.get(route('materi.index'), searchForm.data(), {
+        preserveState: true,
+        preserveScroll: true,
+    });
+};
+
+const resetSearch = () => {
+    searchForm.search = '';
+    applySearch();
+};
 
 // 4. METHODS
 const handleFileUpload = (e) => {
@@ -57,6 +93,7 @@ const startEdit = (item) => {
     editId.value = item.uuid;
     form.title = item.title;
     form.description = item.description || '';
+    form.study_group_id = item.study_group_id ?? null;
     form.file = null;
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
@@ -70,6 +107,7 @@ const cancelEdit = () => {
     isEditing.value = false;
     editId.value = null;
     form.reset();
+    form.study_group_id = null;
 };
 
 const submit = () => {
@@ -104,6 +142,7 @@ const submit = () => {
             forceFormData: true,
             onSuccess: () => {
                 form.reset();
+                form.study_group_id = null;
                 Toast.fire({
                     icon: 'success',
                     title: 'KNOWLEDGE_INSCRIBED'
@@ -165,7 +204,7 @@ watch(() => usePage().props.flash, (flash) => {
     <Head title="GUIDE_ARCHIVE" />
 
     <div class="min-h-screen bg-[#0d1117] p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px] relative">
-        <div class="max-w-6xl mx-auto space-y-8">
+        <div class="max-w-7xl mx-auto space-y-8">
 
             <AdminNavbar />
 
@@ -197,6 +236,17 @@ watch(() => usePage().props.flash, (flash) => {
                                     class="w-full bg-black border-2 border-slate-700 p-2 text-[8px] uppercase focus:border-indigo-400 focus:ring-0"
                                     placeholder="Describe the content..."
                                     style="resize: vertical; min-height: 140px;"></textarea>
+                            </div>
+
+                            <div>
+                                <label class="block mb-2 text-white">ASSIGN_TO_PARTY:</label>
+                                <select v-model="form.study_group_id"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-emerald-400 uppercase">
+                                    <option :value="null">-- GLOBAL_GUIDE (PUBLIC) --</option>
+                                    <option v-for="group in studyGroups" :key="group.id" :value="group.id">
+                                        >> PARTY: {{ group.name }}
+                                    </option>
+                                </select>
                             </div>
 
                             <div>
@@ -236,9 +286,26 @@ watch(() => usePage().props.flash, (flash) => {
                 <div class="col-span-12 lg:col-span-7">
                     <div class="rpg-panel border-slate-700 h-full">
                         <h2 class="text-white mb-6 uppercase tracking-tighter">>> ARCHIVE_REGISTRY_BOARD</h2>
+                        <div class="mb-4 flex flex-col md:flex-row gap-2">
+                            <input
+                                v-model="searchForm.search"
+                                type="text"
+                                placeholder="SEARCH GUIDE / PARTY"
+                                class="flex-1 bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
+                                @keyup.enter="applySearch"
+                            />
+                            <button @click="applySearch"
+                                class="px-3 py-2 border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-black uppercase">
+                                APPLY
+                            </button>
+                            <button @click="resetSearch"
+                                class="px-3 py-2 border-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white uppercase">
+                                RESET
+                            </button>
+                        </div>
 
-                        <div class="space-y-4">
-                            <div v-for="item in materi" :key="item.uuid"
+                        <div class="space-y-4 max-h-[560px] overflow-y-auto pr-2 custom-scroll">
+                            <div v-for="item in guideItems" :key="item.uuid"
                                 class="flex flex-col p-4 bg-slate-900/50 border-l-4 border-indigo-500 hover:bg-slate-800 transition-all">
 
                                 <div class="flex justify-between items-start mb-2">
@@ -246,6 +313,10 @@ watch(() => usePage().props.flash, (flash) => {
                                         <div class="text-[8px] text-slate-500 mb-1 uppercase tracking-tighter">REF_ID:
                                             {{ item.uuid }}</div>
                                         <div class="text-white uppercase tracking-tight">{{ item.title }}</div>
+                                        <div class="text-[8px] mt-1 uppercase"
+                                            :class="item.study_group_id ? 'text-emerald-400' : 'text-cyan-400'">
+                                            {{ item.study_group_id ? `PARTY: ${item.study_group?.name || 'UNKNOWN'}` : 'GLOBAL_GUIDE' }}
+                                        </div>
                                     </div>
                                     <div v-if="item.file_path" class="text-indigo-400 text-[7px] animate-pulse">
                                         [DOC_ATTACHED]
@@ -265,10 +336,27 @@ watch(() => usePage().props.flash, (flash) => {
                                 </div>
                             </div>
 
-                            <div v-if="materi.length === 0"
+                            <div v-if="guideItems.length === 0"
                                 class="py-12 text-center text-slate-700 italic uppercase text-[8px]">
                                 The archive vaults are currently empty...
                             </div>
+                        </div>
+
+                        <div v-if="paginationLinks.length > 0" class="mt-6 flex flex-wrap gap-2">
+                            <button
+                                v-for="(link, index) in paginationLinks"
+                                :key="`${index}-${link.label}`"
+                                @click="goToPage(link.url)"
+                                :disabled="!link.url"
+                                class="px-3 py-1 border text-[8px] uppercase transition-all"
+                                :class="[
+                                    link.active
+                                        ? 'border-indigo-400 text-indigo-300 bg-indigo-900/20'
+                                        : 'border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white',
+                                    !link.url ? 'opacity-40 cursor-not-allowed' : ''
+                                ]"
+                                v-html="link.label"
+                            />
                         </div>
                     </div>
                 </div>

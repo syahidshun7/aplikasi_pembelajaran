@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\Quest;
+use App\Models\Submission;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,17 +23,38 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
-        // 1. Ambil semua submission yang sudah diproses (Logic Asli Kamu)
-        $completedSubmissions = \App\Models\Submission::where('user_id', $user->id)
-            ->whereIn('status', ['Approved', 'Rejected'])
-            ->get();
+        // 1. Ambil semua quest yang tersedia untuk user: public + party user.
+        $userGroupIds = $user->studyGroups()->pluck('study_groups.id')->toArray();
+        $availableQuestIds = Quest::query()
+            ->where(function ($query) use ($userGroupIds) {
+                $query->whereNull('study_group_id')
+                    ->orWhereIn('study_group_id', $userGroupIds);
+            })
+            ->pluck('id');
 
-        $totalCompleted = $completedSubmissions->count();
+        $totalAvailableQuests = $availableQuestIds->count();
 
-        // 2. Hitung rata-rata Grade (Logic Asli Kamu)
-        $averageGrade = $totalCompleted > 0
-            ? round($completedSubmissions->sum('grade') / $totalCompleted, 1)
+        // 2. Ambil submission terbaru user per quest untuk basis scoring.
+        $latestSubmissions = Submission::query()
+            ->where('user_id', $user->id)
+            ->whereIn('quest_id', $availableQuestIds)
+            ->orderByDesc('id')
+            ->get(['quest_id', 'grade', 'status'])
+            ->unique('quest_id');
+
+        // 3. Overall grade = total grade submission user / total quest tersedia.
+        // Quest yang belum disubmit otomatis bernilai 0 karena tetap masuk denominator.
+        $gradeSum = $latestSubmissions->sum(function ($submission) {
+            return (int) ($submission->grade ?? 0);
+        });
+        $averageGrade = $totalAvailableQuests > 0
+            ? round($gradeSum / $totalAvailableQuests, 1)
             : 0;
+
+        // "Completed" tetap dihitung dari quest yang submission terbarunya sudah diverifikasi.
+        $totalCompleted = $latestSubmissions
+            ->whereIn('status', ['Approved', 'Rejected'])
+            ->count();
 
         $userData = [
             'id'            => $user->id,
@@ -41,16 +64,17 @@ class ProfileController extends Controller
             'profile_photo' => $user->profile_photo, // [TAMBAHAN] Kirim Path Foto
             'email'         => $user->email,
             'gold'          => $user->gold ?? 0,
-            'lvl'           => $user->lvl ?? 1,
+            'lvl'           => $user->level ?? $user->lvl ?? 1,
             'exp'           => $user->exp ?? 0,
             'role'          => $user->role,
         ];
 
-        $userQuests = \App\Models\Submission::where('user_id', $user->id)
+        $userQuests = Submission::where('user_id', $user->id)
             ->with('quest')
             ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($submission) {
+            ->paginate(12)
+            ->withQueryString()
+            ->through(function ($submission) {
                 return [
                     'id'           => $submission->id,
                     'uuid'         => $submission->uuid,

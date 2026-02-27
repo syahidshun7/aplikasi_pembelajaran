@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Quest;
+use App\Models\Submission;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\StudyGroup;
@@ -10,16 +11,81 @@ use Illuminate\Support\Str;
 
 class QuestController extends Controller
 {
-    public function index()
+    public function userIndex(Request $request)
     {
-        return Inertia::render('Quests/Index', [
-            // 1. Ambil semua quest beserta data kelompoknya (Eager Loading)
-            'quests' => Quest::with('studyGroup')
-                ->latest()
-                ->get(),
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+        ]);
 
-            // 2. Kirim daftar kelompok untuk pilihan di dropdown form
+        $search = trim((string) ($validated['search'] ?? ''));
+        $userId = auth()->id();
+        $userGroupIds = auth()->user()->studyGroups()->pluck('study_groups.id')->toArray();
+        $submittedQuestIds = Submission::where('user_id', $userId)->pluck('quest_id')->toArray();
+
+        $quests = Quest::query()
+            ->where(function ($query) use ($userGroupIds) {
+                $query->whereNull('study_group_id')
+                    ->orWhereIn('study_group_id', $userGroupIds);
+            })
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('title', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhere('difficulty', 'like', "%{$search}%")
+                        ->orWhere('status', 'like', "%{$search}%")
+                        ->orWhereHas('studyGroup', function ($sq) use ($search) {
+                            $sq->where('name', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->with('studyGroup:id,name')
+            ->latest()
+            ->paginate(15)
+            ->withQueryString();
+
+        $quests->through(function ($quest) use ($submittedQuestIds) {
+            $quest->user_has_submitted = in_array($quest->id, $submittedQuestIds, true);
+            return $quest;
+        });
+
+        return Inertia::render('Quests/UserIndex', [
+            'quests' => $quests,
+            'filters' => [
+                'search' => $search,
+            ],
+        ]);
+    }
+
+    public function index(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $search = trim((string) ($validated['search'] ?? ''));
+
+        return Inertia::render('Quests/Index', [
+            'quests' => Quest::query()
+                ->with('studyGroup')
+                ->when($search !== '', function ($query) use ($search) {
+                    $query->where(function ($q) use ($search) {
+                        $q->where('title', 'like', "%{$search}%")
+                            ->orWhere('description', 'like', "%{$search}%")
+                            ->orWhere('difficulty', 'like', "%{$search}%")
+                            ->orWhere('status', 'like', "%{$search}%")
+                            ->orWhereHas('studyGroup', function ($sq) use ($search) {
+                                $sq->where('name', 'like', "%{$search}%");
+                            });
+                    });
+                })
+                ->latest()
+                ->paginate(10)
+                ->withQueryString(),
+
             'studyGroups' => StudyGroup::select('id', 'name')->get(),
+            'filters' => [
+                'search' => $search,
+            ],
         ]);
     }
 

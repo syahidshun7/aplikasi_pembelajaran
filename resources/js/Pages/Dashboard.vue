@@ -24,6 +24,7 @@ const getGradeColor = (grade) => {
 
     <div
         class="min-h-screen bg-[#0f101a] p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px] leading-relaxed">
+        <div class="max-w-7xl mx-auto space-y-8">
 
         <AdminNavbar />
 
@@ -48,6 +49,14 @@ const getGradeColor = (grade) => {
                 <div class="rpg-panel bg-slate-900/60 border-indigo-500/30">
                     <h2 class="text-white mb-6 border-b-2 border-slate-700 pb-2 uppercase text-center">Menu</h2>
                     <nav class="space-y-3">
+                        <Link :href="route('dashboard')"
+                            class="menu-btn border-slate-500 text-slate-300 bg-slate-900/10 hover:bg-slate-500 hover:text-black">
+                            [#] ADMIN_DASHBOARD
+                        </Link>
+                        <Link :href="route('lobby')"
+                            class="menu-btn border-slate-500 text-slate-300 bg-slate-900/10 hover:bg-slate-500 hover:text-black">
+                            [@] USER_DASHBOARD
+                        </Link>
                         <Link :href="route('materi.index')"
                             class="menu-btn border-yellow-500 text-yellow-500 bg-yellow-900/10 hover:bg-yellow-500 hover:text-black">
                             [+] MANAGE_GUIDE
@@ -59,6 +68,14 @@ const getGradeColor = (grade) => {
                         <Link :href="route('groups.manage')"
                             class="menu-btn border-indigo-500 text-indigo-400 bg-indigo-900/10 hover:bg-grey-500 hover:text-black">
                             [O] STUDY_GROUP
+                        </Link>
+                        <Link :href="route('admin.submissions.manage.index')"
+                            class="menu-btn border-orange-500 text-orange-400 bg-orange-900/10 hover:bg-orange-500 hover:text-black">
+                            [!] SUBMISSIONS
+                        </Link>
+                        <Link :href="route('admin.users.index')"
+                            class="menu-btn border-emerald-500 text-emerald-400 bg-emerald-900/10 hover:bg-emerald-500 hover:text-black">
+                            [U] USERS
                         </Link>
                     </nav>
                 </div>
@@ -114,6 +131,7 @@ const getGradeColor = (grade) => {
                 </div>
             </div>
 
+        </div>
         </div>
     </div>
 </template>
