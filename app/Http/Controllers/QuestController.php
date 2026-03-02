@@ -93,10 +93,11 @@ class QuestController extends Controller
     {
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'difficulty' => 'required',
-            'reward_gold' => 'nullable|integer',
+            'difficulty' => 'required|in:C-Rank,B-Rank,A-Rank,S-Rank',
+            'reward_gold' => 'nullable|integer|min:0',
+            'reward_exp' => 'nullable|integer|min:0',
             'description' => 'nullable|string',
-            'status' => 'required',
+            'status' => 'required|in:Available,In-Progress,Done',
             'study_group_id' => 'nullable|exists:study_groups,id',
             'deadline' => 'nullable|date', // Tambahkan validasi date
         ]);
@@ -106,10 +107,13 @@ class QuestController extends Controller
             'A-Rank' => 2500,
             'B-Rank' => 1000,
             'C-Rank' => 500,
-            'D-Rank' => 100,
         ];
 
         $validated['reward_gold'] = $goldTable[$request->difficulty] ?? 0;
+        $validated['reward_exp'] = $goldTable[$request->difficulty] ?? 0;
+        $validated['status'] = $request->filled('deadline')
+            ? (\Carbon\Carbon::parse($request->deadline)->isFuture() ? 'Available' : 'Done')
+            : 'Available';
         $validated['uuid'] = (string) \Illuminate\Support\Str::uuid();
 
         Quest::create($validated);
@@ -123,10 +127,11 @@ class QuestController extends Controller
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'difficulty' => 'required',
+            'difficulty' => 'required|in:C-Rank,B-Rank,A-Rank,S-Rank',
             'description' => 'nullable|string',
-            'reward_gold' => 'required|integer',
-            'status' => 'required',
+            'reward_gold' => 'required|integer|min:0',
+            'reward_exp' => 'nullable|integer|min:0',
+            'status' => 'required|in:Available,In-Progress,Done',
             'study_group_id' => 'nullable|exists:study_groups,id',
             'deadline' => 'nullable|date', // Tambahkan validasi date
         ]);
@@ -136,11 +141,14 @@ class QuestController extends Controller
             'A-Rank' => 2500,
             'B-Rank' => 1000,
             'C-Rank' => 500,
-            'D-Rank' => 100,
         ];
 
         // Logika update gold jika difficulty berubah
         $validated['reward_gold'] = $goldTable[$request->difficulty] ?? $validated['reward_gold'];
+        $validated['reward_exp'] = $goldTable[$request->difficulty] ?? ($validated['reward_exp'] ?? 0);
+        $validated['status'] = $request->filled('deadline')
+            ? (\Carbon\Carbon::parse($request->deadline)->isFuture() ? 'Available' : 'Done')
+            : 'Available';
 
         $quest->update($validated);
 

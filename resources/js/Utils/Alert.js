@@ -15,6 +15,8 @@ const RPGAlert = Swal.mixin({
     }
 });
 
+export const swal = RPGAlert;
+
 export const toast = {
     confirm: (title, text, confirmText = 'YES, EXECUTE') => {
         return RPGAlert.fire({

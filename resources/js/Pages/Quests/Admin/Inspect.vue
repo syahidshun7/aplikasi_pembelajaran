@@ -14,6 +14,9 @@
                         <span class="text-[8px] bg-blue-900/30 text-blue-400 px-2 py-1 border border-blue-700 uppercase">
                             MAX_REWARD: {{ submission.quest.reward_gold }} G
                         </span>
+                        <span class="text-[8px] bg-cyan-900/30 text-cyan-400 px-2 py-1 border border-cyan-700 uppercase">
+                            MAX_EXP: {{ maxExpReward }} XP
+                        </span>
                     </div>
                 </div>
                 <Link :href="route('admin.quests.submissions', { quest: submission.quest.uuid })"
@@ -202,8 +205,15 @@ const calculatedGold = computed(() => {
 });
 
 const calculatedExp = computed(() => {
-    const baseExp = 1000; // Standar 1000 EXP per quest sempurna
+    const baseExp = maxExpReward.value;
     return Math.floor(baseExp * (totalScore.value / 100));
+});
+
+const maxExpReward = computed(() => {
+    const exp = Number(props.submission.quest.reward_exp) || 0;
+    if (exp > 0) return exp;
+    const gold = Number(props.submission.quest.reward_gold) || 0;
+    return gold > 0 ? gold : 1000;
 });
 
 // 3. WATCHERS

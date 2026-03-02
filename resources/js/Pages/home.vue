@@ -285,6 +285,7 @@ const {
                                     class="rpg-panel bg-[#161b22] transition-all group cursor-pointer shadow-none flex flex-col h-[200px]"
                                     :class="[
                                         (quest.user_submission_status === 'Approved') ? 'border-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.35)] bg-emerald-950/20' :
+                                        (quest.user_submission_status === 'Pending') ? 'border-yellow-500 shadow-[0_0_12px_rgba(234,179,8,0.35)] bg-yellow-950/20' :
                                         (quest.status === 'Done' && !quest.user_has_submitted) ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.2)]' :
                                             (quest.status === 'In-Progress') ? 'border-slate-500 bg-slate-900/50' :
                                                 quest.user_has_submitted ? 'border-yellow-600 shadow-[0_0_10px_rgba(202,138,4,0.2)]' : 'border-slate-700 hover:border-[#009999]'
@@ -314,7 +315,7 @@ const {
                                                 class="text-orange-500 text-[6px] uppercase tracking-tighter">Deadline:</span>
                                             <span :class="[
                                                 'text-[7px] uppercase font-bold tracking-tighter',
-                                                (new Date(quest.deadline) < new Date()) ? 'text-red-500 animate-pulse' : 'text-orange-300'
+                                                (new Date(quest.deadline) < new Date() && !quest.user_has_submitted) ? 'text-red-500 animate-pulse' : 'text-orange-300'
                                             ]">
                                                 {{ quest.deadline ? new Date(quest.deadline).toLocaleString('id-ID',
                                                     {
@@ -327,6 +328,10 @@ const {
                                         <div class="flex-grow">
                                             <p v-if="quest.status === 'Done' && !quest.user_has_submitted"
                                                 class="text-[6px] text-red-500 uppercase">Mission_Expired</p>
+                                            <p v-if="quest.user_submission_status === 'Pending'"
+                                                class="text-[6px] text-yellow-400 uppercase italic tracking-widest">
+                                                Waiting_For_Review...
+                                            </p>
                                             <p v-if="quest.status === 'In-Progress'"
                                                 class="text-[6px] text-slate-500 uppercase italic tracking-widest">
                                                 Active_In_Journal...</p>
@@ -342,12 +347,15 @@ const {
                                             <template v-if="quest.status !== 'In-Progress'">
                                                 <Link :href="route('quests.show', quest.uuid)" :class="[
                                                     'text-[8px] px-3 py-2 btn-pixel uppercase font-bold transition-colors whitespace-nowrap',
+                                                    (quest.user_submission_status === 'Pending') ? 'bg-yellow-600 text-black border-yellow-800 hover:bg-yellow-400' :
                                                     (quest.status === 'Done' && !quest.user_has_submitted) ? 'bg-red-700 text-white border-red-950 hover:bg-red-600' :
                                                         quest.user_has_submitted ? 'bg-yellow-600 text-black border-yellow-800 hover:bg-yellow-400' :
                                                             'bg-[#009999] text-black border-[#006666] hover:bg-[#4ed4d4]'
                                                 ]">
                                                     <template
-                                                        v-if="quest.status === 'Done' && !quest.user_has_submitted">Late</template>
+                                                        v-if="quest.user_submission_status === 'Pending'">Preview</template>
+                                                    <template
+                                                        v-else-if="quest.status === 'Done' && !quest.user_has_submitted">Late</template>
                                                     <template v-else>{{ quest.user_has_submitted ? 'Re-Take' :
                                                         'Take_Quest' }}</template>
                                                 </Link>
@@ -389,4 +397,3 @@ const {
 @import "../../css/lobby-style.css";
 ;
 </style>
-

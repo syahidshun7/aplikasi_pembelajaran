@@ -57,26 +57,28 @@ const getGradeColor = (grade) => {
                             class="menu-btn border-slate-500 text-slate-300 bg-slate-900/10 hover:bg-slate-500 hover:text-black">
                             [@] USER_DASHBOARD
                         </Link>
-                        <Link :href="route('materi.index')"
-                            class="menu-btn border-yellow-500 text-yellow-500 bg-yellow-900/10 hover:bg-yellow-500 hover:text-black">
-                            [+] MANAGE_GUIDE
-                        </Link>
                         <Link :href="route('quests.index')"
-                            class="menu-btn border-cyan-500 text-cyan-400 bg-cyan-900/10 hover:bg-cyan-400 hover:text-black">
-                            [⚔] QUEST_BOARD
-                        </Link>
-                        <Link :href="route('groups.manage')"
-                            class="menu-btn border-indigo-500 text-indigo-400 bg-indigo-900/10 hover:bg-grey-500 hover:text-black">
-                            [O] STUDY_GROUP
+                            class="menu-btn border-yellow-500 text-yellow-500 bg-yellow-900/10 hover:bg-yellow-500 hover:text-black">
+                            [+] QUEST
                         </Link>
                         <Link :href="route('admin.submissions.manage.index')"
-                            class="menu-btn border-orange-500 text-orange-400 bg-orange-900/10 hover:bg-orange-500 hover:text-black">
-                            [!] SUBMISSIONS
+                            class="menu-btn border-cyan-500 text-cyan-400 bg-cyan-900/10 hover:bg-cyan-400 hover:text-black">
+                            [⚔] SUBMISSIONS
+                        </Link>
+                        <Link :href="route('materi.index')"
+                            class="menu-btn border-indigo-500 text-indigo-400 bg-indigo-900/10 hover:bg-grey-500 hover:text-black">
+                            [O] GUIDE
+                        </Link>
+                        
+                         <Link :href="route('groups.manage')"
+                            class="menu-btn border-emerald-500 text-emerald-400 bg-emerald-900/10 hover:bg-emerald-500 hover:text-black">
+                            [U] STUDY_GROUP
                         </Link>
                         <Link :href="route('admin.users.index')"
-                            class="menu-btn border-emerald-500 text-emerald-400 bg-emerald-900/10 hover:bg-emerald-500 hover:text-black">
-                            [U] USERS
+                            class="menu-btn border-orange-500 text-orange-400 bg-orange-900/10 hover:bg-orange-500 hover:text-black">
+                            [!] USERS
                         </Link>
+                       
                     </nav>
                 </div>
             </div>

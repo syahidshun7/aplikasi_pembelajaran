@@ -15,7 +15,6 @@ const rankGoldMap = {
     'A-Rank': 2500,
     'B-Rank': 1000,
     'C-Rank': 500,
-    'D-Rank': 100
 };
 
 const Toast = Swal.mixin({
@@ -47,6 +46,7 @@ const form = useForm({
     title: '',
     difficulty: 'C-Rank', 
     reward_gold: 500,
+    reward_exp: 500,
     description: '',
     status: 'Available',
     study_group_id: null,
@@ -56,7 +56,22 @@ const form = useForm({
 watch(() => form.difficulty, (newDifficulty) => {
     if (newDifficulty) {
         form.reward_gold = rankGoldMap[newDifficulty] || 0;
+        form.reward_exp = rankGoldMap[newDifficulty] || 0;
     }
+});
+
+const syncStatusFromDeadline = (deadlineValue) => {
+    if (!deadlineValue) {
+        form.status = 'Available';
+        return;
+    }
+
+    const selectedDate = new Date(deadlineValue);
+    form.status = selectedDate > new Date() ? 'Available' : 'Done';
+};
+
+watch(() => form.deadline, (newDeadline) => {
+    syncStatusFromDeadline(newDeadline);
 });
 
 watch(() => usePage().props.flash, (flash) => {
@@ -92,6 +107,7 @@ const startEdit = (quest) => {
     form.title = quest.title;
     form.difficulty = quest.difficulty;
     form.reward_gold = quest.reward_gold;
+    form.reward_exp = quest.reward_exp ?? quest.reward_gold ?? 0;
     form.description = quest.description || '';
     form.status = quest.status || 'Available';
     form.study_group_id = quest.study_group_id;
@@ -104,6 +120,7 @@ const startEdit = (quest) => {
     } else {
         form.deadline = '';
     }
+    syncStatusFromDeadline(form.deadline);
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
     Toast.fire({ icon: 'info', title: 'MODIFYING_CONTRACT' });
@@ -129,6 +146,7 @@ const submit = () => {
                 form.reset();
                 form.difficulty = 'C-Rank';
                 form.reward_gold = 500;
+                form.reward_exp = 500;
             },
         });
     }
@@ -206,23 +224,32 @@ const goToPage = (url) => {
                                     style="resize: vertical; min-height: 100px;"></textarea>
                             </div>
 
-                            <div class="grid grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block mb-2 text-white">DIFFICULTY:</label>
                                     <select v-model="form.difficulty"
                                         class="w-full bg-black border-2 border-slate-700 p-2 focus:border-cyan-400 outline-none text-yellow-500 uppercase">
-                                        <option>D-Rank</option>
                                         <option>C-Rank</option>
                                         <option>B-Rank</option>
                                         <option>A-Rank</option>
                                         <option>S-Rank</option>
                                     </select>
                                 </div>
-                                
+
                                 <div>
-                                    <label class="block mb-2 text-white">GOLD_REWARD:</label>
-                                    <input v-model="form.reward_gold" type="number" readonly
-                                        class="w-full bg-slate-900 border-2 border-slate-800 p-2 text-yellow-400 cursor-not-allowed opacity-80 outline-none">
+                                    <label class="block mb-2 text-white">REWARDS:</label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <input v-model="form.reward_gold" type="number" readonly
+                                            class="w-full bg-slate-900 border-2 border-slate-800 p-2 text-yellow-400 cursor-not-allowed opacity-80 outline-none"
+                                            aria-label="GOLD_REWARD">
+                                        <input v-model="form.reward_exp" type="number" readonly
+                                            class="w-full bg-slate-900 border-2 border-slate-800 p-2 text-cyan-400 cursor-not-allowed opacity-80 outline-none"
+                                            aria-label="EXP_REWARD">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2 mt-1 text-[7px] uppercase">
+                                        <span class="text-yellow-500">Gold</span>
+                                        <span class="text-cyan-400">Exp</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -232,8 +259,8 @@ const goToPage = (url) => {
                                     <select v-model="form.status"
                                         class="w-full bg-black border-2 border-slate-700 p-2 focus:border-cyan-400 outline-none text-orange-400 uppercase">
                                         <option value="Available">Available</option>
-                                        <option value="In-Progress">Ongoing</option>
-                                        <option value="Done">Completed</option>
+                                        <option value="In-Progress">In-Progress</option>
+                                        <option value="Done">Done</option>
                                     </select>
                                 </div>
                                 <div>

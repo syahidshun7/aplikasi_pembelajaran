@@ -43,8 +43,14 @@ class AdminSubmissionController extends Controller
     $finalExp  = 0;
 
     if ($request->status === 'Approved') {
+        $questExp = (int) ($quest->reward_exp ?? 0);
+        if ($questExp <= 0) {
+            // Fallback untuk data quest lama yang belum punya reward_exp valid.
+            $questExp = (int) ($quest->reward_gold ?? 0);
+        }
+
         $finalGold = (int) floor($quest->reward_gold * $newPortion);
-        $finalExp  = (int) floor(1000 * $newPortion);
+        $finalExp  = (int) floor($questExp * $newPortion);
     }
 
     $submission->update([

@@ -27,22 +27,38 @@ const submit = () => {
 
             <div>
                 <label class="block text-[#009999] text-[8px] uppercase mb-1">Hero_Name</label>
-                <input type="text" v-model="form.name" class="w-full bg-black border-2 border-[#333333] text-white p-2 focus:border-[#009999] focus:ring-0 text-[10px] font-pixel" required />
+                <input type="text" v-model="form.name" :class="[
+                    'w-full bg-black border-2 text-white p-2 focus:ring-0 text-[10px] font-pixel',
+                    form.errors.name ? 'border-red-500 focus:border-red-500' : 'border-[#333333] focus:border-[#009999]'
+                ]" required />
+                <div v-if="form.errors.name" class="mt-2 text-red-500 text-[8px] italic">{{ form.errors.name }}</div>
             </div>
 
             <div class="mt-3">
                 <label class="block text-[#009999] text-[8px] uppercase mb-1">Email_Address</label>
-                <input type="email" v-model="form.email" class="w-full bg-black border-2 border-[#333333] text-white p-2 focus:border-[#009999] focus:ring-0 text-[10px] font-pixel" required />
+                <input type="email" v-model="form.email" :class="[
+                    'w-full bg-black border-2 text-white p-2 focus:ring-0 text-[10px] font-pixel',
+                    form.errors.email ? 'border-red-500 focus:border-red-500' : 'border-[#333333] focus:border-[#009999]'
+                ]" required />
+                <div v-if="form.errors.email" class="mt-2 text-red-500 text-[8px] italic">{{ form.errors.email }}</div>
             </div>
 
             <div class="mt-3">
                 <label class="block text-[#009999] text-[8px] uppercase mb-1">Password</label>
-                <input type="password" v-model="form.password" class="w-full bg-black border-2 border-[#333333] text-white p-2 focus:border-[#009999] focus:ring-0 text-[10px] font-pixel" required />
+                <input type="password" v-model="form.password" :class="[
+                    'w-full bg-black border-2 text-white p-2 focus:ring-0 text-[10px] font-pixel',
+                    form.errors.password ? 'border-red-500 focus:border-red-500' : 'border-[#333333] focus:border-[#009999]'
+                ]" required />
+                <div v-if="form.errors.password" class="mt-2 text-red-500 text-[8px] italic">{{ form.errors.password }}</div>
             </div>
 
             <div class="mt-3">
                 <label class="block text-[#009999] text-[8px] uppercase mb-1">Confirm_Password</label>
-                <input type="password" v-model="form.password_confirmation" class="w-full bg-black border-2 border-[#333333] text-white p-2 focus:border-[#009999] focus:ring-0 text-[10px] font-pixel" required />
+                <input type="password" v-model="form.password_confirmation" :class="[
+                    'w-full bg-black border-2 text-white p-2 focus:ring-0 text-[10px] font-pixel',
+                    form.errors.password_confirmation ? 'border-red-500 focus:border-red-500' : 'border-[#333333] focus:border-[#009999]'
+                ]" required />
+                <div v-if="form.errors.password_confirmation" class="mt-2 text-red-500 text-[8px] italic">{{ form.errors.password_confirmation }}</div>
             </div>
 
             <div class="pt-6">

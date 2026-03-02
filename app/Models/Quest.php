@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Quest extends Model
 {
    
-protected $fillable = ['uuid','title','status', 'description', 'exp_reward', 'reward_gold','difficulty', 'is_completed','study_group_id','deadline'];
+protected $fillable = ['uuid','title','status', 'description', 'reward_exp', 'reward_gold','difficulty', 'is_completed','study_group_id','deadline'];
 
 protected static function booted()
     {

@@ -42,14 +42,15 @@ const handleLogout = () => {
         </div>
 
         <div class="flex flex-wrap justify-center items-center gap-3 md:gap-4">
-            <Link :href="route('dashboard')"
-                  class="nav-item hover:text-indigo-300 transition-colors">
-                ADMIN_DASHBOARD
-            </Link>
+           
 
             <Link :href="route('lobby')" 
                   class="nav-item hover:text-white transition-colors">
                 USER_DASHBOARD
+            </Link>
+             <Link :href="route('dashboard')"
+                  class="nav-item hover:text-indigo-300 transition-colors">
+                ADMIN_DASHBOARD
             </Link>
 
             <details class="relative z-[130]">
