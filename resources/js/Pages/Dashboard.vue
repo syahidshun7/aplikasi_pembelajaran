@@ -97,14 +97,14 @@ const getGradeColor = (grade) => {
 
             <div class="col-span-12 lg:col-span-9 space-y-6">
                 <div class="rpg-panel min-h-[450px]">
-                    <div class="flex justify-between items-center mb-6 border-l-4 border-green-500 pl-3">
-                        <div>
+                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6 border-l-4 border-green-500 pl-3">
+                        <div class="min-w-0">
                             <h3 class="text-green-400 uppercase tracking-widest text-[12px]">Elite_Performers_Monitor
                             </h3>
                             <p class="text-[7px] text-slate-500 mt-1 italic">Target: Users with Avg. Grade > 75%</p>
                         </div>
                         <span
-                            class="text-[8px] bg-green-900/30 text-green-400 p-1 border border-green-500">QUALIFIED</span>
+                            class="text-[8px] bg-green-900/30 text-green-400 px-2 py-1 border border-green-500 self-start sm:self-auto shrink-0">QUALIFIED</span>
                     </div>
 
                     <div class="w-full overflow-x-auto">

@@ -60,7 +60,7 @@ const photoUrl = (user) => {
                             ABSENSI_EVENT | GROUP: <span class="text-cyan-400">{{ event.study_group?.name || 'PUBLIC' }}</span>
                         </p>
                     </div>
-                    <Link :href="route('admin.events.detail', event.uuid)" class="text-[8px] text-slate-400 hover:text-white uppercase">
+                    <Link :href="route('admin.events.detail', event.uuid)" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white uppercase text-[8px]">
                         [Back_to_Detail]
                     </Link>
                 </div>

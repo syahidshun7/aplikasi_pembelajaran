@@ -102,7 +102,7 @@ const getGradeColor = (grade) => {
                 <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
                     <p class="text-[7px] text-slate-500 uppercase italic mb-2">Battle_Status</p>
                     <span class="text-[8px] text-cyan-400 animate-pulse">
-                        >> {{ averageGrade >= 75 ? 'EXCELLENT_FLOW' : 'NEED_MORE_PRACTICE' }}
+                        >> <i class="fi fi-rr-briefcase text-indigo-300"></i>
                     </span>
                 </div>
             </div>
@@ -141,11 +141,11 @@ const getGradeColor = (grade) => {
                 <div class="col-span-12 lg:col-span-6 min-h-[400px]">
                     <div class="rpg-panel h-full animate-in fade-in slide-in-from-bottom-4 duration-300">
 
-                        <div v-if="activeTab === 'quests'" class="space-y-6">
+                        <div v-if="activeTab === 'quests'" class="space-y-6 h-full flex flex-col">
                             <h3 class="text-green-400 mb-6 uppercase tracking-widest border-l-4 border-green-400 pl-3">
                                 Quest_Log</h3>
-                            <div class="space-y-4">
-                                <template v-if="questItems.length > 0">
+                            <div class="flex-1 flex flex-col">
+                                <div v-if="questItems.length > 0" class="space-y-4 flex-1">
                                     <div v-for="q in questItems" :key="q.uuid"
                                         class="p-3 border-2 border-slate-700 bg-black/40 flex justify-between items-center hover:border-cyan-500/50 transition-colors">
                                         <div>
@@ -167,26 +167,28 @@ const getGradeColor = (grade) => {
                                             VIEW >
                                         </Link>
                                     </div>
-                                    <div v-if="questPaginationLinks.length > 0" class="flex flex-wrap gap-2 pt-3">
-                                        <Link v-for="(link, idx) in questPaginationLinks"
-                                            :key="`${idx}-${link.label}`"
-                                            :href="link.url || '#'"
-                                            class="px-3 py-1 border text-[8px] uppercase transition-all"
-                                            :class="[
-                                                link.active
-                                                    ? 'border-cyan-400 text-cyan-400 bg-cyan-900/20'
-                                                    : 'border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white',
-                                                !link.url ? 'opacity-40 pointer-events-none' : ''
-                                            ]"
-                                            v-html="link.label" />
-                                    </div>
-                                </template>
-                                <div v-else class="text-center py-10">
+                                </div>
+                                <div v-else class="text-center flex-1 flex flex-col items-center justify-center py-10">
                                     <p class="text-slate-600 italic">No quests taken yet...</p>
                                     <Link :href="route('lobby')"
                                         class="text-cyan-400 underline mt-4 inline-block hover:text-white">
                                         Browse_Quests
                                     </Link>
+                                </div>
+
+                                <div v-if="questPaginationLinks.length > 0"
+                                    class="flex flex-wrap gap-2 pt-4 mt-4 border-t border-slate-800">
+                                    <Link v-for="(link, idx) in questPaginationLinks"
+                                        :key="`${idx}-${link.label}`"
+                                        :href="link.url || '#'"
+                                        class="px-3 py-1 border text-[8px] uppercase transition-all"
+                                        :class="[
+                                            link.active
+                                                ? 'border-cyan-400 text-cyan-400 bg-cyan-900/20'
+                                                : 'border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white',
+                                            !link.url ? 'opacity-40 pointer-events-none' : ''
+                                        ]"
+                                        v-html="link.label" />
                                 </div>
                             </div>
                         </div>
@@ -228,19 +230,30 @@ const getGradeColor = (grade) => {
                     <div class="rpg-panel border-indigo-500/50 bg-indigo-900/20">
                         <h2
                             class="text-indigo-400 mb-6 border-b-2 border-indigo-900 pb-2 uppercase text-center text-[8px]">
-                            Rank_Status</h2>
-                        <div class="flex flex-col items-center gap-6 py-4">
-                            <div class="text-3xl animate-bounce">
-                                {{ averageGrade >= 85 ? '👑' : (averageGrade >= 70 ? '🛡️' : '🗡️') }}
-                            </div>
-                            <div class="text-center">
-                                <p class="text-slate-400 text-[6px] mb-2">CLASS_TITLE</p>
-                                <p class="text-white text-sm tracking-widest uppercase">{{ userData.role || 'NOVICE' }}
-                                </p>
-                                <p class="text-[6px] mt-2" :class="getGradeColor(averageGrade)">
-                                    GRADE_RANK: {{ averageGrade >= 90 ? 'S-CLASS' : (averageGrade >= 80 ? 'A-CLASS' :
-                                        'B-CLASS') }}
-                                </p>
+                            Jobs_Status</h2>
+                        <div class="py-2">
+                            <div class="job-card border border-indigo-400/50 bg-[#0d1117] p-2 shadow-[4px_4px_0_rgba(0,0,0,0.45)]">
+                                <div class="text-[6px] uppercase tracking-widest text-indigo-300 mb-2">USER_JOB_CARD</div>
+                                <div class="border border-indigo-500/40 bg-black/40 h-[120px] overflow-hidden flex items-center justify-center">
+                                    <img
+                                        v-if="userData.job_emblem_path"
+                                        :src="`/storage/${userData.job_emblem_path}`"
+                                        :alt="`${userData.job_name} emblem`"
+                                        class="w-full h-full object-cover"
+                                    >
+                                    <img
+                                        v-else
+                                        src="/images/logo.png"
+                                        alt="default job"
+                                        class="w-12 h-12 object-contain opacity-80"
+                                    >
+                                </div>
+                                <div class="mt-2 border border-indigo-500/40 bg-indigo-900/20 px-2 py-2">
+                                    <p class="text-[6px] text-slate-400 uppercase mb-1">JOBS_PATH</p>
+                                    <p class="text-[8px] text-white uppercase leading-snug">
+                                        {{ userData.job_name || 'UNASSIGNED_JOB' }}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -274,3 +287,4 @@ button {
     @apply text-slate-400 text-[8px] uppercase;
 }
 </style>
+

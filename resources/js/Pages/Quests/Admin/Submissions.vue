@@ -3,13 +3,13 @@
         <div class="max-w-7xl mx-auto space-y-8">
             <AdminNavbar />
 
-            <div class="mb-8 flex justify-between items-end border-b-4 border-slate-800 pb-4">
+            <div class="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 border-b-4 border-slate-800 pb-4">
                 <div>
-                    <h1 class="text-xl text-white uppercase mb-2">Quest_Submissions</h1>
+                    <h1 class="text-base sm:text-xl text-white uppercase mb-2">Quest_Submissions</h1>
                     <p class="text-[8px] text-slate-500 italic">MISSION: {{ quest.title }}</p>
                 </div>
                 <Link :href="route('quests.index')"
-                    class="text-[8px] bg-slate-800 px-4 py-2 border-2 border-slate-600 hover:bg-slate-700">
+                    class="inline-flex items-center justify-center text-[8px] bg-slate-800 px-4 py-2 border-2 border-slate-600 hover:bg-slate-700">
                     [ BACK_TO_DASHBOARD ]
                 </Link>
             </div>
@@ -41,7 +41,8 @@
                         RESET
                     </button>
                 </div>
-                <table class="w-full text-left border-collapse">
+                <div class="overflow-x-auto">
+                <table class="w-full min-w-[760px] text-left border-collapse">
                     <thead class="bg-slate-900 text-[8px] uppercase">
                         <tr>
                             <th class="p-4 border-b-2 border-slate-700">Adventurer</th>
@@ -83,6 +84,7 @@
                         </tr>
                     </tbody>
                 </table>
+                </div>
                 <div class="p-4 border-t border-slate-800 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <p class="text-[8px] text-slate-500 uppercase">
                         PAGE {{ submissions.current_page || 1 }} / {{ submissions.last_page || 1 }}

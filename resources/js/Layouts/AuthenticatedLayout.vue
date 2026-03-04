@@ -1,16 +1,17 @@
 <script setup>
 import { Link, usePage, router } from '@inertiajs/vue3';
-import { computed } from 'vue';
-import Swal from 'sweetalert2';
+import { computed, ref } from 'vue';
 import { toast } from '@/Utils/Alert'; // Satukan import di atas
 const page = usePage();
 const auth = computed(() => page.props.auth);
+const mobileMenuOpen = ref(false);
 
 const handleLogout = () => {
     toast.confirm('QUIT GAME?', 'Are you sure you want to exit?')
         .then((result) => {
             if (result.isConfirmed) {
                 // Gunakan route() langsung, Inertia/Ziggy akan menanganinya
+                mobileMenuOpen.value = false;
                 router.post(route('logout'));
             }
         });
@@ -19,7 +20,7 @@ const handleLogout = () => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-[#0d1117] font-['Press_Start_2P'] selection:bg-[#009999] relative overflow-x-hidden text-[#4ed4d4] bg-cover bg-center bg-no-repeat bg-fixed"
+    <div class="min-h-screen bg-[#0d1117] font-['Press_Start_2P'] selection:bg-[#009999] relative overflow-x-hidden text-[#4ed4d4] bg-cover bg-center bg-no-repeat bg-fixed flex flex-col"
         style="background-image: url('/images/bg-loby.png');">
         <div class="absolute inset-0 bg-black/70 z-0"></div>
 
@@ -30,7 +31,7 @@ const handleLogout = () => {
         <nav
             class="bg-[#1a1c2c]/90 backdrop-blur-sm border-b-4 border-[#3d415f] p-4 md:px-8 flex justify-between items-center shadow-2xl sticky top-0 z-50">
             <div class="flex items-center gap-4">
-                <Link :href="route('lobby')" class="flex items-center gap-4 group">
+                <Link :href="route('lobby')" class="flex items-center gap-4 group" @click="mobileMenuOpen = false">
                     <div
                         class="w-10 h-10 bg-[#0a0c10] flex items-center justify-center border-b-4 border-r-4 border-[#4ed4d4] overflow-hidden group-hover:scale-110 transition-transform">
                         <img src="/images/logo.png" alt="Logo" class="w-7 h-7 object-contain pixelated">
@@ -42,7 +43,7 @@ const handleLogout = () => {
                 </Link>
             </div>
 
-            <div class="flex gap-4 items-center">
+            <div class="hidden md:flex gap-4 items-center">
                 <template v-if="auth.user">
                     <Link v-if="auth.user.role === 'admin'" :href="route('admin.dashboard')"
                         class="text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors">
@@ -50,12 +51,14 @@ const handleLogout = () => {
                     </Link>
 
                     <Link :href="route('profile.edit')"
-                        class="text-[8px] bg-[#3d415f]/80 text-white px-3 py-2 btn-pixel border-[#1a1c2c] uppercase font-bold hover:bg-slate-600 transition-colors">
+                        class="text-[8px] bg-cyan-300 text-black px-3 py-2 btn-pixel border-cyan-700 uppercase font-bold hover:bg-cyan-200 transition-colors inline-flex items-center gap-1.5 shadow-[0_0_12px_rgba(45,212,191,0.28)]">
+                        <i class="fi fi-rr-user text-[10px] leading-none"></i>
                         Profile
                     </Link>
 
                     <Link :href="route('shop.index')"
-                        class="text-[8px] bg-yellow-700/80 text-black px-3 py-2 btn-pixel border-yellow-900 uppercase font-bold hover:bg-yellow-500 transition-colors">
+                        class="text-[8px] bg-yellow-400 text-black px-3 py-2 btn-pixel border-yellow-700 uppercase font-bold hover:bg-yellow-300 transition-colors inline-flex items-center gap-1.5 shadow-[0_0_12px_rgba(250,204,21,0.35)]">
+                        <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
                         Shop
                     </Link>
 
@@ -65,9 +68,61 @@ const handleLogout = () => {
                     </button>
                 </template>
             </div>
+
+            <button
+                v-if="auth.user"
+                type="button"
+                class="md:hidden inline-flex items-center justify-center w-10 h-10 border-2 border-slate-600 bg-slate-900/70 text-cyan-300"
+                @click="mobileMenuOpen = !mobileMenuOpen"
+                :aria-expanded="mobileMenuOpen ? 'true' : 'false'"
+                aria-label="Toggle menu"
+            >
+                <i :class="mobileMenuOpen ? 'fi fi-rr-cross-small' : 'fi fi-rr-menu-burger'" class="text-[14px]"></i>
+            </button>
         </nav>
 
-        <main class="relative z-10 p-4 md:p-8 animate-in fade-in zoom-in-95 duration-500">
+        <div
+            v-if="auth.user && mobileMenuOpen"
+            class="md:hidden relative z-50 px-4 pb-4"
+        >
+            <div class="bg-[#1a1c2c]/95 backdrop-blur-sm border-2 border-[#3d415f] p-3 space-y-2 shadow-2xl">
+                <Link
+                    v-if="auth.user.role === 'admin'"
+                    :href="route('admin.dashboard')"
+                    class="w-full text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors inline-flex items-center justify-center"
+                    @click="mobileMenuOpen = false"
+                >
+                    Admin
+                </Link>
+
+                <Link
+                    :href="route('profile.edit')"
+                    class="w-full text-[8px] bg-cyan-300 text-black px-3 py-2 btn-pixel border-cyan-700 uppercase font-bold hover:bg-cyan-200 transition-colors inline-flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(45,212,191,0.28)]"
+                    @click="mobileMenuOpen = false"
+                >
+                    <i class="fi fi-rr-user text-[10px] leading-none"></i>
+                    Profile
+                </Link>
+
+                <Link
+                    :href="route('shop.index')"
+                    class="w-full text-[8px] bg-yellow-400 text-black px-3 py-2 btn-pixel border-yellow-700 uppercase font-bold hover:bg-yellow-300 transition-colors inline-flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(250,204,21,0.35)]"
+                    @click="mobileMenuOpen = false"
+                >
+                    <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
+                    Shop
+                </Link>
+
+                <button
+                    @click="handleLogout"
+                    class="w-full text-[8px] bg-red-900/80 text-white px-3 py-2 btn-pixel border-red-950 uppercase font-bold hover:bg-red-700 transition-colors"
+                >
+                    [X]
+                </button>
+            </div>
+        </div>
+
+        <main class="relative z-10 p-4 md:p-8 animate-in fade-in zoom-in-95 duration-500 flex-1">
             <slot />
         </main>
         <footer class="p-8 text-center bg-[#1a1c2c]/50 backdrop-blur-md border-t-2 border-white/10 mt-auto">

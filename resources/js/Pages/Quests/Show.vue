@@ -118,10 +118,13 @@ const unlockLateQuest = () => {
 
                 <div class="p-4 md:p-8 border-b-4 border-slate-700 bg-slate-900/50">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-                        <Link :href="route('lobby')" class="text-slate-500 hover:text-white text-[12px] underline uppercase">
+                        <Link
+                            :href="route('lobby')"
+                            class="inline-flex items-center justify-center px-3 py-2 border-2 border-slate-700 bg-slate-900/40 text-slate-300 hover:text-white hover:border-cyan-400 text-[10px] sm:text-[11px] uppercase whitespace-nowrap"
+                        >
                             [ BACK_TO_LOBBY ]
                         </Link>
-                        <span class="text-yellow-500 text-[12px]">REF_ID: #{{ quest.uuid.substring(0, 8) }}</span>
+                        <span class="text-yellow-500 text-[11px] sm:text-[12px]">REF_ID: #{{ quest.uuid.substring(0, 8) }}</span>
                     </div>
                     <h1 class="text-lg md:text-2xl text-white uppercase tracking-tighter leading-tight break-words">
                         {{ quest.title }}

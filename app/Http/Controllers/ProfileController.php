@@ -66,6 +66,7 @@ class ProfileController extends Controller
             'email'         => $user->email,
             'job_id'        => $user->job_id,
             'job_name'      => $user->job?->name,
+            'job_emblem_path' => $user->job?->emblem_path,
             'gold'          => $user->gold ?? 0,
             'lvl'           => $user->level ?? $user->lvl ?? 1,
             'exp'           => $user->exp ?? 0,

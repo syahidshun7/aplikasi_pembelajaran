@@ -1,8 +1,16 @@
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3';
+import { ref } from 'vue';
 import Swal from 'sweetalert2';
 
 const page = usePage();
+const mobileMenuOpen = ref(false);
+const desktopMenuOpen = ref(false);
+
+const closeAllMenus = () => {
+    mobileMenuOpen.value = false;
+    desktopMenuOpen.value = false;
+};
 
 const handleLogout = () => {
     Swal.fire({
@@ -18,6 +26,7 @@ const handleLogout = () => {
         cancelButtonColor: '#3d415f',
     }).then((result) => {
         if (result.isConfirmed) {
+            closeAllMenus();
             router.post(route('logout'));
         }
     });
@@ -25,25 +34,33 @@ const handleLogout = () => {
 </script>
 
 <template>
-    <nav class="rpg-panel relative z-[120] overflow-visible mb-8 flex flex-col md:flex-row justify-between items-center gap-4 border-indigo-500/50 bg-[#1a1c2c]/90 backdrop-blur-md">
+    <nav class="rpg-panel relative z-[120] overflow-visible mb-6 md:mb-8 flex justify-between items-center gap-3 border-indigo-500/50 bg-[#1a1c2c]/90 backdrop-blur-md">
         
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3 min-w-0">
             <div class="flex flex-col">
                 <div class="flex items-center gap-2">
                     <span class="w-3 h-3 bg-green-500 animate-pulse rounded-full shadow-[0_0_8px_#22c55e]"></span>
-                    <h1 class="text-white text-sm uppercase tracking-widest">
+                    <h1 class="text-white text-[11px] sm:text-sm uppercase tracking-widest">
                         Admin_Console <span class="text-indigo-400">v2.0</span>
                     </h1>
                 </div>
-                <p class="text-[8px] text-slate-500 mt-1 uppercase">
+                <p class="hidden sm:block text-[8px] text-slate-500 mt-1 uppercase">
                     Operator: <span class="text-cyan-400">{{ page.props.auth.user.name }}</span> | Role: <span class="text-indigo-400">Realm_Master</span>
                 </p>
             </div>
         </div>
 
-        <div class="flex flex-wrap justify-center items-center gap-3 md:gap-4">
-           
+        <button
+            type="button"
+            class="md:hidden inline-flex items-center justify-center w-10 h-10 border-2 border-slate-600 bg-slate-900/70 text-cyan-300"
+            @click="mobileMenuOpen = !mobileMenuOpen"
+            :aria-expanded="mobileMenuOpen ? 'true' : 'false'"
+            aria-label="Toggle admin menu"
+        >
+            <i :class="mobileMenuOpen ? 'fi fi-rr-cross-small' : 'fi fi-rr-menu-burger'" class="text-[14px]"></i>
+        </button>
 
+        <div class="hidden md:flex flex-wrap justify-center items-center gap-3 md:gap-4">
             <Link :href="route('lobby')" 
                   class="nav-item hover:text-white transition-colors">
                 USER_DASHBOARD
@@ -53,24 +70,49 @@ const handleLogout = () => {
                 ADMIN_DASHBOARD
             </Link>
 
-            <details class="relative z-[130]">
-                <summary class="nav-item cursor-pointer list-none border border-slate-600 px-3 py-1 hover:border-cyan-400 hover:text-cyan-300">
+            <div class="relative z-[130]">
+                <button
+                    type="button"
+                    class="nav-item cursor-pointer list-none border border-slate-600 px-3 py-1 hover:border-cyan-400 hover:text-cyan-300"
+                    @click="desktopMenuOpen = !desktopMenuOpen"
+                >
                     MENU
-                </summary>
-                <div class="absolute right-0 mt-2 min-w-[220px] bg-[#0f101a] border-2 border-slate-700 shadow-xl p-2 z-[140]">
-                    <Link href="/admin/materi" class="dropdown-item">GUIDE</Link>
-                    <Link :href="route('quests.index')" class="dropdown-item">QUEST</Link>
-                    <Link :href="route('admin.events.index')" class="dropdown-item">EVENTS</Link>
-                    <Link :href="route('admin.jobs.index')" class="dropdown-item">JOBS</Link>
-                    <Link :href="route('admin.shop-items.index')" class="dropdown-item">SHOP ITEMS</Link>
-                    <Link :href="route('groups.manage')" class="dropdown-item">STUDY_GROUP</Link>
-                    <Link :href="route('admin.submissions.manage.index')" class="dropdown-item">SUBMISSIONS</Link>
-                    <Link :href="route('admin.users.index')" class="dropdown-item">USERS</Link>
+                </button>
+                <div v-if="desktopMenuOpen" class="absolute right-0 mt-2 min-w-[220px] bg-[#0f101a] border-2 border-slate-700 shadow-xl p-2 z-[140]">
+                    <Link href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
+                    <Link :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
+                    <Link :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
+                    <Link :href="route('admin.jobs.index')" class="dropdown-item" @click="closeAllMenus">JOBS</Link>
+                    <Link :href="route('admin.shop-items.index')" class="dropdown-item" @click="closeAllMenus">SHOP ITEMS</Link>
+                    <Link :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
+                    <Link :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>
+                    <Link :href="route('admin.users.index')" class="dropdown-item" @click="closeAllMenus">USERS</Link>
                     <button @click="handleLogout" class="dropdown-item w-full text-left text-red-400 hover:text-white">
                         DISCONNECT
                     </button>
                 </div>
-            </details>
+            </div>
+        </div>
+
+        <div
+            v-if="mobileMenuOpen"
+            class="md:hidden absolute left-0 right-0 top-[calc(100%+8px)] bg-[#0f101a] border-2 border-slate-700 shadow-xl p-2 z-[140] mx-3"
+        >
+            <div class="grid grid-cols-1 gap-2">
+                <Link :href="route('lobby')" class="dropdown-item" @click="closeAllMenus">USER_DASHBOARD</Link>
+                <Link :href="route('dashboard')" class="dropdown-item" @click="closeAllMenus">ADMIN_DASHBOARD</Link>
+                <Link href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
+                <Link :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
+                <Link :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
+                <Link :href="route('admin.jobs.index')" class="dropdown-item" @click="closeAllMenus">JOBS</Link>
+                <Link :href="route('admin.shop-items.index')" class="dropdown-item" @click="closeAllMenus">SHOP ITEMS</Link>
+                <Link :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
+                <Link :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>
+                <Link :href="route('admin.users.index')" class="dropdown-item" @click="closeAllMenus">USERS</Link>
+                <button @click="handleLogout" class="dropdown-item w-full text-left text-red-400 hover:text-white">
+                    DISCONNECT
+                </button>
+            </div>
         </div>
     </nav>
 </template>

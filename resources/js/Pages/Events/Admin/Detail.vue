@@ -133,7 +133,7 @@ const durationText = computed(() => {
                             > {{ event.description }}
                         </p>
                     </div>
-                    <Link :href="route('admin.events.index')" class="text-[8px] text-slate-400 hover:text-white uppercase">
+                    <Link :href="route('admin.events.index')" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white uppercase text-[8px]">
                         [Back_to_Events]
                     </Link>
                 </div>

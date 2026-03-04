@@ -1,5 +1,6 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import { ref } from 'vue';
 import { useLobby } from '@/Composables/useLobby';
 
 const props = defineProps({
@@ -24,6 +25,12 @@ const {
     events,
     handleLogout
 } = useLobby(props);
+
+const mobileMenuOpen = ref(false);
+
+const closeMobileMenu = () => {
+    mobileMenuOpen.value = false;
+};
 </script>
 
 <template>
@@ -40,7 +47,7 @@ const {
             <nav
                 class="bg-[#1a1c2c]/90 backdrop-blur-sm border-b-4 border-[#3d415f] p-4 md:px-8 flex justify-between items-center shadow-2xl sticky top-0 z-50">
                 <div class="flex items-center gap-4">
-                    <Link :href="route('lobby')" class="flex items-center gap-4 group">
+                    <Link :href="route('lobby')" class="flex items-center gap-4 group" @click="closeMobileMenu">
                         <div
                             class="w-10 h-10 bg-[#0a0c10] flex items-center justify-center border-b-4 border-r-4 border-[#4ed4d4] overflow-hidden group-hover:scale-110 transition-transform">
                             <img src="/images/logo.png" alt="Logo" class="w-7 h-7 object-contain pixelated">
@@ -52,7 +59,7 @@ const {
                     </Link>
                 </div>
 
-                <div class="flex gap-2 md:gap-4 items-center">
+                <div class="hidden md:flex gap-2 md:gap-4 items-center">
                     <template v-if="auth.user">
                         <Link v-if="auth.user.role === 'admin'" :href="route('admin.dashboard')"
                             class="text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors">
@@ -60,12 +67,14 @@ const {
                         </Link>
 
                         <Link :href="route('profile.edit')"
-                            class="text-[8px] bg-[#3d415f]/80 text-white px-3 py-2 btn-pixel border-[#1a1c2c] uppercase font-bold hover:bg-slate-600 transition-colors">
+                            class="text-[8px] bg-cyan-300 text-black px-3 py-2 btn-pixel border-cyan-700 uppercase font-bold hover:bg-cyan-200 transition-colors inline-flex items-center gap-1.5 shadow-[0_0_12px_rgba(45,212,191,0.28)]">
+                            <i class="fi fi-rr-user text-[10px] leading-none"></i>
                             Profile
                         </Link>
 
                         <Link :href="route('shop.index')"
-                            class="text-[8px] bg-yellow-700/80 text-black px-3 py-2 btn-pixel border-yellow-900 uppercase font-bold hover:bg-yellow-500 transition-colors">
+                            class="text-[8px] bg-yellow-400 text-black px-3 py-2 btn-pixel border-yellow-700 uppercase font-bold hover:bg-yellow-300 transition-colors inline-flex items-center gap-1.5 shadow-[0_0_12px_rgba(250,204,21,0.35)]">
+                            <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
                             Shop
                         </Link>
 
@@ -86,7 +95,74 @@ const {
                         </Link>
                     </template>
                 </div>
+
+                <button
+                    type="button"
+                    class="md:hidden inline-flex items-center justify-center w-10 h-10 border-2 border-slate-600 bg-slate-900/70 text-cyan-300"
+                    @click="mobileMenuOpen = !mobileMenuOpen"
+                    :aria-expanded="mobileMenuOpen ? 'true' : 'false'"
+                    aria-label="Toggle menu"
+                >
+                    <i :class="mobileMenuOpen ? 'fi fi-rr-cross-small' : 'fi fi-rr-menu-burger'" class="text-[14px]"></i>
+                </button>
             </nav>
+
+            <div v-if="mobileMenuOpen" class="md:hidden relative z-50 px-4 pb-4">
+                <div class="bg-[#1a1c2c]/95 backdrop-blur-sm border-2 border-[#3d415f] p-3 space-y-2 shadow-2xl">
+                    <template v-if="auth.user">
+                        <Link
+                            v-if="auth.user.role === 'admin'"
+                            :href="route('admin.dashboard')"
+                            class="w-full text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors inline-flex items-center justify-center"
+                            @click="closeMobileMenu"
+                        >
+                            Admin
+                        </Link>
+
+                        <Link
+                            :href="route('profile.edit')"
+                            class="w-full text-[8px] bg-cyan-300 text-black px-3 py-2 btn-pixel border-cyan-700 uppercase font-bold hover:bg-cyan-200 transition-colors inline-flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(45,212,191,0.28)]"
+                            @click="closeMobileMenu"
+                        >
+                            <i class="fi fi-rr-user text-[10px] leading-none"></i>
+                            Profile
+                        </Link>
+
+                        <Link
+                            :href="route('shop.index')"
+                            class="w-full text-[8px] bg-yellow-400 text-black px-3 py-2 btn-pixel border-yellow-700 uppercase font-bold hover:bg-yellow-300 transition-colors inline-flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(250,204,21,0.35)]"
+                            @click="closeMobileMenu"
+                        >
+                            <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
+                            Shop
+                        </Link>
+
+                        <button
+                            @click="handleLogout(); closeMobileMenu()"
+                            class="w-full text-[8px] bg-red-900/80 text-white px-3 py-2 btn-pixel border-red-950 uppercase font-bold hover:bg-red-700 transition-colors"
+                        >
+                            [X]
+                        </button>
+                    </template>
+
+                    <template v-else>
+                        <Link
+                            :href="route('login')"
+                            class="w-full text-[8px] bg-[#009999] text-black px-4 py-2 btn-pixel border-[#006666] uppercase font-bold hover:bg-[#4ed4d4] transition-all inline-flex items-center justify-center"
+                            @click="closeMobileMenu"
+                        >
+                            Login
+                        </Link>
+                        <Link
+                            :href="route('register')"
+                            class="w-full text-[8px] bg-[#facc15] text-black px-4 py-2 btn-pixel border-[#854d0e] uppercase font-bold hover:bg-yellow-400 transition-all inline-flex items-center justify-center"
+                            @click="closeMobileMenu"
+                        >
+                            Register
+                        </Link>
+                    </template>
+                </div>
+            </div>
 
             <main class="p-4 md:p-8 grid grid-cols-12 gap-8 flex-1">
 

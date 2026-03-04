@@ -32,12 +32,17 @@ const goToPage = (url) => {
 
         <div class="p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px]">
             <div class="max-w-7xl mx-auto space-y-6">
-                <div class="flex items-center justify-between border-b-4 border-indigo-900 pb-4">
-                    <h1 class="text-lg md:text-xl uppercase tracking-widest">Detail_Guide_User</h1>
-                    <Link :href="route('lobby')" class="text-slate-500 hover:text-white uppercase">[Back_to_Home]</Link>
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b-4 border-indigo-900 pb-4">
+                    <h1 class="text-base sm:text-lg md:text-xl uppercase tracking-widest">Detail_Guide_User</h1>
+                    <Link
+                        :href="route('lobby')"
+                        class="inline-flex items-center justify-center px-3 py-2 border-2 border-slate-700 bg-slate-900/40 text-slate-300 hover:text-white hover:border-cyan-400 uppercase text-[9px] sm:text-[10px] whitespace-nowrap"
+                    >
+                        [Back_to_Home]
+                    </Link>
                 </div>
 
-                <div class="rpg-panel border-slate-700">
+                <div class="rpg-panel border-slate-700 flex flex-col min-h-[540px]">
                     <form @submit.prevent="applySearch" class="mb-4 flex flex-col md:flex-row gap-2">
                         <input
                             v-model="form.search"
@@ -57,7 +62,7 @@ const goToPage = (url) => {
                         </div>
                     </form>
 
-                    <div class="md:hidden space-y-3">
+                    <div class="md:hidden space-y-3 flex-1">
                         <div v-for="item in guides.data" :key="`m-${item.uuid}`" class="p-3 bg-black/40 border border-slate-800">
                             <p class="text-white uppercase text-[11px]">{{ item.title }}</p>
                             <p class="mt-1 text-[8px] uppercase"
@@ -78,7 +83,7 @@ const goToPage = (url) => {
                         </div>
                     </div>
 
-                    <div class="hidden md:block overflow-x-auto">
+                    <div class="hidden md:block overflow-x-auto flex-1">
                         <table class="w-full min-w-[900px] text-left">
                         <thead class="border-b border-slate-700 text-slate-500 text-[8px] uppercase">
                             <tr>
@@ -121,7 +126,7 @@ const goToPage = (url) => {
                     </table>
                     </div>
 
-                    <div class="mt-5 flex flex-wrap gap-2">
+                    <div class="mt-5 flex flex-wrap gap-2 pt-4 border-t border-slate-800">
                         <button
                             v-for="(link, idx) in guides.links"
                             :key="`${idx}-${link.label}`"
