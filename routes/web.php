@@ -80,6 +80,8 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
 
     Route::prefix('admin/users')->name('admin.users.')->group(function () {
         Route::get('/', [AdminUserController::class, 'index'])->name('index');
+        Route::patch('/{user}', [AdminUserController::class, 'update'])->name('update');
+        Route::delete('/{user}', [AdminUserController::class, 'destroy'])->name('destroy');
         Route::patch('/{user}/role', [AdminUserController::class, 'updateRole'])->name('role.update');
         Route::patch('/{user}/reset-password', [AdminUserController::class, 'resetPassword'])->name('password.reset');
     });

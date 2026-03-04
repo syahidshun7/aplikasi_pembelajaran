@@ -8,6 +8,10 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -18,13 +22,24 @@ class AdminUserController extends Controller
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'role' => ['nullable', 'in:all,admin,user,student'],
+            'rank_by' => ['nullable', 'in:newest,highest_gold,highest_exp,highest_grade'],
+            'grade_order' => ['nullable', 'in:none,asc,desc'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
         $role = (string) ($validated['role'] ?? 'all');
+        $rankBy = (string) ($validated['rank_by'] ?? 'newest');
+        $gradeOrder = (string) ($validated['grade_order'] ?? 'none');
+        if ($rankBy === 'highest_grade' && $gradeOrder === 'none') {
+            // Backward compatibility for old query params.
+            $gradeOrder = 'desc';
+        }
+
+        $levelColumn = Schema::hasColumn('users', 'lvl') ? 'lvl' : 'level';
 
         $users = User::query()
             ->withCount('submissions')
+            ->withMax('submissions as highest_grade', 'grade')
             ->when($role !== '' && $role !== 'all', function ($query) use ($role) {
                 $query->where('role', $role);
             })
@@ -36,7 +51,28 @@ class AdminUserController extends Controller
                         ->orWhere('id', 'like', "%{$search}%");
                 });
             })
-            ->orderByDesc('created_at')
+            ->when($gradeOrder === 'desc', function ($query) {
+                $query->orderByRaw('COALESCE(highest_grade, 0) DESC')
+                    ->orderByDesc('exp')
+                    ->orderByDesc('created_at');
+            })
+            ->when($gradeOrder === 'asc', function ($query) {
+                $query->orderByRaw('COALESCE(highest_grade, 0) ASC')
+                    ->orderByDesc('created_at');
+            })
+            ->when($gradeOrder === 'none' && $rankBy === 'highest_gold', function ($query) {
+                $query->orderByDesc('gold')
+                    ->orderByDesc('exp')
+                    ->orderByDesc('created_at');
+            })
+            ->when($gradeOrder === 'none' && $rankBy === 'highest_exp', function ($query) {
+                $query->orderByDesc('exp')
+                    ->orderByDesc('gold')
+                    ->orderByDesc('created_at');
+            })
+            ->when($gradeOrder === 'none' && $rankBy === 'newest', function ($query) {
+                $query->orderByDesc('created_at');
+            })
             ->paginate(10, [
                 'id',
                 'name',
@@ -45,7 +81,7 @@ class AdminUserController extends Controller
                 'role',
                 'gold',
                 'exp',
-                'level',
+                $levelColumn,
                 'created_at',
             ])
             ->withQueryString();
@@ -112,6 +148,8 @@ class AdminUserController extends Controller
                 $user->avg_grade = $totalAvailableQuests > 0
                     ? round($gradeSum / $totalAvailableQuests, 1)
                     : 0;
+                $user->level_display = (int) ($user->lvl ?? $user->level ?? 1);
+                $user->highest_grade = (int) ($user->highest_grade ?? 0);
 
                 return $user;
             });
@@ -125,6 +163,8 @@ class AdminUserController extends Controller
             'filters' => [
                 'search' => $search,
                 'role' => $role,
+                'rank_by' => $rankBy,
+                'grade_order' => $gradeOrder,
             ],
         ]);
     }
@@ -160,5 +200,77 @@ class AdminUserController extends Controller
         ]);
 
         return back()->with('message', 'USER_PASSWORD_RESET_SUCCESS');
+    }
+
+    public function update(Request $request, User $user): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'username' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('users', 'username')->ignore($user->id),
+            ],
+            'email' => [
+                'required',
+                'string',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+            'role' => ['required', 'in:admin,user,student'],
+            'gold' => ['required', 'integer', 'min:0'],
+            'exp' => ['required', 'integer', 'min:0'],
+            'level' => ['required', 'integer', 'min:1'],
+            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        if ((int) $request->user()->id === (int) $user->id && $validated['role'] !== 'admin') {
+            return back()->withErrors([
+                'role' => 'Kamu tidak bisa menurunkan role akun admin yang sedang login.',
+            ]);
+        }
+
+        $payload = [
+            'name' => trim((string) $validated['name']),
+            'username' => trim((string) ($validated['username'] ?? '')) ?: null,
+            'email' => strtolower(trim((string) $validated['email'])),
+            'role' => $validated['role'],
+            'gold' => (int) $validated['gold'],
+            'exp' => (int) $validated['exp'],
+        ];
+
+        if (Schema::hasColumn('users', 'lvl')) {
+            $payload['lvl'] = (int) $validated['level'];
+        }
+        if (Schema::hasColumn('users', 'level')) {
+            $payload['level'] = (int) $validated['level'];
+        }
+        if (!empty($validated['password'])) {
+            $payload['password'] = Hash::make((string) $validated['password']);
+        }
+
+        $user->forceFill($payload)->save();
+
+        return back()->with('message', 'USER_DATA_UPDATED');
+    }
+
+    public function destroy(Request $request, User $user): RedirectResponse
+    {
+        if ((int) $request->user()->id === (int) $user->id) {
+            return back()->withErrors([
+                'user' => 'Kamu tidak bisa menghapus akun admin yang sedang login.',
+            ]);
+        }
+
+        if ($user->profile_photo && Storage::disk('public')->exists($user->profile_photo)) {
+            Storage::disk('public')->delete($user->profile_photo);
+        }
+
+        DB::table('sessions')->where('user_id', $user->id)->delete();
+        $user->delete();
+
+        return back()->with('message', 'USER_ACCOUNT_DELETED');
     }
 }
