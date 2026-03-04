@@ -6,6 +6,7 @@ use App\Models\Quest;
 use App\Models\ShopItem;
 use App\Models\ShopTransaction;
 use App\Models\Submission;
+use App\Models\TaskBank;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\StudyGroup;
@@ -76,7 +77,7 @@ class QuestController extends Controller
 
         return Inertia::render('Quests/Index', [
             'quests' => Quest::query()
-                ->with('studyGroup')
+                ->with(['studyGroup', 'taskBank:id,uuid,name,assessment_type'])
                 ->when($search !== '', function ($query) use ($search) {
                     $query->where(function ($q) use ($search) {
                         $q->where('title', 'like', "%{$search}%")
@@ -93,6 +94,10 @@ class QuestController extends Controller
                 ->withQueryString(),
 
             'studyGroups' => StudyGroup::select('id', 'name')->get(),
+            'taskBanks' => TaskBank::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'uuid', 'name', 'assessment_type']),
             'filters' => [
                 'search' => $search,
             ],
@@ -109,6 +114,7 @@ class QuestController extends Controller
             'description' => 'nullable|string',
             'status' => 'required|in:Available,In-Progress,Done',
             'study_group_id' => 'nullable|exists:study_groups,id',
+            'task_bank_id' => 'nullable|exists:task_banks,id',
             'deadline' => 'nullable|date', // Tambahkan validasi date
         ]);
 
@@ -143,6 +149,7 @@ class QuestController extends Controller
             'reward_exp' => 'nullable|integer|min:0',
             'status' => 'required|in:Available,In-Progress,Done',
             'study_group_id' => 'nullable|exists:study_groups,id',
+            'task_bank_id' => 'nullable|exists:task_banks,id',
             'deadline' => 'nullable|date', // Tambahkan validasi date
         ]);
 
@@ -175,7 +182,17 @@ class QuestController extends Controller
 
     public function show(Quest $quest)
     {
+        $this->authorizeQuestAccessForCurrentUser($quest);
+
         $userId = (int) auth()->id();
+        $quest->load([
+            'taskBank:id,uuid,name,assessment_type',
+            'taskBank.questions' => function ($query) {
+                $query->where('is_active', true)
+                    ->orderBy('sort_order')
+                    ->select(['id', 'uuid', 'task_bank_id', 'question_text', 'question_type', 'options_json', 'weight', 'sort_order']);
+            },
+        ]);
 
         $submission = $quest->submissions()
             ->where('user_id', $userId)
@@ -216,6 +233,8 @@ class QuestController extends Controller
 
     public function unlockLate(Quest $quest)
     {
+        $this->authorizeQuestAccessForCurrentUser($quest);
+
         $userId = (int) auth()->id();
 
         $alreadySubmitted = Submission::query()
@@ -299,5 +318,24 @@ class QuestController extends Controller
         $statusDone = in_array($quest->status, ['Done', 'Completed'], true);
 
         return $deadlinePassed || $statusDone;
+    }
+
+    private function authorizeQuestAccessForCurrentUser(Quest $quest): void
+    {
+        if (! $quest->study_group_id) {
+            return;
+        }
+
+        $userGroupIds = auth()->user()
+            ->studyGroups()
+            ->pluck('study_groups.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        abort_unless(
+            in_array((int) $quest->study_group_id, $userGroupIds, true),
+            403,
+            'QUEST_ACCESS_DENIED'
+        );
     }
 }

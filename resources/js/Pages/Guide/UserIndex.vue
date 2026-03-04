@@ -71,14 +71,19 @@ const goToPage = (url) => {
                             </p>
                             <p class="mt-2 text-slate-400 font-sans text-[11px]">{{ item.description || '-' }}</p>
                             <p class="mt-2 text-slate-500 text-[8px]">{{ new Date(item.created_at).toLocaleString('id-ID') }}</p>
-                            <div class="mt-3">
+                            <div class="mt-3 flex items-center gap-2">
+                                <Link
+                                    :href="route('guides.user.show', item.uuid)"
+                                    class="inline-block px-3 py-1 border border-cyan-700 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px]"
+                                >
+                                    Detail
+                                </Link>
                                 <a v-if="item.file_path"
                                    :href="'/storage/' + item.file_path"
                                    target="_blank"
                                    class="inline-block px-3 py-1 border border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white uppercase text-[8px]">
-                                    Open
+                                    Open_File
                                 </a>
-                                <span v-else class="text-slate-600 uppercase text-[8px]">No_File</span>
                             </div>
                         </div>
                     </div>
@@ -108,13 +113,19 @@ const goToPage = (url) => {
                                 <td class="py-3 px-2 text-slate-400 font-sans">{{ item.description || '-' }}</td>
                                 <td class="py-3 px-2 text-slate-500">{{ new Date(item.created_at).toLocaleString('id-ID') }}</td>
                                 <td class="py-3 px-2 text-right">
+                                    <Link
+                                        :href="route('guides.user.show', item.uuid)"
+                                        class="inline-block px-3 py-1 border border-cyan-700 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px] mr-2"
+                                    >
+                                        Detail
+                                    </Link>
                                     <a
                                         v-if="item.file_path"
                                         :href="'/storage/' + item.file_path"
                                         target="_blank"
                                         class="inline-block px-3 py-1 border border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white uppercase text-[8px]"
                                     >
-                                        Open
+                                        Open_File
                                     </a>
                                     <span v-else class="text-slate-600 uppercase text-[8px]">No_File</span>
                                 </td>

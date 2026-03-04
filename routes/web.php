@@ -12,6 +12,7 @@ use App\Http\Controllers\AdminSubmissionManagementController;
 use App\Http\Controllers\AdminJobRoleController;
 use App\Http\Controllers\AdminEventController;
 use App\Http\Controllers\AdminShopItemController;
+use App\Http\Controllers\AdminTaskBankController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HomeController;
@@ -44,6 +45,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/study-groups/join', [StudyGroupController::class, 'join'])->name('groups.join');
     Route::post('/study-groups/{uuid}/leave', [StudyGroupController::class, 'leave'])->name('groups.leave');
     Route::get('/guides', [GuideController::class, 'userIndex'])->name('guides.user.index');
+    Route::get('/guides/{guide}', [GuideController::class, 'userShow'])->name('guides.user.show');
     Route::get('/events/{event:uuid}', [UserEventController::class, 'show'])->name('events.show');
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::post('/shop/items/{item}/purchase', [ShopController::class, 'purchase'])->name('shop.purchase');
@@ -65,6 +67,8 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
 
     Route::get('/quests/{quest}/submissions', [AdminQuestController::class, 'submissions'])
         ->name('admin.quests.submissions');
+    Route::get('/quests/{quest}/submissions/download-files', [AdminQuestController::class, 'downloadSubmissionFiles'])
+        ->name('admin.quests.submissions.download-files');
     Route::get('/submissions/{submission}/inspect', [AdminSubmissionController::class, 'inspect'])
         ->name('admin.submissions.inspect');
     Route::post('/submissions/{submission}/verdict', [AdminSubmissionController::class, 'verdict'])
@@ -90,6 +94,18 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         Route::post('/', [AdminShopItemController::class, 'store'])->name('store');
         Route::put('/{item}', [AdminShopItemController::class, 'update'])->name('update');
         Route::delete('/{item}', [AdminShopItemController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('admin/task-banks')->name('admin.task-banks.')->group(function () {
+        Route::get('/', [AdminTaskBankController::class, 'index'])->name('index');
+        Route::post('/', [AdminTaskBankController::class, 'store'])->name('store');
+        Route::put('/{taskBank:uuid}', [AdminTaskBankController::class, 'update'])->name('update');
+        Route::delete('/{taskBank:uuid}', [AdminTaskBankController::class, 'destroy'])->name('destroy');
+
+        Route::get('/{taskBank:uuid}/tasks', [AdminTaskBankController::class, 'show'])->name('show');
+        Route::post('/{taskBank:uuid}/tasks', [AdminTaskBankController::class, 'storeQuestion'])->name('tasks.store');
+        Route::put('/{taskBank:uuid}/tasks/{question:uuid}', [AdminTaskBankController::class, 'updateQuestion'])->name('tasks.update');
+        Route::delete('/{taskBank:uuid}/tasks/{question:uuid}', [AdminTaskBankController::class, 'destroyQuestion'])->name('tasks.destroy');
     });
 
     Route::prefix('admin/events')->name('admin.events.')->group(function () {

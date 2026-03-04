@@ -8,10 +8,21 @@
                     <h1 class="text-base sm:text-xl text-white uppercase mb-2">Quest_Submissions</h1>
                     <p class="text-[8px] text-slate-500 italic">MISSION: {{ quest.title }}</p>
                 </div>
-                <Link :href="route('quests.index')"
-                    class="inline-flex items-center justify-center text-[8px] bg-slate-800 px-4 py-2 border-2 border-slate-600 hover:bg-slate-700">
-                    [ BACK_TO_DASHBOARD ]
-                </Link>
+                <div class="flex flex-wrap items-center gap-2">
+                    <a
+                        :href="route('admin.quests.submissions.download-files', { quest: quest.uuid, search: filterForm.search || undefined, status: filterForm.status || undefined })"
+                        class="inline-flex items-center justify-center text-[8px] px-4 py-2 border-2 uppercase"
+                        :class="downloadableFilesCount > 0
+                            ? 'bg-emerald-900/30 border-emerald-600 text-emerald-300 hover:bg-emerald-500 hover:text-black'
+                            : 'bg-slate-900/40 border-slate-700 text-slate-500 pointer-events-none'"
+                    >
+                        [ DOWNLOAD_FILES_ZIP ]
+                    </a>
+                    <Link :href="route('quests.index')"
+                        class="inline-flex items-center justify-center text-[8px] bg-slate-800 px-4 py-2 border-2 border-slate-600 hover:bg-slate-700">
+                        [ BACK_TO_DASHBOARD ]
+                    </Link>
+                </div>
             </div>
 
             <div class="bg-[#161b22] border-4 border-slate-700 overflow-hidden">
@@ -41,6 +52,12 @@
                         RESET
                     </button>
                 </div>
+                <p class="px-4 py-2 text-[8px] border-b border-slate-800 uppercase text-slate-500">
+                    Downloadable_Files: <span class="text-emerald-300">{{ downloadableFilesCount || 0 }}</span>
+                </p>
+                <p v-if="page.props.errors?.download" class="px-4 py-2 text-[8px] border-b border-slate-800 text-red-400 uppercase">
+                    {{ page.props.errors.download }}
+                </p>
                 <div class="overflow-x-auto">
                 <table class="w-full min-w-[760px] text-left border-collapse">
                     <thead class="bg-slate-900 text-[8px] uppercase">
@@ -113,15 +130,18 @@
 </template>
 
 <script setup>
-import { Link, router, useForm } from '@inertiajs/vue3';
+import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 
 const props = defineProps({
     quest: Object,
     submissions: Object,
+    downloadableFilesCount: Number,
     filters: Object,
 });
+
+const page = usePage();
 
 const filterForm = useForm({
     search: props.filters?.search || '',

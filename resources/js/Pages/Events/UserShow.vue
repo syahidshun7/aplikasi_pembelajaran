@@ -72,14 +72,12 @@ const normalizedDescription = computed(() => {
                             <p class="text-[9px] text-white uppercase mb-1">{{ guide.title }}</p>
                             <p class="text-[7px] text-cyan-400 uppercase mb-2">{{ guide.study_group?.name || 'Public' }}</p>
                             <p class="text-[8px] text-slate-500 line-clamp-2 font-sans mb-3">{{ guide.description || 'No description.' }}</p>
-                            <a
-                                v-if="guide.file_path"
-                                :href="`/storage/${guide.file_path}`"
-                                target="_blank"
+                            <Link
+                                :href="route('guides.user.show', guide.uuid)"
                                 class="text-[8px] px-3 py-1 bg-indigo-900/40 border border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white uppercase"
                             >
                                 Open_Guide
-                            </a>
+                            </Link>
                         </div>
                         <p v-if="!event.guides.length" class="text-[8px] text-slate-500 uppercase italic">No guides in this event.</p>
                     </div>

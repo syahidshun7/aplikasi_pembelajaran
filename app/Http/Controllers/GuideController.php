@@ -46,4 +46,33 @@ class GuideController extends Controller
             ],
         ]);
     }
+
+    public function userShow(Guide $guide): Response
+    {
+        $this->authorizeGuideAccessForCurrentUser($guide);
+        $guide->load('studyGroup:id,name');
+
+        return Inertia::render('Guide/UserShow', [
+            'guide' => $guide,
+        ]);
+    }
+
+    private function authorizeGuideAccessForCurrentUser(Guide $guide): void
+    {
+        if (! $guide->study_group_id) {
+            return;
+        }
+
+        $userGroupIds = Auth::user()
+            ->studyGroups()
+            ->pluck('study_groups.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        abort_unless(
+            in_array((int) $guide->study_group_id, $userGroupIds, true),
+            403,
+            'GUIDE_ACCESS_DENIED'
+        );
+    }
 }

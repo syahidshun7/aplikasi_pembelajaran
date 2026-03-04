@@ -119,7 +119,7 @@
                             <div class="grid grid-cols-2 gap-4">
                                 <div class="bg-black p-4 border-2 border-slate-800 text-center">
                                     <p class="text-[7px] text-slate-600 uppercase mb-2 italic">Final_Score:</p>
-                                    <p class="text-2xl font-bold" :class="totalScore >= 50 ? 'text-green-400' : 'text-red-500'">
+                                    <p class="text-2xl font-bold" :class="totalScore >= 70 ? 'text-green-400' : (totalScore >= 40 ? 'text-yellow-400' : 'text-red-500')">
                                         {{ totalScore }}%
                                     </p>
                                 </div>
@@ -144,19 +144,28 @@
                                 </div>
                             </div>
 
+                            <div class="bg-black p-4 border-2 border-slate-800">
+                                <label class="block text-[7px] text-slate-500 uppercase italic mb-2">Verdict_Status:</label>
+                                <select
+                                    v-model="localStatus"
+                                    class="w-full bg-slate-900 border-2 border-slate-700 p-2 text-[10px] text-cyan-300 uppercase outline-none focus:border-cyan-400"
+                                >
+                                    <option value="Approved">Approved</option>
+                                    <option value="Rejected">Rejected</option>
+                                </select>
+                            </div>
+
                             <textarea v-model="feedbackText"
                                 class="w-full bg-black border-2 border-slate-800 p-4 text-slate-200 font-sans text-xs focus:border-green-500 outline-none h-32 custom-scrollbar"
                                 placeholder="TYPE_COMMANDER_FEEDBACK_LOG_HERE..."></textarea>
 
                             <div class="flex flex-col gap-2">
                                 <p class="text-[7px] text-slate-500 uppercase italic">Execution_Command:</p>
-                                <button @click="submitEvaluation" :class="[
-                                    'w-full py-5 font-bold text-[10px] uppercase tracking-widest transition-all active:translate-y-1 active:shadow-none',
-                                    localStatus === 'Approved'
-                                        ? 'bg-green-600 hover:bg-green-500 text-black shadow-[4px_4px_0_0_#14532d]'
-                                        : 'bg-red-700 hover:bg-red-600 text-white shadow-[4px_4px_0_0_#450a0a]'
-                                ]">
-                                    [ {{ localStatus === 'Approved' ? 'CONFIRM_PASSING_GRADE' : 'CONFIRM_REJECTION' }} ]
+                                <button
+                                    @click="submitEvaluation"
+                                    class="w-full py-5 font-bold text-[10px] uppercase tracking-widest transition-all active:translate-y-1 active:shadow-none bg-cyan-700 hover:bg-cyan-600 text-black shadow-[4px_4px_0_0_#0e7490]"
+                                >
+                                    [ CONFIRM_VERDICT_AND_REWARD ]
                                 </button>
                                 <p class="text-[6px] text-center text-slate-600 mt-2 italic">
                                     *Caution: This action will modify user balance and experience.
@@ -172,7 +181,7 @@
 
 <script setup>
 import { Link, router } from '@inertiajs/vue3';
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
@@ -183,7 +192,7 @@ const props = defineProps({
 
 // 1. STATE & DATA
 const feedbackText = ref(props.submission.feedback || '');
-const localStatus = ref(props.submission.status || 'Pending');
+const localStatus = ref(['Approved', 'Rejected'].includes(props.submission.status) ? props.submission.status : 'Approved');
 const isScanning = ref(false);
 
 const criteria = ref([
@@ -216,13 +225,7 @@ const maxExpReward = computed(() => {
     return gold > 0 ? gold : 1000;
 });
 
-// 3. WATCHERS
-// Otomatis update status berdasarkan skor
-watch(totalScore, (newScore) => {
-    localStatus.value = newScore >= 50 ? 'Approved' : 'Rejected';
-});
-
-// 4. METHODS
+// 3. METHODS
 const toggleCriteria = (item) => {
     item.checked = !item.checked;
 };
@@ -318,13 +321,13 @@ const submitEvaluation = () => {
                 <p class="text-white mt-2 border-t border-slate-800 pt-2">STATUS: ${status}</p>
             </div>
         `,
-        icon: status === 'Approved' ? 'success' : 'warning',
+        icon: 'question',
         showCancelButton: true,
         confirmButtonText: '[ EXECUTE_VERDICT ]',
         cancelButtonText: '[ ABORT ]',
         background: '#0d1117',
         color: '#4ed4d4',
-        confirmButtonColor: status === 'Approved' ? '#166534' : '#991b1b',
+        confirmButtonColor: '#0891b2',
         cancelButtonColor: '#1e293b',
     }).then((result) => {
         if (result.isConfirmed) {

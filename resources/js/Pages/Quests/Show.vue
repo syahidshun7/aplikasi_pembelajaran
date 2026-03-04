@@ -1,5 +1,6 @@
 <script setup>
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import Swal from 'sweetalert2';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 
@@ -13,14 +14,33 @@ const props = defineProps({
     timeKeyQty: Number,
 });
 
+const taskAnswersFromSubmission = props.existingSubmission?.scores_detail?.answers &&
+    typeof props.existingSubmission.scores_detail.answers === 'object'
+    ? props.existingSubmission.scores_detail.answers
+    : {};
+
 const form = useForm({
     content: props.existingSubmission?.content || '',
     file: null,
+    task_answers: { ...taskAnswersFromSubmission },
     _method: props.hasSubmitted ? 'PUT' : 'POST',
 });
 
 const unlockForm = useForm({});
 const page = usePage();
+const taskBankType = computed(() => props.quest?.task_bank?.assessment_type || null);
+const isStructuredTaskBankQuest = computed(() => {
+    return !!props.quest?.task_bank && ['multiple_choice', 'mixed', 'essay'].includes(taskBankType.value);
+});
+const isAutoCheckedTaskBankQuest = computed(() => taskBankType.value === 'multiple_choice');
+const taskQuestions = computed(() => props.quest?.task_bank?.questions || []);
+const unansweredCount = computed(() => {
+    if (!isStructuredTaskBankQuest.value) return 0;
+    return taskQuestions.value.filter((question) => {
+        const value = form.task_answers?.[question.uuid];
+        return !value || String(value).trim() === '';
+    }).length;
+});
 
 const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -36,14 +56,33 @@ const handleFileChange = (e) => {
             confirmButtonColor: '#7f1d1d',
         });
         e.target.value = '';
+        form.file = null;
         return;
     }
     form.file = file;
 };
 
 const submitReport = () => {
+    if (isStructuredTaskBankQuest.value && unansweredCount.value > 0) {
+        Swal.fire({
+            title: 'ANSWER_INCOMPLETE',
+            text: `Masih ada ${unansweredCount.value} soal yang belum dijawab.`,
+            icon: 'warning',
+            background: '#161b22',
+            color: '#4ed4d4',
+            confirmButtonColor: '#a16207',
+        });
+        return;
+    }
+
     const title = props.hasSubmitted ? 'UPDATE REPORT?' : 'CONFIRM TRANSMISSION?';
-    const text = props.hasSubmitted ? 'This will overwrite your previous report.' : 'The Guild will review your report. Continue?';
+    const text = isAutoCheckedTaskBankQuest.value
+        ? 'Jawaban akan dinilai otomatis. Reward mengikuti skor akhir.'
+        : (isStructuredTaskBankQuest.value
+            ? 'Jawaban task bank akan dikirim untuk review admin.'
+            : (props.hasSubmitted
+                ? 'This will overwrite your previous report.'
+                : 'The Guild will review your report. Continue?'));
 
     Swal.fire({
         title: title,
@@ -67,8 +106,12 @@ const submitReport = () => {
                 preserveScroll: true,
                 onSuccess: () => {
                     Swal.fire({
-                        title: 'LOGGED!',
-                        text: props.hasSubmitted ? 'YOUR REPORT HAS BEEN UPDATED.' : 'REPORT SENT SUCCESSFULLY.',
+                        title: isAutoCheckedTaskBankQuest.value ? 'AUTO_CHECK_DONE!' : 'LOGGED!',
+                        text: isAutoCheckedTaskBankQuest.value
+                            ? 'Skor dan reward sudah dihitung otomatis.'
+                            : (isStructuredTaskBankQuest.value
+                                ? (props.hasSubmitted ? 'TASK BANK SUBMISSION UPDATED.' : 'TASK BANK SUBMISSION SENT.')
+                                : (props.hasSubmitted ? 'YOUR REPORT HAS BEEN UPDATED.' : 'REPORT SENT SUCCESSFULLY.')),
                         icon: 'success',
                         background: '#161b22',
                         color: '#4ed4d4',
@@ -137,9 +180,11 @@ const unlockLateQuest = () => {
                             <p class="text-slate-500 mb-2 uppercase">Danger_Level:</p>
                             <p class="text-red-500 font-bold uppercase">{{ quest.difficulty }}</p>
                         </div>
-                        <div>
+                        <div class="grid grid-cols-2 gap-2">
                             <p class="text-slate-500 mb-2 uppercase">Reward_Gold:</p>
                             <p class="text-yellow-400 font-bold">{{ quest.reward_gold }} GOLD</p>
+                            <p class="text-slate-500 mb-2 uppercase">Reward_EXP:</p>
+                            <p class="text-cyan-400 font-bold">{{ quest.reward_exp || quest.reward_gold }} EXP</p>
                         </div>
                     </div>
 
@@ -189,11 +234,73 @@ const unlockLateQuest = () => {
 
                     <div v-if="canSubmit" class="mt-8 p-4 md:p-6 border-2 border-dashed border-cyan-900 bg-black/20">
                         <h3 class="text-[12px] mb-6 uppercase tracking-widest" :class="props.hasSubmitted ? 'text-yellow-500' : 'text-white'">
-                            >> {{ props.hasSubmitted ? 'Edit_Existing_Report' : 'Submit_Quest_Report' }}
+                            >> {{ isStructuredTaskBankQuest ? 'Task_Bank_Submission' : (props.hasSubmitted ? 'Edit_Existing_Report' : 'Submit_Quest_Report') }}
                         </h3>
 
                         <form @submit.prevent="submitReport" class="space-y-6">
-                            <div>
+                            <div v-if="isStructuredTaskBankQuest" class="space-y-4">
+                                <div class="bg-slate-900/40 border border-cyan-900/50 p-3">
+                                    <p class="text-[10px] text-cyan-300 uppercase">
+                                        BANK: {{ quest.task_bank?.name || 'TASK_BANK' }} [{{ taskBankType || 'essay' }}]
+                                    </p>
+                                    <p class="text-[10px] text-slate-400 font-sans mt-1">
+                                        <template v-if="isAutoCheckedTaskBankQuest">
+                                            Jawab semua soal. Reward dihitung proporsional dari nilai akhir.
+                                        </template>
+                                        <template v-else>
+                                            Jawab semua soal. Submission akan direview oleh admin.
+                                        </template>
+                                    </p>
+                                </div>
+
+                                <p v-if="form.errors.task_answers" class="text-[10px] text-red-400 font-sans">
+                                    {{ form.errors.task_answers }}
+                                </p>
+
+                                <div
+                                    v-for="(question, index) in taskQuestions"
+                                    :key="question.uuid"
+                                    class="bg-black/30 border border-slate-700 p-4 space-y-3"
+                                >
+                                    <p class="text-[10px] text-yellow-300 uppercase">
+                                        Q{{ index + 1 }} · WEIGHT {{ question.weight || 1 }}
+                                    </p>
+                                    <p class="text-[13px] text-slate-200 font-sans whitespace-pre-wrap">
+                                        {{ question.question_text }}
+                                    </p>
+
+                                    <div v-if="question.question_type === 'multiple_choice'" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <label
+                                            v-for="(option, optionIndex) in (question.options_json || [])"
+                                            :key="`${question.uuid}-${optionIndex}`"
+                                            class="flex items-center gap-2 border border-slate-700 px-3 py-2 cursor-pointer hover:border-cyan-500 transition-colors"
+                                        >
+                                            <input
+                                                v-model="form.task_answers[question.uuid]"
+                                                type="radio"
+                                                :name="`answer-${question.uuid}`"
+                                                :value="option"
+                                                class="accent-cyan-500"
+                                            >
+                                            <span class="text-[12px] text-slate-300 font-sans">{{ option }}</span>
+                                        </label>
+                                    </div>
+
+                                    <textarea
+                                        v-else
+                                        v-model="form.task_answers[question.uuid]"
+                                        rows="3"
+                                        class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[13px] outline-none transition-all focus:border-cyan-400"
+                                        placeholder="Tulis jawabanmu di sini..."
+                                    />
+
+                                    <p v-if="form.errors[`task_answers.${question.uuid}`]" class="text-[10px] text-red-400 font-sans">
+                                        {{ form.errors[`task_answers.${question.uuid}`] }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div v-else>
                                 <label class="block text-[12px] text-slate-500 mb-2 uppercase">Proof_of_Completion:</label>
                                 <textarea
                                     v-model="form.content"
@@ -207,7 +314,22 @@ const unlockLateQuest = () => {
                                 </p>
                             </div>
 
-                            <div>
+                            <div v-if="isStructuredTaskBankQuest" class="space-y-2">
+                                <label class="block text-[12px] text-slate-500 uppercase">
+                                    Additional_Notes: <span class="font-sans normal-case">Optional</span>
+                                </label>
+                                <textarea
+                                    v-model="form.content"
+                                    class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[13px] outline-none transition-all focus:border-cyan-400"
+                                    rows="3"
+                                    placeholder="Catatan tambahan untuk reviewer (opsional)."
+                                ></textarea>
+                                <p v-if="form.errors.content" class="text-[10px] text-red-400 font-sans">
+                                    {{ form.errors.content }}
+                                </p>
+                            </div>
+
+                            <div v-if="!isAutoCheckedTaskBankQuest">
                                 <label class="block text-[12px] text-slate-500 mb-2 uppercase">Evidence_Artifact:</label>
 
                                 <div
@@ -240,9 +362,17 @@ const unlockLateQuest = () => {
                                 type="submit"
                                 :disabled="form.processing"
                                 class="w-full py-4 border-2 transition-all font-bold uppercase text-[12px] active:scale-95"
-                                :class="props.hasSubmitted ? 'bg-yellow-900/20 border-yellow-500 text-yellow-500' : 'bg-cyan-900/40 border-cyan-400 text-cyan-400'"
+                                :class="isAutoCheckedTaskBankQuest
+                                    ? 'bg-cyan-800/40 border-cyan-300 text-cyan-200'
+                                    : (props.hasSubmitted ? 'bg-yellow-900/20 border-yellow-500 text-yellow-500' : 'bg-cyan-900/40 border-cyan-400 text-cyan-400')"
                             >
-                                {{ form.processing ? 'TRANSMITTING...' : (props.hasSubmitted ? 'UPDATE_REPORT' : 'EXECUTE_REPORT') }}
+                                {{ form.processing
+                                    ? (isAutoCheckedTaskBankQuest ? 'AUTO_CHECKING...' : 'TRANSMITTING...')
+                                    : (isAutoCheckedTaskBankQuest
+                                        ? (props.hasSubmitted ? 'UPDATE_AND_RECHECK' : 'SUBMIT_AND_AUTO_CHECK')
+                                        : (isStructuredTaskBankQuest
+                                            ? (props.hasSubmitted ? 'UPDATE_TASK_SUBMISSION' : 'SUBMIT_TASK_SUBMISSION')
+                                            : (props.hasSubmitted ? 'UPDATE_REPORT' : 'EXECUTE_REPORT'))) }}
                             </button>
                         </form>
                     </div>

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Quest extends Model
 {
    
-protected $fillable = ['uuid','title','status', 'description', 'reward_exp', 'reward_gold','difficulty', 'is_completed','study_group_id','deadline'];
+protected $fillable = ['uuid','title','status', 'description', 'reward_exp', 'reward_gold','difficulty', 'is_completed','study_group_id','task_bank_id','deadline'];
 
 protected static function booted()
     {
@@ -30,6 +30,11 @@ public function submissions()
 public function studyGroup()
 {
     return $this->belongsTo(StudyGroup::class);
+}
+
+public function taskBank()
+{
+    return $this->belongsTo(TaskBank::class);
 }
 
 public function events()

@@ -83,6 +83,7 @@ const handleLogout = () => {
                     <Link :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
                     <Link :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
                     <Link :href="route('admin.jobs.index')" class="dropdown-item" @click="closeAllMenus">JOBS</Link>
+                    <Link :href="route('admin.task-banks.index')" class="dropdown-item" @click="closeAllMenus">TASK BANK</Link>
                     <Link :href="route('admin.shop-items.index')" class="dropdown-item" @click="closeAllMenus">SHOP ITEMS</Link>
                     <Link :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
                     <Link :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>
@@ -105,6 +106,7 @@ const handleLogout = () => {
                 <Link :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
                 <Link :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
                 <Link :href="route('admin.jobs.index')" class="dropdown-item" @click="closeAllMenus">JOBS</Link>
+                <Link :href="route('admin.task-banks.index')" class="dropdown-item" @click="closeAllMenus">TASK BANK</Link>
                 <Link :href="route('admin.shop-items.index')" class="dropdown-item" @click="closeAllMenus">SHOP ITEMS</Link>
                 <Link :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
                 <Link :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>

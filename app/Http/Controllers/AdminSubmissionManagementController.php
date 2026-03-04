@@ -128,7 +128,7 @@ class AdminSubmissionManagementController extends Controller
     {
         $totals = Submission::query()
             ->where('user_id', $userId)
-            ->where('status', 'Approved')
+            ->whereIn('status', ['Approved', 'Rejected'])
             ->selectRaw('COALESCE(SUM(earned_exp),0) as exp_total, COALESCE(SUM(earned_gold),0) as gold_total')
             ->first();
 

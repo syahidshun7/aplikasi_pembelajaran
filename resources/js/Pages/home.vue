@@ -221,10 +221,10 @@ const closeMobileMenu = () => {
                                                 class="text-[8px] text-slate-500 font-['Press_Start_2P'] uppercase">Verified</span>
                                         </div>
 
-                                        <a v-if="item.file_path" :href="'/storage/' + item.file_path" target="_blank"
+                                        <Link :href="route('guides.user.show', item.uuid)"
                                             class="text-[8px] bg-[#1a1c2c] text-indigo-300 px-3 py-1.5 border-b-2 border-r-2 border-indigo-900 hover:bg-indigo-500 hover:text-white transition-all uppercase font-['Press_Start_2P']">
-                                            LEARN
-                                        </a>
+                                            DETAIL
+                                        </Link>
                                     </div>
                                 </div>
                             </div>

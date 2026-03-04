@@ -65,6 +65,10 @@ const getGradeColor = (grade) => {
                             class="menu-btn border-cyan-500 text-cyan-300 bg-cyan-900/10 hover:bg-cyan-300 hover:text-black">
                             [J] JOBS
                         </Link>
+                        <Link :href="route('admin.task-banks.index')"
+                            class="menu-btn border-teal-500 text-teal-300 bg-teal-900/10 hover:bg-teal-300 hover:text-black">
+                            [T] TASK_BANK
+                        </Link>
                         <Link :href="route('admin.events.index')"
                             class="menu-btn border-blue-500 text-blue-300 bg-blue-900/10 hover:bg-blue-300 hover:text-black">
                             [E] EVENTS

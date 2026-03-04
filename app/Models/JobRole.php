@@ -22,4 +22,9 @@ class JobRole extends Model
     {
         return $this->hasMany(StudyGroup::class, 'job_id');
     }
+
+    public function taskBanks()
+    {
+        return $this->hasMany(TaskBank::class, 'job_role_id');
+    }
 }

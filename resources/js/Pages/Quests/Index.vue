@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 const props = defineProps({
     quests: Object,
     studyGroups: Array,
+    taskBanks: Array,
     filters: Object,
 });
 
@@ -50,6 +51,7 @@ const form = useForm({
     description: '',
     status: 'Available',
     study_group_id: null,
+    task_bank_id: null,
     deadline: '', // NEW_FIELD
 });
 
@@ -111,6 +113,7 @@ const startEdit = (quest) => {
     form.description = quest.description || '';
     form.status = quest.status || 'Available';
     form.study_group_id = quest.study_group_id;
+    form.task_bank_id = quest.task_bank_id;
     
     // Format deadline for datetime-local input (YYYY-MM-DDTHH:mm)
     if (quest.deadline) {
@@ -147,6 +150,7 @@ const submit = () => {
                 form.difficulty = 'C-Rank';
                 form.reward_gold = 500;
                 form.reward_exp = 500;
+                form.task_bank_id = null;
             },
         });
     }
@@ -281,6 +285,17 @@ const goToPage = (url) => {
                                 </select>
                             </div>
 
+                            <div>
+                                <label class="block mb-2 text-white">TASK_BANK_SOURCE:</label>
+                                <select v-model="form.task_bank_id"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-teal-400 outline-none text-teal-300 uppercase">
+                                    <option :value="null">-- NO_TASK_BANK (MANUAL_QUEST) --</option>
+                                    <option v-for="bank in taskBanks" :key="bank.id" :value="bank.id">
+                                        {{ bank.name }} [{{ bank.assessment_type }}]
+                                    </option>
+                                </select>
+                            </div>
+
                             <div class="flex gap-2">
                                 <button type="submit" :disabled="form.processing"
                                     class="flex-1 py-3 border-2 uppercase font-bold transition-all"
@@ -328,6 +343,10 @@ const goToPage = (url) => {
                                             <span v-if="q.study_group" class="text-emerald-500 ml-2">// [PARTY: {{ q.study_group.name }}]</span>
                                         </div>
                                         <div class="text-white uppercase text-[9px]">{{ q.title }}</div>
+                                        <div class="text-[7px] text-teal-300 uppercase mt-1">
+                                            TASK_BANK: {{ q.task_bank?.name || 'MANUAL' }}
+                                            <span v-if="q.task_bank?.assessment_type" class="text-yellow-300 ml-1">[{{ q.task_bank.assessment_type }}]</span>
+                                        </div>
                                     </div>
                                     <div class="text-yellow-500 text-[8px] tracking-widest">+{{ q.reward_gold }} GOLD</div>
                                 </div>

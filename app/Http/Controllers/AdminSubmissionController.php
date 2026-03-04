@@ -39,19 +39,15 @@ class AdminSubmissionController extends Controller
     $newScore   = (int) $request->final_score;
     $newPortion = $newScore / 100;
 
-    $finalGold = 0;
-    $finalExp  = 0;
-
-    if ($request->status === 'Approved') {
-        $questExp = (int) ($quest->reward_exp ?? 0);
-        if ($questExp <= 0) {
-            // Fallback untuk data quest lama yang belum punya reward_exp valid.
-            $questExp = (int) ($quest->reward_gold ?? 0);
-        }
-
-        $finalGold = (int) floor($quest->reward_gold * $newPortion);
-        $finalExp  = (int) floor($questExp * $newPortion);
+    $questExp = (int) ($quest->reward_exp ?? 0);
+    if ($questExp <= 0) {
+        // Fallback untuk data quest lama yang belum punya reward_exp valid.
+        $questExp = (int) ($quest->reward_gold ?? 0);
     }
+
+    // Reward murni proporsional dari nilai akhir (tanpa nilai minimum).
+    $finalGold = (int) floor($quest->reward_gold * $newPortion);
+    $finalExp  = (int) floor($questExp * $newPortion);
 
     $submission->update([
         'grade'    => $newScore,
@@ -121,7 +117,7 @@ class AdminSubmissionController extends Controller
     {
         $totals = Submission::query()
             ->where('user_id', $userId)
-            ->where('status', 'Approved')
+            ->whereIn('status', ['Approved', 'Rejected'])
             ->selectRaw('COALESCE(SUM(earned_exp),0) as exp_total, COALESCE(SUM(earned_gold),0) as gold_total')
             ->first();
 

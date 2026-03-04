@@ -1,0 +1,205 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\JobRole;
+use App\Models\TaskBank;
+use App\Models\TaskQuestion;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class AdminTaskBankController extends Controller
+{
+    public function index(Request $request): Response
+    {
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $search = trim((string) ($validated['search'] ?? ''));
+
+        $taskBanks = TaskBank::query()
+            ->with('jobRole:id,name')
+            ->withCount('questions')
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhere('assessment_type', 'like', "%{$search}%")
+                        ->orWhereHas('jobRole', function ($jq) use ($search) {
+                            $jq->where('name', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->latest()
+            ->paginate(12)
+            ->withQueryString();
+
+        return Inertia::render('Tasks/Admin/Index', [
+            'taskBanks' => $taskBanks,
+            'jobs' => JobRole::query()->orderBy('name')->get(['id', 'name']),
+            'filters' => [
+                'search' => $search,
+            ],
+        ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255', 'unique:task_banks,name'],
+            'description' => ['nullable', 'string'],
+            'job_role_id' => ['nullable', 'exists:job_roles,id'],
+            'assessment_type' => ['required', Rule::in(['essay', 'multiple_choice', 'mixed'])],
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        TaskBank::query()->create($validated);
+
+        return back()->with('message', 'TASK_BANK_CREATED');
+    }
+
+    public function update(Request $request, TaskBank $taskBank): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255', 'unique:task_banks,name,' . $taskBank->id],
+            'description' => ['nullable', 'string'],
+            'job_role_id' => ['nullable', 'exists:job_roles,id'],
+            'assessment_type' => ['required', Rule::in(['essay', 'multiple_choice', 'mixed'])],
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        $taskBank->update($validated);
+
+        return back()->with('message', 'TASK_BANK_UPDATED');
+    }
+
+    public function destroy(TaskBank $taskBank): RedirectResponse
+    {
+        $taskBank->delete();
+
+        return back()->with('message', 'TASK_BANK_DELETED');
+    }
+
+    public function show(TaskBank $taskBank, Request $request): Response
+    {
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $search = trim((string) ($validated['search'] ?? ''));
+
+        $questions = $taskBank->questions()
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where('question_text', 'like', "%{$search}%");
+            })
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->paginate(15)
+            ->withQueryString();
+
+        return Inertia::render('Tasks/Admin/Show', [
+            'taskBank' => $taskBank->load('jobRole:id,name'),
+            'questions' => $questions,
+            'filters' => [
+                'search' => $search,
+            ],
+        ]);
+    }
+
+    public function storeQuestion(Request $request, TaskBank $taskBank): RedirectResponse
+    {
+        $validated = $request->validate([
+            'question_text' => ['required', 'string'],
+            'question_type' => ['required', Rule::in(['essay', 'multiple_choice'])],
+            'options' => ['nullable', 'array'],
+            'options.*' => ['nullable', 'string', 'max:255'],
+            'answer_key' => ['nullable', 'string', 'max:255'],
+            'weight' => ['required', 'integer', 'min:1', 'max:100'],
+            'sort_order' => ['nullable', 'integer', 'min:1'],
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        $payload = $this->normalizeQuestionPayload($validated);
+
+        $taskBank->questions()->create($payload);
+
+        return back()->with('message', 'TASK_CREATED');
+    }
+
+    public function updateQuestion(Request $request, TaskBank $taskBank, TaskQuestion $question): RedirectResponse
+    {
+        if ((int) $question->task_bank_id !== (int) $taskBank->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'question_text' => ['required', 'string'],
+            'question_type' => ['required', Rule::in(['essay', 'multiple_choice'])],
+            'options' => ['nullable', 'array'],
+            'options.*' => ['nullable', 'string', 'max:255'],
+            'answer_key' => ['nullable', 'string', 'max:255'],
+            'weight' => ['required', 'integer', 'min:1', 'max:100'],
+            'sort_order' => ['nullable', 'integer', 'min:1'],
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        $payload = $this->normalizeQuestionPayload($validated);
+
+        $question->update($payload);
+
+        return back()->with('message', 'TASK_UPDATED');
+    }
+
+    public function destroyQuestion(TaskBank $taskBank, TaskQuestion $question): RedirectResponse
+    {
+        if ((int) $question->task_bank_id !== (int) $taskBank->id) {
+            abort(404);
+        }
+
+        $question->delete();
+
+        return back()->with('message', 'TASK_DELETED');
+    }
+
+    private function normalizeQuestionPayload(array $validated): array
+    {
+        $questionType = $validated['question_type'];
+
+        $options = array_values(array_filter(
+            $validated['options'] ?? [],
+            fn ($value) => trim((string) $value) !== ''
+        ));
+
+        if ($questionType === 'multiple_choice') {
+            if (count($options) < 2) {
+                throw ValidationException::withMessages([
+                    'options' => 'Pilihan ganda harus memiliki minimal 2 opsi.',
+                ]);
+            }
+
+            if (! in_array($validated['answer_key'], $options, true)) {
+                throw ValidationException::withMessages([
+                    'answer_key' => 'Jawaban benar harus salah satu dari opsi.',
+                ]);
+            }
+        } else {
+            $options = [];
+            $validated['answer_key'] = null;
+        }
+
+        return [
+            'question_text' => $validated['question_text'],
+            'question_type' => $questionType,
+            'options_json' => ! empty($options) ? $options : null,
+            'answer_key' => $validated['answer_key'] ?? null,
+            'weight' => (int) $validated['weight'],
+            'sort_order' => (int) ($validated['sort_order'] ?? 1),
+            'is_active' => (bool) $validated['is_active'],
+        ];
+    }
+}
