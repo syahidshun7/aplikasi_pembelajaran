@@ -90,7 +90,15 @@ const createdAtLabel = computed(() => {
                             </div>
 
                             <div v-else-if="isPdfAttachment" class="border border-slate-700 p-2 bg-[#0d1117]">
-                                <iframe :src="attachmentUrl" class="w-full h-[70vh] min-h-[420px]" title="Guide Attachment Preview" />
+                                <object
+                                    :data="attachmentUrl"
+                                    type="application/pdf"
+                                    class="w-full h-[70vh] min-h-[420px]"
+                                >
+                                    <p class="font-sans text-sm text-slate-300 p-4">
+                                        PDF preview is unavailable. Use Open_File.
+                                    </p>
+                                </object>
                             </div>
 
                             <div class="flex justify-end">

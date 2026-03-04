@@ -103,11 +103,15 @@ const actionButtonClass = computed(() => {
                         <div v-if="submission.file_path" class="mt-4 space-y-3">
                             <div v-if="isPdfAttachment" class="border border-slate-700 bg-slate-950/70 p-2">
                                 <p class="text-[7px] text-cyan-300 uppercase mb-2">PDF_ATTACHMENT_PREVIEW</p>
-                                <iframe
-                                    :src="attachmentUrl"
+                                <object
+                                    :data="attachmentUrl"
+                                    type="application/pdf"
                                     class="w-full h-[70vh] min-h-[420px] border border-slate-700 bg-black"
-                                    title="PDF Attachment Preview"
-                                />
+                                >
+                                    <p class="font-sans text-sm text-slate-300 p-4">
+                                        PDF preview is unavailable. Use OPEN_PDF_NEW_TAB.
+                                    </p>
+                                </object>
                             </div>
 
                             <div class="flex justify-end">

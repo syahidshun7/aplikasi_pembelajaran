@@ -57,7 +57,15 @@
                                 <img :src="attachmentPreviewUrl" class="w-full h-auto" alt="Submission attachment">
                             </div>
                             <div v-else-if="isPdf(submission.file_path)" class="h-[500px] w-full bg-slate-800">
-                                <iframe :src="attachmentPreviewUrl" class="w-full h-full" frameborder="0" title="PDF submission preview"></iframe>
+                                <object
+                                    :data="attachmentPreviewUrl"
+                                    type="application/pdf"
+                                    class="w-full h-full"
+                                >
+                                    <p class="font-sans text-sm text-slate-300 p-4">
+                                        PDF preview is unavailable. Use OPEN_ATTACHMENT.
+                                    </p>
+                                </object>
                             </div>
                             <div v-else class="p-4 bg-slate-900 text-[8px] text-slate-400 uppercase">
                                 Preview not supported for this file type.
