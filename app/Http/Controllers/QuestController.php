@@ -3,11 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Quest;
+use App\Models\ShopItem;
+use App\Models\ShopTransaction;
 use App\Models\Submission;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\StudyGroup;
-use Illuminate\Support\Str;
+use App\Models\UserInventory;
+use App\Models\UserQuestUnlock;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class QuestController extends Controller
 {
@@ -21,6 +26,10 @@ class QuestController extends Controller
         $userId = auth()->id();
         $userGroupIds = auth()->user()->studyGroups()->pluck('study_groups.id')->toArray();
         $submittedQuestIds = Submission::where('user_id', $userId)->pluck('quest_id')->toArray();
+        $unlockedQuestIds = UserQuestUnlock::query()
+            ->where('user_id', $userId)
+            ->pluck('quest_id')
+            ->toArray();
 
         $quests = Quest::query()
             ->where(function ($query) use ($userGroupIds) {
@@ -43,8 +52,9 @@ class QuestController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $quests->through(function ($quest) use ($submittedQuestIds) {
+        $quests->through(function ($quest) use ($submittedQuestIds, $unlockedQuestIds) {
             $quest->user_has_submitted = in_array($quest->id, $submittedQuestIds, true);
+            $quest->user_has_unlock = in_array($quest->id, $unlockedQuestIds, true);
             return $quest;
         });
 
@@ -165,15 +175,129 @@ class QuestController extends Controller
 
     public function show(Quest $quest)
     {
+        $userId = (int) auth()->id();
+
         $submission = $quest->submissions()
-            ->where('user_id', auth()->id())
+            ->where('user_id', $userId)
             ->latest('id')
             ->first();
+
+        $isLate = $this->isQuestLate($quest);
+        $hasQuestUnlock = UserQuestUnlock::query()
+            ->where('user_id', $userId)
+            ->where('quest_id', $quest->id)
+            ->exists();
+
+        $timeKeyItem = ShopItem::query()
+            ->where('code', 'TIME_KEY')
+            ->where('is_active', true)
+            ->first();
+
+        $timeKeyQty = 0;
+        if ($timeKeyItem) {
+            $timeKeyQty = (int) UserInventory::query()
+                ->where('user_id', $userId)
+                ->where('shop_item_id', $timeKeyItem->id)
+                ->value('quantity');
+        }
+
+        $canSubmit = ! $isLate || $hasQuestUnlock || (bool) $submission;
 
         return Inertia::render('Quests/Show', [
             'quest' => $quest,
             'hasSubmitted' => !!$submission,
-            'existingSubmission' => $submission // Kirim datanya ke Vue
+            'existingSubmission' => $submission,
+            'isLate' => $isLate,
+            'hasQuestUnlock' => $hasQuestUnlock,
+            'canSubmit' => $canSubmit,
+            'timeKeyQty' => $timeKeyQty,
         ]);
+    }
+
+    public function unlockLate(Quest $quest)
+    {
+        $userId = (int) auth()->id();
+
+        $alreadySubmitted = Submission::query()
+            ->where('quest_id', $quest->id)
+            ->where('user_id', $userId)
+            ->exists();
+
+        if ($alreadySubmitted) {
+            return back()->with('message', 'SUBMISSION_ALREADY_EXISTS_NO_UNLOCK_NEEDED');
+        }
+
+        if (! $this->isQuestLate($quest)) {
+            return back()->withErrors([
+                'unlock' => 'Quest ini belum melewati deadline.',
+            ]);
+        }
+
+        $existingUnlock = UserQuestUnlock::query()
+            ->where('user_id', $userId)
+            ->where('quest_id', $quest->id)
+            ->exists();
+
+        if ($existingUnlock) {
+            return back()->with('message', 'QUEST_ALREADY_REOPENED');
+        }
+
+        $timeKeyItem = ShopItem::query()
+            ->where('code', 'TIME_KEY')
+            ->where('is_active', true)
+            ->first();
+
+        if (! $timeKeyItem) {
+            throw ValidationException::withMessages([
+                'unlock' => 'Item Time Key belum tersedia di shop.',
+            ]);
+        }
+
+        DB::transaction(function () use ($userId, $quest, $timeKeyItem) {
+            $inventory = UserInventory::query()
+                ->where('user_id', $userId)
+                ->where('shop_item_id', $timeKeyItem->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $inventory || (int) $inventory->quantity < 1) {
+                throw ValidationException::withMessages([
+                    'unlock' => 'Kamu tidak punya Time Key. Beli dulu di shop.',
+                ]);
+            }
+
+            UserQuestUnlock::query()->create([
+                'user_id' => $userId,
+                'quest_id' => $quest->id,
+                'shop_item_id' => $timeKeyItem->id,
+                'unlocked_at' => now(),
+            ]);
+
+            $inventory->decrement('quantity', 1);
+
+            ShopTransaction::query()->create([
+                'user_id' => $userId,
+                'shop_item_id' => $timeKeyItem->id,
+                'type' => 'consume_unlock',
+                'quantity' => 1,
+                'gold_change' => 0,
+                'note' => 'Use Time Key to reopen late quest',
+                'meta' => [
+                    'quest_id' => $quest->id,
+                    'quest_uuid' => $quest->uuid,
+                    'quest_title' => $quest->title,
+                ],
+            ]);
+        });
+
+        return back()->with('message', 'QUEST_REOPENED_USING_TIME_KEY');
+    }
+
+    private function isQuestLate(Quest $quest): bool
+    {
+        $deadlinePassed = $quest->deadline !== null && $quest->deadline->isPast();
+        $statusDone = in_array($quest->status, ['Done', 'Completed'], true);
+
+        return $deadlinePassed || $statusDone;
     }
 }

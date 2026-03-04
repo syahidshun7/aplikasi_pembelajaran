@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 use App\Models\Submission;
 use App\Models\Quest;
 use App\Models\User;
+use App\Models\UserQuestUnlock;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class SubmissionController extends Controller
 {
@@ -22,6 +24,17 @@ class SubmissionController extends Controller
             ->where('user_id', auth()->id())
             ->latest('id')
             ->first();
+
+        $hasQuestUnlock = UserQuestUnlock::query()
+            ->where('user_id', auth()->id())
+            ->where('quest_id', $quest->id)
+            ->exists();
+
+        if (! $submission && $this->isQuestLate($quest) && ! $hasQuestUnlock) {
+            throw ValidationException::withMessages([
+                'content' => 'Quest sudah lewat deadline. Gunakan Time Key untuk membuka ulang quest ini.',
+            ]);
+        }
 
         $isUpdate = (bool) $submission;
         $filePath = $submission?->file_path;
@@ -156,5 +169,13 @@ private function syncUserRewardTotals(int $userId): void
     }
 
     User::query()->whereKey($userId)->update($updateData);
+}
+
+private function isQuestLate(Quest $quest): bool
+{
+    $deadlinePassed = $quest->deadline !== null && $quest->deadline->isPast();
+    $statusDone = in_array($quest->status, ['Done', 'Completed'], true);
+
+    return $deadlinePassed || $statusDone;
 }
 }

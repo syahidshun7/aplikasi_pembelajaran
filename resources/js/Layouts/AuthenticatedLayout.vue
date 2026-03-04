@@ -54,6 +54,11 @@ const handleLogout = () => {
                         Profile
                     </Link>
 
+                    <Link :href="route('shop.index')"
+                        class="text-[8px] bg-yellow-700/80 text-black px-3 py-2 btn-pixel border-yellow-900 uppercase font-bold hover:bg-yellow-500 transition-colors">
+                        Shop
+                    </Link>
+
                     <button @click="handleLogout"
                         class="text-[8px] bg-red-900/80 text-white px-3 py-2 btn-pixel border-red-950 uppercase font-bold hover:bg-red-700 transition-colors">
                         [X]

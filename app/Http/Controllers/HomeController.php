@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Guide; // Ganti dengan nama model materimu jika berbeda
 use App\Models\JobRole;
 use App\Models\Event;
+use App\Models\UserQuestUnlock;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -53,6 +54,10 @@ class HomeController extends Controller
 
     $submittedQuestIds = $userSubmissions->pluck('quest_id')->toArray();
     $submissionStatusesByQuest = $userSubmissions->pluck('status', 'quest_id')->toArray();
+    $unlockedQuestIds = UserQuestUnlock::query()
+        ->where('user_id', $userId)
+        ->pluck('quest_id')
+        ->toArray();
 
     $quests = Quest::where(function ($query) use ($userGroupIds) {
             $query->whereNull('study_group_id')
@@ -61,9 +66,10 @@ class HomeController extends Controller
         ->latest()
         ->take(10)
         ->get()
-        ->map(function ($quest) use ($submittedQuestIds, $submissionStatusesByQuest) {
+        ->map(function ($quest) use ($submittedQuestIds, $submissionStatusesByQuest, $unlockedQuestIds) {
             $quest->user_has_submitted = in_array($quest->id, $submittedQuestIds, true);
             $quest->user_submission_status = $submissionStatusesByQuest[$quest->id] ?? null;
+            $quest->user_has_unlock = in_array($quest->id, $unlockedQuestIds, true);
             return $quest;
         });
 

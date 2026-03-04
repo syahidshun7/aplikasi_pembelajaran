@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'turnstile' => [
+        'enabled' => (bool) env('TURNSTILE_ENABLED', false),
+        'site_key' => env('TURNSTILE_SITE_KEY'),
+        'secret_key' => env('TURNSTILE_SECRET_KEY'),
+        'verify_ssl' => (bool) env('TURNSTILE_VERIFY_SSL', true),
+    ],
+
 ];

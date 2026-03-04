@@ -72,4 +72,14 @@ public function eventAttendances()
 {
     return $this->hasMany(EventAttendance::class);
 }
+
+public function inventories()
+{
+    return $this->hasMany(UserInventory::class);
+}
+
+public function shopTransactions()
+{
+    return $this->hasMany(ShopTransaction::class);
+}
 }

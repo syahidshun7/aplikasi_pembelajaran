@@ -62,6 +62,7 @@ const handleLogout = () => {
                     <Link :href="route('quests.index')" class="dropdown-item">QUEST</Link>
                     <Link :href="route('admin.events.index')" class="dropdown-item">EVENTS</Link>
                     <Link :href="route('admin.jobs.index')" class="dropdown-item">JOBS</Link>
+                    <Link :href="route('admin.shop-items.index')" class="dropdown-item">SHOP ITEMS</Link>
                     <Link :href="route('groups.manage')" class="dropdown-item">STUDY_GROUP</Link>
                     <Link :href="route('admin.submissions.manage.index')" class="dropdown-item">SUBMISSIONS</Link>
                     <Link :href="route('admin.users.index')" class="dropdown-item">USERS</Link>

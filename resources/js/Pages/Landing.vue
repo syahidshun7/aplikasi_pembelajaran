@@ -224,7 +224,7 @@ const scrollJobs = (direction) => {
             </section>
 
             <section class="px-4 md:px-10 pb-10 md:pb-14" v-if="availableJobs.length">
-                <div class="max-w-6xl mx-auto border-2 border-white/10 bg-[#1a1c2c]/50 backdrop-blur-md p-5 md:p-6 shadow-[0_10px_22px_rgba(15,23,42,0.3)]">
+                <div class="max-w-6xl mx-auto bg-slate-900/90 border-2 border-cyan-300/40 p-5 md:p-6 shadow-[0_10px_24px_rgba(14,116,144,0.2)]">
                     <div class="flex items-center justify-between gap-3 mb-4">
                         <h2 class="text-[10px] md:text-xs uppercase text-white">Available Jobs</h2>
                         <span class="text-[8px] md:text-[9px] font-sans text-white/70">{{ availableJobs.length }} jalur tersedia</span>
@@ -247,23 +247,38 @@ const scrollJobs = (direction) => {
                         </button>
                     </div>
 
-                    <div ref="jobsCarousel" class="jobs-carousel flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
+                    <div
+                        ref="jobsCarousel"
+                        class="jobs-carousel flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory"
+                        :class="availableJobs.length <= 3 ? 'justify-center' : 'justify-start'"
+                    >
                         <article
                             v-for="(job, index) in availableJobs"
                             :key="job.id"
-                            class="job-card snap-start shrink-0 w-[240px] h-[352px] p-[6px] border shadow-[0_10px_16px_rgba(15,23,42,0.25)]"
+                            class="job-card relative overflow-hidden snap-start shrink-0 w-[240px] h-[352px] border p-4 shadow-[0_6px_14px_rgba(15,23,42,0.25)]"
                             :class="{
-                                'bg-gradient-to-br from-sky-800 to-cyan-700 border-sky-200/70': index % 4 === 0,
-                                'bg-gradient-to-br from-indigo-800 to-violet-700 border-indigo-200/70': index % 4 === 1,
-                                'bg-gradient-to-br from-emerald-800 to-teal-700 border-emerald-200/70': index % 4 === 2,
-                                'bg-gradient-to-br from-cyan-800 to-blue-700 border-cyan-200/70': index % 4 === 3,
+                                'bg-gradient-to-br from-sky-800 to-cyan-700 border-cyan-300/70 shadow-[0_6px_14px_rgba(14,165,233,0.28)]': index % 4 === 0,
+                                'bg-gradient-to-br from-indigo-800 to-violet-700 border-indigo-300/70 shadow-[0_6px_14px_rgba(79,70,229,0.28)]': index % 4 === 1,
+                                'bg-gradient-to-br from-emerald-800 to-teal-700 border-emerald-300/70 shadow-[0_6px_14px_rgba(16,185,129,0.28)]': index % 4 === 2,
+                                'bg-gradient-to-br from-cyan-800 to-blue-700 border-sky-300/70 shadow-[0_6px_14px_rgba(37,99,235,0.28)]': index % 4 === 3,
                             }"
                         >
-                            <div class="bg-black/20 border border-white/60 p-2 h-full flex flex-col">
-                                <div class="text-[8px] uppercase tracking-wide text-white/85 mb-2">
-                                    Class Card
+                            <div
+                                class="absolute top-0 left-0 w-full h-[3px]"
+                                :class="{
+                                    'bg-gradient-to-r from-cyan-500 to-sky-400': index % 4 === 0,
+                                    'bg-gradient-to-r from-indigo-500 to-violet-400': index % 4 === 1,
+                                    'bg-gradient-to-r from-emerald-500 to-teal-400': index % 4 === 2,
+                                    'bg-gradient-to-r from-cyan-400 to-blue-400': index % 4 === 3,
+                                }"
+                            ></div>
+
+                            <div class="h-full flex flex-col relative z-10">
+                                <div class="flex items-center justify-between mb-2">
+                                    <p class="text-[8px] uppercase text-white/85">Class Card</p>
+                                    <span class="w-2 h-2 rounded-full bg-white/80 animate-pulse"></span>
                                 </div>
-                                <div class="h-[170px] border border-white/60 bg-white/10 overflow-hidden flex items-center justify-center">
+                                <div class="h-[170px] border border-white/60 bg-black/15 overflow-hidden flex items-center justify-center">
                                 <img
                                     v-if="job.emblem_path"
                                     :src="`/storage/${job.emblem_path}`"

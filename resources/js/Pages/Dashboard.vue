@@ -69,9 +69,13 @@ const getGradeColor = (grade) => {
                             class="menu-btn border-blue-500 text-blue-300 bg-blue-900/10 hover:bg-blue-300 hover:text-black">
                             [E] EVENTS
                         </Link>
+                        <Link :href="route('admin.shop-items.index')"
+                            class="menu-btn border-amber-500 text-amber-300 bg-amber-900/10 hover:bg-amber-300 hover:text-black">
+                            [$] SHOP_ITEMS
+                        </Link>
                         <Link :href="route('admin.submissions.manage.index')"
                             class="menu-btn border-cyan-500 text-cyan-400 bg-cyan-900/10 hover:bg-cyan-400 hover:text-black">
-                            [⚔] SUBMISSIONS
+                            [S] SUBMISSIONS
                         </Link>
                         <Link :href="route('materi.index')"
                             class="menu-btn border-indigo-500 text-indigo-400 bg-indigo-900/10 hover:bg-grey-500 hover:text-black">
@@ -156,3 +160,4 @@ const getGradeColor = (grade) => {
     @apply block w-full p-3 text-left border-r-4 transition-all uppercase text-[10px] hover:translate-x-2;
 }
 </style>
+

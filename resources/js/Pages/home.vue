@@ -64,6 +64,11 @@ const {
                             Profile
                         </Link>
 
+                        <Link :href="route('shop.index')"
+                            class="text-[8px] bg-yellow-700/80 text-black px-3 py-2 btn-pixel border-yellow-900 uppercase font-bold hover:bg-yellow-500 transition-colors">
+                            Shop
+                        </Link>
+
                         <button @click="handleLogout"
                             class="text-[8px] bg-red-900/80 text-white px-3 py-2 btn-pixel border-red-950 uppercase font-bold hover:bg-red-700 transition-colors">
                             [X]
@@ -337,7 +342,8 @@ const {
                                     :class="[
                                         (quest.user_submission_status === 'Approved') ? 'border-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.35)] bg-emerald-950/20' :
                                         (quest.user_submission_status === 'Pending') ? 'border-yellow-500 shadow-[0_0_12px_rgba(234,179,8,0.35)] bg-yellow-950/20' :
-                                        (quest.status === 'Done' && !quest.user_has_submitted) ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.2)]' :
+                                        (quest.user_has_unlock && !quest.user_has_submitted) ? 'border-cyan-500 shadow-[0_0_12px_rgba(34,211,238,0.3)] bg-cyan-950/20' :
+                                        (quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock) ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.2)]' :
                                             (quest.status === 'In-Progress') ? 'border-slate-500 bg-slate-900/50' :
                                                 quest.user_has_submitted ? 'border-yellow-600 shadow-[0_0_10px_rgba(202,138,4,0.2)]' : 'border-slate-700 hover:border-[#009999]'
                                     ]">
@@ -366,7 +372,7 @@ const {
                                                 class="text-orange-500 text-[6px] uppercase tracking-tighter">Deadline:</span>
                                             <span :class="[
                                                 'text-[7px] uppercase font-bold tracking-tighter',
-                                                (new Date(quest.deadline) < new Date() && !quest.user_has_submitted) ? 'text-red-500 animate-pulse' : 'text-orange-300'
+                                                (new Date(quest.deadline) < new Date() && !quest.user_has_submitted && !quest.user_has_unlock) ? 'text-red-500 animate-pulse' : 'text-orange-300'
                                             ]">
                                                 {{ quest.deadline ? new Date(quest.deadline).toLocaleString('id-ID',
                                                     {
@@ -377,8 +383,12 @@ const {
                                         </div>
 
                                         <div class="flex-grow">
-                                            <p v-if="quest.status === 'Done' && !quest.user_has_submitted"
+                                            <p v-if="quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock"
                                                 class="text-[6px] text-red-500 uppercase">Mission_Expired</p>
+                                            <p v-if="quest.user_has_unlock && !quest.user_has_submitted"
+                                                class="text-[6px] text-cyan-300 uppercase italic tracking-widest">
+                                                Quest_Reopened_With_Time_Key
+                                            </p>
                                             <p v-if="quest.user_submission_status === 'Pending'"
                                                 class="text-[6px] text-yellow-400 uppercase italic tracking-widest">
                                                 Waiting_For_Review...
@@ -399,14 +409,17 @@ const {
                                                 <Link :href="route('quests.show', quest.uuid)" :class="[
                                                     'text-[8px] px-3 py-2 btn-pixel uppercase font-bold transition-colors whitespace-nowrap',
                                                     (quest.user_submission_status === 'Pending') ? 'bg-yellow-600 text-black border-yellow-800 hover:bg-yellow-400' :
-                                                    (quest.status === 'Done' && !quest.user_has_submitted) ? 'bg-red-700 text-white border-red-950 hover:bg-red-600' :
+                                                    (quest.user_has_unlock && !quest.user_has_submitted) ? 'bg-cyan-600 text-black border-cyan-800 hover:bg-cyan-400' :
+                                                    (quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock) ? 'bg-red-700 text-white border-red-950 hover:bg-red-600' :
                                                         quest.user_has_submitted ? 'bg-yellow-600 text-black border-yellow-800 hover:bg-yellow-400' :
                                                             'bg-[#009999] text-black border-[#006666] hover:bg-[#4ed4d4]'
                                                 ]">
                                                     <template
                                                         v-if="quest.user_submission_status === 'Pending'">Preview</template>
                                                     <template
-                                                        v-else-if="quest.status === 'Done' && !quest.user_has_submitted">Late</template>
+                                                        v-else-if="quest.user_has_unlock && !quest.user_has_submitted">Continue</template>
+                                                    <template
+                                                        v-else-if="quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock">Late</template>
                                                     <template v-else>{{ quest.user_has_submitted ? 'Re-Take' :
                                                         'Take_Quest' }}</template>
                                                 </Link>
@@ -446,5 +459,4 @@ const {
 <style scoped>
 /* Vite akan otomatis memproses file ini dan meng-enkapsulasinya ke komponen ini saja */
 @import "../../css/lobby-style.css";
-;
 </style>

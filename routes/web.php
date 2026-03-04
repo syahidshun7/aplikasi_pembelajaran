@@ -11,11 +11,13 @@ use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminSubmissionManagementController;
 use App\Http\Controllers\AdminJobRoleController;
 use App\Http\Controllers\AdminEventController;
+use App\Http\Controllers\AdminShopItemController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\SubmissionController;
 use App\Http\Controllers\UserEventController;
+use App\Http\Controllers\ShopController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -29,6 +31,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::get('/quests/{quest}', [QuestController::class, 'show'])->name('quests.show');
+    Route::post('/quests/{quest}/unlock-late', [QuestController::class, 'unlockLate'])->name('quests.unlock-late');
     Route::post('/quests/{quest}/submissions', [SubmissionController::class, 'store'])->name('submissions.store');
     Route::get('/submissions/{submission}', [SubmissionController::class, 'showSubmission'])
         ->name('submissions.show');
@@ -42,6 +45,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/study-groups/{uuid}/leave', [StudyGroupController::class, 'leave'])->name('groups.leave');
     Route::get('/guides', [GuideController::class, 'userIndex'])->name('guides.user.index');
     Route::get('/events/{event:uuid}', [UserEventController::class, 'show'])->name('events.show');
+    Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
+    Route::post('/shop/items/{item}/purchase', [ShopController::class, 'purchase'])->name('shop.purchase');
 });
 
 
@@ -78,6 +83,13 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         Route::post('/', [AdminJobRoleController::class, 'store'])->name('store');
         Route::put('/{jobRole}', [AdminJobRoleController::class, 'update'])->name('update');
         Route::delete('/{jobRole}', [AdminJobRoleController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('admin/shop-items')->name('admin.shop-items.')->group(function () {
+        Route::get('/', [AdminShopItemController::class, 'index'])->name('index');
+        Route::post('/', [AdminShopItemController::class, 'store'])->name('store');
+        Route::put('/{item}', [AdminShopItemController::class, 'update'])->name('update');
+        Route::delete('/{item}', [AdminShopItemController::class, 'destroy'])->name('destroy');
     });
 
     Route::prefix('admin/events')->name('admin.events.')->group(function () {
