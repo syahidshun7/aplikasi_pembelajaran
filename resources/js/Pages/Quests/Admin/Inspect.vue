@@ -214,7 +214,12 @@ const criteria = ref([
 
 const attachmentPreviewUrl = computed(() => {
     if (!props.submission?.file_path) return null;
-    return route('admin.submissions.file', { submission: props.submission.uuid });
+    try {
+        return route('admin.submissions.file', { submission: props.submission.uuid });
+    } catch (error) {
+        // Fallback untuk deploy yang cache Ziggy-nya belum update.
+        return `/submissions/${props.submission.uuid}/file`;
+    }
 });
 
 // 2. COMPUTED PROPERTIES
