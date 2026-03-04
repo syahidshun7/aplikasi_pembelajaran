@@ -233,7 +233,7 @@ watch(() => usePage().props.flash, (flash) => {
                             <div>
                                 <label class="block mb-2 text-white">KNOWLEDGE_SUMMARY:</label>
                                 <textarea v-model="form.description"
-                                    class="w-full bg-black border-2 border-slate-700 p-2 text-[8px] uppercase focus:border-indigo-400 focus:ring-0"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 text-[12px] font-sans text-slate-200 focus:border-indigo-400 focus:ring-0"
                                     placeholder="Describe the content..."
                                     style="resize: vertical; min-height: 140px;"></textarea>
                             </div>

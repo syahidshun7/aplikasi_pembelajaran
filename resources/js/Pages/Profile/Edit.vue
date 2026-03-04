@@ -10,6 +10,7 @@ import DeleteUserForm from './Partials/DeleteUserForm.vue';
 const props = defineProps({
     user: Object,
     userQuests: Array,
+    jobs: Array,
     averageGrade: Number,   // Nilai rata-rata dari Controller
     totalCompleted: Number, // Total quest selesai dari Controller
     mustVerifyEmail: Boolean,
@@ -195,7 +196,7 @@ const getGradeColor = (grade) => {
                                 Update_Identity</h3>
                             <div class="form-container">
                                 <UpdateProfileInformationForm :must-verify-email="mustVerifyEmail" :status="status"
-                                    :user="user" class="max-w-xl" />
+                                    :user="user" :jobs="jobs" class="max-w-xl" />
                             </div>
                         </div>
 

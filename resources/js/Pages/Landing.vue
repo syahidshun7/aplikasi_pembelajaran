@@ -1,9 +1,14 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 defineProps({
     canLogin: Boolean,
     canRegister: Boolean,
+    availableJobs: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const features = [
@@ -32,6 +37,18 @@ const features = [
         color: 'text-cyan-600',
     },
 ];
+
+const jobsCarousel = ref(null);
+
+const scrollJobs = (direction) => {
+    if (!jobsCarousel.value) return;
+
+    const amount = jobsCarousel.value.clientWidth * 0.8;
+    jobsCarousel.value.scrollBy({
+        left: direction === 'left' ? -amount : amount,
+        behavior: 'smooth',
+    });
+};
 </script>
 
 <template>
@@ -80,7 +97,7 @@ const features = [
                         From <span class="text-indigo-600">Beginner</span> to <span class="text-cyan-700">Pro Mentor</span> with <span class="text-emerald-600">Quest-Based</span> Learning
                     </h1>
                     <p class="text-[10px] md:text-xs text-slate-700 leading-relaxed max-w-3xl mx-auto font-sans">
-                        DOOPTECH menghubungkan pemula dan profesional dalam satu ekosistem belajar. Pemula berkembang lewat quest, lalu user yang sudah terverifikasi Pro dapat mentoring dan memimpin kolaborasi project.
+                        Ini adalah aplikasi pembelajaran berbasis game yang menghubungkan pemula dan profesional dalam satu ekosistem belajar.
                     </p>
 
                     <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -206,6 +223,74 @@ const features = [
                 </div>
             </section>
 
+            <section class="px-4 md:px-10 pb-10 md:pb-14" v-if="availableJobs.length">
+                <div class="max-w-6xl mx-auto border-2 border-white/10 bg-[#1a1c2c]/50 backdrop-blur-md p-5 md:p-6 shadow-[0_10px_22px_rgba(15,23,42,0.3)]">
+                    <div class="flex items-center justify-between gap-3 mb-4">
+                        <h2 class="text-[10px] md:text-xs uppercase text-white">Available Jobs</h2>
+                        <span class="text-[8px] md:text-[9px] font-sans text-white/70">{{ availableJobs.length }} jalur tersedia</span>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2 mb-3">
+                        <button
+                            type="button"
+                            class="text-[9px] font-sans px-3 py-1.5 border border-slate-400 bg-slate-100 hover:bg-slate-200 transition-colors"
+                            @click="scrollJobs('left')"
+                        >
+                            Prev
+                        </button>
+                        <button
+                            type="button"
+                            class="text-[9px] font-sans px-3 py-1.5 border border-slate-400 bg-slate-100 hover:bg-slate-200 transition-colors"
+                            @click="scrollJobs('right')"
+                        >
+                            Next
+                        </button>
+                    </div>
+
+                    <div ref="jobsCarousel" class="jobs-carousel flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
+                        <article
+                            v-for="(job, index) in availableJobs"
+                            :key="job.id"
+                            class="job-card snap-start shrink-0 w-[240px] h-[352px] p-[6px] border shadow-[0_10px_16px_rgba(15,23,42,0.25)]"
+                            :class="{
+                                'bg-gradient-to-br from-sky-800 to-cyan-700 border-sky-200/70': index % 4 === 0,
+                                'bg-gradient-to-br from-indigo-800 to-violet-700 border-indigo-200/70': index % 4 === 1,
+                                'bg-gradient-to-br from-emerald-800 to-teal-700 border-emerald-200/70': index % 4 === 2,
+                                'bg-gradient-to-br from-cyan-800 to-blue-700 border-cyan-200/70': index % 4 === 3,
+                            }"
+                        >
+                            <div class="bg-black/20 border border-white/60 p-2 h-full flex flex-col">
+                                <div class="text-[8px] uppercase tracking-wide text-white/85 mb-2">
+                                    Class Card
+                                </div>
+                                <div class="h-[170px] border border-white/60 bg-white/10 overflow-hidden flex items-center justify-center">
+                                <img
+                                    v-if="job.emblem_path"
+                                    :src="`/storage/${job.emblem_path}`"
+                                        :alt="`${job.name} emblem`"
+                                        class="w-full h-full object-cover"
+                                />
+                                    <img
+                                        v-else
+                                        src="/images/logo.png"
+                                        :alt="`${job.name} default`"
+                                        class="w-16 h-16 object-contain opacity-90"
+                                    />
+                                </div>
+                                <div class="mt-3 border border-white/60 bg-black/20 px-2 py-2 h-[78px]">
+                                    <p class="text-[10px] uppercase text-white leading-snug">
+                                        {{ job.name }}
+                                    </p>
+                                    <p class="text-[8px] font-sans text-white/80 mt-1">
+                                        Path ID: #{{ job.id }}
+                                    </p>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
             <section class="px-4 md:px-10 pb-16">
                 <div class="max-w-6xl mx-auto bg-slate-900/90 border-2 border-cyan-300/40 shadow-[0_10px_24px_rgba(14,116,144,0.2)] p-5 md:p-8">
                     <div class="relative">
@@ -252,6 +337,32 @@ const features = [
 </template>
 
 <style scoped>
+.jobs-carousel {
+    scrollbar-width: thin;
+    scrollbar-color: #475569 #e2e8f0;
+}
+
+.jobs-carousel::-webkit-scrollbar {
+    height: 8px;
+}
+
+.jobs-carousel::-webkit-scrollbar-track {
+    background: #e2e8f0;
+}
+
+.jobs-carousel::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+
+.job-card {
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.job-card:hover {
+    transform: translateY(-4px) rotate(-0.6deg);
+    box-shadow: 0 14px 24px rgba(15, 23, 42, 0.32);
+}
+
 .path-star {
     left: 0;
     opacity: 0;

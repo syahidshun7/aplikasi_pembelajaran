@@ -17,6 +17,10 @@ const props = defineProps({
     status: {
         type: String,
     },
+    jobs: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 // 2. Gunakan props.user sebagai sumber data utama form agar sinkron dengan Controller
@@ -28,6 +32,7 @@ const form = useForm({
     name: user.name,
     username: user.username || '', // Sekarang akan terisi dari $userData di Controller
     email: user.email,
+    job_id: user.job_id || '',
     profile_photo: null,
 });
 
@@ -140,6 +145,21 @@ const submit = () => {
                     autocomplete="username"
                 />
                 <InputError class="mt-2" :message="form.errors.email" />
+            </div>
+
+            <div>
+                <InputLabel for="job_id" value="Job / Path" />
+                <select
+                    id="job_id"
+                    v-model="form.job_id"
+                    class="mt-1 block w-full bg-[#0d1117] border-2 border-slate-700 text-cyan-400 p-2 text-[10px] focus:border-cyan-400 outline-none"
+                >
+                    <option value="">-- Choose Job --</option>
+                    <option v-for="job in jobs" :key="job.id" :value="job.id">
+                        {{ job.name }}
+                    </option>
+                </select>
+                <InputError class="mt-2" :message="form.errors.job_id" />
             </div>
 
             <div v-if="mustVerifyEmail && user.email_verified_at === null">

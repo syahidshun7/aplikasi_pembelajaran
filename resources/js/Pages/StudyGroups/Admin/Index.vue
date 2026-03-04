@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 const props = defineProps({
     groups: Object,
     filters: Object,
+    jobs: Array,
 });
 
 // INITIALIZE SWEETALERT TOAST
@@ -32,6 +33,7 @@ const form = useForm({
     name: '',
     description: '',
     max_members: 5,
+    job_id: '',
 });
 const filterForm = useForm({
     search: props.filters?.search || '',
@@ -56,6 +58,7 @@ const startEdit = (group) => {
     form.name = group.name;
     form.description = group.description || '';
     form.max_members = group.max_members;
+    form.job_id = group.job_id || '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     Toast.fire({
@@ -175,7 +178,7 @@ const goToPage = (url) => {
                             <div>
                                 <label class="block mb-2 text-white uppercase">MISSION_OBJECTIVE:</label>
                                 <textarea v-model="form.description"
-                                    class="w-full bg-black border-2 border-slate-700 p-2 text-[8px] uppercase focus:border-emerald-400 focus:ring-0"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 text-[12px] font-sans text-slate-200 focus:border-emerald-400 focus:ring-0"
                                     style="resize: vertical; min-height: 120px;"></textarea>
                             </div>
 
@@ -183,6 +186,18 @@ const goToPage = (url) => {
                                 <label class="block mb-2 text-white uppercase">MEMBER_CAPACITY:</label>
                                 <input v-model="form.max_members" type="number"
                                     class="w-full bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-yellow-500">
+                            </div>
+
+                            <div>
+                                <label class="block mb-2 text-white uppercase">JOB_PATH:</label>
+                                <select v-model="form.job_id"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-emerald-400 uppercase"
+                                    required>
+                                    <option value="" disabled>-- SELECT JOB --</option>
+                                    <option v-for="job in jobs" :key="job.id" :value="job.id">
+                                        {{ job.name }}
+                                    </option>
+                                </select>
                             </div>
 
                             <div class="flex gap-2">
@@ -227,6 +242,9 @@ const goToPage = (url) => {
                                 <div class="flex justify-between items-start mb-2">
                                     <div class="flex-1">
                                         <div class="text-[8px] text-slate-500 mb-1 uppercase tracking-tighter">ID: {{ g.uuid.substring(0,8) }} // CODE: {{ g.invite_code }}</div>
+                                        <div class="text-[7px] text-cyan-400 uppercase mb-1">
+                                            JOB: {{ g.job?.name || 'UNASSIGNED' }}
+                                        </div>
                                         <div class="text-white uppercase">{{ g.name }}</div>
                                     </div>
                                     <div class="text-yellow-500 text-[8px] tracking-widest">{{ g.users_count || 0 }} / {{ g.max_members }} MEMBERS</div>

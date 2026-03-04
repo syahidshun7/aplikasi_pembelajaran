@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\JobRole;
 use App\Models\StudyGroup;
 use App\Models\StudyGroupJoinRequest;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -25,6 +27,7 @@ class AdminStudyGroupController extends Controller
 
     return Inertia::render('StudyGroups/Admin/Index', [
         'groups' => StudyGroup::query()
+            ->with('job:id,name')
             ->withCount([
                 'users',
                 'joinRequests as pending_requests_count' => function ($q) {
@@ -44,6 +47,7 @@ class AdminStudyGroupController extends Controller
         'filters' => [
             'search' => $search,
         ],
+        'jobs' => JobRole::query()->orderBy('name')->get(['id', 'name', 'slug']),
     ]);
 }
      
@@ -58,6 +62,7 @@ class AdminStudyGroupController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'max_members' => 'required|integer|min:1|max:50',
+            'job_id' => 'required|exists:job_roles,id',
         ]);
 
         // Karena Model StudyGroup sudah pakai HasUuids, 
@@ -66,6 +71,7 @@ class AdminStudyGroupController extends Controller
             'name' => $request->name,
             'description' => $request->description,
             'max_members' => $request->max_members,
+            'job_id' => (int) $request->job_id,
             'invite_code' => $this->generateUniqueInviteCode(),
         ]);
 
@@ -76,18 +82,55 @@ class AdminStudyGroupController extends Controller
     public function update(Request $request, $uuid)
     {
         $group = StudyGroup::where('uuid', $uuid)->firstOrFail();
+        $oldJobId = (int) ($group->job_id ?? 0);
 
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'max_members' => 'required|integer|min:1|max:50',
+            'job_id' => 'required|exists:job_roles,id',
         ]);
+
+        $newJobId = (int) $request->job_id;
+
+        if ($newJobId !== $oldJobId) {
+            $memberIds = $group->users()->pluck('users.id');
+
+            if ($memberIds->isNotEmpty()) {
+                $hasConflicts = StudyGroup::query()
+                    ->where('id', '!=', $group->id)
+                    ->whereIn('id', function ($q) use ($memberIds) {
+                        $q->from('group_user')
+                            ->select('study_group_id')
+                            ->whereIn('user_id', $memberIds);
+                    })
+                    ->where('job_id', '!=', $newJobId)
+                    ->exists();
+
+                if ($hasConflicts) {
+                    return back()->withErrors([
+                        'job_id' => 'JOB_CONFLICT: Some current members belong to groups with different jobs.',
+                    ]);
+                }
+            }
+        }
 
         $group->update([
             'name' => $request->name,
             'description' => $request->description,
             'max_members' => $request->max_members,
+            'job_id' => $newJobId,
         ]);
+
+        if ($newJobId !== $oldJobId) {
+            User::query()
+                ->whereIn('id', function ($q) use ($group) {
+                    $q->from('group_user')
+                        ->select('user_id')
+                        ->where('study_group_id', $group->id);
+                })
+                ->update(['job_id' => $newJobId]);
+        }
 
         return back()->with('message', 'DATA_UPDATED_SUCCESSFULLY');
     }
@@ -124,6 +167,29 @@ class AdminStudyGroupController extends Controller
 
         if ($group->users()->count() >= (int) $group->max_members) {
             return back()->withErrors(['group' => 'PARTY_FULL: Kapasitas sudah penuh.']);
+        }
+
+        $member = User::query()->findOrFail((int) $joinRequest->user_id);
+        $groupJobId = (int) ($group->job_id ?? 0);
+
+        if ($groupJobId > 0) {
+            $hasOtherJobGroups = StudyGroup::query()
+                ->whereIn('id', function ($q) use ($member) {
+                    $q->from('group_user')
+                        ->select('study_group_id')
+                        ->where('user_id', $member->id);
+                })
+                ->where('job_id', '!=', $groupJobId)
+                ->exists();
+
+            if ($hasOtherJobGroups) {
+                return back()->withErrors(['group' => 'MEMBER_JOB_CONFLICT: User belongs to another job path group.']);
+            }
+
+            if ((int) ($member->job_id ?? 0) !== $groupJobId) {
+                $member->job_id = $groupJobId;
+                $member->save();
+            }
         }
 
         $group->users()->syncWithoutDetaching([

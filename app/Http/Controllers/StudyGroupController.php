@@ -13,16 +13,23 @@ class StudyGroupController extends Controller
     public function index()
     {
          $userId = Auth::id();
+         $user = Auth::user();
+         $userJobId = $user?->job_id;
 
         return Inertia::render('StudyGroups/Index', [
-            'groups' => StudyGroup::withCount('users')->latest()->get(),
+            'groups' => StudyGroup::query()
+                ->withCount('users')
+                ->where('job_id', $userJobId)
+                ->latest()
+                ->get(),
 
             // Mengambil grup milik user melalui query langsung ke Model StudyGroup
             // Ini jauh lebih aman dari error "undefined method"
             'myGroups' => Auth::check()
-                ? StudyGroup::whereHas('users', function ($q) use ($userId) {
-                    $q->where('user_id', $userId);
-                })->withCount('users')->get()
+                ? StudyGroup::where('job_id', $userJobId)
+                    ->whereHas('users', function ($q) use ($userId) {
+                        $q->where('user_id', $userId);
+                    })->withCount('users')->get()
                 : []
         ]);
     }
@@ -36,6 +43,12 @@ class StudyGroupController extends Controller
 
         $group = StudyGroup::where('invite_code', $inviteCode)->first();
         if (! $group) {
+            return back()->withErrors(['invite_code' => 'KODE_INVALID: Party tidak ditemukan.']);
+        }
+
+        $user = Auth::user();
+        if ((int) $group->job_id !== (int) ($user->job_id ?? 0)) {
+            // Jangan bocorkan detail mismatch jobs, tampilkan seperti kode tidak valid.
             return back()->withErrors(['invite_code' => 'KODE_INVALID: Party tidak ditemukan.']);
         }
 

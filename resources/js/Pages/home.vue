@@ -7,6 +7,7 @@ const props = defineProps({
     quests: Array,
     studyGroups: Array,
     materi: Array,
+    events: Array,
     auth: Object
 });
 
@@ -20,6 +21,7 @@ const {
     quests,
     studyGroups,
     guides,
+    events,
     handleLogout
 } = useLobby(props);
 </script>
@@ -262,6 +264,55 @@ const {
                             <div v-if="studyGroups.length === 0" class="col-span-2 text-center py-4">
                                 <p class="text-slate-700 text-[8px] uppercase italic tracking-tighter">
                                     No_Parties_Found_In_This_Realm</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rpg-panel flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm border-blue-500/50">
+                        <div class="flex justify-between items-center mb-4 border-b border-blue-900 pb-2">
+                            <h2 class="text-blue-300 text-[10px] uppercase tracking-widest flex items-center gap-2">
+                                <i class="fi fi-rr-calendar-clock text-[12px]"></i> Event_Timeline [{{ events.length }}]
+                            </h2>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[260px] overflow-y-auto pr-2 custom-scroll">
+                            <div v-for="event in events" :key="event.uuid"
+                                class="p-3 bg-[#0d1117] border-2 border-slate-800 hover:border-blue-500 transition-all group relative overflow-hidden flex flex-col min-h-[180px]">
+                                <div class="absolute top-0 left-0 w-1 h-full bg-blue-600"></div>
+
+                                <div class="flex justify-between items-start mb-1">
+                                    <div class="text-[7px] text-slate-500 uppercase">
+                                        Meeting_{{ event.sequence_order }}
+                                    </div>
+                                    <div class="text-[7px] uppercase text-blue-300">
+                                        #{{ event.uuid.substring(0, 6) }}
+                                    </div>
+                                </div>
+                                <h3 class="text-[12px] text-white uppercase mb-2 group-hover:text-blue-300 leading-snug">
+                                    {{ event.title }}
+                                </h3>
+                                <p class="text-[8px] text-cyan-400 uppercase mb-2">
+                                    {{ event.study_group?.name || 'Public' }}
+                                </p>
+                                <p class="text-[7px] text-slate-400 uppercase mb-2">
+                                    {{ event.starts_at ? new Date(event.starts_at).toLocaleString('id-ID') : 'Schedule_Not_Set' }}
+                                </p>
+                                <div class="flex items-center justify-between text-[7px] uppercase mt-auto pt-2 border-t border-slate-800">
+                                    <span class="text-emerald-400">Guide: {{ event.guides_count || 0 }}</span>
+                                    <span class="text-yellow-400">Quest: {{ event.quests_count || 0 }}</span>
+                                </div>
+                                <div class="mt-3 self-end">
+                                    <Link :href="route('events.show', event.uuid)"
+                                        class="text-[8px] bg-blue-900/50 text-blue-300 px-3 py-1.5 btn-pixel border-blue-800 hover:bg-blue-500 hover:text-black transition-all uppercase">
+                                        View_Detail
+                                    </Link>
+                                </div>
+                            </div>
+
+                            <div v-if="events.length === 0" class="col-span-2 text-center py-4">
+                                <p class="text-slate-700 text-[8px] uppercase italic tracking-tighter">
+                                    No_Events_Available
+                                </p>
                             </div>
                         </div>
                     </div>

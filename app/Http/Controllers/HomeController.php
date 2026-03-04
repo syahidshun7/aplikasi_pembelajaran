@@ -7,6 +7,8 @@ use App\Models\Submission;
 use App\Models\StudyGroupJoinRequest;
 use App\Models\User;
 use App\Models\Guide; // Ganti dengan nama model materimu jika berbeda
+use App\Models\JobRole;
+use App\Models\Event;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -17,19 +19,30 @@ class HomeController extends Controller
    public function index()
 {
     if (!Auth::check()) {
+        $availableJobs = JobRole::query()
+            ->select('id', 'name', 'slug', 'emblem_path')
+            ->orderBy('name')
+            ->get();
+
         return Inertia::render('Landing', [
             'canLogin' => Route::has('login'),
             'canRegister' => Route::has('register'),
+            'availableJobs' => $availableJobs,
             'laravelVersion' => Application::VERSION,
             'phpVersion' => PHP_VERSION,
         ]);
     }
 
     $userId = Auth::id();
+    $user = Auth::user();
+    $userJobId = $user?->job_id;
 
     // 1. Ambil Quest dengan status submission (Logika Kelompok Party)
-    $userGroupIds = $userId 
-        ? Auth::user()->studyGroups()->pluck('study_groups.id')->toArray() 
+    $userGroupIds = $userId
+        ? $user->studyGroups()
+            ->where('study_groups.job_id', $userJobId)
+            ->pluck('study_groups.id')
+            ->toArray()
         : [];
     $userSubmissions = $userId
         ? Submission::where('user_id', $userId)
@@ -66,6 +79,7 @@ class HomeController extends Controller
 
     // 3. UPDATE: Ambil Data Player Berdasarkan EXP Tertinggi (Leaderboard)
     $players = User::select('id', 'name', 'username', 'profile_photo', 'level', 'exp', 'role')
+        ->where('job_id', $userJobId)
         ->orderBy('exp', 'desc') // Mengurutkan dari EXP paling tinggi ke rendah
         ->take(10)               // Ambil Top 10 Player
         ->get()
@@ -78,6 +92,7 @@ class HomeController extends Controller
 
     // 4. Ambil Data Kelompok Belajar (Study Groups)
     $studyGroups = \App\Models\StudyGroup::withCount('users')
+        ->where('job_id', $userJobId)
         ->latest()
         ->get();
 
@@ -91,6 +106,19 @@ class HomeController extends Controller
             return $group;
         });
 
+    $events = Event::query()
+        ->with('studyGroup:id,name')
+        ->withCount(['guides', 'quests'])
+        ->where(function ($query) use ($userGroupIds) {
+            $query->whereNull('study_group_id')
+                ->orWhereIn('study_group_id', $userGroupIds);
+        })
+        ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
+        ->orderBy('starts_at')
+        ->orderBy('sequence_order')
+        ->take(8)
+        ->get();
+
     return Inertia::render('home', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
@@ -98,6 +126,7 @@ class HomeController extends Controller
         'materi' => $materi,
         'players' => $players, // Sekarang berisi Top 10 pemain terkuat
         'studyGroups' => $studyGroups,
+        'events' => $events,
         'laravelVersion' => \Illuminate\Foundation\Application::VERSION,
         'phpVersion' => PHP_VERSION,
     ]);

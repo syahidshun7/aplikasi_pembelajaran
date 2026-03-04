@@ -23,6 +23,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'job_id',
         'profile_photo',
     ];
 
@@ -55,10 +56,20 @@ class User extends Authenticatable
         return $this->hasMany(Submission::class);
     }
 
-   public function studyGroups()
+public function studyGroups()
 {
     return $this->belongsToMany(StudyGroup::class, 'group_user', 'user_id', 'study_group_id')
                 ->withPivot('role')
                 ->withTimestamps();
+}
+
+public function job()
+{
+    return $this->belongsTo(JobRole::class, 'job_id');
+}
+
+public function eventAttendances()
+{
+    return $this->hasMany(EventAttendance::class);
 }
 }

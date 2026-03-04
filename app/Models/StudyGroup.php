@@ -14,7 +14,8 @@ class StudyGroup extends Model
         'name',
         'description',
         'invite_code',
-        'max_members'
+        'max_members',
+        'job_id',
     ];
 
     // 3. Beritahu Laravel kolom mana yang berisi UUID otomatis
@@ -48,5 +49,15 @@ class StudyGroup extends Model
     public function joinRequests()
     {
         return $this->hasMany(StudyGroupJoinRequest::class);
+    }
+
+    public function job()
+    {
+        return $this->belongsTo(JobRole::class, 'job_id');
+    }
+
+    public function events()
+    {
+        return $this->hasMany(Event::class);
     }
 }

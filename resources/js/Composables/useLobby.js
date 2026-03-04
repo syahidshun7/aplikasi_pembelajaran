@@ -45,6 +45,7 @@ export function useLobby(props) {
     const quests = computed(() => props.quests || []);
     const studyGroups = computed(() => props.studyGroups || []); 
     const guides = computed(() => props.materi || []);
+    const events = computed(() => props.events || []);
 
     const handleLogout = () => {
         toast.confirm('QUIT GAME?', 'Are you sure you want to exit?')
@@ -64,6 +65,7 @@ export function useLobby(props) {
         quests,
         studyGroups,
         guides,
+        events,
         handleLogout
     };
 }

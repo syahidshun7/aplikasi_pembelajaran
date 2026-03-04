@@ -32,6 +32,13 @@ public function studyGroup()
     return $this->belongsTo(StudyGroup::class);
 }
 
+public function events()
+{
+    return $this->belongsToMany(Event::class, 'event_quest')
+        ->withPivot('sort_order')
+        ->withTimestamps();
+}
+
 protected $casts = [
     'deadline' => 'datetime',
 ];

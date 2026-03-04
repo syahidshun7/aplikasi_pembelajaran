@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\JobRole;
 use App\Models\Quest;
 use App\Models\Submission;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -63,6 +64,8 @@ class ProfileController extends Controller
             'username'      => $user->username,      // [TAMBAHAN] Kirim Username
             'profile_photo' => $user->profile_photo, // [TAMBAHAN] Kirim Path Foto
             'email'         => $user->email,
+            'job_id'        => $user->job_id,
+            'job_name'      => $user->job?->name,
             'gold'          => $user->gold ?? 0,
             'lvl'           => $user->level ?? $user->lvl ?? 1,
             'exp'           => $user->exp ?? 0,
@@ -91,6 +94,7 @@ class ProfileController extends Controller
             'mustVerifyEmail' => $user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail,
             'status'          => session('status'),
             'userQuests'      => $userQuests,
+            'jobs'            => JobRole::query()->orderBy('name')->get(['id', 'name', 'slug']),
             'averageGrade'    => $averageGrade,
             'totalCompleted'  => $totalCompleted,
         ]);
@@ -101,6 +105,20 @@ class ProfileController extends Controller
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
         $user = $request->user();
+        $requestedJobId = (int) ($request->validated('job_id') ?? 0);
+        $currentJobId = (int) ($user->job_id ?? 0);
+
+        if ($requestedJobId > 0 && $requestedJobId !== $currentJobId) {
+            $hasMismatchedGroups = $user->studyGroups()
+                ->where('study_groups.job_id', '!=', $requestedJobId)
+                ->exists();
+
+            if ($hasMismatchedGroups) {
+                return Redirect::back()->withErrors([
+                    'job_id' => 'JOB_CONFLICT: Leave groups with different job path first before changing your job.',
+                ]);
+            }
+        }
 
         // 1. Isi data teks (name, email, username) dari hasil validasi
         $user->fill($request->validated());

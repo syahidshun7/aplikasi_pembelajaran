@@ -1,0 +1,330 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Event;
+use App\Models\EventAttendance;
+use App\Models\Guide;
+use App\Models\Quest;
+use App\Models\StudyGroup;
+use App\Models\User;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class AdminEventController extends Controller
+{
+    public function index(Request $request): Response
+    {
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $search = trim((string) ($validated['search'] ?? ''));
+
+        $events = Event::query()
+            ->with('studyGroup:id,name')
+            ->withCount(['guides', 'quests'])
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('title', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhereHas('studyGroup', function ($sq) use ($search) {
+                            $sq->where('name', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->orderBy('sequence_order')
+            ->latest('id')
+            ->paginate(10)
+            ->withQueryString();
+
+        return Inertia::render('Events/Admin/Index', [
+            'events' => $events,
+            'studyGroups' => StudyGroup::query()->orderBy('name')->get(['id', 'name']),
+            'filters' => [
+                'search' => $search,
+            ],
+        ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'sequence_order' => ['required', 'integer', 'min:1'],
+            'study_group_id' => ['nullable', 'exists:study_groups,id'],
+            'starts_at' => ['nullable', 'date'],
+            'ends_at' => ['nullable', 'date', 'after:starts_at'],
+        ]);
+
+        Event::create($validated);
+
+        return back()->with('message', 'EVENT_CREATED');
+    }
+
+    public function update(Request $request, Event $event): RedirectResponse
+    {
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'sequence_order' => ['required', 'integer', 'min:1'],
+            'study_group_id' => ['nullable', 'exists:study_groups,id'],
+            'starts_at' => ['nullable', 'date'],
+            'ends_at' => ['nullable', 'date', 'after:starts_at'],
+        ]);
+
+        $event->update($validated);
+
+        return back()->with('message', 'EVENT_UPDATED');
+    }
+
+    public function destroy(Event $event): RedirectResponse
+    {
+        $event->delete();
+
+        return back()->with('message', 'EVENT_DELETED');
+    }
+
+    public function detail(Event $event): Response
+    {
+        $event->load([
+            'studyGroup:id,name',
+            'guides' => function ($q) {
+                $q->select('guides.id', 'guides.uuid', 'guides.title', 'guides.study_group_id')
+                    ->with('studyGroup:id,name');
+            },
+            'quests' => function ($q) {
+                $q->select('quests.id', 'quests.uuid', 'quests.title', 'quests.status', 'quests.deadline', 'quests.study_group_id')
+                    ->with('studyGroup:id,name');
+            },
+        ]);
+
+        $groupId = $event->study_group_id;
+
+        $availableGuides = Guide::query()
+            ->with('studyGroup:id,name')
+            ->when($groupId, function ($q) use ($groupId) {
+                $q->where(function ($w) use ($groupId) {
+                    $w->whereNull('study_group_id')
+                        ->orWhere('study_group_id', $groupId);
+                });
+            })
+            ->latest('id')
+            ->get(['id', 'uuid', 'title', 'study_group_id']);
+
+        $availableQuests = Quest::query()
+            ->with('studyGroup:id,name')
+            ->when($groupId, function ($q) use ($groupId) {
+                $q->where(function ($w) use ($groupId) {
+                    $w->whereNull('study_group_id')
+                        ->orWhere('study_group_id', $groupId);
+                });
+            })
+            ->latest('id')
+            ->get(['id', 'uuid', 'title', 'status', 'deadline', 'study_group_id']);
+
+        return Inertia::render('Events/Admin/Detail', [
+            'event' => $event,
+            'availableGuides' => $availableGuides,
+            'availableQuests' => $availableQuests,
+        ]);
+    }
+
+    public function attendance(Event $event): Response
+    {
+        $event->load(['studyGroup:id,name', 'attendances']);
+
+        $attendanceUsers = collect();
+        if ($event->study_group_id) {
+            $attendanceUsers = User::query()
+                ->select('users.id', 'users.name', 'users.profile_photo')
+                ->whereIn('users.id', function ($q) use ($event) {
+                    $q->from('group_user')
+                        ->select('user_id')
+                        ->where('study_group_id', $event->study_group_id);
+                })
+                ->orderBy('users.name')
+                ->get()
+                ->map(function ($user) use ($event) {
+                    $status = $event->attendances->firstWhere('user_id', $user->id)?->status ?? 'pending';
+                    $user->attendance_status = $status;
+                    return $user;
+                });
+        }
+
+        return Inertia::render('Events/Admin/Attendance', [
+            'event' => $event,
+            'attendanceUsers' => $attendanceUsers,
+        ]);
+    }
+
+    public function attachGuides(Request $request, Event $event): RedirectResponse
+    {
+        $validated = $request->validate([
+            'guide_ids' => ['required', 'array', 'min:1'],
+            'guide_ids.*' => ['integer', 'exists:guides,id'],
+        ]);
+
+        $allowedIds = Guide::query()
+            ->whereIn('id', $validated['guide_ids'])
+            ->when($event->study_group_id, function ($q) use ($event) {
+                $q->where(function ($w) use ($event) {
+                    $w->whereNull('study_group_id')
+                        ->orWhere('study_group_id', $event->study_group_id);
+                });
+            })
+            ->pluck('id')
+            ->all();
+
+        $maxOrder = (int) $event->guides()->max('event_guide.sort_order');
+        $syncData = [];
+        foreach ($allowedIds as $guideId) {
+            $maxOrder++;
+            $syncData[$guideId] = ['sort_order' => $maxOrder];
+        }
+
+        if (!empty($syncData)) {
+            $event->guides()->syncWithoutDetaching($syncData);
+        }
+
+        return back()->with('message', 'EVENT_GUIDES_ATTACHED');
+    }
+
+    public function attachQuests(Request $request, Event $event): RedirectResponse
+    {
+        $validated = $request->validate([
+            'quest_ids' => ['required', 'array', 'min:1'],
+            'quest_ids.*' => ['integer', 'exists:quests,id'],
+        ]);
+
+        $allowedIds = Quest::query()
+            ->whereIn('id', $validated['quest_ids'])
+            ->when($event->study_group_id, function ($q) use ($event) {
+                $q->where(function ($w) use ($event) {
+                    $w->whereNull('study_group_id')
+                        ->orWhere('study_group_id', $event->study_group_id);
+                });
+            })
+            ->pluck('id')
+            ->all();
+
+        $maxOrder = (int) $event->quests()->max('event_quest.sort_order');
+        $syncData = [];
+        foreach ($allowedIds as $questId) {
+            $maxOrder++;
+            $syncData[$questId] = ['sort_order' => $maxOrder];
+        }
+
+        if (!empty($syncData)) {
+            $event->quests()->syncWithoutDetaching($syncData);
+        }
+
+        return back()->with('message', 'EVENT_QUESTS_ATTACHED');
+    }
+
+    public function detachGuide(Event $event, Guide $guide): RedirectResponse
+    {
+        $event->guides()->detach($guide->id);
+
+        return back()->with('message', 'EVENT_GUIDE_DETACHED');
+    }
+
+    public function detachQuest(Event $event, Quest $quest): RedirectResponse
+    {
+        $event->quests()->detach($quest->id);
+
+        return back()->with('message', 'EVENT_QUEST_DETACHED');
+    }
+
+    public function reorderGuides(Request $request, Event $event): RedirectResponse
+    {
+        $validated = $request->validate([
+            'orders' => ['required', 'array', 'min:1'],
+            'orders.*.id' => ['required', 'integer', 'exists:guides,id'],
+            'orders.*.sort_order' => ['required', 'integer', 'min:1'],
+        ]);
+
+        DB::transaction(function () use ($event, $validated) {
+            foreach ($validated['orders'] as $item) {
+                $event->guides()->updateExistingPivot((int) $item['id'], [
+                    'sort_order' => (int) $item['sort_order'],
+                ]);
+            }
+        });
+
+        return back()->with('message', 'EVENT_GUIDES_REORDERED');
+    }
+
+    public function reorderQuests(Request $request, Event $event): RedirectResponse
+    {
+        $validated = $request->validate([
+            'orders' => ['required', 'array', 'min:1'],
+            'orders.*.id' => ['required', 'integer', 'exists:quests,id'],
+            'orders.*.sort_order' => ['required', 'integer', 'min:1'],
+        ]);
+
+        DB::transaction(function () use ($event, $validated) {
+            foreach ($validated['orders'] as $item) {
+                $event->quests()->updateExistingPivot((int) $item['id'], [
+                    'sort_order' => (int) $item['sort_order'],
+                ]);
+            }
+        });
+
+        return back()->with('message', 'EVENT_QUESTS_REORDERED');
+    }
+
+    public function updateAttendance(Request $request, Event $event): RedirectResponse
+    {
+        $validated = $request->validate([
+            'attendance' => ['required', 'array', 'min:1'],
+            'attendance.*.user_id' => ['required', 'integer', 'exists:users,id'],
+            'attendance.*.status' => ['required', 'in:pending,present,absent,excused'],
+        ]);
+
+        $allowedUserIds = collect();
+        if ($event->study_group_id) {
+            $allowedUserIds = User::query()
+                ->whereIn('id', function ($q) use ($event) {
+                    $q->from('group_user')
+                        ->select('user_id')
+                        ->where('study_group_id', $event->study_group_id);
+                })
+                ->pluck('id');
+        }
+
+        $rows = collect($validated['attendance'])
+            ->filter(function ($row) use ($event, $allowedUserIds) {
+                if (! $event->study_group_id) {
+                    return false;
+                }
+                return $allowedUserIds->contains((int) $row['user_id']);
+            })
+            ->map(function ($row) use ($event) {
+                return [
+                    'event_id' => $event->id,
+                    'user_id' => (int) $row['user_id'],
+                    'status' => $row['status'],
+                    'checked_at' => now(),
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ];
+            })
+            ->values()
+            ->all();
+
+        if (!empty($rows)) {
+            EventAttendance::query()->upsert(
+                $rows,
+                ['event_id', 'user_id'],
+                ['status', 'checked_at', 'updated_at']
+            );
+        }
+
+        return back()->with('message', 'EVENT_ATTENDANCE_UPDATED');
+    }
+}

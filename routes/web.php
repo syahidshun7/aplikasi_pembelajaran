@@ -9,10 +9,13 @@ use App\Http\Controllers\AdminSubmissionController;
 use App\Http\Controllers\AdminGuideController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminSubmissionManagementController;
+use App\Http\Controllers\AdminJobRoleController;
+use App\Http\Controllers\AdminEventController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\SubmissionController;
+use App\Http\Controllers\UserEventController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -38,6 +41,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/study-groups/join', [StudyGroupController::class, 'join'])->name('groups.join');
     Route::post('/study-groups/{uuid}/leave', [StudyGroupController::class, 'leave'])->name('groups.leave');
     Route::get('/guides', [GuideController::class, 'userIndex'])->name('guides.user.index');
+    Route::get('/events/{event:uuid}', [UserEventController::class, 'show'])->name('events.show');
 });
 
 
@@ -67,6 +71,30 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         Route::get('/', [AdminUserController::class, 'index'])->name('index');
         Route::patch('/{user}/role', [AdminUserController::class, 'updateRole'])->name('role.update');
         Route::patch('/{user}/reset-password', [AdminUserController::class, 'resetPassword'])->name('password.reset');
+    });
+
+    Route::prefix('admin/jobs')->name('admin.jobs.')->group(function () {
+        Route::get('/', [AdminJobRoleController::class, 'index'])->name('index');
+        Route::post('/', [AdminJobRoleController::class, 'store'])->name('store');
+        Route::put('/{jobRole}', [AdminJobRoleController::class, 'update'])->name('update');
+        Route::delete('/{jobRole}', [AdminJobRoleController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('admin/events')->name('admin.events.')->group(function () {
+        Route::get('/', [AdminEventController::class, 'index'])->name('index');
+        Route::post('/', [AdminEventController::class, 'store'])->name('store');
+        Route::put('/{event:uuid}', [AdminEventController::class, 'update'])->name('update');
+        Route::delete('/{event:uuid}', [AdminEventController::class, 'destroy'])->name('destroy');
+
+        Route::get('/{event:uuid}', [AdminEventController::class, 'detail'])->name('detail');
+        Route::get('/{event:uuid}/attendance', [AdminEventController::class, 'attendance'])->name('attendance');
+        Route::post('/{event:uuid}/guides/attach', [AdminEventController::class, 'attachGuides'])->name('guides.attach');
+        Route::post('/{event:uuid}/quests/attach', [AdminEventController::class, 'attachQuests'])->name('quests.attach');
+        Route::delete('/{event:uuid}/guides/{guide}', [AdminEventController::class, 'detachGuide'])->name('guides.detach');
+        Route::delete('/{event:uuid}/quests/{quest}', [AdminEventController::class, 'detachQuest'])->name('quests.detach');
+        Route::patch('/{event:uuid}/guides/reorder', [AdminEventController::class, 'reorderGuides'])->name('guides.reorder');
+        Route::patch('/{event:uuid}/quests/reorder', [AdminEventController::class, 'reorderQuests'])->name('quests.reorder');
+        Route::patch('/{event:uuid}/attendance', [AdminEventController::class, 'updateAttendance'])->name('attendance.update');
     });
 
     Route::prefix('admin/submissions')->name('admin.submissions.manage.')->group(function () {

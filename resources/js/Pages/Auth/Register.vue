@@ -1,13 +1,38 @@
 <script setup>
 import GuestLayout from '@/Layouts/GuestLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
+
+const props = defineProps({
+    jobs: {
+        type: Array,
+        default: () => [],
+    },
+});
 
 const form = useForm({
     name: '',
     email: '',
+    job_id: '',
     password: '',
     password_confirmation: '',
 });
+
+const isJobModalOpen = ref(false);
+const selectedJob = computed(() => props.jobs.find((job) => String(job.id) === String(form.job_id)) ?? null);
+
+const openJobModal = () => {
+    isJobModalOpen.value = true;
+};
+
+const closeJobModal = () => {
+    isJobModalOpen.value = false;
+};
+
+const chooseJob = (jobId) => {
+    form.job_id = String(jobId);
+    isJobModalOpen.value = false;
+};
 
 const submit = () => {
     form.post(route('register'), {
@@ -44,6 +69,98 @@ const submit = () => {
             </div>
 
             <div class="mt-3">
+                <label class="block text-[#009999] text-[8px] uppercase mb-1">Jobs_Path</label>
+                <div :class="[
+                    'border-2 p-3 bg-black',
+                    form.errors.job_id ? 'border-red-500' : 'border-[#333333]'
+                ]">
+                    <button
+                        type="button"
+                        @click="openJobModal"
+                        class="w-full text-left border-2 border-[#333333] hover:border-[#009999] transition-all p-3 bg-[#0d1117]"
+                    >
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <p class="text-[8px] uppercase text-[#009999] mb-1">Selected_Job</p>
+                                <p v-if="selectedJob" class="text-[9px] uppercase text-white">{{ selectedJob.name }}</p>
+                                <p v-else class="text-[9px] uppercase text-slate-500">-- Choose Job Path --</p>
+                            </div>
+                            <span class="text-[8px] uppercase px-3 py-1 bg-[#009999] text-black border border-[#006666]">Choose</span>
+                        </div>
+                    </button>
+                    <input type="hidden" v-model="form.job_id" />
+                </div>
+                <div v-if="isJobModalOpen" class="fixed inset-0 z-[70] flex items-center justify-center p-4">
+                    <div class="absolute inset-0 bg-black/80" @click="closeJobModal"></div>
+                    <div class="relative z-10 w-full max-w-5xl border-2 border-white/10 bg-[#1a1c2c]/95 backdrop-blur-md p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-hidden">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-[10px] md:text-xs uppercase text-white">Select Job Path</h3>
+                            <button type="button" @click="closeJobModal" class="text-[8px] uppercase px-3 py-1 bg-slate-700 text-white border border-slate-500 hover:bg-slate-600">
+                                Close
+                            </button>
+                        </div>
+
+                        <div class="jobs-carousel flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
+                            <article
+                                v-for="(job, index) in jobs"
+                                :key="job.id"
+                                class="job-card snap-start shrink-0 w-[240px] h-[352px] p-[6px] border shadow-[0_10px_16px_rgba(15,23,42,0.25)]"
+                                :class="{
+                                    'bg-gradient-to-br from-sky-800 to-cyan-700 border-sky-200/70': index % 4 === 0,
+                                    'bg-gradient-to-br from-indigo-800 to-violet-700 border-indigo-200/70': index % 4 === 1,
+                                    'bg-gradient-to-br from-emerald-800 to-teal-700 border-emerald-200/70': index % 4 === 2,
+                                    'bg-gradient-to-br from-cyan-800 to-blue-700 border-cyan-200/70': index % 4 === 3,
+                                    'ring-2 ring-[#4ed4d4]': String(form.job_id) === String(job.id),
+                                }"
+                            >
+                                <div class="bg-black/20 border border-white/60 p-2 h-full flex flex-col">
+                                    <div class="text-[8px] uppercase tracking-wide text-white/85 mb-2">
+                                        Class Card
+                                    </div>
+                                    <div class="h-[170px] border border-white/60 bg-white/10 overflow-hidden flex items-center justify-center">
+                                        <img
+                                            v-if="job.emblem_path"
+                                            :src="`/storage/${job.emblem_path}`"
+                                            :alt="`${job.name} emblem`"
+                                            class="w-full h-full object-cover"
+                                        />
+                                        <img
+                                            v-else
+                                            src="/images/logo.png"
+                                            :alt="`${job.name} default`"
+                                            class="w-16 h-16 object-contain opacity-90"
+                                        />
+                                    </div>
+                                    <div class="mt-3 border border-white/60 bg-black/20 px-2 py-2 h-[78px]">
+                                        <p class="text-[10px] uppercase text-white leading-snug">
+                                            {{ job.name }}
+                                        </p>
+                                        <p class="text-[8px] font-sans text-white/80 mt-1">
+                                            Path ID: #{{ job.id }}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        @click="chooseJob(job.id)"
+                                        class="mt-auto text-[8px] uppercase px-3 py-2 border font-bold transition-colors"
+                                        :class="String(form.job_id) === String(job.id)
+                                            ? 'bg-[#4ed4d4] text-black border-[#006666]'
+                                            : 'bg-slate-800 text-white border-slate-500 hover:bg-slate-700'"
+                                    >
+                                        {{ String(form.job_id) === String(job.id) ? 'Selected' : 'Use This Job' }}
+                                    </button>
+                                </div>
+                            </article>
+                        </div>
+                        <div class="mt-4 text-[8px] text-white/70 uppercase">
+                            Pilih jobs path yang sesuai, lalu lanjutkan registrasi.
+                        </div>
+                    </div>
+                </div>
+                <div v-if="form.errors.job_id" class="mt-2 text-red-500 text-[8px] italic">{{ form.errors.job_id }}</div>
+            </div>
+
+            <div class="mt-3">
                 <label class="block text-[#009999] text-[8px] uppercase mb-1">Password</label>
                 <input type="password" v-model="form.password" :class="[
                     'w-full bg-black border-2 text-white p-2 focus:ring-0 text-[10px] font-pixel',
@@ -73,3 +190,31 @@ const submit = () => {
         </form>
     </GuestLayout>
 </template>
+
+<style scoped>
+.jobs-carousel {
+    scrollbar-width: thin;
+    scrollbar-color: #475569 #1f2937;
+}
+
+.jobs-carousel::-webkit-scrollbar {
+    height: 8px;
+}
+
+.jobs-carousel::-webkit-scrollbar-track {
+    background: #1f2937;
+}
+
+.jobs-carousel::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+
+.job-card {
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.job-card:hover {
+    transform: translateY(-4px) rotate(-0.6deg);
+    box-shadow: 0 14px 24px rgba(15, 23, 42, 0.32);
+}
+</style>

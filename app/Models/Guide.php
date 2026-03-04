@@ -29,5 +29,12 @@ class Guide extends Model
     {
         return $this->belongsTo(StudyGroup::class);
     }
+
+    public function events()
+    {
+        return $this->belongsToMany(Event::class, 'event_guide')
+            ->withPivot('sort_order')
+            ->withTimestamps();
+    }
    
 }

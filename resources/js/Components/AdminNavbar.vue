@@ -60,6 +60,8 @@ const handleLogout = () => {
                 <div class="absolute right-0 mt-2 min-w-[220px] bg-[#0f101a] border-2 border-slate-700 shadow-xl p-2 z-[140]">
                     <Link href="/admin/materi" class="dropdown-item">GUIDE</Link>
                     <Link :href="route('quests.index')" class="dropdown-item">QUEST</Link>
+                    <Link :href="route('admin.events.index')" class="dropdown-item">EVENTS</Link>
+                    <Link :href="route('admin.jobs.index')" class="dropdown-item">JOBS</Link>
                     <Link :href="route('groups.manage')" class="dropdown-item">STUDY_GROUP</Link>
                     <Link :href="route('admin.submissions.manage.index')" class="dropdown-item">SUBMISSIONS</Link>
                     <Link :href="route('admin.users.index')" class="dropdown-item">USERS</Link>
