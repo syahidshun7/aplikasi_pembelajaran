@@ -6,6 +6,7 @@ use App\Models\Submission;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class AdminSubmissionController extends Controller
@@ -20,6 +21,24 @@ class AdminSubmissionController extends Controller
 
         return Inertia::render('Quests/Admin/Inspect', [
             'submission' => $submission
+        ]);
+    }
+
+    public function previewFile(Submission $submission)
+    {
+        $storedPath = (string) ($submission->file_path ?? '');
+        abort_if($storedPath === '', 404);
+
+        $disk = Storage::disk('public');
+        abort_unless($disk->exists($storedPath), 404);
+
+        $absolutePath = $disk->path($storedPath);
+        $mimeType = (string) ($disk->mimeType($storedPath) ?: 'application/octet-stream');
+        $safeFilename = str_replace(['"', "\r", "\n"], '', basename($storedPath));
+
+        return response()->file($absolutePath, [
+            'Content-Type' => $mimeType,
+            'Content-Disposition' => 'inline; filename="' . $safeFilename . '"',
         ]);
     }
 

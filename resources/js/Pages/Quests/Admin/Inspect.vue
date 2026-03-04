@@ -54,10 +54,19 @@
 
                         <div v-if="submission.file_path" class="border-4 border-black bg-black shadow-2xl overflow-hidden">
                             <div v-if="isImage(submission.file_path)" class="p-2">
-                                <img :src="`/storage/${submission.file_path}`" class="w-full h-auto">
+                                <img :src="attachmentPreviewUrl" class="w-full h-auto" alt="Submission attachment">
                             </div>
-                            <div v-else class="h-[500px] w-full bg-slate-800">
-                                <iframe :src="`/storage/${submission.file_path}`" class="w-full h-full" frameborder="0"></iframe>
+                            <div v-else-if="isPdf(submission.file_path)" class="h-[500px] w-full bg-slate-800">
+                                <iframe :src="attachmentPreviewUrl" class="w-full h-full" frameborder="0" title="PDF submission preview"></iframe>
+                            </div>
+                            <div v-else class="p-4 bg-slate-900 text-[8px] text-slate-400 uppercase">
+                                Preview not supported for this file type.
+                            </div>
+                            <div class="p-3 border-t border-slate-800 bg-slate-950 text-right">
+                                <a :href="attachmentPreviewUrl" target="_blank"
+                                    class="inline-block bg-cyan-900/40 border border-cyan-400 px-3 py-1 text-cyan-300 hover:bg-cyan-400 hover:text-black transition-all text-[8px] uppercase">
+                                    OPEN_ATTACHMENT
+                                </a>
                             </div>
                         </div>
 
@@ -203,6 +212,11 @@ const criteria = ref([
     { id: 'att', label: 'Attitude', weight: 5, maxWeight: 5, checked: false },
 ]);
 
+const attachmentPreviewUrl = computed(() => {
+    if (!props.submission?.file_path) return null;
+    return route('admin.submissions.file', { submission: props.submission.uuid });
+});
+
 // 2. COMPUTED PROPERTIES
 const totalScore = computed(() => {
     return criteria.value.reduce((acc, item) => acc + (item.checked ? Number(item.weight) : 0), 0);
@@ -242,6 +256,7 @@ const getStatusClass = (status) => {
 };
 
 const isImage = (path) => /\.(jpg|jpeg|png|webp|avif|gif)$/i.test(path);
+const isPdf = (path) => /\.pdf$/i.test(path);
 
 onMounted(() => {
     const savedScores = props.submission.scores_detail;
