@@ -30,6 +30,8 @@ const isJobModalOpen = ref(false);
 const turnstileContainer = ref(null);
 const turnstileWidgetId = ref(null);
 const turnstileError = ref('');
+const showPassword = ref(false);
+const showPasswordConfirmation = ref(false);
 const selectedJob = computed(() => props.jobs.find((job) => String(job.id) === String(form.job_id)) ?? null);
 const isTurnstileEnabled = computed(() => !!(props.turnstile?.enabled && props.turnstile?.site_key));
 
@@ -232,19 +234,61 @@ onMounted(async () => {
 
             <div class="mt-3">
                 <label class="block text-[#009999] text-[8px] uppercase mb-1">Password</label>
-                <input type="password" v-model="form.password" :class="[
-                    'w-full bg-black border-2 text-white p-2 focus:ring-0 text-[10px] font-pixel',
-                    form.errors.password ? 'border-red-500 focus:border-red-500' : 'border-[#333333] focus:border-[#009999]'
-                ]" required />
+                <div class="relative">
+                    <input :type="showPassword ? 'text' : 'password'" v-model="form.password" :class="[
+                        'w-full bg-black border-2 text-white p-2 pr-12 focus:ring-0 text-[10px] font-pixel',
+                        form.errors.password ? 'border-red-500 focus:border-red-500' : 'border-[#333333] focus:border-[#009999]'
+                    ]" required />
+                    <button
+                        type="button"
+                        @click="showPassword = !showPassword"
+                        :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                        :title="showPassword ? 'Hide password' : 'Show password'"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 inline-flex items-center justify-center border border-slate-500/70 bg-black/35 text-slate-200 hover:text-cyan-300 hover:border-cyan-400 focus:outline-none"
+                    >
+                        <svg v-if="!showPassword" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17.94 17.94A10.93 10.93 0 0 1 12 19c-7 0-11-7-11-7a21.77 21.77 0 0 1 5.06-5.94" />
+                            <path d="M1 1l22 22" />
+                            <path d="M9.53 9.53A3 3 0 0 0 12 15a3 3 0 0 0 2.47-5.47" />
+                            <path d="M14.47 14.47 9.53 9.53" />
+                            <path d="M21 12s-1.37-2.4-3.62-4.36" />
+                        </svg>
+                    </button>
+                </div>
                 <div v-if="form.errors.password" class="mt-2 text-red-500 text-[8px] italic">{{ form.errors.password }}</div>
             </div>
 
             <div class="mt-3">
                 <label class="block text-[#009999] text-[8px] uppercase mb-1">Confirm_Password</label>
-                <input type="password" v-model="form.password_confirmation" :class="[
-                    'w-full bg-black border-2 text-white p-2 focus:ring-0 text-[10px] font-pixel',
-                    form.errors.password_confirmation ? 'border-red-500 focus:border-red-500' : 'border-[#333333] focus:border-[#009999]'
-                ]" required />
+                <div class="relative">
+                    <input :type="showPasswordConfirmation ? 'text' : 'password'" v-model="form.password_confirmation" :class="[
+                        'w-full bg-black border-2 text-white p-2 pr-12 focus:ring-0 text-[10px] font-pixel',
+                        form.errors.password_confirmation ? 'border-red-500 focus:border-red-500' : 'border-[#333333] focus:border-[#009999]'
+                    ]" required />
+                    <button
+                        type="button"
+                        @click="showPasswordConfirmation = !showPasswordConfirmation"
+                        :aria-label="showPasswordConfirmation ? 'Hide password confirmation' : 'Show password confirmation'"
+                        :title="showPasswordConfirmation ? 'Hide password confirmation' : 'Show password confirmation'"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 inline-flex items-center justify-center border border-slate-500/70 bg-black/35 text-slate-200 hover:text-cyan-300 hover:border-cyan-400 focus:outline-none"
+                    >
+                        <svg v-if="!showPasswordConfirmation" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17.94 17.94A10.93 10.93 0 0 1 12 19c-7 0-11-7-11-7a21.77 21.77 0 0 1 5.06-5.94" />
+                            <path d="M1 1l22 22" />
+                            <path d="M9.53 9.53A3 3 0 0 0 12 15a3 3 0 0 0 2.47-5.47" />
+                            <path d="M14.47 14.47 9.53 9.53" />
+                            <path d="M21 12s-1.37-2.4-3.62-4.36" />
+                        </svg>
+                    </button>
+                </div>
                 <div v-if="form.errors.password_confirmation" class="mt-2 text-red-500 text-[8px] italic">{{ form.errors.password_confirmation }}</div>
             </div>
 
@@ -303,3 +347,4 @@ onMounted(async () => {
     box-shadow: 0 14px 24px rgba(15, 23, 42, 0.32);
 }
 </style>
+

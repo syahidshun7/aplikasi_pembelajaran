@@ -1,6 +1,6 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { Head, Link, usePage } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
 import { useLobby } from '@/Composables/useLobby';
 
 const props = defineProps({
@@ -27,6 +27,10 @@ const {
 } = useLobby(props);
 
 const mobileMenuOpen = ref(false);
+const page = usePage();
+const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
+const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
+const profileVerificationHref = computed(() => `${route('profile.edit', { tab: 'profile' })}#email-verification`);
 
 const closeMobileMenu = () => {
     mobileMenuOpen.value = false;
@@ -106,6 +110,34 @@ const closeMobileMenu = () => {
                     <i :class="mobileMenuOpen ? 'fi fi-rr-cross-small' : 'fi fi-rr-menu-burger'" class="text-[14px]"></i>
                 </button>
             </nav>
+
+            <div v-if="isEmailUnverified" class="px-4 md:px-8 pt-4">
+                <div class="border-2 border-amber-400/60 bg-amber-500/15 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div class="text-[9px] leading-relaxed text-amber-100 uppercase tracking-wide">
+                        Email belum terverifikasi. Kamu tetap bisa eksplor Home, tapi beberapa fitur akan dikunci sampai verifikasi selesai.
+                    </div>
+                    <Link
+                        :href="profileVerificationHref"
+                        class="text-[8px] bg-amber-300 text-black px-3 py-2 btn-pixel border-amber-700 uppercase font-bold hover:bg-amber-200 transition-colors text-center"
+                    >
+                        Verifikasi di Profile
+                    </Link>
+                </div>
+            </div>
+
+            <div v-else-if="isEmailVerifiedSuccess" class="px-4 md:px-8 pt-4">
+                <div class="border-2 border-emerald-400/60 bg-emerald-500/15 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div class="text-[9px] leading-relaxed text-emerald-100 uppercase tracking-wide">
+                        Verifikasi email berhasil. Semua fitur akun sekarang sudah terbuka.
+                    </div>
+                    <Link
+                        :href="route('profile.edit', { tab: 'profile' })"
+                        class="text-[8px] bg-emerald-300 text-black px-3 py-2 btn-pixel border-emerald-700 uppercase font-bold hover:bg-emerald-200 transition-colors text-center"
+                    >
+                        Buka Profile
+                    </Link>
+                </div>
+            </div>
 
             <div v-if="mobileMenuOpen" class="md:hidden relative z-50 px-4 pb-4">
                 <div class="bg-[#1a1c2c]/95 backdrop-blur-sm border-2 border-[#3d415f] p-3 space-y-2 shadow-2xl">

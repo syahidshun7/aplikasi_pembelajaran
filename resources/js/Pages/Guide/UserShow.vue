@@ -24,6 +24,13 @@ const isPdfAttachment = computed(() => {
     return /\.pdf$/i.test(path);
 });
 
+const isMobilePdfPreview = computed(() => {
+    if (typeof window === 'undefined') return false;
+    const ua = window.navigator?.userAgent || '';
+    const iPadOs = /Macintosh/i.test(ua) && (window.navigator?.maxTouchPoints || 0) > 1;
+    return /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(ua) || iPadOs;
+});
+
 const isImageAttachment = computed(() => {
     const path = props.guide?.file_path || '';
     return /\.(jpg|jpeg|png|webp|gif|avif)$/i.test(path);
@@ -90,15 +97,15 @@ const createdAtLabel = computed(() => {
                             </div>
 
                             <div v-else-if="isPdfAttachment" class="border border-slate-700 p-2 bg-[#0d1117]">
-                                <object
-                                    :data="attachmentUrl"
-                                    type="application/pdf"
+                                <div v-if="isMobilePdfPreview" class="border border-slate-700 bg-black p-4 text-[8px] text-slate-300 uppercase">
+                                    Preview PDF di mobile kadang diblok browser. Tap Open_File untuk membuka viewer bawaan browser.
+                                </div>
+                                <iframe
+                                    v-else
+                                    :src="`${attachmentUrl}#toolbar=1&view=FitH`"
                                     class="w-full h-[70vh] min-h-[420px]"
-                                >
-                                    <p class="font-sans text-sm text-slate-300 p-4">
-                                        PDF preview is unavailable. Use Open_File.
-                                    </p>
-                                </object>
+                                    title="Guide PDF preview"
+                                />
                             </div>
 
                             <div class="flex justify-end">

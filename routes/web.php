@@ -33,10 +33,13 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/quests/{quest}', [QuestController::class, 'show'])->name('quests.show');
     Route::post('/quests/{quest}/unlock-late', [QuestController::class, 'unlockLate'])->name('quests.unlock-late');
-    Route::post('/quests/{quest}/submissions', [SubmissionController::class, 'store'])->name('submissions.store');
+    Route::post('/quests/{quest}/submissions', [SubmissionController::class, 'store'])
+        ->middleware('verified')
+        ->name('submissions.store');
     Route::get('/submissions/{submission}', [SubmissionController::class, 'showSubmission'])
         ->name('submissions.show');
     Route::put('/submissions/{uuid}', [SubmissionController::class, 'update'])
+        ->middleware('verified')
         ->name('submissions.update');
     Route::get('/quests-user', [QuestController::class, 'userIndex'])->name('quests.user.index');
 
@@ -48,7 +51,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/guides/{guide}', [GuideController::class, 'userShow'])->name('guides.user.show');
     Route::get('/events/{event:uuid}', [UserEventController::class, 'show'])->name('events.show');
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
-    Route::post('/shop/items/{item}/purchase', [ShopController::class, 'purchase'])->name('shop.purchase');
+    Route::post('/shop/items/{item}/purchase', [ShopController::class, 'purchase'])
+        ->middleware('verified')
+        ->name('shop.purchase');
 });
 
 

@@ -73,7 +73,9 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        return redirect(route('dashboard', absolute: false));
+        $defaultRoute = $user->role === 'admin' ? 'dashboard' : 'lobby';
+
+        return redirect(route($defaultRoute, absolute: false));
     }
 
     private function verifyTurnstile(string $token, string $ip): void

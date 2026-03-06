@@ -1,13 +1,16 @@
 <?php
 
 namespace App\Models;
+
+use App\Notifications\Auth\CustomResetPassword;
+use App\Notifications\Auth\CustomVerifyEmail;
 use App\Models\StudyGroup;
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
@@ -81,5 +84,15 @@ public function inventories()
 public function shopTransactions()
 {
     return $this->hasMany(ShopTransaction::class);
+}
+
+public function sendEmailVerificationNotification(): void
+{
+    $this->notify(new CustomVerifyEmail());
+}
+
+public function sendPasswordResetNotification($token): void
+{
+    $this->notify(new CustomResetPassword($token));
 }
 }

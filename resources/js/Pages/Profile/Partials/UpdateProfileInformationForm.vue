@@ -1,10 +1,12 @@
 <script setup>
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
+import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Link, useForm, usePage } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { useForm, usePage } from '@inertiajs/vue3';
+import { nextTick, onMounted, ref } from 'vue';
+import { toast } from '@/Utils/Alert';
 
 // 1. Tangkap props 'user' yang dikirim dari ProfileController@edit
 const props = defineProps({
@@ -26,6 +28,9 @@ const props = defineProps({
 // 2. Gunakan props.user sebagai sumber data utama form agar sinkron dengan Controller
 const user = props.user || usePage().props.auth.user;
 const photoInput = ref(null);
+const showVerificationModal = ref(false);
+const verificationNoticeRef = ref(null);
+const verificationActionRef = ref(null);
 
 const form = useForm({
     _method: 'PATCH',
@@ -35,6 +40,8 @@ const form = useForm({
     job_id: user.job_id || '',
     profile_photo: null,
 });
+
+const verificationForm = useForm({});
 
 const browsePhoto = () => {
     photoInput.value.click();
@@ -52,6 +59,55 @@ const submit = () => {
         },
     });
 };
+
+const openVerificationModal = () => {
+    showVerificationModal.value = true;
+};
+
+const closeVerificationModal = () => {
+    showVerificationModal.value = false;
+};
+
+const sendVerificationEmail = () => {
+    verificationForm.post(route('verification.send'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeVerificationModal();
+        },
+    });
+};
+
+const focusVerificationSection = async () => {
+    await nextTick();
+
+    if (!verificationNoticeRef.value) {
+        return;
+    }
+
+    verificationNoticeRef.value.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+    });
+
+    verificationActionRef.value?.focus();
+};
+
+onMounted(() => {
+    if (props.status === 'verification-link-sent') {
+        toast.success('EMAIL VERIFIKASI TERKIRIM', 'Cek inbox/spam email kamu lalu klik link verifikasi.');
+    }
+
+    if (props.status === 'email-verification-required') {
+        toast.error('EMAIL BELUM TERVERIFIKASI', 'Kirim ulang verifikasi dari halaman profile untuk membuka fitur tertentu.');
+    }
+
+    const shouldFocusVerification = window.location.hash === '#email-verification'
+        || props.status === 'email-verification-required';
+
+    if (shouldFocusVerification && props.mustVerifyEmail && user.email_verified_at === null) {
+        focusVerificationSection();
+    }
+});
 </script>
 
 <template>
@@ -162,20 +218,26 @@ const submit = () => {
                 <InputError class="mt-2" :message="form.errors.job_id" />
             </div>
 
-            <div v-if="mustVerifyEmail && user.email_verified_at === null">
-                <p class="mt-2 text-sm text-gray-800">
-                    Your email address is unverified.
-                    <Link
-                        :href="route('verification.send')"
-                        method="post"
-                        as="button"
-                        class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            <div
+                v-if="mustVerifyEmail && user.email_verified_at === null"
+                id="email-verification"
+                ref="verificationNoticeRef"
+                tabindex="-1"
+                class="scroll-mt-28 rounded border border-amber-400/40 bg-amber-500/10 p-3 focus:outline-none focus:ring-2 focus:ring-amber-300/70"
+            >
+                <p class="mt-2 text-[9px] text-amber-300 uppercase leading-relaxed">
+                    Email belum terverifikasi. Beberapa fitur dibatasi sampai verifikasi selesai.
+                    <button
+                        type="button"
+                        ref="verificationActionRef"
+                        @click="openVerificationModal"
+                        class="ml-1 text-[9px] text-cyan-300 underline hover:text-cyan-100 focus:outline-none"
                     >
-                        Click here to re-send the verification email.
-                    </Link>
+                        Verifikasi sekarang
+                    </button>
                 </p>
-                <div v-show="status === 'verification-link-sent'" class="mt-2 text-sm font-medium text-green-600">
-                    A new verification link has been sent to your email address.
+                <div v-show="status === 'verification-link-sent'" class="mt-2 text-[9px] font-medium text-emerald-300 uppercase">
+                    Link verifikasi baru sudah dikirim ke email kamu.
                 </div>
             </div>
 
@@ -192,5 +254,32 @@ const submit = () => {
                 </Transition>
             </div>
         </form>
+
+        <Modal :show="showVerificationModal" @close="closeVerificationModal">
+            <div class="p-6">
+                <h3 class="text-sm font-semibold text-slate-900 uppercase">Verifikasi Email</h3>
+                <p class="mt-3 text-sm text-slate-700 leading-relaxed">
+                    Kami akan kirim ulang link verifikasi ke <strong>{{ user.email }}</strong>.
+                    Setelah klik link dari email, kamu akan diarahkan ke Home dengan notifikasi verifikasi berhasil.
+                </p>
+                <div class="mt-5 flex items-center justify-end gap-3">
+                    <button
+                        type="button"
+                        class="px-3 py-2 text-xs font-semibold uppercase border border-slate-300 text-slate-700 hover:bg-slate-100"
+                        @click="closeVerificationModal"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="button"
+                        class="px-3 py-2 text-xs font-semibold uppercase bg-emerald-600 text-white border border-emerald-700 hover:bg-emerald-500 disabled:opacity-60"
+                        :disabled="verificationForm.processing"
+                        @click="sendVerificationEmail"
+                    >
+                        Kirim Link Verifikasi
+                    </button>
+                </div>
+            </div>
+        </Modal>
     </section>
 </template>

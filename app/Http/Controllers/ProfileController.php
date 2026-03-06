@@ -64,6 +64,7 @@ class ProfileController extends Controller
             'username'      => $user->username,      // [TAMBAHAN] Kirim Username
             'profile_photo' => $user->profile_photo, // [TAMBAHAN] Kirim Path Foto
             'email'         => $user->email,
+            'email_verified_at' => $user->email_verified_at,
             'job_id'        => $user->job_id,
             'job_name'      => $user->job?->name,
             'job_emblem_path' => $user->job?->emblem_path,

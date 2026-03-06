@@ -57,15 +57,15 @@
                                 <img :src="attachmentPreviewUrl" class="w-full h-auto" alt="Submission attachment">
                             </div>
                             <div v-else-if="isPdf(submission.file_path)" class="h-[500px] w-full bg-slate-800">
-                                <object
-                                    :data="attachmentPreviewUrl"
-                                    type="application/pdf"
+                                <div v-if="isMobilePdfPreview" class="h-full w-full p-4 text-[8px] text-slate-300 uppercase border border-slate-700 bg-black">
+                                    Preview PDF di mobile kadang dibatasi browser. Gunakan OPEN_ATTACHMENT untuk membuka viewer bawaan browser.
+                                </div>
+                                <iframe
+                                    v-else
+                                    :src="`${attachmentPreviewUrl}#toolbar=1&view=FitH`"
                                     class="w-full h-full"
-                                >
-                                    <p class="font-sans text-sm text-slate-300 p-4">
-                                        PDF preview is unavailable. Use OPEN_ATTACHMENT.
-                                    </p>
-                                </object>
+                                    title="Submission PDF preview"
+                                />
                             </div>
                             <div v-else class="p-4 bg-slate-900 text-[8px] text-slate-400 uppercase">
                                 Preview not supported for this file type.
@@ -270,6 +270,12 @@ const getStatusClass = (status) => {
 
 const isImage = (path) => /\.(jpg|jpeg|png|webp|avif|gif)$/i.test(path);
 const isPdf = (path) => /\.pdf$/i.test(path);
+const isMobilePdfPreview = computed(() => {
+    if (typeof window === 'undefined') return false;
+    const ua = window.navigator?.userAgent || '';
+    const iPadOs = /Macintosh/i.test(ua) && (window.navigator?.maxTouchPoints || 0) > 1;
+    return /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(ua) || iPadOs;
+});
 
 onMounted(() => {
     const savedScores = props.submission.scores_detail;

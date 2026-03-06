@@ -1,6 +1,6 @@
 <script setup>
 import { Head, usePage, Link } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm.vue';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue';
@@ -19,9 +19,30 @@ const props = defineProps({
 
 const page = usePage();
 const userData = computed(() => props.user || page.props.auth.user);
+const allowedTabs = ['quests', 'profile', 'password', 'danger'];
+
+const resolveActiveTabFromLocation = () => {
+    const hash = typeof window !== 'undefined' ? window.location.hash : '';
+    if (hash === '#email-verification') {
+        return 'profile';
+    }
+
+    let queryTab = null;
+
+    if (typeof window !== 'undefined') {
+        queryTab = new URLSearchParams(window.location.search).get('tab');
+    }
+
+    if (!queryTab) {
+        const rawQuery = (page.url.split('?')[1] ?? '').split('#')[0];
+        queryTab = new URLSearchParams(rawQuery).get('tab');
+    }
+
+    return allowedTabs.includes(queryTab) ? queryTab : 'quests';
+};
 
 // 2. State untuk Tab
-const activeTab = ref('quests');
+const activeTab = ref(resolveActiveTabFromLocation());
 const questItems = computed(() => Array.isArray(props.userQuests) ? props.userQuests : (props.userQuests?.data || []));
 const questPaginationLinks = computed(() => Array.isArray(props.userQuests) ? [] : (props.userQuests?.links || []));
 
@@ -32,6 +53,17 @@ const getGradeColor = (grade) => {
     if (grade >= 60) return 'text-blue-400';
     return 'text-red-500';
 };
+
+onMounted(() => {
+    activeTab.value = resolveActiveTabFromLocation();
+});
+
+watch(
+    () => page.url,
+    () => {
+        activeTab.value = resolveActiveTabFromLocation();
+    },
+);
 </script>
 
 <template>

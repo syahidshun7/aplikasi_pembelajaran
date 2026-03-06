@@ -17,6 +17,13 @@ const isPdfAttachment = computed(() => {
     return /\.pdf$/i.test(path);
 });
 
+const isMobilePdfPreview = computed(() => {
+    if (typeof window === 'undefined') return false;
+    const ua = window.navigator?.userAgent || '';
+    const iPadOs = /Macintosh/i.test(ua) && (window.navigator?.maxTouchPoints || 0) > 1;
+    return /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(ua) || iPadOs;
+});
+
 const canEditSubmission = computed(() => {
     return ['Pending', 'Rejected'].includes(props.submission?.status);
 });
@@ -103,15 +110,15 @@ const actionButtonClass = computed(() => {
                         <div v-if="submission.file_path" class="mt-4 space-y-3">
                             <div v-if="isPdfAttachment" class="border border-slate-700 bg-slate-950/70 p-2">
                                 <p class="text-[7px] text-cyan-300 uppercase mb-2">PDF_ATTACHMENT_PREVIEW</p>
-                                <object
-                                    :data="attachmentUrl"
-                                    type="application/pdf"
+                                <div v-if="isMobilePdfPreview" class="border border-slate-700 bg-black p-4 text-[8px] text-slate-300 uppercase">
+                                    Preview PDF di mobile kadang diblok browser. Tap OPEN_PDF_NEW_TAB untuk membuka viewer bawaan browser.
+                                </div>
+                                <iframe
+                                    v-else
+                                    :src="`${attachmentUrl}#toolbar=1&view=FitH`"
                                     class="w-full h-[70vh] min-h-[420px] border border-slate-700 bg-black"
-                                >
-                                    <p class="font-sans text-sm text-slate-300 p-4">
-                                        PDF preview is unavailable. Use OPEN_PDF_NEW_TAB.
-                                    </p>
-                                </object>
+                                    title="PDF attachment preview"
+                                />
                             </div>
 
                             <div class="flex justify-end">

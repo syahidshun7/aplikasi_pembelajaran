@@ -46,7 +46,11 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $user = $request->user();
+
+        $defaultRoute = $user?->role === 'admin' ? 'dashboard' : 'lobby';
+
+        return redirect()->intended(route($defaultRoute, absolute: false));
     }
 
     private function verifyTurnstile(string $token, string $ip): void
