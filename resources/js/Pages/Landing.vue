@@ -77,8 +77,6 @@ const dragStartScrollLeft = ref(0);
 const activeJobIndex = ref(0);
 let domReadyHandler = null;
 
-const getInitialCenterIndex = (length = displayJobs.value.length) => Math.floor(length / 2);
-
 const getJobDescription = (job) => {
     const slug = String(job?.slug || '').toLowerCase();
     const name = String(job?.name || '').toLowerCase();
@@ -208,8 +206,10 @@ const scrollToCard = (index, behavior = 'smooth') => {
 
 const syncCarouselMetrics = () => {
     const carousel = jobsCarousel.value;
+    if (!carousel || jobCardRefs.value.length === 0) return;
+
     const firstCard = jobCardRefs.value[0];
-    if (!carousel || !firstCard) return;
+    if (!firstCard) return;
 
     sidePadding.value = Math.max((carousel.clientWidth - firstCard.offsetWidth) / 2, 0);
     updateActiveCardByScroll();
@@ -255,8 +255,13 @@ const getCardStateClass = (index) => {
 
 const initCarousel = async () => {
     await nextTick();
+    await new Promise((resolve) => window.requestAnimationFrame(resolve));
+
+    console.log('refs:', jobCardRefs.value.length);
+    if (!jobCardRefs.value.length) return;
+
     syncCarouselMetrics();
-    const middleIndex = getInitialCenterIndex(displayJobs.value.length);
+    const middleIndex = Math.floor(jobCardRefs.value.length / 2);
     activeJobIndex.value = middleIndex;
     scrollToCard(middleIndex, 'auto');
 };
@@ -296,10 +301,12 @@ watch(
 );
 
 watch(
-    () => displayJobs.value.length,
+    () => displayJobs.value,
     async () => {
+        await nextTick();
         await initCarousel();
     },
+    { deep: true },
 );
 
 onBeforeUnmount(() => {
