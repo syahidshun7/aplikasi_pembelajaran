@@ -56,6 +56,11 @@ const normalizedDescription = computed(() => {
                         [Back_Home]
                     </Link>
                 </div>
+                <div class="mt-3">
+                    <Link :href="route('events.user.index')" class="text-[8px] text-blue-300 hover:text-white uppercase">
+                        [Back_Event_List]
+                    </Link>
+                </div>
                 <div v-if="event.description" class="mt-4 p-4 border border-slate-700 bg-black/30">
                     <p class="text-[8px] text-slate-300 uppercase mb-3 tracking-widest">Event_Description</p>
                     <p class="text-[13px] md:text-[14px] font-sans text-slate-200 leading-7 whitespace-pre-line break-words">

@@ -20,18 +20,7 @@ class HomeController extends Controller
    public function index()
 {
     if (!Auth::check()) {
-        $availableJobs = JobRole::query()
-            ->select('id', 'name', 'slug', 'emblem_path')
-            ->orderBy('name')
-            ->get();
-
-        return Inertia::render('Landing', [
-            'canLogin' => Route::has('login'),
-            'canRegister' => Route::has('register'),
-            'availableJobs' => $availableJobs,
-            'laravelVersion' => Application::VERSION,
-            'phpVersion' => PHP_VERSION,
-        ]);
+        return $this->renderLanding();
     }
 
     $userId = Auth::id();
@@ -134,6 +123,29 @@ class HomeController extends Controller
         'studyGroups' => $studyGroups,
         'events' => $events,
         'laravelVersion' => \Illuminate\Foundation\Application::VERSION,
+        'phpVersion' => PHP_VERSION,
+    ]);
+}
+
+public function landing()
+{
+    return $this->renderLanding();
+}
+
+private function renderLanding()
+{
+    $availableJobs = JobRole::query()
+        ->select('id', 'name', 'slug', 'emblem_path')
+        ->orderBy('name')
+        ->get();
+
+    $isGuest = !Auth::check();
+
+    return Inertia::render('Landing', [
+        'canLogin' => $isGuest && Route::has('login'),
+        'canRegister' => $isGuest && Route::has('register'),
+        'availableJobs' => $availableJobs,
+        'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
     ]);
 }

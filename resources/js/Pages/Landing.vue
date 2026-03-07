@@ -1,8 +1,8 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { nextTick, onBeforeUnmount, onBeforeUpdate, onMounted, ref, watch } from 'vue';
 
-defineProps({
+const props = defineProps({
     canLogin: Boolean,
     canRegister: Boolean,
     availableJobs: {
@@ -39,16 +39,169 @@ const features = [
 ];
 
 const jobsCarousel = ref(null);
+const jobCardRefs = ref([]);
+const getInitialCenterIndex = () => Math.floor(props.availableJobs.length / 2);
+const activeJobIndex = ref(getInitialCenterIndex());
+const sidePadding = ref(0);
+const scrollRaf = ref(null);
+const isMouseDragging = ref(false);
+const dragStartX = ref(0);
+const dragStartScrollLeft = ref(0);
 
-const scrollJobs = (direction) => {
-    if (!jobsCarousel.value) return;
+const getJobDescription = (job) => {
+    const slug = String(job?.slug || '').toLowerCase();
+    const name = String(job?.name || '').toLowerCase();
 
-    const amount = jobsCarousel.value.clientWidth * 0.8;
-    jobsCarousel.value.scrollBy({
-        left: direction === 'left' ? -amount : amount,
-        behavior: 'smooth',
+    if (slug.includes('frontend') || name.includes('frontend')) {
+        return 'Membangun tampilan website menggunakan HTML, CSS, dan JavaScript.';
+    }
+    if (slug.includes('backend') || name.includes('backend')) {
+        return 'Mengembangkan server, API, dan logika aplikasi.';
+    }
+    if ((slug.includes('data') && slug.includes('analyst')) || (name.includes('data') && name.includes('analyst'))) {
+        return 'Menganalisis data untuk menemukan insight dan pola.';
+    }
+    if (slug.includes('devops') || name.includes('devops')) {
+        return 'Mengelola deployment, server, dan infrastruktur aplikasi.';
+    }
+    if ((slug.includes('data') && slug.includes('engineer')) || (name.includes('data') && name.includes('engineer')) || slug.includes('da-engineer') || name.includes('da engineer')) {
+        return 'Membangun pipeline data dan sistem pengolahan data.';
+    }
+
+    return 'Jalur pembelajaran terstruktur untuk membangun skill profesional secara bertahap.';
+};
+
+const setJobCardRef = (el, index) => {
+    if (!el) return;
+    jobCardRefs.value[index] = el;
+};
+
+const getNearestCardIndex = () => {
+    const carousel = jobsCarousel.value;
+    if (!carousel || !jobCardRefs.value.length) return 0;
+
+    const centerX = carousel.scrollLeft + (carousel.clientWidth / 2);
+    let nearestIndex = 0;
+    let minDistance = Number.POSITIVE_INFINITY;
+
+    jobCardRefs.value.forEach((card, index) => {
+        if (!card) return;
+        const cardCenter = card.offsetLeft + (card.offsetWidth / 2);
+        const distance = Math.abs(cardCenter - centerX);
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearestIndex = index;
+        }
+    });
+
+    return nearestIndex;
+};
+
+const updateActiveCardByScroll = () => {
+    activeJobIndex.value = getNearestCardIndex();
+};
+
+const handleCarouselScroll = () => {
+    if (scrollRaf.value) return;
+    scrollRaf.value = window.requestAnimationFrame(() => {
+        updateActiveCardByScroll();
+        scrollRaf.value = null;
     });
 };
+
+const scrollToCard = (index, behavior = 'smooth') => {
+    const carousel = jobsCarousel.value;
+    const card = jobCardRefs.value[index];
+    if (!carousel || !card) return;
+
+    const targetLeft = card.offsetLeft - ((carousel.clientWidth - card.offsetWidth) / 2);
+    carousel.scrollTo({
+        left: targetLeft,
+        behavior,
+    });
+};
+
+const syncCarouselMetrics = () => {
+    const carousel = jobsCarousel.value;
+    const firstCard = jobCardRefs.value[0];
+    if (!carousel || !firstCard) return;
+
+    sidePadding.value = Math.max((carousel.clientWidth - firstCard.offsetWidth) / 2, 0);
+    updateActiveCardByScroll();
+};
+
+const handleResize = () => {
+    syncCarouselMetrics();
+    scrollToCard(activeJobIndex.value, 'auto');
+};
+
+const onCarouselPointerDown = (event) => {
+    if (event.pointerType !== 'mouse' || !jobsCarousel.value) return;
+
+    isMouseDragging.value = true;
+    dragStartX.value = event.clientX;
+    dragStartScrollLeft.value = jobsCarousel.value.scrollLeft;
+    jobsCarousel.value.classList.add('is-dragging');
+    jobsCarousel.value.setPointerCapture(event.pointerId);
+};
+
+const onCarouselPointerMove = (event) => {
+    if (!isMouseDragging.value || !jobsCarousel.value) return;
+
+    const deltaX = event.clientX - dragStartX.value;
+    jobsCarousel.value.scrollLeft = dragStartScrollLeft.value - deltaX;
+};
+
+const onCarouselPointerUp = (event) => {
+    if (!jobsCarousel.value || !isMouseDragging.value) return;
+
+    isMouseDragging.value = false;
+    jobsCarousel.value.classList.remove('is-dragging');
+    jobsCarousel.value.releasePointerCapture(event.pointerId);
+
+    const targetIndex = getNearestCardIndex();
+    activeJobIndex.value = targetIndex;
+    scrollToCard(targetIndex, 'smooth');
+};
+
+const getCardStateClass = (index) => {
+    return index === activeJobIndex.value ? 'job-card--focus' : 'job-card--side';
+};
+
+onMounted(async () => {
+    await nextTick();
+    syncCarouselMetrics();
+    if (props.availableJobs.length > 0) {
+        const middleIndex = getInitialCenterIndex();
+        activeJobIndex.value = middleIndex;
+        scrollToCard(middleIndex, 'auto');
+    }
+
+    window.addEventListener('resize', handleResize);
+});
+
+onBeforeUpdate(() => {
+    jobCardRefs.value = [];
+});
+
+watch(
+    () => props.availableJobs.length,
+    async () => {
+        await nextTick();
+        syncCarouselMetrics();
+        const middleIndex = getInitialCenterIndex();
+        activeJobIndex.value = middleIndex;
+        scrollToCard(middleIndex, 'auto');
+    },
+);
+
+onBeforeUnmount(() => {
+    window.removeEventListener('resize', handleResize);
+    if (scrollRaf.value) {
+        window.cancelAnimationFrame(scrollRaf.value);
+        scrollRaf.value = null;
+    }
+});
 </script>
 
 <template>
@@ -94,7 +247,7 @@ const scrollJobs = (direction) => {
                         <span class="text-emerald-600"> Study</span>
                     </p>
                     <h1 class="text-xl md:text-4xl leading-tight uppercase text-slate-900 mb-5">
-                        From <span class="text-indigo-600">Beginner</span> to <span class="text-cyan-700">Pro Mentor</span> with <span class="text-emerald-600">Quest-Based</span> Learning
+                        From <span class="text-indigo-600">Beginner</span> to <span class="text-cyan-700">Pro Player</span> with <span class="text-emerald-600">Quest-Based</span> Learning
                     </h1>
                     <p class="text-[10px] md:text-xs text-slate-700 leading-relaxed max-w-3xl mx-auto font-sans">
                         Ini adalah aplikasi pembelajaran berbasis game yang menghubungkan pemula dan profesional dalam satu ekosistem belajar.
@@ -224,84 +377,84 @@ const scrollJobs = (direction) => {
             </section>
 
             <section class="px-4 md:px-10 pb-10 md:pb-14" v-if="availableJobs.length">
-                <div class="max-w-6xl mx-auto bg-slate-900/90 border-2 border-cyan-300/40 p-5 md:p-6 shadow-[0_10px_24px_rgba(14,116,144,0.2)]">
-                    <div class="flex items-center justify-between gap-3 mb-4">
-                        <h2 class="text-[10px] md:text-xs uppercase text-white">Available Jobs</h2>
-                        <span class="text-[8px] md:text-[9px] font-sans text-white/70">{{ availableJobs.length }} jalur tersedia</span>
+                <div class="max-w-6xl mx-auto">
+                    <div class="flex items-center justify-between gap-3 mb-5">
+                        <h2 class="text-[10px] md:text-xs uppercase text-slate-900">Available Jobs</h2>
+                        <span class="text-[8px] md:text-[9px] font-sans text-slate-700">{{ availableJobs.length }} jalur tersedia</span>
                     </div>
 
-                    <div class="flex items-center justify-end gap-2 mb-3">
-                        <button
-                            type="button"
-                            class="text-[9px] font-sans px-3 py-1.5 border border-slate-400 bg-slate-100 hover:bg-slate-200 transition-colors"
-                            @click="scrollJobs('left')"
+                    <div class="jobs-stage">
+                        <div
+                            ref="jobsCarousel"
+                            class="jobs-carousel"
+                            @scroll="handleCarouselScroll"
+                            @pointerdown="onCarouselPointerDown"
+                            @pointermove="onCarouselPointerMove"
+                            @pointerup="onCarouselPointerUp"
+                            @pointercancel="onCarouselPointerUp"
+                            @pointerleave="onCarouselPointerUp"
                         >
-                            Prev
-                        </button>
-                        <button
-                            type="button"
-                            class="text-[9px] font-sans px-3 py-1.5 border border-slate-400 bg-slate-100 hover:bg-slate-200 transition-colors"
-                            @click="scrollJobs('right')"
-                        >
-                            Next
-                        </button>
-                    </div>
+                            <div class="jobs-carousel-spacer" :style="{ width: `${sidePadding}px` }" aria-hidden="true"></div>
 
-                    <div
-                        ref="jobsCarousel"
-                        class="jobs-carousel flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory"
-                        :class="availableJobs.length <= 3 ? 'justify-center' : 'justify-start'"
-                    >
-                        <article
-                            v-for="(job, index) in availableJobs"
-                            :key="job.id"
-                            class="job-card relative overflow-hidden snap-start shrink-0 w-[240px] h-[352px] border p-4 shadow-[0_6px_14px_rgba(15,23,42,0.25)]"
-                            :class="{
-                                'bg-gradient-to-br from-sky-800 to-cyan-700 border-cyan-300/70 shadow-[0_6px_14px_rgba(14,165,233,0.28)]': index % 4 === 0,
-                                'bg-gradient-to-br from-indigo-800 to-violet-700 border-indigo-300/70 shadow-[0_6px_14px_rgba(79,70,229,0.28)]': index % 4 === 1,
-                                'bg-gradient-to-br from-emerald-800 to-teal-700 border-emerald-300/70 shadow-[0_6px_14px_rgba(16,185,129,0.28)]': index % 4 === 2,
-                                'bg-gradient-to-br from-cyan-800 to-blue-700 border-sky-300/70 shadow-[0_6px_14px_rgba(37,99,235,0.28)]': index % 4 === 3,
-                            }"
-                        >
-                            <div
-                                class="absolute top-0 left-0 w-full h-[3px]"
-                                :class="{
-                                    'bg-gradient-to-r from-cyan-500 to-sky-400': index % 4 === 0,
-                                    'bg-gradient-to-r from-indigo-500 to-violet-400': index % 4 === 1,
-                                    'bg-gradient-to-r from-emerald-500 to-teal-400': index % 4 === 2,
-                                    'bg-gradient-to-r from-cyan-400 to-blue-400': index % 4 === 3,
-                                }"
-                            ></div>
+                            <article
+                                v-for="(job, index) in availableJobs"
+                                :key="job.id"
+                                :ref="(el) => setJobCardRef(el, index)"
+                                class="job-card relative overflow-hidden snap-center shrink-0 w-[220px] md:w-[260px] h-[340px] md:h-[360px] border p-4"
+                                :class="[
+                                    getCardStateClass(index),
+                                    {
+                                        'bg-gradient-to-br from-sky-800 to-cyan-700 border-cyan-300/70': index % 4 === 0,
+                                        'bg-gradient-to-br from-indigo-800 to-violet-700 border-indigo-300/70': index % 4 === 1,
+                                        'bg-gradient-to-br from-emerald-800 to-teal-700 border-emerald-300/70': index % 4 === 2,
+                                        'bg-gradient-to-br from-cyan-800 to-blue-700 border-sky-300/70': index % 4 === 3,
+                                    },
+                                ]"
+                            >
+                                <div
+                                    class="absolute top-0 left-0 w-full h-[3px]"
+                                    :class="{
+                                        'bg-gradient-to-r from-cyan-500 to-sky-400': index % 4 === 0,
+                                        'bg-gradient-to-r from-indigo-500 to-violet-400': index % 4 === 1,
+                                        'bg-gradient-to-r from-emerald-500 to-teal-400': index % 4 === 2,
+                                        'bg-gradient-to-r from-cyan-400 to-blue-400': index % 4 === 3,
+                                    }"
+                                ></div>
 
-                            <div class="h-full flex flex-col relative z-10">
-                                <div class="flex items-center justify-between mb-2">
-                                    <p class="text-[8px] uppercase text-white/85">Class Card</p>
-                                    <span class="w-2 h-2 rounded-full bg-white/80 animate-pulse"></span>
+                                <div class="h-full flex flex-col relative z-10">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <p class="text-[8px] uppercase text-white/85">Class Card</p>
+                                        <span class="w-2 h-2 rounded-full bg-white/80 animate-pulse"></span>
+                                    </div>
+
+                                    <div class="h-[170px] border border-white/60 bg-black/15 overflow-hidden flex items-center justify-center">
+                                        <img
+                                            v-if="job.emblem_path"
+                                            :src="`/storage/${job.emblem_path}`"
+                                            :alt="`${job.name} emblem`"
+                                            class="w-full h-full object-cover"
+                                        />
+                                        <img
+                                            v-else
+                                            src="/images/logo.png"
+                                            :alt="`${job.name} default`"
+                                            class="w-16 h-16 object-contain opacity-90"
+                                        />
+                                    </div>
+
+                                    <div class="mt-3 border border-white/60 bg-black/20 px-2 py-2 h-[92px]">
+                                        <p class="text-[10px] uppercase text-white leading-snug">
+                                            {{ job.name }}
+                                        </p>
+                                        <p class="text-[10px] font-sans text-white/85 mt-1 leading-[1.35] normal-case">
+                                            {{ getJobDescription(job) }}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div class="h-[170px] border border-white/60 bg-black/15 overflow-hidden flex items-center justify-center">
-                                <img
-                                    v-if="job.emblem_path"
-                                    :src="`/storage/${job.emblem_path}`"
-                                        :alt="`${job.name} emblem`"
-                                        class="w-full h-full object-cover"
-                                />
-                                    <img
-                                        v-else
-                                        src="/images/logo.png"
-                                        :alt="`${job.name} default`"
-                                        class="w-16 h-16 object-contain opacity-90"
-                                    />
-                                </div>
-                                <div class="mt-3 border border-white/60 bg-black/20 px-2 py-2 h-[78px]">
-                                    <p class="text-[10px] uppercase text-white leading-snug">
-                                        {{ job.name }}
-                                    </p>
-                                    <p class="text-[8px] font-sans text-white/80 mt-1">
-                                        Path ID: #{{ job.id }}
-                                    </p>
-                                </div>
-                            </div>
-                        </article>
+                            </article>
+
+                            <div class="jobs-carousel-spacer" :style="{ width: `${sidePadding}px` }" aria-hidden="true"></div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -352,30 +505,95 @@ const scrollJobs = (direction) => {
 </template>
 
 <style scoped>
+.jobs-stage {
+    position: relative;
+}
+
+.jobs-stage::before,
+.jobs-stage::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 56px;
+    pointer-events: none;
+    z-index: 20;
+}
+
+.jobs-stage::before {
+    left: 0;
+    background: linear-gradient(90deg, rgba(248, 250, 252, 0.9), rgba(248, 250, 252, 0));
+}
+
+.jobs-stage::after {
+    right: 0;
+    background: linear-gradient(270deg, rgba(248, 250, 252, 0.9), rgba(248, 250, 252, 0));
+}
+
 .jobs-carousel {
-    scrollbar-width: thin;
-    scrollbar-color: #475569 #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    overflow-x: auto;
+    overflow-y: visible;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
+    cursor: grab;
+    padding-block: 1.25rem;
+    scrollbar-width: none;
 }
 
 .jobs-carousel::-webkit-scrollbar {
-    height: 8px;
+    display: none;
 }
 
-.jobs-carousel::-webkit-scrollbar-track {
-    background: #e2e8f0;
+.jobs-carousel.is-dragging {
+    cursor: grabbing;
+    scroll-snap-type: none;
 }
 
-.jobs-carousel::-webkit-scrollbar-thumb {
-    background: #475569;
+.jobs-carousel-spacer {
+    flex: 0 0 auto;
+    height: 1px;
 }
 
 .job-card {
-    transition: transform 180ms ease, box-shadow 180ms ease;
+    transform-origin: center center;
+    transition: transform 320ms ease-in-out, opacity 320ms ease-in-out, box-shadow 320ms ease-in-out, filter 320ms ease-in-out;
+    will-change: transform, opacity;
 }
 
-.job-card:hover {
-    transform: translateY(-4px) rotate(-0.6deg);
-    box-shadow: 0 14px 24px rgba(15, 23, 42, 0.32);
+.job-card--focus {
+    transform: scale(1.1);
+    opacity: 1;
+    z-index: 30;
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.32);
+}
+
+.job-card--side {
+    transform: scale(0.9);
+    opacity: 0.68;
+    z-index: 12;
+    filter: saturate(0.92);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.22);
+}
+
+@media (max-width: 640px) {
+    .jobs-stage::before,
+    .jobs-stage::after {
+        width: 28px;
+    }
+
+    .job-card--focus {
+        transform: scale(1.06);
+    }
+
+    .job-card--side {
+        transform: scale(0.92);
+        opacity: 0.74;
+    }
 }
 
 .path-star {

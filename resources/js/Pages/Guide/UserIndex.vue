@@ -24,6 +24,13 @@ const goToPage = (url) => {
     if (!url) return;
     router.get(url, {}, { preserveState: true, preserveScroll: true });
 };
+
+const shortText = (text, max = 130) => {
+    const value = String(text || '').replace(/\s+/g, ' ').trim();
+    if (value === '') return '-';
+    if (value.length <= max) return value;
+    return `${value.slice(0, max)}...`;
+};
 </script>
 
 <template>
@@ -69,7 +76,9 @@ const goToPage = (url) => {
                                :class="item.study_group_id ? 'text-emerald-400' : 'text-cyan-400'">
                                 {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
                             </p>
-                            <p class="mt-2 text-slate-400 font-sans text-[11px]">{{ item.description || '-' }}</p>
+                            <p class="mt-2 text-slate-400 font-sans text-[11px]" :title="item.description || ''">
+                                {{ shortText(item.description, 120) }}
+                            </p>
                             <p class="mt-2 text-slate-500 text-[8px]">{{ new Date(item.created_at).toLocaleString('id-ID') }}</p>
                             <div class="mt-3 flex items-center gap-2">
                                 <Link
@@ -110,7 +119,9 @@ const goToPage = (url) => {
                                         {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
                                     </span>
                                 </td>
-                                <td class="py-3 px-2 text-slate-400 font-sans">{{ item.description || '-' }}</td>
+                                <td class="py-3 px-2 text-slate-400 font-sans" :title="item.description || ''">
+                                    {{ shortText(item.description, 120) }}
+                                </td>
                                 <td class="py-3 px-2 text-slate-500">{{ new Date(item.created_at).toLocaleString('id-ID') }}</td>
                                 <td class="py-3 px-2 text-right">
                                     <Link

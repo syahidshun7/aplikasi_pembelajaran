@@ -386,6 +386,11 @@ const closeMobileMenu = () => {
                             <h2 class="text-blue-300 text-[10px] uppercase tracking-widest flex items-center gap-2">
                                 <i class="fi fi-rr-calendar-clock text-[12px]"></i> Event_Timeline [{{ events.length }}]
                             </h2>
+                            <Link :href="auth.user ? route('events.user.index') : route('login')"
+                                class="bg-blue-900/30 p-2 border-b-4 border-r-4 border-blue-700 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.5)] flex items-center justify-center hover:bg-blue-500/40 transition-colors"
+                                title="Lihat semua event">
+                                <i class="fi fi-rr-calendar text-xl leading-none text-blue-200"></i>
+                            </Link>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[260px] overflow-y-auto pr-2 custom-scroll">

@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', [HomeController::class, 'index'])->name('lobby');
+Route::get('/landing', [HomeController::class, 'landing'])->name('landing');
 
 
 
@@ -49,6 +50,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/study-groups/{uuid}/leave', [StudyGroupController::class, 'leave'])->name('groups.leave');
     Route::get('/guides', [GuideController::class, 'userIndex'])->name('guides.user.index');
     Route::get('/guides/{guide}', [GuideController::class, 'userShow'])->name('guides.user.show');
+    Route::get('/events', [UserEventController::class, 'index'])->name('events.user.index');
     Route::get('/events/{event:uuid}', [UserEventController::class, 'show'])->name('events.show');
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::post('/shop/items/{item}/purchase', [ShopController::class, 'purchase'])
