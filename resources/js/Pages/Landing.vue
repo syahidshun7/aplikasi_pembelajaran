@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
-import { nextTick, onBeforeUnmount, onBeforeUpdate, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onBeforeUpdate, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
     canLogin: Boolean,
@@ -10,6 +10,16 @@ const props = defineProps({
         default: () => [],
     },
 });
+
+const fallbackJobs = Object.freeze([
+    {
+        id: 'fallback-job',
+        name: 'COMING SOON',
+        slug: 'fallback',
+        emblem_path: null,
+        description: 'Jalur pembelajaran baru sedang dipersiapkan. Cek kembali beberapa saat lagi.',
+    },
+]);
 
 const features = [
     {
@@ -38,15 +48,36 @@ const features = [
     },
 ];
 
+const normalizedPropJobs = computed(() => {
+    if (!Array.isArray(props?.availableJobs)) return [];
+
+    return props.availableJobs
+        .filter((job) => job && typeof job === 'object')
+        .map((job, index) => ({
+            id: job.id ?? `job-${index}`,
+            name: String(job.name ?? 'Unknown Job'),
+            slug: String(job.slug ?? ''),
+            emblem_path: job.emblem_path ?? null,
+            description: job.description ?? null,
+        }));
+});
+const hasPropJobsSource = computed(() => Array.isArray(props?.availableJobs));
+
+const loadedJobs = ref([]);
+const displayJobs = computed(() => (loadedJobs.value.length > 0 ? loadedJobs.value : fallbackJobs));
+const totalAvailableJobs = computed(() => loadedJobs.value.length);
+
 const jobsCarousel = ref(null);
 const jobCardRefs = ref([]);
-const getInitialCenterIndex = () => Math.floor(props.availableJobs.length / 2);
-const activeJobIndex = ref(getInitialCenterIndex());
 const sidePadding = ref(0);
 const scrollRaf = ref(null);
 const isMouseDragging = ref(false);
 const dragStartX = ref(0);
 const dragStartScrollLeft = ref(0);
+const activeJobIndex = ref(0);
+let domReadyHandler = null;
+
+const getInitialCenterIndex = (length = displayJobs.value.length) => Math.floor(length / 2);
 
 const getJobDescription = (job) => {
     const slug = String(job?.slug || '').toLowerCase();
@@ -69,6 +100,60 @@ const getJobDescription = (job) => {
     }
 
     return 'Jalur pembelajaran terstruktur untuk membangun skill profesional secara bertahap.';
+};
+
+const extractJobsFromResponse = (response) => {
+    const jobsCandidate = response?.payload?.jobs
+        || response?.payload
+        || response?.data?.payload?.jobs
+        || response?.data?.payload
+        || response?.jobs
+        || [];
+
+    return Array.isArray(jobsCandidate) ? jobsCandidate : [];
+};
+
+const normalizeJobs = (jobs) => {
+    if (!Array.isArray(jobs)) return [];
+
+    return jobs
+        .filter((job) => job && typeof job === 'object')
+        .map((job, index) => ({
+            id: job.id ?? `job-${index}`,
+            name: String(job.name ?? 'Unknown Job'),
+            slug: String(job.slug ?? ''),
+            emblem_path: job.emblem_path ?? null,
+            description: job.description ?? null,
+        }));
+};
+
+const loadJobs = async () => {
+    try {
+        if (hasPropJobsSource.value) {
+            const mockApiResponse = { payload: { jobs: normalizedPropJobs.value } };
+            console.log('API response:', mockApiResponse);
+            loadedJobs.value = normalizeJobs(mockApiResponse?.payload?.jobs || []);
+            return;
+        }
+
+        const response = await fetch('/api/jobs', {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Jobs API failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('API response:', data);
+        loadedJobs.value = normalizeJobs(extractJobsFromResponse(data));
+    } catch (error) {
+        console.error('Jobs load error:', error);
+        loadedJobs.value = [];
+    }
 };
 
 const setJobCardRef = (el, index) => {
@@ -168,16 +253,31 @@ const getCardStateClass = (index) => {
     return index === activeJobIndex.value ? 'job-card--focus' : 'job-card--side';
 };
 
-onMounted(async () => {
+const initCarousel = async () => {
     await nextTick();
     syncCarouselMetrics();
-    if (props.availableJobs.length > 0) {
-        const middleIndex = getInitialCenterIndex();
-        activeJobIndex.value = middleIndex;
-        scrollToCard(middleIndex, 'auto');
+    const middleIndex = getInitialCenterIndex(displayJobs.value.length);
+    activeJobIndex.value = middleIndex;
+    scrollToCard(middleIndex, 'auto');
+};
+
+onMounted(() => {
+    const boot = async () => {
+        await loadJobs();
+        await initCarousel();
+        window.addEventListener('resize', handleResize);
+    };
+
+    if (document.readyState === 'loading') {
+        domReadyHandler = () => {
+            boot();
+            domReadyHandler = null;
+        };
+        document.addEventListener('DOMContentLoaded', domReadyHandler, { once: true });
+        return;
     }
 
-    window.addEventListener('resize', handleResize);
+    boot();
 });
 
 onBeforeUpdate(() => {
@@ -185,18 +285,29 @@ onBeforeUpdate(() => {
 });
 
 watch(
-    () => props.availableJobs.length,
+    () => normalizedPropJobs.value,
+    async (jobs) => {
+        if (jobs.length > 0) {
+            loadedJobs.value = normalizeJobs(jobs);
+            await initCarousel();
+        }
+    },
+    { deep: true },
+);
+
+watch(
+    () => displayJobs.value.length,
     async () => {
-        await nextTick();
-        syncCarouselMetrics();
-        const middleIndex = getInitialCenterIndex();
-        activeJobIndex.value = middleIndex;
-        scrollToCard(middleIndex, 'auto');
+        await initCarousel();
     },
 );
 
 onBeforeUnmount(() => {
     window.removeEventListener('resize', handleResize);
+    if (domReadyHandler) {
+        document.removeEventListener('DOMContentLoaded', domReadyHandler);
+        domReadyHandler = null;
+    }
     if (scrollRaf.value) {
         window.cancelAnimationFrame(scrollRaf.value);
         scrollRaf.value = null;
@@ -376,11 +487,11 @@ onBeforeUnmount(() => {
                 </div>
             </section>
 
-            <section class="px-4 md:px-10 pb-10 md:pb-14" v-if="availableJobs.length">
+            <section class="px-4 md:px-10 pb-10 md:pb-14">
                 <div class="max-w-6xl mx-auto">
                     <div class="flex items-center justify-between gap-3 mb-5">
                         <h2 class="text-[10px] md:text-xs uppercase text-slate-900">Available Jobs</h2>
-                        <span class="text-[8px] md:text-[9px] font-sans text-slate-700">{{ availableJobs.length }} jalur tersedia</span>
+                        <span class="text-[8px] md:text-[9px] font-sans text-slate-700">{{ totalAvailableJobs }} jalur tersedia</span>
                     </div>
 
                     <div class="jobs-stage">
@@ -397,8 +508,8 @@ onBeforeUnmount(() => {
                             <div class="jobs-carousel-spacer" :style="{ width: `${sidePadding}px` }" aria-hidden="true"></div>
 
                             <article
-                                v-for="(job, index) in availableJobs"
-                                :key="job.id"
+                                v-for="(job, index) in displayJobs"
+                                :key="job.id || `job-card-${index}`"
                                 :ref="(el) => setJobCardRef(el, index)"
                                 class="job-card relative overflow-hidden snap-center shrink-0 w-[220px] md:w-[260px] h-[340px] md:h-[360px] border p-4"
                                 :class="[
@@ -431,23 +542,23 @@ onBeforeUnmount(() => {
                                         <img
                                             v-if="job.emblem_path"
                                             :src="`/storage/${job.emblem_path}`"
-                                            :alt="`${job.name} emblem`"
+                                            :alt="`${job.name || 'Job'} emblem`"
                                             class="w-full h-full object-cover"
                                         />
                                         <img
                                             v-else
                                             src="/images/logo.png"
-                                            :alt="`${job.name} default`"
+                                            :alt="`${job.name || 'Job'} default`"
                                             class="w-16 h-16 object-contain opacity-90"
                                         />
                                     </div>
 
                                     <div class="mt-3 border border-white/60 bg-black/20 px-2 py-2 h-[92px]">
                                         <p class="text-[10px] uppercase text-white leading-snug">
-                                            {{ job.name }}
+                                            {{ job.name || 'UNKNOWN JOB' }}
                                         </p>
                                         <p class="text-[10px] font-sans text-white/85 mt-1 leading-[1.35] normal-case">
-                                            {{ getJobDescription(job) }}
+                                            {{ job.description || getJobDescription(job) }}
                                         </p>
                                     </div>
                                 </div>
