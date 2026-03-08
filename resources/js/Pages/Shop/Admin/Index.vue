@@ -283,6 +283,10 @@ const goToPage = (url) => {
                                     OWNED_USERS: {{ item.inventories_count || 0 }}
                                 </div>
 
+                                <div class="text-[8px] text-purple-300 mb-2 uppercase tracking-tighter">
+                                    TRANSACTIONS: {{ item.transactions_count || 0 }}
+                                </div>
+
                                 <div
                                     v-if="item.description"
                                     class="text-[7px] text-slate-500 italic mb-4 border-t border-slate-800 pt-2 leading-loose font-sans"
@@ -291,6 +295,12 @@ const goToPage = (url) => {
                                 </div>
 
                                 <div class="flex gap-4 self-end mt-2">
+                                    <Link
+                                        :href="route('admin.shop-items.detail', item.id)"
+                                        class="text-cyan-400 hover:text-white text-[8px] uppercase font-bold"
+                                    >
+                                        [Detail]
+                                    </Link>
                                     <button
                                         @click="startEdit(item)"
                                         class="text-green-500 hover:text-white text-[8px] uppercase font-bold"

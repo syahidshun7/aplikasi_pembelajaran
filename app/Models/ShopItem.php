@@ -26,5 +26,9 @@ class ShopItem extends Model
     {
         return $this->hasMany(UserInventory::class);
     }
-}
 
+    public function transactions()
+    {
+        return $this->hasMany(ShopTransaction::class, 'shop_item_id');
+    }
+}

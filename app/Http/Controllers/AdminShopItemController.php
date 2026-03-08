@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\ShopItem;
+use App\Models\ShopTransaction;
+use App\Models\UserInventory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -27,7 +30,7 @@ class AdminShopItemController extends Controller
                         ->orWhere('description', 'like', "%{$search}%");
                 });
             })
-            ->withCount('inventories')
+            ->withCount(['inventories', 'transactions'])
             ->latest()
             ->paginate(12)
             ->withQueryString();
@@ -36,6 +39,89 @@ class AdminShopItemController extends Controller
             'items' => $items,
             'filters' => [
                 'search' => $search,
+            ],
+        ]);
+    }
+
+    public function detail(Request $request, ShopItem $item): Response
+    {
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'type' => ['nullable', Rule::in(['purchase', 'consume_unlock'])],
+        ]);
+
+        $search = trim((string) ($validated['search'] ?? ''));
+        $type = (string) ($validated['type'] ?? '');
+
+        $item->loadCount(['inventories', 'transactions']);
+
+        $transactions = ShopTransaction::query()
+            ->where('shop_item_id', $item->id)
+            ->with([
+                'user:id,name,username,email',
+                'item:id,name,code',
+            ])
+            ->when($type !== '', function ($query) use ($type) {
+                $query->where('type', $type);
+            })
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('note', 'like', "%{$search}%")
+                        ->orWhereHas('user', function ($userQuery) use ($search) {
+                            $userQuery->where('name', 'like', "%{$search}%")
+                                ->orWhere('username', 'like', "%{$search}%")
+                                ->orWhere('email', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
+
+        $purchaseQty = (int) ShopTransaction::query()
+            ->where('shop_item_id', $item->id)
+            ->where('type', 'purchase')
+            ->sum('quantity');
+
+        $consumeQty = (int) ShopTransaction::query()
+            ->where('shop_item_id', $item->id)
+            ->where('type', 'consume_unlock')
+            ->sum('quantity');
+
+        $purchaseGold = abs((int) ShopTransaction::query()
+            ->where('shop_item_id', $item->id)
+            ->where('type', 'purchase')
+            ->sum('gold_change'));
+
+        $uniqueBuyerCount = (int) ShopTransaction::query()
+            ->where('shop_item_id', $item->id)
+            ->where('type', 'purchase')
+            ->distinct('user_id')
+            ->count('user_id');
+
+        $activeHolderCount = (int) UserInventory::query()
+            ->where('shop_item_id', $item->id)
+            ->where('quantity', '>', 0)
+            ->count();
+
+        $currentStockOwned = (int) UserInventory::query()
+            ->where('shop_item_id', $item->id)
+            ->sum('quantity');
+
+        return Inertia::render('Shop/Admin/Detail', [
+            'item' => $item,
+            'transactions' => $transactions,
+            'filters' => [
+                'search' => $search,
+                'type' => $type,
+            ],
+            'stats' => [
+                'purchase_qty' => $purchaseQty,
+                'consume_qty' => $consumeQty,
+                'purchase_gold' => $purchaseGold,
+                'unique_buyer_count' => $uniqueBuyerCount,
+                'active_holder_count' => $activeHolderCount,
+                'current_stock_owned' => $currentStockOwned,
             ],
         ]);
     }
@@ -111,4 +197,3 @@ class AdminShopItemController extends Controller
         return back()->with('message', 'SHOP_ITEM_DELETED');
     }
 }
-
