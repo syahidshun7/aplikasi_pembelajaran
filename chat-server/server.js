@@ -8,13 +8,23 @@ const server = http.createServer(app);
 const roomMembers = new Map();
 const socketPresence = new Map();
 
-app.use(cors());
+const CHAT_PORT = Number(process.env.PORT || 3001);
+const CHAT_HOST = process.env.HOST || '0.0.0.0';
+const corsOriginEnv = process.env.CORS_ORIGIN;
+const corsOrigin = corsOriginEnv
+    ? corsOriginEnv.split(',').map((origin) => origin.trim()).filter(Boolean)
+    : '*';
+
+app.use(cors({
+    origin: corsOrigin,
+    methods: ['GET', 'POST'],
+}));
 app.use(express.json());
 
 const io = new Server(server, {
     cors: {
-        origin: "*",
-        methods: ["GET","POST"]
+        origin: corsOrigin,
+        methods: ['GET', 'POST'],
     }
 });
 
@@ -121,6 +131,6 @@ io.on("connection",(socket)=>{
     });
 });
 
-server.listen(3001,()=>{
-    console.log("Chat server running on port 3001");
+server.listen(CHAT_PORT, CHAT_HOST, () => {
+    console.log(`Chat server running on ${CHAT_HOST}:${CHAT_PORT}`);
 });

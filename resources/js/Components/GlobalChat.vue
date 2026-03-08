@@ -14,6 +14,20 @@ const page = usePage();
 const authUser = computed(() => page.props?.auth?.user || null);
 let socket = null;
 
+const getChatServerUrl = () => {
+    const configuredUrl = String(import.meta.env.VITE_CHAT_SERVER_URL || '').trim();
+    if (configuredUrl !== '') {
+        return configuredUrl.replace(/\/+$/, '');
+    }
+
+    if (typeof window !== 'undefined') {
+        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+        return `${protocol}//${window.location.hostname}:3001`;
+    }
+
+    return 'http://localhost:3001';
+};
+
 const normalizeIdentity = (value) => String(value || '').trim().toLowerCase();
 
 const resolveUserName = () => {
@@ -113,9 +127,8 @@ const sendMessage = () => {
 onMounted(() => {
     userName.value = resolveUserName();
 
-    socket = io('http://localhost:3001', {
+    socket = io(getChatServerUrl(), {
         transports: ['websocket', 'polling'],
-        withCredentials: true,
     });
 
     socket.on('connect', () => {

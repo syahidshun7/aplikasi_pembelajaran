@@ -16,7 +16,8 @@
 
 <script>
 
-const socket = io("http://localhost:3001");
+const chatServerUrl = `${window.location.protocol}//${window.location.hostname}:3001`;
+const socket = io(chatServerUrl);
 
 socket.emit("join_room",{
     room:"global",
