@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Test Chat</title>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+
+<body>
+
+<h2>Chat Test</h2>
+
+<input id="message" placeholder="message">
+<button onclick="send()">Send</button>
+
+<ul id="chat"></ul>
+
+<script>
+
+const socket = io("http://localhost:3001");
+
+socket.emit("join_room",{
+    room:"global",
+    user:"User1"
+});
+
+socket.on("receive_message",(data)=>{
+    const li = document.createElement("li");
+    li.innerText = data.user + " : " + data.message;
+    document.getElementById("chat").appendChild(li);
+});
+
+function send(){
+    const message = document.getElementById("message").value;
+
+    socket.emit("send_message",{
+        room:"global",
+        user:"User1",
+        message:message
+    });
+}
+
+</script>
+
+</body>
+</html>

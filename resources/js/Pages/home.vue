@@ -200,75 +200,6 @@ const closeMobileMenu = () => {
 
                 <div class="col-span-12 lg:col-span-4 space-y-6">
 
-                    <div
-                        class="rpg-panel border-indigo-500/50 h-[380px] flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm relative">
-                        <div
-                            class="flex justify-between items-start mb-4 border-b border-indigo-900 pb-2 flex-shrink-0">
-                            <h2
-                                class="text-indigo-400 text-[10px] uppercase tracking-widest flex items-center gap-2 font-['Press_Start_2P']">
-                                Materi Ajar
-                            </h2>
-
-                            <Link
-                                :href="auth.user ? route('guides.user.index') : route('login')"
-                                class="bg-indigo-900/40 p-2 border-b-4 border-r-4 border-indigo-500 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.5)] flex items-center justify-center hover:bg-indigo-500/50 transition-colors"
-                                title="Lihat semua materi">
-                                <i class="fi fi-rr-book-alt text-xl leading-none text-indigo-200"></i>
-                            </Link>
-                        </div>
-
-                        <div class="space-y-4 overflow-y-auto pr-2 custom-scroll-indigo flex-1">
-                            <div v-for="item in guides" :key="item.uuid"
-                                class="p-0 bg-[#0d1117] border-2 border-slate-800 hover:border-indigo-500 transition-all group relative overflow-hidden">
-
-                                <div class="absolute top-0 left-0 w-1 h-full bg-indigo-600"></div>
-
-                                <div class="p-3 pl-5 relative">
-                                    <div class="flex justify-between items-center mb-1">
-                                        <span
-                                            class="text-[7px] text-indigo-400 font-['Press_Start_2P'] uppercase tracking-tighter">[
-                                            STUDY_MATERIAL ]</span>
-                                        <span class="text-[10px] text-slate-600 font-mono italic uppercase">Ref.{{
-                                            item.uuid.substring(0, 5) }}</span>
-                                    </div>
-                                    <p class="text-[8px] uppercase mb-1"
-                                        :class="item.study_group_id ? 'text-emerald-400' : 'text-cyan-400'">
-                                        {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
-                                    </p>
-
-                                    <h3
-                                        class="text-[14px] font-sans font-extrabold text-white uppercase tracking-tight group-hover:text-indigo-300 leading-tight mb-1">
-                                        {{ item.title }}
-                                    </h3>
-
-                                    <p
-                                        class="text-[12px] font-sans text-slate-500 italic mb-4 line-clamp-2 leading-snug">
-                                        {{ item.description || 'Accessing knowledge database...' }}
-                                    </p>
-
-                                    <div class="flex justify-between items-center border-t border-slate-800/50 pt-2.5">
-                                        <div class="flex items-center gap-1">
-                                            <span class="w-1 h-1 bg-green-500 rounded-full animate-pulse"></span>
-                                            <span
-                                                class="text-[8px] text-slate-500 font-['Press_Start_2P'] uppercase">Verified</span>
-                                        </div>
-
-                                        <Link :href="route('guides.user.show', item.uuid)"
-                                            class="text-[8px] bg-[#1a1c2c] text-indigo-300 px-3 py-1.5 border-b-2 border-r-2 border-indigo-900 hover:bg-indigo-500 hover:text-white transition-all uppercase font-['Press_Start_2P']">
-                                            DETAIL
-                                        </Link>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div v-if="guides.length === 0" class="text-center py-8">
-                                <p
-                                    class="text-slate-700 text-[8px] uppercase font-['Press_Start_2P'] italic tracking-tighter">
-                                    Database_Empty</p>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="rpg-panel border-[#3d415f] h-[350px] flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm">
                         <h2
                             class="text-[#4ed4d4] text-[10px] mb-4 flex items-center gap-2 border-b border-slate-700 pb-2 flex-shrink-0 uppercase">
@@ -320,6 +251,8 @@ const closeMobileMenu = () => {
                             </div>
                         </div>
                     </div>
+
+                    <global-chat></global-chat>
                 </div>
 
                 <div class="col-span-12 lg:col-span-8 space-y-6">
@@ -431,6 +364,75 @@ const closeMobileMenu = () => {
                                 <p class="text-slate-700 text-[8px] uppercase italic tracking-tighter">
                                     No_Events_Available
                                 </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="rpg-panel border-indigo-500/50 h-[380px] flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm relative">
+                        <div
+                            class="flex justify-between items-start mb-4 border-b border-indigo-900 pb-2 flex-shrink-0">
+                            <h2
+                                class="text-indigo-400 text-[10px] uppercase tracking-widest flex items-center gap-2 font-['Press_Start_2P']">
+                                Materi Ajar
+                            </h2>
+
+                            <Link
+                                :href="auth.user ? route('guides.user.index') : route('login')"
+                                class="bg-indigo-900/40 p-2 border-b-4 border-r-4 border-indigo-500 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.5)] flex items-center justify-center hover:bg-indigo-500/50 transition-colors"
+                                title="Lihat semua materi">
+                                <i class="fi fi-rr-book-alt text-xl leading-none text-indigo-200"></i>
+                            </Link>
+                        </div>
+
+                        <div class="space-y-4 overflow-y-auto pr-2 custom-scroll-indigo flex-1">
+                            <div v-for="item in guides" :key="item.uuid"
+                                class="p-0 bg-[#0d1117] border-2 border-slate-800 hover:border-indigo-500 transition-all group relative overflow-hidden">
+
+                                <div class="absolute top-0 left-0 w-1 h-full bg-indigo-600"></div>
+
+                                <div class="p-3 pl-5 relative">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span
+                                            class="text-[7px] text-indigo-400 font-['Press_Start_2P'] uppercase tracking-tighter">[
+                                            STUDY_MATERIAL ]</span>
+                                        <span class="text-[10px] text-slate-600 font-mono italic uppercase">Ref.{{
+                                            item.uuid.substring(0, 5) }}</span>
+                                    </div>
+                                    <p class="text-[8px] uppercase mb-1"
+                                        :class="item.study_group_id ? 'text-emerald-400' : 'text-cyan-400'">
+                                        {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
+                                    </p>
+
+                                    <h3
+                                        class="text-[14px] font-sans font-extrabold text-white uppercase tracking-tight group-hover:text-indigo-300 leading-tight mb-1">
+                                        {{ item.title }}
+                                    </h3>
+
+                                    <p
+                                        class="text-[12px] font-sans text-slate-500 italic mb-4 line-clamp-2 leading-snug">
+                                        {{ item.description || 'Accessing knowledge database...' }}
+                                    </p>
+
+                                    <div class="flex justify-between items-center border-t border-slate-800/50 pt-2.5">
+                                        <div class="flex items-center gap-1">
+                                            <span class="w-1 h-1 bg-green-500 rounded-full animate-pulse"></span>
+                                            <span
+                                                class="text-[8px] text-slate-500 font-['Press_Start_2P'] uppercase">Verified</span>
+                                        </div>
+
+                                        <Link :href="route('guides.user.show', item.uuid)"
+                                            class="text-[8px] bg-[#1a1c2c] text-indigo-300 px-3 py-1.5 border-b-2 border-r-2 border-indigo-900 hover:bg-indigo-500 hover:text-white transition-all uppercase font-['Press_Start_2P']">
+                                            DETAIL
+                                        </Link>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="guides.length === 0" class="text-center py-8">
+                                <p
+                                    class="text-slate-700 text-[8px] uppercase font-['Press_Start_2P'] italic tracking-tighter">
+                                    Database_Empty</p>
                             </div>
                         </div>
                     </div>

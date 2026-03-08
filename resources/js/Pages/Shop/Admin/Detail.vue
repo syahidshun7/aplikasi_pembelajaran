@@ -1,6 +1,7 @@
 <script setup>
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
+import Swal from 'sweetalert2';
 
 const props = defineProps({
     item: {
@@ -68,6 +69,55 @@ const compactMeta = (meta) => {
     if (entries.length === 0) return '-';
     const [key, value] = entries[0];
     return `${key}: ${value}`;
+};
+
+const canCancelTransaction = (tx) => {
+    return tx?.type === 'purchase' && !tx?.is_cancelled;
+};
+
+const cancelTransaction = async (tx) => {
+    if (!tx?.id || !canCancelTransaction(tx)) return;
+
+    const result = await Swal.fire({
+        title: 'CANCEL_TRANSACTION?',
+        text: 'Gold user akan dikembalikan dan item ditarik kembali.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'YES_CANCEL',
+        cancelButtonText: 'NO',
+        background: '#1a1c2c',
+        color: '#4ed4d4',
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#334155',
+    });
+
+    if (!result.isConfirmed) return;
+
+    router.post(
+        route('admin.shop-items.transactions.cancel', { item: props.item.id, transaction: tx.id }),
+        {},
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'TRANSACTION_CANCELLED',
+                    text: 'Transaksi berhasil dibatalkan dan direfund.',
+                    background: '#1a1c2c',
+                    color: '#4ed4d4',
+                });
+            },
+            onError: (errors) => {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'CANCEL_FAILED',
+                    text: errors?.transaction || 'Pembatalan transaksi gagal.',
+                    background: '#1a1c2c',
+                    color: '#ff4d4d',
+                });
+            },
+        },
+    );
 };
 </script>
 
@@ -190,6 +240,7 @@ const compactMeta = (meta) => {
                                 <th class="py-3 px-2">Gold Change</th>
                                 <th class="py-3 px-2">Note</th>
                                 <th class="py-3 px-2">Meta</th>
+                                <th class="py-3 px-2 text-right">Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -217,11 +268,25 @@ const compactMeta = (meta) => {
                                 <td class="py-3 px-2 font-sans" :class="(tx.gold_change || 0) < 0 ? 'text-red-300' : 'text-emerald-300'">
                                     {{ tx.gold_change || 0 }}
                                 </td>
-                                <td class="py-3 px-2 text-slate-300 font-sans">{{ tx.note || '-' }}</td>
+                                <td class="py-3 px-2 text-slate-300 font-sans">
+                                    <p>{{ tx.note || '-' }}</p>
+                                    <p v-if="tx.is_cancelled" class="mt-1 text-[8px] text-rose-300 uppercase">Cancelled_Refunded</p>
+                                </td>
                                 <td class="py-3 px-2 text-slate-400 font-sans">{{ compactMeta(tx.meta) }}</td>
+                                <td class="py-3 px-2 text-right">
+                                    <button
+                                        v-if="canCancelTransaction(tx)"
+                                        type="button"
+                                        @click="cancelTransaction(tx)"
+                                        class="px-3 py-1 border border-rose-700 text-rose-300 hover:bg-rose-600 hover:text-white uppercase text-[8px]"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <span v-else class="text-[8px] uppercase text-slate-600">-</span>
+                                </td>
                             </tr>
                             <tr v-if="transactions.data.length === 0">
-                                <td colspan="7" class="py-8 text-center text-slate-500 uppercase">No_Transaction_Data</td>
+                                <td colspan="8" class="py-8 text-center text-slate-500 uppercase">No_Transaction_Data</td>
                             </tr>
                         </tbody>
                     </table>

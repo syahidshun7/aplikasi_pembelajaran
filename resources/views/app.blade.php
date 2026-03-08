@@ -14,6 +14,22 @@
 
         <!-- Scripts -->
         @routes
+        @php
+            $bladeUser = null;
+            if (auth()->check()) {
+                $bladeUser = [
+                    'id' => auth()->user()->id,
+                    'name' => auth()->user()->name,
+                    'username' => auth()->user()->username,
+                    'email' => auth()->user()->email,
+                ];
+            }
+        @endphp
+        <script>
+            window.Laravel = Object.assign({}, window.Laravel || {}, {
+                user: @json($bladeUser),
+            });
+        </script>
         @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
         @inertiaHead
 

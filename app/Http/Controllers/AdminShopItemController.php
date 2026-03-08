@@ -7,6 +7,7 @@ use App\Models\ShopTransaction;
 use App\Models\UserInventory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -78,6 +79,12 @@ class AdminShopItemController extends Controller
             ->paginate(20)
             ->withQueryString();
 
+        $transactions->through(function (ShopTransaction $tx) {
+            $meta = is_array($tx->meta) ? $tx->meta : [];
+            $tx->is_cancelled = !empty($meta['admin_cancelled_at']);
+            return $tx;
+        });
+
         $purchaseQty = (int) ShopTransaction::query()
             ->where('shop_item_id', $item->id)
             ->where('type', 'purchase')
@@ -124,6 +131,98 @@ class AdminShopItemController extends Controller
                 'current_stock_owned' => $currentStockOwned,
             ],
         ]);
+    }
+
+    public function cancelTransaction(ShopItem $item, ShopTransaction $transaction): RedirectResponse
+    {
+        if ((int) $transaction->shop_item_id !== (int) $item->id) {
+            abort(404);
+        }
+
+        if ($transaction->type !== 'purchase') {
+            return back()->withErrors([
+                'transaction' => 'Hanya transaksi purchase yang bisa dibatalkan.',
+            ]);
+        }
+
+        $meta = is_array($transaction->meta) ? $transaction->meta : [];
+        if (!empty($meta['admin_cancelled_at'])) {
+            return back()->withErrors([
+                'transaction' => 'Transaksi ini sudah pernah dibatalkan.',
+            ]);
+        }
+
+        try {
+            DB::transaction(function () use ($transaction, $item) {
+                $tx = ShopTransaction::query()
+                    ->whereKey($transaction->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $meta = is_array($tx->meta) ? $tx->meta : [];
+                if (!empty($meta['admin_cancelled_at'])) {
+                    throw new \RuntimeException('TRANSACTION_ALREADY_CANCELLED');
+                }
+
+                $user = \App\Models\User::query()
+                    ->whereKey($tx->user_id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $inventory = UserInventory::query()
+                    ->where('user_id', $user->id)
+                    ->where('shop_item_id', $item->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                $hasUsageAfterPurchase = ShopTransaction::query()
+                    ->where('user_id', $user->id)
+                    ->where('shop_item_id', $item->id)
+                    ->where('type', 'consume_unlock')
+                    ->where('created_at', '>=', $tx->created_at)
+                    ->exists();
+
+                if ($hasUsageAfterPurchase) {
+                    throw new \RuntimeException('ITEM_ALREADY_USED');
+                }
+
+                $qty = max(1, (int) $tx->quantity);
+                if (! $inventory || (int) $inventory->quantity < $qty) {
+                    throw new \RuntimeException('INSUFFICIENT_ITEM_STOCK');
+                }
+
+                $refundGold = max(0, -((int) $tx->gold_change));
+
+                $inventory->decrement('quantity', $qty);
+                if ($refundGold > 0) {
+                    $user->increment('gold', $refundGold);
+                }
+
+                $currentMeta = is_array($tx->meta) ? $tx->meta : [];
+                $tx->update([
+                    'note' => trim(($tx->note ? $tx->note . ' | ' : '') . 'Admin cancelled & refunded'),
+                    'meta' => array_merge($currentMeta, [
+                        'admin_cancelled_at' => now()->toDateTimeString(),
+                        'admin_cancelled_by' => (int) auth()->id(),
+                        'refund_gold' => $refundGold,
+                        'refund_quantity' => $qty,
+                    ]),
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            $message = match ($e->getMessage()) {
+                'ITEM_ALREADY_USED' => 'Transaksi tidak bisa dibatalkan karena item sudah digunakan user.',
+                'INSUFFICIENT_ITEM_STOCK' => 'Transaksi tidak bisa dibatalkan karena item sudah berkurang/digunakan.',
+                'TRANSACTION_ALREADY_CANCELLED' => 'Transaksi ini sudah pernah dibatalkan.',
+                default => 'Pembatalan transaksi gagal.',
+            };
+
+            return back()->withErrors([
+                'transaction' => $message,
+            ]);
+        }
+
+        return back()->with('message', 'SHOP_TRANSACTION_CANCELLED_AND_REFUNDED');
     }
 
     public function store(Request $request): RedirectResponse

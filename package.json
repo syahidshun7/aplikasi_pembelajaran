@@ -24,6 +24,7 @@
     "dependencies": {
         "@flaticon/flaticon-uicons": "^3.3.1",
         "@inertiajs/vue3": "^2.3.13",
+        "socket.io-client": "^4.8.3",
         "sweetalert2": "^11.26.18",
         "vue": "^3.5.28"
     }

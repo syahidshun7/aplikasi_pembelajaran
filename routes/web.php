@@ -103,6 +103,7 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::prefix('admin/shop-items')->name('admin.shop-items.')->group(function () {
         Route::get('/', [AdminShopItemController::class, 'index'])->name('index');
         Route::get('/{item}/detail', [AdminShopItemController::class, 'detail'])->name('detail');
+        Route::post('/{item}/transactions/{transaction}/cancel', [AdminShopItemController::class, 'cancelTransaction'])->name('transactions.cancel');
         Route::post('/', [AdminShopItemController::class, 'store'])->name('store');
         Route::put('/{item}', [AdminShopItemController::class, 'update'])->name('update');
         Route::delete('/{item}', [AdminShopItemController::class, 'destroy'])->name('destroy');

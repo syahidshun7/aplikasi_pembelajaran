@@ -100,12 +100,26 @@ const getJobDescription = (job) => {
     return 'Jalur pembelajaran terstruktur untuk membangun skill profesional secara bertahap.';
 };
 
+const getNestedValue = (source, keys = []) => {
+    if (!source || typeof source !== 'object') return undefined;
+
+    let current = source;
+    for (const key of keys) {
+        if (!current || typeof current !== 'object' || !(key in current)) {
+            return undefined;
+        }
+        current = current[key];
+    }
+
+    return current;
+};
+
 const extractJobsFromResponse = (response) => {
-    const jobsCandidate = response?.payload?.jobs
-        || response?.payload
-        || response?.data?.payload?.jobs
-        || response?.data?.payload
-        || response?.jobs
+    const jobsCandidate = getNestedValue(response, ['payload', 'jobs'])
+        || getNestedValue(response, ['payload'])
+        || getNestedValue(response, ['data', 'payload', 'jobs'])
+        || getNestedValue(response, ['data', 'payload'])
+        || getNestedValue(response, ['jobs'])
         || [];
 
     return Array.isArray(jobsCandidate) ? jobsCandidate : [];
@@ -130,7 +144,9 @@ const loadJobs = async () => {
         if (hasPropJobsSource.value) {
             const mockApiResponse = { payload: { jobs: normalizedPropJobs.value } };
             console.log('API response:', mockApiResponse);
-            loadedJobs.value = normalizeJobs(mockApiResponse?.payload?.jobs || []);
+            loadedJobs.value = normalizeJobs(
+                getNestedValue(mockApiResponse, ['payload', 'jobs']) || []
+            );
             return;
         }
 
