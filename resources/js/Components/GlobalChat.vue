@@ -14,6 +14,15 @@ const page = usePage();
 const authUser = computed(() => page.props?.auth?.user || null);
 let socket = null;
 
+const getChatSocketPath = () => {
+    const configuredPath = String(import.meta.env.VITE_CHAT_SOCKET_PATH || '').trim();
+    if (configuredPath === '') {
+        return '/socket.io';
+    }
+
+    return configuredPath.startsWith('/') ? configuredPath : `/${configuredPath}`;
+};
+
 const getChatServerUrl = () => {
     const configuredUrl = String(import.meta.env.VITE_CHAT_SERVER_URL || '').trim();
     if (configuredUrl !== '') {
@@ -21,8 +30,12 @@ const getChatServerUrl = () => {
     }
 
     if (typeof window !== 'undefined') {
-        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-        return `${protocol}//${window.location.hostname}:3001`;
+        if (window.location.protocol === 'https:') {
+            // In production HTTPS, socket is usually exposed behind reverse proxy on same origin.
+            return window.location.origin;
+        }
+
+        return `${window.location.protocol}//${window.location.hostname}:3001`;
     }
 
     return 'http://localhost:3001';
@@ -128,6 +141,7 @@ onMounted(() => {
     userName.value = resolveUserName();
 
     socket = io(getChatServerUrl(), {
+        path: getChatSocketPath(),
         transports: ['websocket', 'polling'],
     });
 

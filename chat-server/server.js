@@ -10,6 +10,7 @@ const socketPresence = new Map();
 
 const CHAT_PORT = Number(process.env.PORT || 3001);
 const CHAT_HOST = process.env.HOST || '0.0.0.0';
+const SOCKET_PATH = process.env.SOCKET_PATH || '/socket.io';
 const corsOriginEnv = process.env.CORS_ORIGIN;
 const corsOrigin = corsOriginEnv
     ? corsOriginEnv.split(',').map((origin) => origin.trim()).filter(Boolean)
@@ -22,6 +23,7 @@ app.use(cors({
 app.use(express.json());
 
 const io = new Server(server, {
+    path: SOCKET_PATH,
     cors: {
         origin: corsOrigin,
         methods: ['GET', 'POST'],
@@ -132,5 +134,5 @@ io.on("connection",(socket)=>{
 });
 
 server.listen(CHAT_PORT, CHAT_HOST, () => {
-    console.log(`Chat server running on ${CHAT_HOST}:${CHAT_PORT}`);
+    console.log(`Chat server running on ${CHAT_HOST}:${CHAT_PORT} with path ${SOCKET_PATH}`);
 });
