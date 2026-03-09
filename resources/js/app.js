@@ -6,7 +6,6 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h, watch } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 import Swal from 'sweetalert2';
-import GlobalChat from './Components/GlobalChat.vue';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 const PRELOAD_RECOVERY_KEY = 'vite-preload-recovered-once';
@@ -92,8 +91,6 @@ createInertiaApp({
         };
 
         const app = createApp(Root);
-
-        app.component('global-chat', GlobalChat);
 
         return app
             .use(plugin)
