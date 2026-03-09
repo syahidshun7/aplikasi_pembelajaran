@@ -7,12 +7,20 @@ const messages = ref([]);
 const onlineUsers = ref([]);
 const messageInput = ref('');
 const chatContainer = ref(null);
+const activeRoom = ref('assigning...');
+const isConnected = ref(false);
+const rateLimitNotice = ref('');
+const hasMoreHistory = ref(true);
+const isLoadingHistory = ref(false);
+const historyCursorId = ref(null);
 
-const room = 'global';
 const userName = ref('Anonymous');
+const userId = ref(null);
 const page = usePage();
 const authUser = computed(() => page.props?.auth?.user || null);
 let socket = null;
+let historyRequestTimer = null;
+const MESSAGE_PAGE_SIZE = 10;
 
 const getChatSocketPath = () => {
     const configuredPath = String(import.meta.env.VITE_CHAT_SOCKET_PATH || '').trim();
@@ -25,17 +33,30 @@ const getChatSocketPath = () => {
 
 const getChatServerUrl = () => {
     const configuredUrl = String(import.meta.env.VITE_CHAT_SERVER_URL || '').trim();
-    if (configuredUrl !== '') {
-        return configuredUrl.replace(/\/+$/, '');
-    }
 
     if (typeof window !== 'undefined') {
+        const host = String(window.location.hostname || '').toLowerCase();
+        const isLocalHost = host === 'localhost' || host === '127.0.0.1';
+
+        // In local development/testing, always point to local chat server.
+        if (isLocalHost) {
+            return `${window.location.protocol}//${window.location.hostname}:3001`;
+        }
+
+        if (configuredUrl !== '') {
+            return configuredUrl.replace(/\/+$/, '');
+        }
+
         if (window.location.protocol === 'https:') {
             // In production HTTPS, socket is usually exposed behind reverse proxy on same origin.
             return window.location.origin;
         }
 
         return `${window.location.protocol}//${window.location.hostname}:3001`;
+    }
+
+    if (configuredUrl !== '') {
+        return configuredUrl.replace(/\/+$/, '');
     }
 
     return 'http://localhost:3001';
@@ -72,6 +93,22 @@ const resolveUserName = () => {
     return 'Anonymous';
 };
 
+const resolveUserId = () => {
+    const pageUser = authUser.value;
+    const parsedId = Number(pageUser?.id);
+    if (Number.isInteger(parsedId) && parsedId > 0) {
+        return parsedId;
+    }
+
+    return null;
+};
+
+const buildToken = () => {
+    const currentUserId = resolveUserId();
+    if (!currentUserId) return '';
+    return `user:${currentUserId}`;
+};
+
 const fallbackTime = () => {
     return new Date().toLocaleTimeString('id-ID', {
         hour: '2-digit',
@@ -80,14 +117,33 @@ const fallbackTime = () => {
     });
 };
 
+const toDisplayTime = (dateLike) => {
+    const date = new Date(dateLike);
+    if (Number.isNaN(date.getTime())) {
+        return fallbackTime();
+    }
+
+    return date.toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
+};
+
 const normalizeMessage = (payload = {}) => {
     const sender = String(payload.user || 'Anonymous');
+    const senderId = Number(payload.user_id || 0);
+    const messageId = Number(payload.id || 0);
+    const createdAt = payload.created_at ? String(payload.created_at) : null;
+    const mineById = userId.value && senderId ? senderId === userId.value : false;
     return {
-        room: String(payload.room || room),
+        id: Number.isInteger(messageId) && messageId > 0 ? messageId : null,
+        room: String(payload.room || activeRoom.value || 'unknown'),
         user: sender,
         message: String(payload.message || ''),
-        time: String(payload.time || fallbackTime()),
-        isMine: normalizeIdentity(sender) === normalizeIdentity(userName.value),
+        time: String(payload.time || (createdAt ? toDisplayTime(createdAt) : fallbackTime())),
+        created_at: createdAt,
+        isMine: mineById || normalizeIdentity(sender) === normalizeIdentity(userName.value),
     };
 };
 
@@ -99,9 +155,51 @@ const scrollToBottom = async () => {
 
 const handleReceiveMessage = async (payload = {}) => {
     const parsed = normalizeMessage(payload);
-    if (parsed.room !== room || parsed.message.trim() === '') return;
+    if (parsed.message.trim() === '') return;
+    if (parsed.id && messages.value.some((item) => item.id === parsed.id)) return;
+
+    if (activeRoom.value !== 'assigning...' && parsed.room !== activeRoom.value) {
+        return;
+    }
+
     messages.value.push(parsed);
     await scrollToBottom();
+};
+
+const requestHistory = (beforeId = null) => {
+    if (!socket || !isConnected.value || isLoadingHistory.value) return;
+
+    isLoadingHistory.value = true;
+
+    if (historyRequestTimer) {
+        clearTimeout(historyRequestTimer);
+    }
+
+    historyRequestTimer = setTimeout(() => {
+        isLoadingHistory.value = false;
+    }, 4000);
+
+    const payload = { limit: MESSAGE_PAGE_SIZE };
+    const cursor = Number(beforeId);
+    if (Number.isInteger(cursor) && cursor > 0) {
+        payload.before_id = cursor;
+    }
+
+    socket.emit('load_messages', payload);
+};
+
+const handleHistoryScroll = () => {
+    if (!chatContainer.value) return;
+    if (!hasMoreHistory.value || isLoadingHistory.value) return;
+    if (chatContainer.value.scrollTop > 24) return;
+
+    const cursor = Number(historyCursorId.value || 0);
+    if (!Number.isInteger(cursor) || cursor <= 0) {
+        hasMoreHistory.value = false;
+        return;
+    }
+
+    requestHistory(cursor);
 };
 
 const handleOnlineUsers = (payload = []) => {
@@ -120,49 +218,165 @@ const handleOnlineUsers = (payload = []) => {
                 .filter(Boolean)
         )
     );
+
+    if (activeRoom.value === 'assigning...' && onlineUsers.value.length > 0) {
+        activeRoom.value = 'global';
+    }
+};
+
+const handleRoomAssigned = (payload = {}) => {
+    const nextRoom = String(payload.room || '').trim();
+    if (nextRoom !== '') {
+        activeRoom.value = nextRoom;
+    }
+
+    messages.value = [];
+    hasMoreHistory.value = true;
+    isLoadingHistory.value = false;
+    historyCursorId.value = null;
+    requestHistory();
+};
+
+const pushSystemNotice = async (text) => {
+    messages.value.push({
+        room: activeRoom.value,
+        user: 'System',
+        message: String(text || ''),
+        time: fallbackTime(),
+        isMine: false,
+    });
+    await scrollToBottom();
 };
 
 const sendMessage = () => {
     const plainMessage = messageInput.value.trim();
     if (!socket || plainMessage === '') return;
 
-    const payload = {
-        room,
-        user: userName.value,
+    socket.emit('send_message', {
         message: plainMessage,
-        time: fallbackTime(),
-    };
-
-    socket.emit('send_message', payload);
+    });
     messageInput.value = '';
+};
+
+const handleMessageHistory = async (payload = {}) => {
+    const historyRoom = String(payload.room || '').trim();
+    if (activeRoom.value !== 'assigning...' && historyRoom && historyRoom !== activeRoom.value) {
+        isLoadingHistory.value = false;
+        return;
+    }
+
+    const incomingRaw = Array.isArray(payload.messages) ? payload.messages : [];
+    const incomingParsed = incomingRaw
+        .map((item) => normalizeMessage(item))
+        .filter((item) => item.message.trim() !== '');
+
+    const mode = String(payload.mode || 'replace');
+    let incoming = incomingParsed;
+
+    if (mode === 'prepend') {
+        const existingIds = new Set(
+            messages.value
+                .map((item) => item.id)
+                .filter((id) => Number.isInteger(id) && id > 0)
+        );
+
+        incoming = incomingParsed.filter((item) => !item.id || !existingIds.has(item.id));
+    }
+
+    if (mode === 'prepend') {
+        const prevHeight = chatContainer.value?.scrollHeight || 0;
+        const prevTop = chatContainer.value?.scrollTop || 0;
+
+        messages.value = [...incoming, ...messages.value];
+        await nextTick();
+
+        if (chatContainer.value) {
+            const newHeight = chatContainer.value.scrollHeight;
+            chatContainer.value.scrollTop = prevTop + (newHeight - prevHeight);
+        }
+    } else {
+        messages.value = incoming;
+        await scrollToBottom();
+    }
+
+    hasMoreHistory.value = Boolean(payload.has_more);
+
+    const nextBeforeId = Number(payload.next_before_id || 0);
+    if (Number.isInteger(nextBeforeId) && nextBeforeId > 0) {
+        historyCursorId.value = nextBeforeId;
+    } else {
+        const oldest = messages.value[0];
+        historyCursorId.value = oldest?.id || null;
+    }
+
+    if (historyRequestTimer) {
+        clearTimeout(historyRequestTimer);
+        historyRequestTimer = null;
+    }
+
+    isLoadingHistory.value = false;
 };
 
 onMounted(() => {
     userName.value = resolveUserName();
+    userId.value = resolveUserId();
+    const token = buildToken();
+
+    if (!token) {
+        pushSystemNotice('Autentikasi chat tidak valid. Silakan login ulang.');
+        return;
+    }
 
     socket = io(getChatServerUrl(), {
         path: getChatSocketPath(),
-        transports: ['websocket', 'polling'],
+        transports: ['polling', 'websocket'],
+        tryAllTransports: true,
+        auth: { token },
     });
 
     socket.on('connect', () => {
-        onlineUsers.value = [userName.value];
+        isConnected.value = true;
+        rateLimitNotice.value = '';
         socket.emit('join_room', {
-            room,
+            token,
             user: userName.value,
+            room: 'global',
         });
     });
 
+    socket.on('disconnect', () => {
+        isConnected.value = false;
+    });
+
+    socket.on('room_assigned', handleRoomAssigned);
+    socket.on('message_history', handleMessageHistory);
     socket.on('receive_message', handleReceiveMessage);
     socket.on('online_users', handleOnlineUsers);
+    socket.on('rate_limit', async (payload = {}) => {
+        rateLimitNotice.value = String(payload.message || 'Rate limit exceeded');
+        await pushSystemNotice(rateLimitNotice.value);
+    });
+    socket.on('auth_error', async (payload = {}) => {
+        await pushSystemNotice(String(payload.message || 'Auth error'));
+    });
+    socket.on('server_error', async (payload = {}) => {
+        await pushSystemNotice(String(payload.message || 'Server error'));
+    });
 });
 
 onBeforeUnmount(() => {
     if (!socket) return;
+    socket.off('room_assigned', handleRoomAssigned);
+    socket.off('message_history', handleMessageHistory);
     socket.off('receive_message', handleReceiveMessage);
     socket.off('online_users', handleOnlineUsers);
     socket.disconnect();
     socket = null;
+
+    if (historyRequestTimer) {
+        clearTimeout(historyRequestTimer);
+        historyRequestTimer = null;
+    }
 });
 </script>
 
@@ -170,23 +384,25 @@ onBeforeUnmount(() => {
     <div class="rpg-panel border-cyan-500/40 flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm">
         <div class="flex justify-between items-center mb-4 border-b border-cyan-900 pb-2 flex-shrink-0">
             <h2 class="text-cyan-300 text-[10px] uppercase tracking-widest flex items-center gap-2">
-                <i class="fi fi-rr-comments text-[12px]"></i> Global_Chat
+                <i class="fi fi-rr-comments text-[12px]"></i> Job_Chat
             </h2>
-            <span class="text-[8px] text-cyan-200 uppercase">Room: {{ room }}</span>
+            <span class="text-[8px] text-cyan-200 uppercase">Room: {{ activeRoom }}</span>
         </div>
 
         <div class="border border-slate-800 bg-[#0d1117]/70 p-3 mb-3">
             <div class="flex items-center justify-between gap-2 mb-2 border-b border-slate-800 pb-2">
                 <p class="text-[8px] uppercase text-emerald-300">Online_Users</p>
-                <p class="text-[8px] uppercase text-slate-500">You: {{ userName }}</p>
+                <p class="text-[8px] uppercase text-slate-500">You: {{ userName }} | {{ isConnected ? 'ON' : 'OFF' }}</p>
             </div>
+            <p v-if="rateLimitNotice" class="text-[8px] uppercase text-amber-300 mb-2">{{ rateLimitNotice }}</p>
             <div class="max-h-[72px] overflow-y-auto custom-scroll">
                 <div class="flex flex-wrap gap-2">
                     <span
                         v-for="(user, index) in onlineUsers"
                         :key="`${user}-${index}`"
-                        class="text-[8px] uppercase text-slate-200 border border-slate-700 bg-black/40 px-2 py-1 rounded-full"
+                        class="relative text-[8px] uppercase text-slate-200 border border-slate-700 bg-black/40 pl-5 pr-2 py-1 rounded-full"
                     >
+                        <span class="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.85)]"></span>
                         {{ user }}
                     </span>
 
@@ -198,10 +414,10 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="border border-slate-800 bg-[#0d1117]/70 p-3 flex flex-col">
-            <div ref="chatContainer" class="h-[260px] md:h-[300px] overflow-y-auto pr-1 custom-scroll space-y-2">
+            <div ref="chatContainer" class="h-[260px] md:h-[300px] overflow-y-auto pr-1 custom-scroll space-y-2" @scroll.passive="handleHistoryScroll">
                 <div
                     v-for="(item, index) in messages"
-                    :key="`${item.user}-${item.time}-${index}`"
+                    :key="item.id ? `msg-${item.id}` : `${item.user}-${item.time}-${index}`"
                     class="flex"
                     :class="item.isMine ? 'justify-end' : 'justify-start'"
                 >
