@@ -14,6 +14,7 @@ const hasMoreHistory = ref(true);
 const isLoadingHistory = ref(false);
 const historyCursorId = ref(null);
 const typingUsers = ref([]);
+const socketClientId = ref(null);
 
 const userName = ref('Anonymous');
 const userId = ref(null);
@@ -164,7 +165,12 @@ const scrollToBottom = async () => {
     chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
 };
 
-const isMe = (payloadUser = '', payloadUserId = null) => {
+const isMe = (payloadUser = '', payloadUserId = null, payloadSocketId = null) => {
+    const senderSocketId = String(payloadSocketId || '').trim();
+    if (socketClientId.value && senderSocketId) {
+        return senderSocketId === socketClientId.value;
+    }
+
     const senderId = Number(payloadUserId || 0);
     if (userId.value && senderId) return senderId === userId.value;
     return normalizeIdentity(payloadUser) === normalizeIdentity(userName.value);
@@ -215,6 +221,11 @@ const handleTypingInput = () => {
     }, TYPING_STOP_DELAY_MS);
 };
 
+const handleTypingKeydown = () => {
+    if (!socket || !isConnected.value) return;
+    emitTypingState(true);
+};
+
 const typingUsersLabel = computed(() => {
     if (typingUsers.value.length === 0) return '';
 
@@ -226,6 +237,17 @@ const typingUsersLabel = computed(() => {
     const restCount = typingUsers.value.length - 1;
     return `${first} dan ${restCount} lainnya sedang mengetik...`;
 });
+
+const handleDocumentVisibilityChange = () => {
+    if (typeof document === 'undefined') return;
+    if (document.hidden) {
+        stopTyping();
+    }
+};
+
+const handleWindowBlur = () => {
+    stopTyping();
+};
 
 const handleReceiveMessage = async (payload = {}) => {
     if (isPresenceSystemMessage(payload)) return;
@@ -345,9 +367,10 @@ const handleTypingStatus = (payload = {}) => {
 
     const typingUser = String(payload.user || '').trim();
     const typingUserId = Number(payload.user_id || 0);
+    const typingSocketId = String(payload.socket_id || '').trim();
     const isTyping = Boolean(payload.is_typing);
     if (!typingUser) return;
-    if (isMe(typingUser, typingUserId)) return;
+    if (isMe(typingUser, typingUserId, typingSocketId)) return;
 
     if (!isTyping) {
         removeTypingUser(typingUser, typingUserId);
@@ -454,6 +477,7 @@ onMounted(() => {
 
     socket.on('connect', () => {
         isConnected.value = true;
+        socketClientId.value = String(socket.id || '');
         rateLimitNotice.value = '';
         resetTypingState();
         socket.emit('join_room', {
@@ -465,6 +489,7 @@ onMounted(() => {
 
     socket.on('disconnect', () => {
         isConnected.value = false;
+        socketClientId.value = null;
         resetTypingState();
     });
 
@@ -483,6 +508,14 @@ onMounted(() => {
     socket.on('server_error', async (payload = {}) => {
         await pushSystemNotice(String(payload.message || 'Server error'));
     });
+
+    if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', handleDocumentVisibilityChange);
+    }
+
+    if (typeof window !== 'undefined') {
+        window.addEventListener('blur', handleWindowBlur);
+    }
 });
 
 onBeforeUnmount(() => {
@@ -504,6 +537,14 @@ onBeforeUnmount(() => {
     if (typingStopTimer) {
         clearTimeout(typingStopTimer);
         typingStopTimer = null;
+    }
+
+    if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleDocumentVisibilityChange);
+    }
+
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('blur', handleWindowBlur);
     }
 });
 </script>
@@ -578,6 +619,8 @@ onBeforeUnmount(() => {
                     class="flex-1 bg-black border-2 border-slate-700 p-2 text-cyan-300 outline-none text-[10px] font-sans"
                     placeholder="Type message..."
                     @input="handleTypingInput"
+                    @keydown="handleTypingKeydown"
+                    @blur="stopTyping"
                     @keyup.enter="sendMessage"
                 >
                 <button

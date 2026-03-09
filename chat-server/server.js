@@ -448,6 +448,7 @@ io.on('connection', (socket) => {
                 room: presence.room,
                 user: presence.userName,
                 user_id: presence.userId,
+                socket_id: socket.id,
                 is_typing: false,
             });
         } catch (error) {
@@ -467,6 +468,7 @@ io.on('connection', (socket) => {
                 room: presence.room,
                 user: presence.userName,
                 user_id: presence.userId,
+                socket_id: socket.id,
                 is_typing: isTyping,
             });
         } catch (error) {
@@ -510,6 +512,7 @@ io.on('connection', (socket) => {
                     room: presence.room,
                     user: presence.userName,
                     user_id: presence.userId,
+                    socket_id: socket.id,
                     is_typing: false,
                 });
                 await emitOnlineUsers(presence.room);
