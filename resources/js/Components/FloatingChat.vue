@@ -21,8 +21,17 @@ const closeChat = () => {
                 class="w-[min(94vw,420px)] max-h-[82vh]"
             >
                 <div class="relative">
-                 
-
+                    <div class="mb-2 flex justify-end">
+                        <button
+                            type="button"
+                            class="inline-flex items-center gap-1 border border-cyan-500/70 bg-[#0d1117]/95 px-2 py-1 text-[9px] uppercase text-cyan-200 transition-colors hover:bg-cyan-500 hover:text-black"
+                            aria-label="Tutup chat"
+                            @click="closeChat"
+                        >
+                            <i class="fi fi-rr-cross-small text-[10px]"></i>
+                            Tutup
+                        </button>
+                    </div>
                     <GlobalChat />
                 </div>
             </div>

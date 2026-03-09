@@ -12,7 +12,7 @@
 
     <div class="flex gap-2 md:gap-4 items-center">
         <template v-if="auth.user">
-            <Link v-if="auth.user.role === 'admin'" :href="route('admin.dashboard')"
+            <Link v-if="['admin', 'mentor'].includes(String(auth.user.role || '').toLowerCase())" :href="route('admin.dashboard')"
                 class="text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors">
                 Admin
             </Link>

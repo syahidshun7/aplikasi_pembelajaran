@@ -16,12 +16,12 @@ class DashboardController extends Controller
 
         $stats = [
             'total_materi' => Guide::count(),
-            'total_students' => User::where('role', '!=', 'admin')->count(),
+            'total_students' => User::whereNotIn('role', ['admin', 'mentor'])->count(),
             'pending_verdicts' => Submission::where('status', 'Pending')->count(),
         ];
 
         $topUsers = User::query()
-            ->where('role', '!=', 'admin')
+            ->whereNotIn('role', ['admin', 'mentor'])
             ->withCount([
                 'submissions as total_completed' => function ($query) {
                     $query->whereIn('status', ['Approved', 'Rejected']);

@@ -1,6 +1,6 @@
 <script setup>
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { computed, ref, watch } from 'vue';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 
 const props = defineProps({
@@ -8,6 +8,9 @@ const props = defineProps({
     jobs: Array,
     filters: Object,
 });
+const page = usePage();
+const isMentor = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase() === 'mentor');
+const firstJobId = computed(() => props.jobs?.[0]?.id ?? '');
 
 const isEditing = ref(false);
 const editUuid = ref(null);
@@ -25,9 +28,16 @@ const form = useForm({
     assessment_type: 'essay',
     is_active: true,
 });
+const mentorCannotSubmitTaskBank = computed(() => isMentor.value && !form.job_role_id);
 
 const bankItems = computed(() => props.taskBanks?.data || []);
 const paginationLinks = computed(() => props.taskBanks?.links || []);
+
+const applyMentorDefaultJob = () => {
+    if (isMentor.value && !form.job_role_id) {
+        form.job_role_id = firstJobId.value || '';
+    }
+};
 
 const startEdit = (bank) => {
     isEditing.value = true;
@@ -37,6 +47,7 @@ const startEdit = (bank) => {
     form.job_role_id = bank.job_role_id || '';
     form.assessment_type = bank.assessment_type || 'essay';
     form.is_active = !!bank.is_active;
+    applyMentorDefaultJob();
     window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
@@ -46,6 +57,7 @@ const cancelEdit = () => {
     form.reset();
     form.assessment_type = 'essay';
     form.is_active = true;
+    applyMentorDefaultJob();
 };
 
 const submit = () => {
@@ -65,6 +77,7 @@ const submit = () => {
             form.reset();
             form.assessment_type = 'essay';
             form.is_active = true;
+            applyMentorDefaultJob();
         },
     });
 };
@@ -111,6 +124,10 @@ const typeClass = (type) => {
     if (type === 'mixed') return 'text-purple-300 border-purple-800 bg-purple-900/20';
     return 'text-cyan-400 border-cyan-800 bg-cyan-900/20';
 };
+
+watch([isMentor, firstJobId], () => {
+    applyMentorDefaultJob();
+}, { immediate: true });
 </script>
 
 <template>
@@ -149,7 +166,8 @@ const typeClass = (type) => {
                                 <div>
                                     <label class="block mb-2 text-white uppercase">JOB_SCOPE:</label>
                                     <select v-model="form.job_role_id" class="w-full bg-black border-2 border-slate-700 p-2 text-teal-300 uppercase outline-none focus:border-teal-400">
-                                        <option value="">ALL_JOBS</option>
+                                        <option v-if="!isMentor" value="">ALL_JOBS</option>
+                                        <option v-if="isMentor && !jobs.length" value="" disabled>NO_JOB_AVAILABLE</option>
                                         <option v-for="job in jobs" :key="job.id" :value="job.id">{{ job.name }}</option>
                                     </select>
                                     <p v-if="form.errors.job_role_id" class="mt-2 text-red-400 text-[8px]">{{ form.errors.job_role_id }}</p>
@@ -171,7 +189,7 @@ const typeClass = (type) => {
                             </label>
 
                             <div class="flex gap-2">
-                                <button type="submit" :disabled="form.processing" class="flex-1 py-3 border-2 border-teal-400 text-teal-300 hover:bg-teal-400 hover:text-black uppercase font-bold transition-all">
+                                <button type="submit" :disabled="form.processing || mentorCannotSubmitTaskBank" class="flex-1 py-3 border-2 border-teal-400 text-teal-300 hover:bg-teal-400 hover:text-black uppercase font-bold transition-all">
                                     {{ form.processing ? 'PROCESSING...' : (isEditing ? 'UPDATE' : 'CREATE') }}
                                 </button>
                                 <button v-if="isEditing" @click="cancelEdit" type="button" class="px-4 py-3 border-2 border-slate-500 text-slate-500 hover:bg-slate-500 hover:text-white uppercase">
@@ -198,7 +216,7 @@ const typeClass = (type) => {
                                     <div class="flex-1 min-w-0">
                                         <div class="text-[8px] text-slate-500 mb-1 uppercase tracking-tighter">ID: {{ bank.uuid.substring(0, 8) }}</div>
                                         <div class="text-white uppercase text-[9px]">{{ bank.name }}</div>
-                                        <div class="text-[7px] mt-2 uppercase text-teal-300">JOB: {{ bank.job_role?.name || 'ALL_JOBS' }}</div>
+                                        <div class="text-[7px] mt-2 uppercase text-teal-300">JOB: {{ bank.job_role?.name || 'NO_JOB_SCOPE' }}</div>
                                         <div class="mt-2 inline-flex px-2 py-1 border text-[8px] uppercase" :class="typeClass(bank.assessment_type)">{{ bank.assessment_type }}</div>
                                         <div v-if="bank.description" class="text-[7px] text-slate-500 italic mt-3 leading-loose">> {{ bank.description }}</div>
                                     </div>

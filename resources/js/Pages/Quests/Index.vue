@@ -10,6 +10,10 @@ const props = defineProps({
     taskBanks: Array,
     filters: Object,
 });
+const page = usePage();
+const isMentor = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase() === 'mentor');
+const firstStudyGroupId = computed(() => props.studyGroups?.[0]?.id ?? null);
+const firstTaskBankId = computed(() => props.taskBanks?.[0]?.id ?? null);
 
 const rankGoldMap = {
     'S-Rank': 5000,
@@ -54,6 +58,17 @@ const form = useForm({
     task_bank_id: null,
     deadline: '', // NEW_FIELD
 });
+const mentorCannotSubmitQuest = computed(() => isMentor.value && !form.study_group_id && !form.task_bank_id);
+
+const applyMentorDefaults = () => {
+    if (!isMentor.value) return;
+    if (!form.study_group_id && !form.task_bank_id) {
+        form.study_group_id = firstStudyGroupId.value;
+        if (!form.study_group_id) {
+            form.task_bank_id = firstTaskBankId.value;
+        }
+    }
+};
 
 watch(() => form.difficulty, (newDifficulty) => {
     if (newDifficulty) {
@@ -84,6 +99,10 @@ watch(() => usePage().props.flash, (flash) => {
         });
     }
 }, { deep: true });
+
+watch([isMentor, firstStudyGroupId, firstTaskBankId], () => {
+    applyMentorDefaults();
+}, { immediate: true });
 
 // HELPER: Format date for display
 const formatDeadline = (date) => {
@@ -133,6 +152,7 @@ const cancelEdit = () => {
     isEditing.value = false;
     editId.value = null;
     form.reset();
+    applyMentorDefaults();
 };
 
 const submit = () => {
@@ -151,6 +171,7 @@ const submit = () => {
                 form.reward_gold = 500;
                 form.reward_exp = 500;
                 form.task_bank_id = null;
+                applyMentorDefaults();
             },
         });
     }
@@ -278,7 +299,8 @@ const goToPage = (url) => {
                                 <label class="block mb-2 text-white">ASSIGN_TO_PARTY:</label>
                                 <select v-model="form.study_group_id"
                                     class="w-full bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-emerald-400 uppercase">
-                                    <option :value="null">-- GLOBAL_QUEST (PUBLIC) --</option>
+                                    <option v-if="!isMentor" :value="null">-- GLOBAL_QUEST (PUBLIC) --</option>
+                                    <option v-if="isMentor && !studyGroups.length" :value="null" disabled>-- NO_STUDY_GROUP_AVAILABLE --</option>
                                     <option v-for="group in studyGroups" :key="group.id" :value="group.id">
                                         >> PARTY: {{ group.name }}
                                     </option>
@@ -297,7 +319,7 @@ const goToPage = (url) => {
                             </div>
 
                             <div class="flex gap-2">
-                                <button type="submit" :disabled="form.processing"
+                                <button type="submit" :disabled="form.processing || mentorCannotSubmitQuest"
                                     class="flex-1 py-3 border-2 uppercase font-bold transition-all"
                                     :class="isEditing ? 'border-green-500 text-green-500 hover:bg-green-600 hover:text-black' : 'border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-black'">
                                     {{ form.processing ? 'PROCESSING...' : (isEditing ? 'UPDATE_CONTRACT' : 'CONFIRM_MISSION') }}

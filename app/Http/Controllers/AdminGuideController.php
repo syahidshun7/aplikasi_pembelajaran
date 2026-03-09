@@ -11,6 +11,8 @@ use Inertia\Inertia;
 
 class AdminGuideController extends Controller
 {
+    private const MENTOR_JOB_REQUIRED_MESSAGE = 'Akun mentor wajib punya jurusan (job) sebelum mengelola materi.';
+
     /**
      * Menampilkan daftar materi (guides)
      */
@@ -22,9 +24,23 @@ class AdminGuideController extends Controller
 
         $search = trim((string) ($validated['search'] ?? ''));
 
+        $guideQuery = Guide::query()
+            ->with('studyGroup:id,name,job_id');
+
+        if ($this->isMentorUser()) {
+            $mentorJobId = $this->requireMentorJobId();
+            $guideQuery->whereHas('studyGroup', function ($query) use ($mentorJobId) {
+                $query->where('job_id', $mentorJobId);
+            });
+        }
+
+        $studyGroupQuery = StudyGroup::query()->select('id', 'name')->orderBy('name');
+        if ($this->isMentorUser()) {
+            $studyGroupQuery->where('job_id', $this->requireMentorJobId());
+        }
+
         return Inertia::render('Guide/Index', [
-            'materi' => Guide::query()
-                ->with('studyGroup:id,name')
+            'materi' => $guideQuery
                 ->when($search !== '', function ($query) use ($search) {
                     $query->where(function ($q) use ($search) {
                         $q->where('title', 'like', "%{$search}%")
@@ -37,7 +53,7 @@ class AdminGuideController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->paginate(10)
                 ->withQueryString(),
-            'studyGroups' => StudyGroup::select('id', 'name')->orderBy('name')->get(),
+            'studyGroups' => $studyGroupQuery->get(),
             'filters' => [
                 'search' => $search,
             ],
@@ -55,6 +71,8 @@ class AdminGuideController extends Controller
         'study_group_id' => 'nullable|exists:study_groups,id',
         'file' => 'nullable|file|mimes:pdf,jpg,png,zip|max:10240',
     ]);
+
+    $this->assertMentorCanManageStudyGroupId((int) $request->input('study_group_id'));
 
     $filePath = null;
     if ($request->hasFile('file')) {
@@ -79,6 +97,7 @@ class AdminGuideController extends Controller
     {
         // Cari guide berdasarkan UUID karena rute manual mengirimkan UUID
         $guide = Guide::where('uuid', $uuid)->firstOrFail();
+        $this->assertMentorCanAccessGuide($guide);
 
         $request->validate([
             'title' => 'required|string|max:255',
@@ -86,6 +105,8 @@ class AdminGuideController extends Controller
             'study_group_id' => 'nullable|exists:study_groups,id',
             'file' => 'nullable|file|mimes:pdf,jpg,png,zip|max:10240',
         ]);
+
+        $this->assertMentorCanManageStudyGroupId((int) $request->input('study_group_id'));
 
         $data = [
             'title'       => $request->title,
@@ -112,6 +133,7 @@ class AdminGuideController extends Controller
     public function destroy($uuid)
     {
         $guide = Guide::where('uuid', $uuid)->firstOrFail();
+        $this->assertMentorCanAccessGuide($guide);
 
         // Hapus file dari storage fisik sebelum menghapus record di database
         if ($guide->file_path) {
@@ -121,5 +143,48 @@ class AdminGuideController extends Controller
         $guide->delete();
 
         return back()->with('message', 'The scroll has been purged from the archive.');
+    }
+
+    private function isMentorUser(): bool
+    {
+        return (bool) auth()->user()?->isMentor();
+    }
+
+    private function requireMentorJobId(): int
+    {
+        $jobId = (int) (auth()->user()?->job_id ?? 0);
+        abort_if($jobId <= 0, 403, self::MENTOR_JOB_REQUIRED_MESSAGE);
+        return $jobId;
+    }
+
+    private function assertMentorCanAccessGuide(Guide $guide): void
+    {
+        if (! $this->isMentorUser()) {
+            return;
+        }
+
+        $mentorJobId = $this->requireMentorJobId();
+        $guide->loadMissing('studyGroup:id,job_id');
+        abort_unless((int) ($guide->studyGroup?->job_id ?? 0) === $mentorJobId, 403, 'MENTOR_CANNOT_ACCESS_GUIDE_OUTSIDE_JOB');
+    }
+
+    private function assertMentorCanManageStudyGroupId(int $studyGroupId): void
+    {
+        if (! $this->isMentorUser()) {
+            return;
+        }
+
+        $mentorJobId = $this->requireMentorJobId();
+
+        if ($studyGroupId <= 0) {
+            abort(403, 'MENTOR_GUIDE_MUST_HAVE_STUDY_GROUP');
+        }
+
+        $isAllowed = StudyGroup::query()
+            ->whereKey($studyGroupId)
+            ->where('job_id', $mentorJobId)
+            ->exists();
+
+        abort_unless($isAllowed, 403, 'MENTOR_CANNOT_MANAGE_GUIDE_OUTSIDE_JOB');
     }
 }

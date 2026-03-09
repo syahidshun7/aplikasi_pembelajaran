@@ -16,6 +16,8 @@ use Inertia\Response;
 
 class AdminEventController extends Controller
 {
+    private const MENTOR_JOB_REQUIRED_MESSAGE = 'Akun mentor wajib punya jurusan (job) sebelum mengelola event.';
+
     public function index(Request $request): Response
     {
         $validated = $request->validate([
@@ -24,9 +26,18 @@ class AdminEventController extends Controller
 
         $search = trim((string) ($validated['search'] ?? ''));
 
-        $events = Event::query()
+        $eventsQuery = Event::query()
             ->with('studyGroup:id,name')
-            ->withCount(['guides', 'quests'])
+            ->withCount(['guides', 'quests']);
+
+        if ($this->isMentorUser()) {
+            $mentorJobId = $this->requireMentorJobId();
+            $eventsQuery->whereHas('studyGroup', function ($query) use ($mentorJobId) {
+                $query->where('job_id', $mentorJobId);
+            });
+        }
+
+        $events = $eventsQuery
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('title', 'like', "%{$search}%")
@@ -41,9 +52,14 @@ class AdminEventController extends Controller
             ->paginate(10)
             ->withQueryString();
 
+        $studyGroupQuery = StudyGroup::query()->orderBy('name');
+        if ($this->isMentorUser()) {
+            $studyGroupQuery->where('job_id', $this->requireMentorJobId());
+        }
+
         return Inertia::render('Events/Admin/Index', [
             'events' => $events,
-            'studyGroups' => StudyGroup::query()->orderBy('name')->get(['id', 'name']),
+            'studyGroups' => $studyGroupQuery->get(['id', 'name']),
             'filters' => [
                 'search' => $search,
             ],
@@ -61,6 +77,8 @@ class AdminEventController extends Controller
             'ends_at' => ['nullable', 'date', 'after:starts_at'],
         ]);
 
+        $this->assertMentorCanManageStudyGroupId((int) ($validated['study_group_id'] ?? 0));
+
         Event::create($validated);
 
         return back()->with('message', 'EVENT_CREATED');
@@ -68,6 +86,8 @@ class AdminEventController extends Controller
 
     public function update(Request $request, Event $event): RedirectResponse
     {
+        $this->assertMentorCanAccessEvent($event);
+
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -77,6 +97,8 @@ class AdminEventController extends Controller
             'ends_at' => ['nullable', 'date', 'after:starts_at'],
         ]);
 
+        $this->assertMentorCanManageStudyGroupId((int) ($validated['study_group_id'] ?? 0));
+
         $event->update($validated);
 
         return back()->with('message', 'EVENT_UPDATED');
@@ -84,6 +106,7 @@ class AdminEventController extends Controller
 
     public function destroy(Event $event): RedirectResponse
     {
+        $this->assertMentorCanAccessEvent($event);
         $event->delete();
 
         return back()->with('message', 'EVENT_DELETED');
@@ -91,6 +114,8 @@ class AdminEventController extends Controller
 
     public function detail(Event $event): Response
     {
+        $this->assertMentorCanAccessEvent($event);
+
         $event->load([
             'studyGroup:id,name',
             'guides' => function ($q) {
@@ -113,6 +138,12 @@ class AdminEventController extends Controller
                         ->orWhere('study_group_id', $groupId);
                 });
             })
+            ->when($this->isMentorUser(), function ($q) {
+                $mentorJobId = $this->requireMentorJobId();
+                $q->whereHas('studyGroup', function ($sq) use ($mentorJobId) {
+                    $sq->where('job_id', $mentorJobId);
+                });
+            })
             ->latest('id')
             ->get(['id', 'uuid', 'title', 'study_group_id']);
 
@@ -122,6 +153,16 @@ class AdminEventController extends Controller
                 $q->where(function ($w) use ($groupId) {
                     $w->whereNull('study_group_id')
                         ->orWhere('study_group_id', $groupId);
+                });
+            })
+            ->when($this->isMentorUser(), function ($q) {
+                $mentorJobId = $this->requireMentorJobId();
+                $q->where(function ($w) use ($mentorJobId) {
+                    $w->whereHas('studyGroup', function ($sg) use ($mentorJobId) {
+                        $sg->where('job_id', $mentorJobId);
+                    })->orWhereHas('taskBank', function ($tb) use ($mentorJobId) {
+                        $tb->where('job_role_id', $mentorJobId);
+                    });
                 });
             })
             ->latest('id')
@@ -136,6 +177,8 @@ class AdminEventController extends Controller
 
     public function attendance(Event $event): Response
     {
+        $this->assertMentorCanAccessEvent($event);
+
         $event->load(['studyGroup:id,name', 'attendances']);
 
         $attendanceUsers = collect();
@@ -164,6 +207,8 @@ class AdminEventController extends Controller
 
     public function attachGuides(Request $request, Event $event): RedirectResponse
     {
+        $this->assertMentorCanAccessEvent($event);
+
         $validated = $request->validate([
             'guide_ids' => ['required', 'array', 'min:1'],
             'guide_ids.*' => ['integer', 'exists:guides,id'],
@@ -196,6 +241,8 @@ class AdminEventController extends Controller
 
     public function attachQuests(Request $request, Event $event): RedirectResponse
     {
+        $this->assertMentorCanAccessEvent($event);
+
         $validated = $request->validate([
             'quest_ids' => ['required', 'array', 'min:1'],
             'quest_ids.*' => ['integer', 'exists:quests,id'],
@@ -228,6 +275,8 @@ class AdminEventController extends Controller
 
     public function detachGuide(Event $event, Guide $guide): RedirectResponse
     {
+        $this->assertMentorCanAccessEvent($event);
+
         $event->guides()->detach($guide->id);
 
         return back()->with('message', 'EVENT_GUIDE_DETACHED');
@@ -235,6 +284,8 @@ class AdminEventController extends Controller
 
     public function detachQuest(Event $event, Quest $quest): RedirectResponse
     {
+        $this->assertMentorCanAccessEvent($event);
+
         $event->quests()->detach($quest->id);
 
         return back()->with('message', 'EVENT_QUEST_DETACHED');
@@ -242,6 +293,8 @@ class AdminEventController extends Controller
 
     public function reorderGuides(Request $request, Event $event): RedirectResponse
     {
+        $this->assertMentorCanAccessEvent($event);
+
         $validated = $request->validate([
             'orders' => ['required', 'array', 'min:1'],
             'orders.*.id' => ['required', 'integer', 'exists:guides,id'],
@@ -261,6 +314,8 @@ class AdminEventController extends Controller
 
     public function reorderQuests(Request $request, Event $event): RedirectResponse
     {
+        $this->assertMentorCanAccessEvent($event);
+
         $validated = $request->validate([
             'orders' => ['required', 'array', 'min:1'],
             'orders.*.id' => ['required', 'integer', 'exists:quests,id'],
@@ -280,6 +335,8 @@ class AdminEventController extends Controller
 
     public function updateAttendance(Request $request, Event $event): RedirectResponse
     {
+        $this->assertMentorCanAccessEvent($event);
+
         $validated = $request->validate([
             'attendance' => ['required', 'array', 'min:1'],
             'attendance.*.user_id' => ['required', 'integer', 'exists:users,id'],
@@ -326,5 +383,47 @@ class AdminEventController extends Controller
         }
 
         return back()->with('message', 'EVENT_ATTENDANCE_UPDATED');
+    }
+
+    private function isMentorUser(): bool
+    {
+        return (bool) auth()->user()?->isMentor();
+    }
+
+    private function requireMentorJobId(): int
+    {
+        $jobId = (int) (auth()->user()?->job_id ?? 0);
+        abort_if($jobId <= 0, 403, self::MENTOR_JOB_REQUIRED_MESSAGE);
+        return $jobId;
+    }
+
+    private function assertMentorCanAccessEvent(Event $event): void
+    {
+        if (! $this->isMentorUser()) {
+            return;
+        }
+
+        $mentorJobId = $this->requireMentorJobId();
+        $event->loadMissing('studyGroup:id,job_id');
+        abort_unless((int) ($event->studyGroup?->job_id ?? 0) === $mentorJobId, 403, 'MENTOR_CANNOT_ACCESS_EVENT_OUTSIDE_JOB');
+    }
+
+    private function assertMentorCanManageStudyGroupId(int $studyGroupId): void
+    {
+        if (! $this->isMentorUser()) {
+            return;
+        }
+
+        $mentorJobId = $this->requireMentorJobId();
+        if ($studyGroupId <= 0) {
+            abort(403, 'MENTOR_EVENT_MUST_HAVE_STUDY_GROUP');
+        }
+
+        $isAllowed = StudyGroup::query()
+            ->whereKey($studyGroupId)
+            ->where('job_id', $mentorJobId)
+            ->exists();
+
+        abort_unless($isAllowed, 403, 'MENTOR_CANNOT_MANAGE_EVENT_OUTSIDE_JOB');
     }
 }

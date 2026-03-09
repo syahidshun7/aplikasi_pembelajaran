@@ -1,6 +1,6 @@
 <script setup>
-import { Head, Link, useForm, router } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { Head, Link, useForm, router, usePage } from '@inertiajs/vue3';
+import { computed, ref, watch } from 'vue';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 import Swal from 'sweetalert2';
 
@@ -9,6 +9,9 @@ const props = defineProps({
     studyGroups: Array,
     filters: Object,
 });
+const page = usePage();
+const isMentor = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase() === 'mentor');
+const firstStudyGroupId = computed(() => props.studyGroups?.[0]?.id ?? '');
 
 const isEditing = ref(false);
 const editUuid = ref(null);
@@ -31,6 +34,12 @@ const filterForm = useForm({
 const eventItems = computed(() => props.events?.data || []);
 const paginationLinks = computed(() => props.events?.links || []);
 
+const applyMentorDefaultStudyGroup = () => {
+    if (isMentor.value && !form.study_group_id) {
+        form.study_group_id = firstStudyGroupId.value || '';
+    }
+};
+
 const startEdit = (event) => {
     isEditing.value = true;
     editUuid.value = event.uuid;
@@ -48,6 +57,7 @@ const cancelEdit = () => {
     editUuid.value = null;
     form.reset();
     form.sequence_order = 1;
+    applyMentorDefaultStudyGroup();
 };
 
 const formatDateTimeLocal = (value) => {
@@ -88,6 +98,7 @@ const submit = () => {
         onSuccess: () => {
             form.reset();
             form.sequence_order = 1;
+            applyMentorDefaultStudyGroup();
         },
         onError: (errors) => {
             Swal.fire({
@@ -135,6 +146,10 @@ const goToPage = (url) => {
         preserveScroll: true,
     });
 };
+
+watch([isMentor, firstStudyGroupId], () => {
+    applyMentorDefaultStudyGroup();
+}, { immediate: true });
 </script>
 
 <template>
@@ -193,7 +208,8 @@ const goToPage = (url) => {
                                         v-model="form.study_group_id"
                                         class="w-full bg-black border-2 border-slate-700 p-2 focus:border-blue-400 outline-none text-blue-300 uppercase"
                                     >
-                                        <option value="">PUBLIC</option>
+                                        <option v-if="!isMentor" value="">NO_GROUP</option>
+                                        <option v-if="isMentor && !studyGroups.length" value="" disabled>NO_STUDY_GROUP_AVAILABLE</option>
                                         <option v-for="group in studyGroups" :key="group.id" :value="group.id">
                                             {{ group.name }}
                                         </option>
@@ -280,7 +296,7 @@ const goToPage = (url) => {
                                         </div>
                                         <div class="text-white uppercase">{{ event.title }}</div>
                                         <div class="text-[7px] text-cyan-400 uppercase mt-1">
-                                            GROUP: {{ event.study_group?.name || 'PUBLIC' }}
+                                            GROUP: {{ event.study_group?.name || 'NO_GROUP' }}
                                         </div>
                                         <div class="text-[7px] text-slate-300 uppercase mt-1 break-words">
                                             {{ formatScheduleText(event.starts_at, event.ends_at) }}

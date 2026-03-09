@@ -11,11 +11,15 @@ use Inertia\Inertia;
 
 class AdminSubmissionController extends Controller
 {
+    private const MENTOR_JOB_REQUIRED_MESSAGE = 'Akun mentor wajib punya jurusan (job) sebelum mengelola submission.';
+
     /**
      * Halaman inspeksi detail untuk satu submission.
      */
     public function inspect(Submission $submission)
     {
+        $this->assertMentorCanAccessSubmission($submission);
+
         // Pastikan relasi terload agar Vue tidak membaca 'undefined'
         $submission->load(['user', 'quest']);
 
@@ -26,6 +30,8 @@ class AdminSubmissionController extends Controller
 
     public function previewFile(Submission $submission)
     {
+        $this->assertMentorCanAccessSubmission($submission);
+
         $storedPath = (string) ($submission->file_path ?? '');
         abort_if($storedPath === '', 404);
 
@@ -47,6 +53,8 @@ class AdminSubmissionController extends Controller
      */
  public function verdict(Request $request, Submission $submission)
 {
+    $this->assertMentorCanAccessSubmission($submission);
+
     $request->validate([
         'final_score' => 'required|numeric|min:0|max:100',
         'feedback'    => 'nullable|string',
@@ -86,6 +94,8 @@ class AdminSubmissionController extends Controller
      */
     public function checkWithAI(Submission $submission)
     {
+        $this->assertMentorCanAccessSubmission($submission);
+
         $submission->load('quest');
 
         $questTitle = $submission->quest->title;
@@ -155,5 +165,39 @@ class AdminSubmissionController extends Controller
         }
 
         User::query()->whereKey($userId)->update($updateData);
+    }
+
+    private function isMentorUser(): bool
+    {
+        return (bool) auth()->user()?->isMentor();
+    }
+
+    private function requireMentorJobId(): int
+    {
+        $jobId = (int) (auth()->user()?->job_id ?? 0);
+        abort_if($jobId <= 0, 403, self::MENTOR_JOB_REQUIRED_MESSAGE);
+        return $jobId;
+    }
+
+    private function assertMentorCanAccessSubmission(Submission $submission): void
+    {
+        if (! $this->isMentorUser()) {
+            return;
+        }
+
+        $mentorJobId = $this->requireMentorJobId();
+        $submission->loadMissing([
+            'quest.studyGroup:id,job_id',
+            'quest.taskBank:id,job_role_id',
+        ]);
+
+        $quest = $submission->quest;
+        abort_if(! $quest, 403, 'MENTOR_CANNOT_ACCESS_SUBMISSION_WITHOUT_QUEST');
+
+        $studyGroupJobId = (int) ($quest->studyGroup?->job_id ?? 0);
+        $taskBankJobId = (int) ($quest->taskBank?->job_role_id ?? 0);
+        $isAllowed = $studyGroupJobId === $mentorJobId || $taskBankJobId === $mentorJobId;
+
+        abort_unless($isAllowed, 403, 'MENTOR_CANNOT_ACCESS_SUBMISSION_OUTSIDE_JOB');
     }
 }

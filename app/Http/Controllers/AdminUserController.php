@@ -21,7 +21,7 @@ class AdminUserController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'role' => ['nullable', 'in:all,admin,user,student'],
+            'role' => ['nullable', 'in:all,admin,mentor,user,student'],
             'rank_by' => ['nullable', 'in:newest,highest_gold,highest_exp,highest_grade'],
             'grade_order' => ['nullable', 'in:none,asc,desc'],
         ]);
@@ -159,7 +159,7 @@ class AdminUserController extends Controller
 
         return Inertia::render('Users/Admin/Index', [
             'users' => $users,
-            'availableRoles' => ['admin', 'user', 'student'],
+            'availableRoles' => User::assignableRoles(),
             'filters' => [
                 'search' => $search,
                 'role' => $role,
@@ -172,7 +172,7 @@ class AdminUserController extends Controller
     public function updateRole(Request $request, User $user): RedirectResponse
     {
         $validated = $request->validate([
-            'role' => ['required', 'in:admin,user,student'],
+            'role' => ['required', 'in:admin,mentor,user,student'],
         ]);
 
         // Prevent an admin from accidentally removing their own admin access.
@@ -219,7 +219,7 @@ class AdminUserController extends Controller
                 'max:255',
                 Rule::unique('users', 'email')->ignore($user->id),
             ],
-            'role' => ['required', 'in:admin,user,student'],
+            'role' => ['required', 'in:admin,mentor,user,student'],
             'gold' => ['required', 'integer', 'min:0'],
             'exp' => ['required', 'integer', 'min:0'],
             'level' => ['required', 'integer', 'min:1'],

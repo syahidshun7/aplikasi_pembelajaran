@@ -9,6 +9,9 @@ const props = defineProps({
     studyGroups: Array,
     filters: Object,
 });
+const page = usePage();
+const isMentor = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase() === 'mentor');
+const firstStudyGroupId = computed(() => props.studyGroups?.[0]?.id ?? null);
 
 // State untuk UI
 const isEditing = ref(false);
@@ -38,6 +41,7 @@ const form = useForm({
     study_group_id: null,
     file: null,
 });
+const mentorCannotSubmitGuide = computed(() => isMentor.value && !form.study_group_id);
 const searchForm = useForm({
     search: props.filters?.search || '',
 });
@@ -107,7 +111,7 @@ const cancelEdit = () => {
     isEditing.value = false;
     editId.value = null;
     form.reset();
-    form.study_group_id = null;
+    form.study_group_id = isMentor.value ? firstStudyGroupId.value : null;
 };
 
 const submit = () => {
@@ -142,7 +146,7 @@ const submit = () => {
             forceFormData: true,
             onSuccess: () => {
                 form.reset();
-                form.study_group_id = null;
+                form.study_group_id = isMentor.value ? firstStudyGroupId.value : null;
                 Toast.fire({
                     icon: 'success',
                     title: 'KNOWLEDGE_INSCRIBED'
@@ -198,6 +202,12 @@ watch(() => usePage().props.flash, (flash) => {
     }
 }, { deep: true });
 
+watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
+    if (mentor && !form.study_group_id) {
+        form.study_group_id = firstGroup;
+    }
+}, { immediate: true });
+
 </script>
 
 <template>
@@ -242,7 +252,8 @@ watch(() => usePage().props.flash, (flash) => {
                                 <label class="block mb-2 text-white">ASSIGN_TO_PARTY:</label>
                                 <select v-model="form.study_group_id"
                                     class="w-full bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-emerald-400 uppercase">
-                                    <option :value="null">-- GLOBAL_GUIDE (PUBLIC) --</option>
+                                    <option v-if="!isMentor" :value="null">-- GLOBAL_GUIDE (PUBLIC) --</option>
+                                    <option v-if="isMentor && !studyGroups.length" :value="null" disabled>-- NO_STUDY_GROUP_AVAILABLE --</option>
                                     <option v-for="group in studyGroups" :key="group.id" :value="group.id">
                                         >> PARTY: {{ group.name }}
                                     </option>
@@ -269,7 +280,7 @@ watch(() => usePage().props.flash, (flash) => {
                             </div>
 
                             <div class="flex gap-2">
-                                <button type="submit" :disabled="form.processing"
+                                <button type="submit" :disabled="form.processing || mentorCannotSubmitGuide"
                                     class="flex-1 py-3 border-2 uppercase font-bold transition-all"
                                     :class="isEditing ? 'border-green-600 text-green-500 hover:bg-green-600 hover:text-black' : 'border-indigo-500 text-indigo-400 hover:bg-indigo-500 hover:text-black'">
                                     {{ form.processing ? 'SYNCING...' : (isEditing ? 'UPDATE_SCROLL' : 'ISSUE_GUIDE') }}

@@ -10,6 +10,7 @@ const props = defineProps({
 });
 
 const page = usePage();
+const isSuperAdmin = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase() === 'admin');
 
 // Helper untuk warna grade
 const getGradeColor = (grade) => {
@@ -61,7 +62,7 @@ const getGradeColor = (grade) => {
                             class="menu-btn border-yellow-500 text-yellow-500 bg-yellow-900/10 hover:bg-yellow-500 hover:text-black">
                             [+] QUEST
                         </Link>
-                        <Link :href="route('admin.jobs.index')"
+                        <Link v-if="isSuperAdmin" :href="route('admin.jobs.index')"
                             class="menu-btn border-cyan-500 text-cyan-300 bg-cyan-900/10 hover:bg-cyan-300 hover:text-black">
                             [J] JOBS
                         </Link>
@@ -73,11 +74,11 @@ const getGradeColor = (grade) => {
                             class="menu-btn border-blue-500 text-blue-300 bg-blue-900/10 hover:bg-blue-300 hover:text-black">
                             [E] EVENTS
                         </Link>
-                        <Link :href="route('admin.shop-items.index')"
+                        <Link v-if="isSuperAdmin" :href="route('admin.shop-items.index')"
                             class="menu-btn border-amber-500 text-amber-300 bg-amber-900/10 hover:bg-amber-300 hover:text-black">
                             [$] SHOP_ITEMS
                         </Link>
-                        <Link :href="route('admin.submissions.manage.index')"
+                        <Link v-if="isSuperAdmin" :href="route('admin.submissions.manage.index')"
                             class="menu-btn border-cyan-500 text-cyan-400 bg-cyan-900/10 hover:bg-cyan-400 hover:text-black">
                             [S] SUBMISSIONS
                         </Link>
@@ -86,11 +87,11 @@ const getGradeColor = (grade) => {
                             [O] GUIDE
                         </Link>
                         
-                         <Link :href="route('groups.manage')"
+                         <Link v-if="isSuperAdmin" :href="route('groups.manage')"
                             class="menu-btn border-emerald-500 text-emerald-400 bg-emerald-900/10 hover:bg-emerald-500 hover:text-black">
                             [U] STUDY_GROUP
                         </Link>
-                        <Link :href="route('admin.users.index')"
+                        <Link v-if="isSuperAdmin" :href="route('admin.users.index')"
                             class="menu-btn border-orange-500 text-orange-400 bg-orange-900/10 hover:bg-orange-500 hover:text-black">
                             [!] USERS
                         </Link>

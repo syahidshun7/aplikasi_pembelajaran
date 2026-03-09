@@ -11,11 +11,15 @@ use ZipArchive;
 
 class AdminQuestController extends Controller
 {
+    private const MENTOR_JOB_REQUIRED_MESSAGE = 'Akun mentor wajib punya jurusan (job) sebelum melihat submission quest.';
+
     /**
      * Menampilkan daftar semua submission untuk quest tertentu.
      */
     public function submissions(Request $request, Quest $quest)
     {
+        $this->assertMentorCanAccessQuest($quest);
+
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'in:all,Pending,Approved,Rejected'],
@@ -46,6 +50,8 @@ class AdminQuestController extends Controller
 
     public function downloadSubmissionFiles(Request $request, Quest $quest)
     {
+        $this->assertMentorCanAccessQuest($quest);
+
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'in:all,Pending,Approved,Rejected'],
@@ -156,5 +162,36 @@ class AdminQuestController extends Controller
                         });
                 });
             });
+    }
+
+    private function isMentorUser(): bool
+    {
+        return (bool) auth()->user()?->isMentor();
+    }
+
+    private function requireMentorJobId(): int
+    {
+        $jobId = (int) (auth()->user()?->job_id ?? 0);
+        abort_if($jobId <= 0, 403, self::MENTOR_JOB_REQUIRED_MESSAGE);
+        return $jobId;
+    }
+
+    private function assertMentorCanAccessQuest(Quest $quest): void
+    {
+        if (! $this->isMentorUser()) {
+            return;
+        }
+
+        $mentorJobId = $this->requireMentorJobId();
+        $quest->loadMissing([
+            'studyGroup:id,job_id',
+            'taskBank:id,job_role_id',
+        ]);
+
+        $studyGroupJobId = (int) ($quest->studyGroup?->job_id ?? 0);
+        $taskBankJobId = (int) ($quest->taskBank?->job_role_id ?? 0);
+
+        $isAllowed = $studyGroupJobId === $mentorJobId || $taskBankJobId === $mentorJobId;
+        abort_unless($isAllowed, 403, 'MENTOR_CANNOT_ACCESS_QUEST_SUBMISSIONS_OUTSIDE_JOB');
     }
 }

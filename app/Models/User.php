@@ -15,6 +15,11 @@ class User extends Authenticatable implements MustVerifyEmail
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
+    public const ROLE_ADMIN = 'admin';
+    public const ROLE_MENTOR = 'mentor';
+    public const ROLE_USER = 'user';
+    public const ROLE_STUDENT = 'student';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -94,5 +99,44 @@ public function sendEmailVerificationNotification(): void
 public function sendPasswordResetNotification($token): void
 {
     $this->notify(new CustomResetPassword($token));
+}
+
+public static function assignableRoles(): array
+{
+    return [
+        self::ROLE_ADMIN,
+        self::ROLE_MENTOR,
+        self::ROLE_USER,
+        self::ROLE_STUDENT,
+    ];
+}
+
+public function hasRole(string|array $roles): bool
+{
+    $currentRole = strtolower((string) $this->role);
+    $roleList = is_array($roles) ? $roles : [$roles];
+
+    foreach ($roleList as $role) {
+        if ($currentRole === strtolower((string) $role)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+public function isAdmin(): bool
+{
+    return $this->hasRole(self::ROLE_ADMIN);
+}
+
+public function isMentor(): bool
+{
+    return $this->hasRole(self::ROLE_MENTOR);
+}
+
+public function isStaff(): bool
+{
+    return $this->hasRole([self::ROLE_ADMIN, self::ROLE_MENTOR]);
 }
 }

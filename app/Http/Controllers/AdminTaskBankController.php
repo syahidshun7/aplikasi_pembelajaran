@@ -14,6 +14,8 @@ use Inertia\Response;
 
 class AdminTaskBankController extends Controller
 {
+    private const MENTOR_JOB_REQUIRED_MESSAGE = 'Akun mentor wajib punya jurusan (job) sebelum mengelola task bank.';
+
     public function index(Request $request): Response
     {
         $validated = $request->validate([
@@ -22,9 +24,15 @@ class AdminTaskBankController extends Controller
 
         $search = trim((string) ($validated['search'] ?? ''));
 
-        $taskBanks = TaskBank::query()
+        $taskBankQuery = TaskBank::query()
             ->with('jobRole:id,name')
-            ->withCount('questions')
+            ->withCount('questions');
+
+        if ($this->isMentorUser()) {
+            $taskBankQuery->where('job_role_id', $this->requireMentorJobId());
+        }
+
+        $taskBanks = $taskBankQuery
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
@@ -39,9 +47,14 @@ class AdminTaskBankController extends Controller
             ->paginate(12)
             ->withQueryString();
 
+        $jobsQuery = JobRole::query()->orderBy('name');
+        if ($this->isMentorUser()) {
+            $jobsQuery->whereKey($this->requireMentorJobId());
+        }
+
         return Inertia::render('Tasks/Admin/Index', [
             'taskBanks' => $taskBanks,
-            'jobs' => JobRole::query()->orderBy('name')->get(['id', 'name']),
+            'jobs' => $jobsQuery->get(['id', 'name']),
             'filters' => [
                 'search' => $search,
             ],
@@ -58,6 +71,12 @@ class AdminTaskBankController extends Controller
             'is_active' => ['required', 'boolean'],
         ]);
 
+        if ($this->isMentorUser()) {
+            $validated['job_role_id'] = $this->requireMentorJobId();
+        }
+
+        $this->assertMentorCanManageJobRoleId($validated['job_role_id'] ?? null);
+
         TaskBank::query()->create($validated);
 
         return back()->with('message', 'TASK_BANK_CREATED');
@@ -65,6 +84,8 @@ class AdminTaskBankController extends Controller
 
     public function update(Request $request, TaskBank $taskBank): RedirectResponse
     {
+        $this->assertMentorCanAccessTaskBank($taskBank);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:task_banks,name,' . $taskBank->id],
             'description' => ['nullable', 'string'],
@@ -73,6 +94,12 @@ class AdminTaskBankController extends Controller
             'is_active' => ['required', 'boolean'],
         ]);
 
+        if ($this->isMentorUser()) {
+            $validated['job_role_id'] = $this->requireMentorJobId();
+        }
+
+        $this->assertMentorCanManageJobRoleId($validated['job_role_id'] ?? null);
+
         $taskBank->update($validated);
 
         return back()->with('message', 'TASK_BANK_UPDATED');
@@ -80,6 +107,7 @@ class AdminTaskBankController extends Controller
 
     public function destroy(TaskBank $taskBank): RedirectResponse
     {
+        $this->assertMentorCanAccessTaskBank($taskBank);
         $taskBank->delete();
 
         return back()->with('message', 'TASK_BANK_DELETED');
@@ -87,6 +115,8 @@ class AdminTaskBankController extends Controller
 
     public function show(TaskBank $taskBank, Request $request): Response
     {
+        $this->assertMentorCanAccessTaskBank($taskBank);
+
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
         ]);
@@ -113,6 +143,8 @@ class AdminTaskBankController extends Controller
 
     public function storeQuestion(Request $request, TaskBank $taskBank): RedirectResponse
     {
+        $this->assertMentorCanAccessTaskBank($taskBank);
+
         $validated = $request->validate([
             'question_text' => ['required', 'string'],
             'question_type' => ['required', Rule::in(['essay', 'multiple_choice'])],
@@ -133,6 +165,8 @@ class AdminTaskBankController extends Controller
 
     public function updateQuestion(Request $request, TaskBank $taskBank, TaskQuestion $question): RedirectResponse
     {
+        $this->assertMentorCanAccessTaskBank($taskBank);
+
         if ((int) $question->task_bank_id !== (int) $taskBank->id) {
             abort(404);
         }
@@ -157,6 +191,8 @@ class AdminTaskBankController extends Controller
 
     public function destroyQuestion(TaskBank $taskBank, TaskQuestion $question): RedirectResponse
     {
+        $this->assertMentorCanAccessTaskBank($taskBank);
+
         if ((int) $question->task_bank_id !== (int) $taskBank->id) {
             abort(404);
         }
@@ -201,5 +237,37 @@ class AdminTaskBankController extends Controller
             'sort_order' => (int) ($validated['sort_order'] ?? 1),
             'is_active' => (bool) $validated['is_active'],
         ];
+    }
+
+    private function isMentorUser(): bool
+    {
+        return (bool) auth()->user()?->isMentor();
+    }
+
+    private function requireMentorJobId(): int
+    {
+        $jobId = (int) (auth()->user()?->job_id ?? 0);
+        abort_if($jobId <= 0, 403, self::MENTOR_JOB_REQUIRED_MESSAGE);
+        return $jobId;
+    }
+
+    private function assertMentorCanAccessTaskBank(TaskBank $taskBank): void
+    {
+        if (! $this->isMentorUser()) {
+            return;
+        }
+
+        $mentorJobId = $this->requireMentorJobId();
+        abort_unless((int) ($taskBank->job_role_id ?? 0) === $mentorJobId, 403, 'MENTOR_CANNOT_ACCESS_TASK_BANK_OUTSIDE_JOB');
+    }
+
+    private function assertMentorCanManageJobRoleId(?int $jobRoleId): void
+    {
+        if (! $this->isMentorUser()) {
+            return;
+        }
+
+        $mentorJobId = $this->requireMentorJobId();
+        abort_unless((int) $jobRoleId === $mentorJobId, 403, 'MENTOR_CANNOT_ASSIGN_TASK_BANK_OUTSIDE_JOB');
     }
 }

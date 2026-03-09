@@ -73,7 +73,7 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        $defaultRoute = $user->role === 'admin' ? 'dashboard' : 'lobby';
+        $defaultRoute = $user->isStaff() ? 'dashboard' : 'lobby';
 
         return redirect(route($defaultRoute, absolute: false));
     }

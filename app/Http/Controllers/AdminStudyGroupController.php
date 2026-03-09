@@ -16,7 +16,7 @@ class AdminStudyGroupController extends Controller
      public function manage(Request $request)
 {
     // Pastikan hanya admin boleh masuk
-    if (auth()->user()->role !== 'admin') {
+    if (!auth()->user()->isAdmin()) {
         abort(403, 'Hanya Admin (Grandmaster) yang dibenarkan masuk ke Command Center!');
     }
 
@@ -54,7 +54,7 @@ class AdminStudyGroupController extends Controller
     public function store(Request $request)
     {
         // Pastikan hanya admin (sesuaikan dengan logic middleware/role kamu)
-        if (Auth::user()->role !== 'admin') {
+        if (!Auth::user()->isAdmin()) {
             abort(403, 'UNAUTHORIZED_ACCESS');
         }
 
@@ -240,7 +240,7 @@ class AdminStudyGroupController extends Controller
      */
     public function destroy($uuid)
     {
-        if (Auth::user()->role !== 'admin') {
+        if (!Auth::user()->isAdmin()) {
             abort(403);
         }
 

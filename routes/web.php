@@ -60,7 +60,7 @@ Route::middleware('auth')->group(function () {
 
 
 
-Route::middleware(['auth', 'verified', 'admin'])->group(function () {
+Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/admin/dashboard', function () {
         return redirect()->route('dashboard');
@@ -84,30 +84,6 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         ->name('admin.submissions.verdict');
     Route::post('/submissions/{submission}/check-ai', [AdminSubmissionController::class, 'checkWithAI'])
         ->name('admin.submissions.checkAI');
-
-    Route::prefix('admin/users')->name('admin.users.')->group(function () {
-        Route::get('/', [AdminUserController::class, 'index'])->name('index');
-        Route::patch('/{user}', [AdminUserController::class, 'update'])->name('update');
-        Route::delete('/{user}', [AdminUserController::class, 'destroy'])->name('destroy');
-        Route::patch('/{user}/role', [AdminUserController::class, 'updateRole'])->name('role.update');
-        Route::patch('/{user}/reset-password', [AdminUserController::class, 'resetPassword'])->name('password.reset');
-    });
-
-    Route::prefix('admin/jobs')->name('admin.jobs.')->group(function () {
-        Route::get('/', [AdminJobRoleController::class, 'index'])->name('index');
-        Route::post('/', [AdminJobRoleController::class, 'store'])->name('store');
-        Route::put('/{jobRole}', [AdminJobRoleController::class, 'update'])->name('update');
-        Route::delete('/{jobRole}', [AdminJobRoleController::class, 'destroy'])->name('destroy');
-    });
-
-    Route::prefix('admin/shop-items')->name('admin.shop-items.')->group(function () {
-        Route::get('/', [AdminShopItemController::class, 'index'])->name('index');
-        Route::get('/{item}/detail', [AdminShopItemController::class, 'detail'])->name('detail');
-        Route::post('/{item}/transactions/{transaction}/cancel', [AdminShopItemController::class, 'cancelTransaction'])->name('transactions.cancel');
-        Route::post('/', [AdminShopItemController::class, 'store'])->name('store');
-        Route::put('/{item}', [AdminShopItemController::class, 'update'])->name('update');
-        Route::delete('/{item}', [AdminShopItemController::class, 'destroy'])->name('destroy');
-    });
 
     Route::prefix('admin/task-banks')->name('admin.task-banks.')->group(function () {
         Route::get('/', [AdminTaskBankController::class, 'index'])->name('index');
@@ -138,6 +114,34 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         Route::patch('/{event:uuid}/attendance', [AdminEventController::class, 'updateAttendance'])->name('attendance.update');
     });
 
+});
+
+
+Route::middleware(['auth', 'verified', 'admin'])->group(function () {
+    Route::prefix('admin/users')->name('admin.users.')->group(function () {
+        Route::get('/', [AdminUserController::class, 'index'])->name('index');
+        Route::patch('/{user}', [AdminUserController::class, 'update'])->name('update');
+        Route::delete('/{user}', [AdminUserController::class, 'destroy'])->name('destroy');
+        Route::patch('/{user}/role', [AdminUserController::class, 'updateRole'])->name('role.update');
+        Route::patch('/{user}/reset-password', [AdminUserController::class, 'resetPassword'])->name('password.reset');
+    });
+
+    Route::prefix('admin/jobs')->name('admin.jobs.')->group(function () {
+        Route::get('/', [AdminJobRoleController::class, 'index'])->name('index');
+        Route::post('/', [AdminJobRoleController::class, 'store'])->name('store');
+        Route::put('/{jobRole}', [AdminJobRoleController::class, 'update'])->name('update');
+        Route::delete('/{jobRole}', [AdminJobRoleController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('admin/shop-items')->name('admin.shop-items.')->group(function () {
+        Route::get('/', [AdminShopItemController::class, 'index'])->name('index');
+        Route::get('/{item}/detail', [AdminShopItemController::class, 'detail'])->name('detail');
+        Route::post('/{item}/transactions/{transaction}/cancel', [AdminShopItemController::class, 'cancelTransaction'])->name('transactions.cancel');
+        Route::post('/', [AdminShopItemController::class, 'store'])->name('store');
+        Route::put('/{item}', [AdminShopItemController::class, 'update'])->name('update');
+        Route::delete('/{item}', [AdminShopItemController::class, 'destroy'])->name('destroy');
+    });
+
     Route::prefix('admin/submissions')->name('admin.submissions.manage.')->group(function () {
         Route::get('/', [AdminSubmissionManagementController::class, 'index'])->name('index');
         Route::patch('/{submission}', [AdminSubmissionManagementController::class, 'update'])->name('update');
@@ -146,7 +150,7 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
 });
 
 
-Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->group(function () {
+Route::middleware(['auth', 'verified', 'role:admin,mentor'])->prefix('admin')->group(function () {
 
     // Halaman Utama CRUD (List & Form Jadi Satu)
     Route::get('/materi', [AdminGuideController::class, 'index'])->name('materi.index');

@@ -48,7 +48,7 @@ class AuthenticatedSessionController extends Controller
 
         $user = $request->user();
 
-        $defaultRoute = $user?->role === 'admin' ? 'dashboard' : 'lobby';
+        $defaultRoute = $user?->isStaff() ? 'dashboard' : 'lobby';
 
         return redirect()->intended(route($defaultRoute, absolute: false));
     }

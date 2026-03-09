@@ -17,6 +17,8 @@ use Illuminate\Validation\ValidationException;
 
 class QuestController extends Controller
 {
+    private const MENTOR_JOB_REQUIRED_MESSAGE = 'Akun mentor wajib punya jurusan (job) sebelum mengelola quest.';
+
     public function userIndex(Request $request)
     {
         $validated = $request->validate([
@@ -75,9 +77,35 @@ class QuestController extends Controller
 
         $search = trim((string) ($validated['search'] ?? ''));
 
+        $adminQuestQuery = Quest::query()
+            ->with(['studyGroup', 'taskBank:id,uuid,name,assessment_type,job_role_id']);
+
+        if ($this->isMentorUser()) {
+            $mentorJobId = $this->requireMentorJobId();
+
+            $adminQuestQuery->where(function ($query) use ($mentorJobId) {
+                $query->whereHas('studyGroup', function ($sq) use ($mentorJobId) {
+                    $sq->where('job_id', $mentorJobId);
+                })->orWhereHas('taskBank', function ($tq) use ($mentorJobId) {
+                    $tq->where('job_role_id', $mentorJobId);
+                });
+            });
+        }
+
+        $studyGroupQuery = StudyGroup::query()->select('id', 'name');
+        if ($this->isMentorUser()) {
+            $studyGroupQuery->where('job_id', $this->requireMentorJobId());
+        }
+
+        $taskBankQuery = TaskBank::query()
+            ->where('is_active', true)
+            ->orderBy('name');
+        if ($this->isMentorUser()) {
+            $taskBankQuery->where('job_role_id', $this->requireMentorJobId());
+        }
+
         return Inertia::render('Quests/Index', [
-            'quests' => Quest::query()
-                ->with(['studyGroup', 'taskBank:id,uuid,name,assessment_type'])
+            'quests' => $adminQuestQuery
                 ->when($search !== '', function ($query) use ($search) {
                     $query->where(function ($q) use ($search) {
                         $q->where('title', 'like', "%{$search}%")
@@ -93,11 +121,8 @@ class QuestController extends Controller
                 ->paginate(10)
                 ->withQueryString(),
 
-            'studyGroups' => StudyGroup::select('id', 'name')->get(),
-            'taskBanks' => TaskBank::query()
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->get(['id', 'uuid', 'name', 'assessment_type']),
+            'studyGroups' => $studyGroupQuery->get(),
+            'taskBanks' => $taskBankQuery->get(['id', 'uuid', 'name', 'assessment_type']),
             'filters' => [
                 'search' => $search,
             ],
@@ -132,6 +157,8 @@ class QuestController extends Controller
             : 'Available';
         $validated['uuid'] = (string) \Illuminate\Support\Str::uuid();
 
+        $this->assertMentorCanManageQuestPayload($validated);
+
         Quest::create($validated);
 
         return redirect()->back()->with('message', 'NEW_QUEST_DEPLOYED_SUCCESSFULLY');
@@ -140,6 +167,7 @@ class QuestController extends Controller
     public function update(Request $request, $uuid)
     {
         $quest = Quest::where('uuid', $uuid)->firstOrFail();
+        $this->assertMentorCanManageQuest($quest);
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
@@ -167,6 +195,8 @@ class QuestController extends Controller
             ? (\Carbon\Carbon::parse($request->deadline)->isFuture() ? 'Available' : 'Done')
             : 'Available';
 
+        $this->assertMentorCanManageQuestPayload($validated);
+
         $quest->update($validated);
 
         return redirect()->back()->with('message', 'QUEST_CONTRACT_SYNCHRONIZED');
@@ -174,6 +204,7 @@ class QuestController extends Controller
 
     public function destroy(Quest $quest)
     {
+        $this->assertMentorCanManageQuest($quest);
         $quest->delete();
 
         return redirect()->back()->with('message', 'Mission aborted and removed from board.');
@@ -318,6 +349,80 @@ class QuestController extends Controller
         $statusDone = in_array($quest->status, ['Done', 'Completed'], true);
 
         return $deadlinePassed || $statusDone;
+    }
+
+    private function isMentorUser(): bool
+    {
+        return (bool) auth()->user()?->isMentor();
+    }
+
+    private function requireMentorJobId(): int
+    {
+        $jobId = (int) (auth()->user()?->job_id ?? 0);
+        abort_if($jobId <= 0, 403, self::MENTOR_JOB_REQUIRED_MESSAGE);
+        return $jobId;
+    }
+
+    private function assertMentorCanManageQuest(Quest $quest): void
+    {
+        if (! $this->isMentorUser()) {
+            return;
+        }
+
+        $mentorJobId = $this->requireMentorJobId();
+        $quest->loadMissing([
+            'studyGroup:id,job_id',
+            'taskBank:id,job_role_id',
+        ]);
+
+        $groupJobId = (int) ($quest->studyGroup?->job_id ?? 0);
+        $taskJobId = (int) ($quest->taskBank?->job_role_id ?? 0);
+        $isAllowed = $groupJobId === $mentorJobId || $taskJobId === $mentorJobId;
+
+        abort_unless($isAllowed, 403, 'MENTOR_CANNOT_MANAGE_QUEST_OUTSIDE_JOB');
+    }
+
+    private function assertMentorCanManageQuestPayload(array $payload): void
+    {
+        if (! $this->isMentorUser()) {
+            return;
+        }
+
+        $mentorJobId = $this->requireMentorJobId();
+        $studyGroupId = (int) ($payload['study_group_id'] ?? 0);
+        $taskBankId = (int) ($payload['task_bank_id'] ?? 0);
+
+        if ($studyGroupId <= 0 && $taskBankId <= 0) {
+            throw ValidationException::withMessages([
+                'study_group_id' => 'Mentor wajib mengaitkan quest ke study group atau task bank jurusannya.',
+            ]);
+        }
+
+        if ($studyGroupId > 0) {
+            $isValidGroup = StudyGroup::query()
+                ->whereKey($studyGroupId)
+                ->where('job_id', $mentorJobId)
+                ->exists();
+
+            if (! $isValidGroup) {
+                throw ValidationException::withMessages([
+                    'study_group_id' => 'Study group tidak sesuai dengan jurusan mentor.',
+                ]);
+            }
+        }
+
+        if ($taskBankId > 0) {
+            $isValidTaskBank = TaskBank::query()
+                ->whereKey($taskBankId)
+                ->where('job_role_id', $mentorJobId)
+                ->exists();
+
+            if (! $isValidTaskBank) {
+                throw ValidationException::withMessages([
+                    'task_bank_id' => 'Task bank tidak sesuai dengan jurusan mentor.',
+                ]);
+            }
+        }
     }
 
     private function authorizeQuestAccessForCurrentUser(Quest $quest): void

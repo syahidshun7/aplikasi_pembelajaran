@@ -5,6 +5,7 @@ import FloatingChat from '@/Components/FloatingChat.vue';
 import { toast } from '@/Utils/Alert'; // Satukan import di atas
 const page = usePage();
 const auth = computed(() => page.props.auth);
+const isStaff = computed(() => ['admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
 const showFloatingChat = computed(() => Boolean(auth.value?.user));
 const mobileMenuOpen = ref(false);
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
@@ -50,7 +51,7 @@ const handleLogout = () => {
 
             <div class="hidden md:flex gap-4 items-center">
                 <template v-if="auth.user">
-                    <Link v-if="auth.user.role === 'admin'" :href="route('admin.dashboard')"
+                    <Link v-if="isStaff" :href="route('admin.dashboard')"
                         class="text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors">
                         Admin
                     </Link>
@@ -92,7 +93,7 @@ const handleLogout = () => {
         >
             <div class="bg-[#1a1c2c]/95 backdrop-blur-sm border-2 border-[#3d415f] p-3 space-y-2 shadow-2xl">
                 <Link
-                    v-if="auth.user.role === 'admin'"
+                    v-if="isStaff"
                     :href="route('admin.dashboard')"
                     class="w-full text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors inline-flex items-center justify-center"
                     @click="mobileMenuOpen = false"

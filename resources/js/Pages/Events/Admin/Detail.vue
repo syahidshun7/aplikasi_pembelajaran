@@ -122,7 +122,7 @@ const durationText = computed(() => {
                         <p class="text-[8px] text-slate-400 uppercase mt-2 leading-relaxed break-words">
                             EVENT_ID: {{ event.uuid.substring(0, 8) }}
                             | SEQ: <span class="text-yellow-400">{{ event.sequence_order }}</span>
-                            | GROUP: <span class="text-cyan-400">{{ event.study_group?.name || 'PUBLIC' }}</span>
+                            | GROUP: <span class="text-cyan-400">{{ event.study_group?.name || 'NO_GROUP' }}</span>
                         </p>
                         <p class="text-[8px] text-slate-300 uppercase mt-2 leading-relaxed break-words">
                             START: <span class="text-emerald-400">{{ formatSchedule(event.starts_at) }}</span>
@@ -165,7 +165,7 @@ const durationText = computed(() => {
                             >
                             <span class="text-[8px] text-slate-200 uppercase flex-1 min-w-0 break-words">{{ guide.title }}</span>
                             <span class="text-[7px] text-cyan-400 uppercase ml-auto shrink-0">
-                                {{ guide.study_group?.name || 'PUBLIC' }}
+                                {{ guide.study_group?.name || 'NO_GROUP' }}
                             </span>
                         </label>
                     </div>
@@ -235,7 +235,7 @@ const durationText = computed(() => {
                             >
                             <span class="text-[8px] text-slate-200 uppercase flex-1 min-w-0 break-words">{{ quest.title }}</span>
                             <span class="text-[7px] text-blue-300 uppercase ml-auto shrink-0">
-                                {{ quest.study_group?.name || 'PUBLIC' }}
+                                {{ quest.study_group?.name || 'NO_GROUP' }}
                             </span>
                         </label>
                     </div>

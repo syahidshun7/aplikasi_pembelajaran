@@ -29,6 +29,7 @@ const {
 
 const mobileMenuOpen = ref(false);
 const page = usePage();
+const isStaff = computed(() => ['admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
 const profileVerificationHref = computed(() => `${route('profile.edit', { tab: 'profile' })}#email-verification`);
@@ -66,7 +67,7 @@ const closeMobileMenu = () => {
 
                 <div class="hidden md:flex gap-2 md:gap-4 items-center">
                     <template v-if="auth.user">
-                        <Link v-if="auth.user.role === 'admin'" :href="route('admin.dashboard')"
+                        <Link v-if="isStaff" :href="route('admin.dashboard')"
                             class="text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors">
                             Admin
                         </Link>
@@ -144,7 +145,7 @@ const closeMobileMenu = () => {
                 <div class="bg-[#1a1c2c]/95 backdrop-blur-sm border-2 border-[#3d415f] p-3 space-y-2 shadow-2xl">
                     <template v-if="auth.user">
                         <Link
-                            v-if="auth.user.role === 'admin'"
+                            v-if="isStaff"
                             :href="route('admin.dashboard')"
                             class="w-full text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors inline-flex items-center justify-center"
                             @click="closeMobileMenu"

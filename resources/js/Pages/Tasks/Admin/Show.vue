@@ -161,7 +161,7 @@ const typeClass = (type) => {
                     <div>
                         <h1 class="text-base md:text-xl text-white uppercase tracking-widest break-words">{{ taskBank.name }}</h1>
                         <p class="text-[8px] text-slate-400 uppercase mt-2">
-                            JOB: <span class="text-teal-300">{{ taskBank.job_role?.name || 'ALL_JOBS' }}</span>
+                            JOB: <span class="text-teal-300">{{ taskBank.job_role?.name || 'NO_JOB_SCOPE' }}</span>
                             | TYPE: <span class="text-yellow-300">{{ taskBank.assessment_type }}</span>
                         </p>
                     </div>

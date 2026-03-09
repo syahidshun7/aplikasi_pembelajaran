@@ -8,6 +8,7 @@ const page = usePage();
 
 // 2. Definisikan variabel auth yang menyebabkan error tadi
 const auth = computed(() => page.props.auth || {});
+const isStaff = computed(() => ['admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
 
 const handleLogout = () => {
     toast.confirm('QUIT GAME?', 'Are you sure you want to exit?')
@@ -42,7 +43,7 @@ const handleLogout = () => {
 
             <div class="flex gap-2 md:gap-4 items-center">
                 <template v-if="auth.user">
-                    <Link v-if="auth.user.role === 'admin'" :href="route('admin.dashboard')"
+                    <Link v-if="isStaff" :href="route('admin.dashboard')"
                         class="text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors">
                         Admin
                     </Link>
