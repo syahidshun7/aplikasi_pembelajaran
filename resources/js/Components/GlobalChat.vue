@@ -150,6 +150,14 @@ const normalizeMessage = (payload = {}) => {
     };
 };
 
+const isPresenceSystemMessage = (payload = {}) => {
+    const sender = normalizeIdentity(payload.user || '');
+    if (sender !== 'system') return false;
+
+    const message = String(payload.message || '').toLowerCase();
+    return /joined\s*\(|left the room/.test(message);
+};
+
 const scrollToBottom = async () => {
     await nextTick();
     if (!chatContainer.value) return;
@@ -220,6 +228,8 @@ const typingUsersLabel = computed(() => {
 });
 
 const handleReceiveMessage = async (payload = {}) => {
+    if (isPresenceSystemMessage(payload)) return;
+
     const parsed = normalizeMessage(payload);
     if (parsed.message.trim() === '') return;
     if (parsed.id && messages.value.some((item) => item.id === parsed.id)) return;
@@ -375,7 +385,8 @@ const handleMessageHistory = async (payload = {}) => {
     const incomingRaw = Array.isArray(payload.messages) ? payload.messages : [];
     const incomingParsed = incomingRaw
         .map((item) => normalizeMessage(item))
-        .filter((item) => item.message.trim() !== '');
+        .filter((item) => item.message.trim() !== '')
+        .filter((item) => !isPresenceSystemMessage(item));
 
     const mode = String(payload.mode || 'replace');
     let incoming = incomingParsed;
