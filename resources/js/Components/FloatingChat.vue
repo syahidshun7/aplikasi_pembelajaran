@@ -14,21 +14,14 @@ const closeChat = () => {
 </script>
 
 <template>
-    <div class="fixed bottom-4 right-4 z-[80] flex flex-col items-end gap-3 md:bottom-6 md:right-6">
+    <div class="fixed bottom-4 right-4 z-[9999] flex flex-col items-end gap-3 md:bottom-6 md:right-6">
         <Transition name="chat-pop">
             <div
                 v-if="isOpen"
                 class="w-[min(94vw,420px)] max-h-[82vh]"
             >
                 <div class="relative">
-                    <button
-                        type="button"
-                        class="absolute right-2 top-2 z-[5] h-7 w-7 border border-cyan-500/60 bg-black/70 text-cyan-300 transition-colors hover:bg-cyan-500 hover:text-black"
-                        aria-label="Close chat"
-                        @click="closeChat"
-                    >
-                        <i class="fi fi-rr-cross-small text-[12px]"></i>
-                    </button>
+                 
 
                     <GlobalChat />
                 </div>

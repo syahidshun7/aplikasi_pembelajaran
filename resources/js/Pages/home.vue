@@ -563,7 +563,7 @@ const closeMobileMenu = () => {
 
             </main>
 
-            <FloatingChat />
+            <FloatingChat v-if="auth.user" />
 
             <footer class="p-8 text-center bg-[#1a1c2c]/50 backdrop-blur-md border-t-2 border-white/10 mt-auto">
                 <p class="text-[8px] text-white/50 uppercase tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>

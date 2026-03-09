@@ -1,9 +1,11 @@
 <script setup>
 import { Link, usePage, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import FloatingChat from '@/Components/FloatingChat.vue';
 import { toast } from '@/Utils/Alert'; // Satukan import di atas
 const page = usePage();
 const auth = computed(() => page.props.auth);
+const showFloatingChat = computed(() => Boolean(auth.value?.user));
 const mobileMenuOpen = ref(false);
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
@@ -158,6 +160,8 @@ const handleLogout = () => {
         <footer class="p-8 text-center bg-[#1a1c2c]/50 backdrop-blur-md border-t-2 border-white/10 mt-auto">
             <p class="text-[8px] text-white/50 uppercase tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
         </footer>
+
+        <FloatingChat v-if="showFloatingChat" />
     </div>
 </template>
 
