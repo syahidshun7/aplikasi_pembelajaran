@@ -63,6 +63,11 @@ app.use(express.json());
  * In-memory socket presence is local to one Node process.
  * Shared states (online users, rate limits) are stored in Redis.
  */
+
+
+
+
+
 const socketPresence = new Map();
 
 let dbPool;
