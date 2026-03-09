@@ -13,6 +13,7 @@ const rateLimitNotice = ref('');
 const hasMoreHistory = ref(true);
 const isLoadingHistory = ref(false);
 const historyCursorId = ref(null);
+const typingUsers = ref([]);
 
 const userName = ref('Anonymous');
 const userId = ref(null);
@@ -20,7 +21,9 @@ const page = usePage();
 const authUser = computed(() => page.props?.auth?.user || null);
 let socket = null;
 let historyRequestTimer = null;
+let typingStopTimer = null;
 const MESSAGE_PAGE_SIZE = 10;
+const TYPING_STOP_DELAY_MS = 1200;
 
 const getChatSocketPath = () => {
     const configuredPath = String(import.meta.env.VITE_CHAT_SOCKET_PATH || '').trim();
@@ -153,6 +156,69 @@ const scrollToBottom = async () => {
     chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
 };
 
+const isMe = (payloadUser = '', payloadUserId = null) => {
+    const senderId = Number(payloadUserId || 0);
+    if (userId.value && senderId) return senderId === userId.value;
+    return normalizeIdentity(payloadUser) === normalizeIdentity(userName.value);
+};
+
+const removeTypingUser = (payloadUser = '', payloadUserId = null) => {
+    const senderId = Number(payloadUserId || 0);
+    const senderName = normalizeIdentity(payloadUser);
+
+    typingUsers.value = typingUsers.value.filter((item) => {
+        const itemId = Number(item.user_id || 0);
+        const itemName = normalizeIdentity(item.user || '');
+
+        if (senderId && itemId) return itemId !== senderId;
+        return itemName !== senderName;
+    });
+};
+
+const resetTypingState = () => {
+    typingUsers.value = [];
+};
+
+const emitTypingState = (isTyping) => {
+    if (!socket || !isConnected.value) return;
+    socket.emit('typing', { is_typing: Boolean(isTyping) });
+};
+
+const stopTyping = () => {
+    if (typingStopTimer) {
+        clearTimeout(typingStopTimer);
+        typingStopTimer = null;
+    }
+    emitTypingState(false);
+};
+
+const handleTypingInput = () => {
+    if (!socket || !isConnected.value) return;
+
+    emitTypingState(true);
+
+    if (typingStopTimer) {
+        clearTimeout(typingStopTimer);
+    }
+
+    typingStopTimer = setTimeout(() => {
+        emitTypingState(false);
+        typingStopTimer = null;
+    }, TYPING_STOP_DELAY_MS);
+};
+
+const typingUsersLabel = computed(() => {
+    if (typingUsers.value.length === 0) return '';
+
+    if (typingUsers.value.length === 1) {
+        return `${typingUsers.value[0].user} sedang mengetik...`;
+    }
+
+    const first = typingUsers.value[0].user;
+    const restCount = typingUsers.value.length - 1;
+    return `${first} dan ${restCount} lainnya sedang mengetik...`;
+});
+
 const handleReceiveMessage = async (payload = {}) => {
     const parsed = normalizeMessage(payload);
     if (parsed.message.trim() === '') return;
@@ -163,6 +229,7 @@ const handleReceiveMessage = async (payload = {}) => {
     }
 
     messages.value.push(parsed);
+    removeTypingUser(parsed.user, parsed.user_id);
     await scrollToBottom();
 };
 
@@ -231,6 +298,7 @@ const handleRoomAssigned = (payload = {}) => {
     }
 
     messages.value = [];
+    resetTypingState();
     hasMoreHistory.value = true;
     isLoadingHistory.value = false;
     historyCursorId.value = null;
@@ -255,7 +323,46 @@ const sendMessage = () => {
     socket.emit('send_message', {
         message: plainMessage,
     });
+    stopTyping();
     messageInput.value = '';
+};
+
+const handleTypingStatus = (payload = {}) => {
+    const typingRoom = String(payload.room || '').trim();
+    if (activeRoom.value !== 'assigning...' && typingRoom && typingRoom !== activeRoom.value) {
+        return;
+    }
+
+    const typingUser = String(payload.user || '').trim();
+    const typingUserId = Number(payload.user_id || 0);
+    const isTyping = Boolean(payload.is_typing);
+    if (!typingUser) return;
+    if (isMe(typingUser, typingUserId)) return;
+
+    if (!isTyping) {
+        removeTypingUser(typingUser, typingUserId);
+        return;
+    }
+
+    const existingIndex = typingUsers.value.findIndex((item) => {
+        const itemId = Number(item.user_id || 0);
+        if (typingUserId && itemId) return itemId === typingUserId;
+        return normalizeIdentity(item.user || '') === normalizeIdentity(typingUser);
+    });
+
+    if (existingIndex >= 0) {
+        typingUsers.value[existingIndex] = {
+            ...typingUsers.value[existingIndex],
+            user: typingUser,
+            user_id: typingUserId || null,
+        };
+        return;
+    }
+
+    typingUsers.value.push({
+        user: typingUser,
+        user_id: typingUserId || null,
+    });
 };
 
 const handleMessageHistory = async (payload = {}) => {
@@ -337,6 +444,7 @@ onMounted(() => {
     socket.on('connect', () => {
         isConnected.value = true;
         rateLimitNotice.value = '';
+        resetTypingState();
         socket.emit('join_room', {
             token,
             user: userName.value,
@@ -346,12 +454,14 @@ onMounted(() => {
 
     socket.on('disconnect', () => {
         isConnected.value = false;
+        resetTypingState();
     });
 
     socket.on('room_assigned', handleRoomAssigned);
     socket.on('message_history', handleMessageHistory);
     socket.on('receive_message', handleReceiveMessage);
     socket.on('online_users', handleOnlineUsers);
+    socket.on('typing_status', handleTypingStatus);
     socket.on('rate_limit', async (payload = {}) => {
         rateLimitNotice.value = String(payload.message || 'Rate limit exceeded');
         await pushSystemNotice(rateLimitNotice.value);
@@ -370,12 +480,19 @@ onBeforeUnmount(() => {
     socket.off('message_history', handleMessageHistory);
     socket.off('receive_message', handleReceiveMessage);
     socket.off('online_users', handleOnlineUsers);
+    socket.off('typing_status', handleTypingStatus);
+    stopTyping();
     socket.disconnect();
     socket = null;
 
     if (historyRequestTimer) {
         clearTimeout(historyRequestTimer);
         historyRequestTimer = null;
+    }
+
+    if (typingStopTimer) {
+        clearTimeout(typingStopTimer);
+        typingStopTimer = null;
     }
 });
 </script>
@@ -449,6 +566,7 @@ onBeforeUnmount(() => {
                     maxlength="500"
                     class="flex-1 bg-black border-2 border-slate-700 p-2 text-cyan-300 outline-none text-[10px] font-sans"
                     placeholder="Type message..."
+                    @input="handleTypingInput"
                     @keyup.enter="sendMessage"
                 >
                 <button
@@ -459,6 +577,9 @@ onBeforeUnmount(() => {
                     Send
                 </button>
             </div>
+            <p v-if="typingUsersLabel" class="mt-2 text-[8px] uppercase text-emerald-300 animate-pulse">
+                {{ typingUsersLabel }}
+            </p>
         </div>
     </div>
 </template>

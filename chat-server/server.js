@@ -404,13 +404,6 @@ io.on('connection', (socket) => {
                 mode: 'replace',
                 ...history,
             });
-
-            socket.to(room).emit('receive_message', {
-                room,
-                user: 'System',
-                message: `${user.name} joined (${job})`,
-                time: getTimeStamp(),
-            });
         } catch (error) {
             console.error('join_room error:', error);
             socket.emit('server_error', { message: 'Failed to join room' });
@@ -450,9 +443,34 @@ io.on('connection', (socket) => {
                 time: getTimeStamp(now),
                 created_at: now.toISOString(),
             });
+
+            socket.to(presence.room).emit('typing_status', {
+                room: presence.room,
+                user: presence.userName,
+                user_id: presence.userId,
+                is_typing: false,
+            });
         } catch (error) {
             console.error('send_message error:', error);
             socket.emit('server_error', { message: 'Failed to send message' });
+        }
+    });
+
+    socket.on('typing', (data = {}) => {
+        try {
+            const presence = socketPresence.get(socket.id);
+            if (!presence?.room || !presence?.userId) return;
+
+            const isTyping = Boolean(data.is_typing);
+
+            socket.to(presence.room).emit('typing_status', {
+                room: presence.room,
+                user: presence.userName,
+                user_id: presence.userId,
+                is_typing: isTyping,
+            });
+        } catch (error) {
+            console.error('typing error:', error);
         }
     });
 
@@ -488,13 +506,13 @@ io.on('connection', (socket) => {
         try {
             const presence = await removeSocketFromRoom(socket);
             if (presence?.room) {
-                await emitOnlineUsers(presence.room);
-                socket.to(presence.room).emit('receive_message', {
+                io.to(presence.room).emit('typing_status', {
                     room: presence.room,
-                    user: 'System',
-                    message: `${presence.userName} left the room`,
-                    time: getTimeStamp(),
+                    user: presence.userName,
+                    user_id: presence.userId,
+                    is_typing: false,
                 });
+                await emitOnlineUsers(presence.room);
             }
         } catch (error) {
             console.error('disconnect error:', error);
