@@ -509,6 +509,10 @@ const closeMobileMenu = () => {
                                                 class="text-[6px] text-yellow-400 uppercase italic tracking-widest">
                                                 Waiting_For_Review...
                                             </p>
+                                            <p v-if="quest.user_submission_status === 'Approved'"
+                                                class="text-[6px] text-emerald-400 uppercase italic tracking-widest">
+                                                Approved!
+                                            </p>
                                             <p v-if="quest.status === 'In-Progress'"
                                                 class="text-[6px] text-slate-500 uppercase italic tracking-widest">
                                                 Active_In_Journal...</p>
@@ -524,19 +528,22 @@ const closeMobileMenu = () => {
                                             <template v-if="quest.status !== 'In-Progress'">
                                                 <Link :href="route('quests.show', quest.uuid)" :class="[
                                                     'text-[8px] px-3 py-2 btn-pixel uppercase font-bold transition-colors whitespace-nowrap',
+                                                    (quest.user_submission_status === 'Approved') ? 'bg-emerald-600 text-black border-emerald-800 hover:bg-emerald-400' :
                                                     (quest.user_submission_status === 'Pending') ? 'bg-yellow-600 text-black border-yellow-800 hover:bg-yellow-400' :
                                                     (quest.user_has_unlock && !quest.user_has_submitted) ? 'bg-cyan-600 text-black border-cyan-800 hover:bg-cyan-400' :
                                                     (quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock) ? 'bg-red-700 text-white border-red-950 hover:bg-red-600' :
-                                                        quest.user_has_submitted ? 'bg-yellow-600 text-black border-yellow-800 hover:bg-yellow-400' :
+                                                        quest.user_has_submitted ? 'bg-slate-700 text-white border-slate-900 hover:bg-slate-600' :
                                                             'bg-[#009999] text-black border-[#006666] hover:bg-[#4ed4d4]'
                                                 ]">
                                                     <template
-                                                        v-if="quest.user_submission_status === 'Pending'">Preview</template>
+                                                        v-if="quest.user_submission_status === 'Approved'">View</template>
+                                                    <template
+                                                        v-else-if="quest.user_submission_status === 'Pending'">Preview</template>
                                                     <template
                                                         v-else-if="quest.user_has_unlock && !quest.user_has_submitted">Continue</template>
                                                     <template
                                                         v-else-if="quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock">Late</template>
-                                                    <template v-else>{{ quest.user_has_submitted ? 'Re-Take' :
+                                                    <template v-else>{{ quest.user_has_submitted ? 'View' :
                                                         'Take_Quest' }}</template>
                                                 </Link>
                                             </template>

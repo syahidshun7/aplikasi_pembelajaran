@@ -274,7 +274,14 @@ class QuestController extends Controller
                 ->value('quantity');
         }
 
-        $canSubmit = ! $submission && (! $isLate || $hasQuestUnlock);
+        $deadlineActive = $quest->deadline === null || $quest->deadline->isFuture();
+        $canFirstSubmit = ! $submission && (! $isLate || $hasQuestUnlock);
+        $canResubmitManualPending = (bool) $submission
+            && ! $quest->taskBank
+            && (string) $submission->status === 'Pending'
+            && $deadlineActive;
+
+        $canSubmit = $canFirstSubmit || $canResubmitManualPending;
 
         return Inertia::render('Quests/Show', [
             'quest' => $quest,

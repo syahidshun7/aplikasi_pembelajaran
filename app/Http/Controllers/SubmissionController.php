@@ -37,18 +37,38 @@ class SubmissionController extends Controller
             ]);
         }
 
+        $isUpdate = false;
+        $submission = null;
+
         if ($existingSubmission) {
-            throw ValidationException::withMessages([
-                'submission' => 'Submission sudah terkirim dan tidak bisa diulang.',
-            ]);
+            if ($quest->taskBank) {
+                throw ValidationException::withMessages([
+                    'submission' => 'Submission sudah terkirim dan tidak bisa diulang.',
+                ]);
+            }
+
+            if ((string) $existingSubmission->status !== 'Pending') {
+                throw ValidationException::withMessages([
+                    'submission' => 'Submission sudah diproses dan tidak bisa diubah.',
+                ]);
+            }
+
+            if (! $this->isDeadlineActive($quest)) {
+                throw ValidationException::withMessages([
+                    'submission' => 'Deadline sudah berakhir. Submission tidak bisa diubah lagi.',
+                ]);
+            }
+
+            $submission = $existingSubmission;
+            $isUpdate = true;
+        } else {
+            $submission = new Submission();
+            $submission->quest_id = $quest->id;
+            $submission->user_id = auth()->id();
         }
 
-        $submission = new Submission();
-        $submission->quest_id = $quest->id;
-        $submission->user_id = auth()->id();
-
         $wasEvaluated = $this->isSubmissionEvaluated($submission);
-        $isAutoChecked = $this->applyUserSubmissionPayload($request, $quest, $submission);
+        $isAutoChecked = $this->applyUserSubmissionPayload($request, $quest, $submission, $isUpdate);
 
         $submission->save();
 
@@ -56,7 +76,7 @@ class SubmissionController extends Controller
             $this->syncUserRewardTotals((int) $submission->user_id);
         }
 
-        return back()->with('message', 'MISSION_REPORT_SENT');
+        return back()->with('message', $isUpdate ? 'MISSION_REPORT_UPDATED' : 'MISSION_REPORT_SENT');
     }
 
     public function showSubmission(Submission $submission)
@@ -82,21 +102,53 @@ class SubmissionController extends Controller
 
     public function update(Request $request, $uuid)
     {
-        abort(403, 'SUBMISSION_LOCKED');
+        $submission = Submission::where('uuid', $uuid)->firstOrFail();
+
+        if ((int) $submission->user_id !== (int) auth()->id()) {
+            abort(403);
+        }
+
+        $submission->load(['quest.taskBank']);
+        $quest = $submission->quest;
+        $this->authorizeQuestAccessForCurrentUser($quest);
+
+        if ($quest->taskBank) {
+            abort(403, 'TASK_BANK_SUBMISSION_LOCKED');
+        }
+
+        if ((string) $submission->status !== 'Pending') {
+            abort(403, 'SUBMISSION_ALREADY_PROCESSED');
+        }
+
+        abort_unless($this->isDeadlineActive($quest), 403, 'SUBMISSION_DEADLINE_PASSED');
+
+        $wasEvaluated = $this->isSubmissionEvaluated($submission);
+        $this->applyUserSubmissionPayload($request, $quest, $submission, true);
+        $submission->save();
+
+        if ($wasEvaluated || $this->isSubmissionEvaluated($submission)) {
+            $this->syncUserRewardTotals((int) $submission->user_id);
+        }
+
+        return back()->with('message', 'MISSION_REPORT_UPDATED');
     }
 
-    private function applyUserSubmissionPayload(Request $request, Quest $quest, Submission $submission): bool
+    private function applyUserSubmissionPayload(Request $request, Quest $quest, Submission $submission, bool $isUpdate = false): bool
     {
         if ($this->isTaskBankQuest($quest)) {
             return $this->applyTaskBankSubmissionPayload($request, $quest, $submission);
         }
 
         $validated = $request->validate([
-            'content' => ['required', 'string'],
+            'content' => [$isUpdate ? 'nullable' : 'required', 'string'],
             'file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
         ]);
 
-        $submission->content = trim((string) $validated['content']);
+        if (array_key_exists('content', $validated) && $validated['content'] !== null) {
+            $submission->content = trim((string) $validated['content']);
+        } elseif (! $isUpdate) {
+            $submission->content = '';
+        }
         $submission->file_path = $this->storeUploadedFile($request, $submission);
         $submission->status = 'Pending';
         $submission->grade = 0;
@@ -121,7 +173,6 @@ class SubmissionController extends Controller
             'task_answers' => ['required', 'array', 'min:1'],
             'task_answers.*' => ['nullable', 'string'],
             'content' => ['nullable', 'string'],
-            'file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
         ]);
 
         $answers = $this->normalizeSubmittedAnswers(
@@ -157,7 +208,8 @@ class SubmissionController extends Controller
         }
 
         $submission->content = trim((string) ($validated['content'] ?? '')) ?: '[TASK_BANK_SUBMISSION]';
-        $submission->file_path = $this->storeUploadedFile($request, $submission);
+        $this->deleteSubmissionFileIfExists($submission->file_path);
+        $submission->file_path = null;
         $submission->status = 'Pending';
         $submission->grade = 0;
         $submission->feedback = null;
@@ -274,6 +326,11 @@ class SubmissionController extends Controller
         $statusDone = in_array($quest->status, ['Done', 'Completed'], true);
 
         return $deadlinePassed || $statusDone;
+    }
+
+    private function isDeadlineActive(Quest $quest): bool
+    {
+        return $quest->deadline === null || $quest->deadline->isFuture();
     }
 
     private function isTaskBankQuest(Quest $quest): bool

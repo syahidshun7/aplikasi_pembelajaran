@@ -13,6 +13,8 @@ const props = defineProps({
     canSubmit: Boolean,
     timeKeyQty: Number,
 });
+const existingStatus = computed(() => props.existingSubmission?.status || null);
+const canResubmitPending = computed(() => props.hasSubmitted && props.canSubmit && existingStatus.value === 'Pending');
 
 const taskAnswersFromSubmission = computed(() => {
     const answers = props.existingSubmission?.scores_detail?.answers;
@@ -250,7 +252,7 @@ const unlockLateQuest = () => {
 
                     <div v-if="canSubmit" class="mt-8 p-4 md:p-6 border-2 border-dashed border-cyan-900 bg-black/20">
                         <h3 class="text-[12px] mb-6 uppercase tracking-widest" :class="props.hasSubmitted ? 'text-yellow-500' : 'text-white'">
-                            >> {{ isStructuredTaskBankQuest ? 'Task_Bank_Submission' : (props.hasSubmitted ? 'Edit_Existing_Report' : 'Submit_Quest_Report') }}
+                            >> {{ isStructuredTaskBankQuest ? 'Task_Bank_Submission' : (canResubmitPending ? 'Re-Submit_Pending_Report' : (props.hasSubmitted ? 'Edit_Existing_Report' : 'Submit_Quest_Report')) }}
                         </h3>
 
                         <form @submit.prevent="submitReport" class="space-y-6">
@@ -344,7 +346,7 @@ const unlockLateQuest = () => {
                                 </p>
                             </div>
 
-                            <div v-if="!isAutoCheckedTaskBankQuest">
+                            <div v-if="!isStructuredTaskBankQuest">
                                 <label class="block text-[12px] text-slate-500 mb-2 uppercase">Evidence_Artifact:</label>
 
                                 <div

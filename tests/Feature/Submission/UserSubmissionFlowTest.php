@@ -6,6 +6,8 @@ use App\Models\Submission;
 use App\Models\TaskBank;
 use App\Models\User;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\UploadedFile;
 
 test('multiple choice task bank submission auto-checks and syncs user rewards on first submit', function () {
     $user = User::factory()->create();
@@ -176,26 +178,48 @@ test('mixed task bank requires answers for all questions and stays pending for m
         ->toBe('Dependency injection is providing dependencies from outside.');
 });
 
-test('student cannot submit the same quest twice', function () {
+test('student cannot submit the same task bank quest twice', function () {
     $user = User::factory()->create();
+
+    $taskBank = TaskBank::query()->create([
+        'name' => 'One Attempt Bank',
+        'description' => 'Auto-check bank',
+        'assessment_type' => 'multiple_choice',
+        'is_active' => true,
+    ]);
+
+    $question = $taskBank->questions()->create([
+        'question_text' => '1 + 1 = ?',
+        'question_type' => 'multiple_choice',
+        'options_json' => ['1', '2'],
+        'answer_key' => '2',
+        'weight' => 1,
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
 
     $quest = Quest::query()->create([
         'title' => 'One Attempt Quest',
-        'description' => 'Only one submission allowed',
+        'description' => 'Only one submission allowed for task bank',
         'difficulty' => 'C-Rank',
         'reward_gold' => 500,
         'reward_exp' => 500,
         'status' => 'Available',
         'deadline' => now()->addDay(),
+        'task_bank_id' => $taskBank->id,
     ]);
 
     $first = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
-        'content' => 'first attempt',
+        'task_answers' => [
+            $question->uuid => '2',
+        ],
     ]);
     $first->assertSessionHasNoErrors();
 
     $second = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
-        'content' => 'second attempt',
+        'task_answers' => [
+            $question->uuid => '2',
+        ],
     ]);
 
     $second->assertSessionHasErrors('submission');
@@ -258,4 +282,118 @@ test('misconfigured multiple_choice task bank with essay questions can still be 
     expect((int) $submission->grade)->toBe(0);
     expect($submission->scores_detail['assessment_type'] ?? null)->toBe('mixed');
     expect(($submission->scores_detail['auto_mcq']['earned_points'] ?? null))->toBe(50);
+});
+
+test('manual quest pending submission can be re-attempted (reupload file) until deadline', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create([
+        'email_verified_at' => now(),
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => 'Manual Quest',
+        'description' => 'Allow resubmit pending',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+    ]);
+
+    $first = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'content' => 'first report',
+        'file' => UploadedFile::fake()->create('first.pdf', 10, 'application/pdf'),
+    ]);
+    $first->assertSessionHasNoErrors();
+
+    $submission = Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->first();
+    expect($submission)->not->toBeNull();
+    expect($submission->status)->toBe('Pending');
+    expect($submission->file_path)->not->toBeNull();
+
+    $oldPath = (string) $submission->file_path;
+    Storage::disk('public')->assertExists($oldPath);
+
+    // Re-attempt: reupload file only (keep content).
+    $second = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'file' => UploadedFile::fake()->create('second.pdf', 10, 'application/pdf'),
+    ]);
+    $second->assertSessionHasNoErrors();
+
+    $submission->refresh();
+    expect($submission->status)->toBe('Pending');
+    expect((string) $submission->content)->toBe('first report');
+    expect((string) $submission->file_path)->not->toBe('');
+    expect((string) $submission->file_path)->not->toBe($oldPath);
+    Storage::disk('public')->assertMissing($oldPath);
+    Storage::disk('public')->assertExists((string) $submission->file_path);
+});
+
+test('manual quest pending submission cannot be re-attempted after deadline', function () {
+    $user = User::factory()->create([
+        'email_verified_at' => now(),
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => 'Manual Quest Deadline',
+        'description' => 'No update after deadline',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => 'Available',
+        'deadline' => now()->subMinute(),
+    ]);
+
+    $submission = Submission::query()->create([
+        'quest_id' => $quest->id,
+        'user_id' => $user->id,
+        'content' => 'initial',
+        'status' => 'Pending',
+        'grade' => 0,
+        'earned_exp' => 0,
+        'earned_gold' => 0,
+    ]);
+
+    $response = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'content' => 'try update',
+    ]);
+
+    $response->assertSessionHasErrors('submission');
+    $submission->refresh();
+    expect((string) $submission->content)->toBe('initial');
+});
+
+test('manual quest submission cannot be re-attempted after it is approved', function () {
+    $user = User::factory()->create([
+        'email_verified_at' => now(),
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => 'Manual Quest Approved',
+        'description' => 'No update after approved',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+    ]);
+
+    $submission = Submission::query()->create([
+        'quest_id' => $quest->id,
+        'user_id' => $user->id,
+        'content' => 'initial',
+        'status' => 'Approved',
+        'grade' => 80,
+        'earned_exp' => 400,
+        'earned_gold' => 400,
+    ]);
+
+    $response = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'content' => 'try update',
+    ]);
+
+    $response->assertSessionHasErrors('submission');
+    $submission->refresh();
+    expect((string) $submission->content)->toBe('initial');
 });
