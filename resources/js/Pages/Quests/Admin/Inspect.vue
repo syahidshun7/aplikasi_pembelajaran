@@ -52,6 +52,68 @@
                             {{ submission.content }}
                         </div>
 
+                        <div v-if="taskQuestions.length"
+                            class="bg-black border-2 border-slate-800 p-6 shadow-inner space-y-4">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <p class="text-[8px] text-yellow-400 uppercase tracking-widest">
+                                    >> TASK_BANK_QA_LOG
+                                </p>
+                                <p class="text-[7px] text-slate-500 uppercase italic">
+                                    BANK: <span class="text-slate-300 font-bold">{{ taskBank?.name || '-' }}</span>
+                                    <span v-if="taskBank?.assessment_type" class="text-slate-500">({{ taskBank.assessment_type }})</span>
+                                </p>
+                            </div>
+
+                            <div class="space-y-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                                <div v-for="(q, idx) in taskQuestions" :key="q.uuid"
+                                    class="p-4 border border-slate-800 bg-slate-950/30">
+                                    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-[7px] text-slate-500 uppercase mb-2">
+                                                Q{{ idx + 1 }} // {{ q.question_type || 'essay' }} // W: {{ q.weight || 1 }}
+                                            </p>
+                                            <p class="text-[13px] font-sans text-slate-200 break-words">
+                                                {{ q.question_text }}
+                                            </p>
+                                        </div>
+                                        <div class="shrink-0 text-right text-[7px] text-slate-500 uppercase">
+                                            ID: {{ String(q.uuid || '').substring(0, 8) }}...
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4">
+                                        <template v-if="q.question_type === 'multiple_choice'">
+                                            <p class="text-[8px] text-slate-500 uppercase italic mb-2">SELECTED_ANSWER:</p>
+                                            <p class="text-[12px] font-sans"
+                                                :class="selectedAnswerFor(q) ? 'text-cyan-300' : 'text-red-400'">
+                                                {{ selectedAnswerFor(q) || 'NOT_ANSWERED' }}
+                                            </p>
+
+                                            <div v-if="Array.isArray(q.options_json) && q.options_json.length"
+                                                class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                <div v-for="(opt, oidx) in q.options_json" :key="`${q.uuid}-opt-${oidx}`"
+                                                    class="px-3 py-2 border text-[11px] font-sans break-words"
+                                                    :class="String(opt) === String(selectedAnswerFor(q)) ? 'border-cyan-500 bg-cyan-500/10 text-cyan-200' : 'border-slate-800 bg-black/20 text-slate-400'">
+                                                    {{ opt }}
+                                                </div>
+                                            </div>
+
+                                            <p v-if="q.answer_key" class="mt-3 text-[8px] text-slate-500 uppercase italic">
+                                                ANSWER_KEY: <span class="text-emerald-400 font-bold">{{ q.answer_key }}</span>
+                                            </p>
+                                        </template>
+
+                                        <template v-else>
+                                            <p class="text-[8px] text-slate-500 uppercase italic mb-2">STUDENT_ANSWER:</p>
+                                            <div class="bg-black/40 border border-slate-800 p-4 font-sans text-[12px] text-slate-200 whitespace-pre-wrap">
+                                                {{ selectedAnswerFor(q) || 'NOT_ANSWERED' }}
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div v-if="submission.file_path" class="border-4 border-black bg-black shadow-2xl overflow-hidden">
                             <div v-if="isImage(submission.file_path)" class="p-2">
                                 <img :src="attachmentPreviewUrl" class="w-full h-auto" alt="Submission attachment">
@@ -93,43 +155,158 @@
             <section class="bg-[#161b22] border-4 border-slate-700 shadow-2xl overflow-hidden">
                 <div class="bg-slate-900 p-4 border-b-4 border-slate-700 flex justify-between items-center">
                     <h3 class="text-[10px] text-green-500 uppercase tracking-widest">>> ACADEMIC_EVALUATION_&_REWARDS</h3>
-                    <button @click="scanWithAI" :disabled="isScanning" 
+                    <div class="flex items-center gap-3">
+                        <span v-if="hasRubric" class="text-[8px] text-slate-400 uppercase italic">
+                            RUBRIC: <span class="text-cyan-300 font-bold">{{ rubricTitle }}</span>
+                            <span v-if="rubricSourceLabel" class="text-slate-500">({{ rubricSourceLabel }})</span>
+                        </span>
+                        <span v-else-if="isTaskBankSubmission" class="text-[8px] text-slate-400 uppercase italic">
+                            QUESTION_BANK: <span class="text-yellow-400 font-bold">{{ taskBank?.name || '-' }}</span>
+                            <span v-if="taskBankType" class="text-slate-500">({{ taskBankType }})</span>
+                        </span>
+                        <span v-else class="text-[8px] text-slate-400 uppercase italic">
+                            MANUAL_SCORE: <span class="text-cyan-300 font-bold">1–100</span>
+                        </span>
+                        <button v-if="!hasRubric && !isTaskBankSubmission" @click="scanWithAI" :disabled="isScanning" 
                             class="text-[8px] bg-indigo-900/30 text-indigo-400 px-3 py-1 border border-indigo-700 hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50">
-                        {{ isScanning ? 'ANALYZING...' : '[ AI_ADVISOR_SCAN ]' }}
-                    </button>
+                            {{ isScanning ? 'ANALYZING...' : '[ AI_ADVISOR_SCAN ]' }}
+                        </button>
+                    </div>
                 </div>
 
                 <div class="p-6 md:p-8">
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
                         
                         <div class="lg:col-span-7 space-y-3">
-                            <div v-for="item in criteria" :key="item.id" 
-                                @click="toggleCriteria(item)"
-                                class="flex items-center justify-between p-4 border-2 transition-all cursor-pointer hover:border-cyan-400 group"
-                                :class="item.checked ? 'border-cyan-500 bg-cyan-500/10' : 'border-slate-800 bg-black/40 text-slate-600'">
+                            <template v-if="isTaskBankSubmission">
+                                <div class="p-4 border-2 border-slate-800 bg-black/40">
+                                    <div class="flex justify-between text-[8px] uppercase">
+                                        <span class="text-slate-400 font-sans">AUTO_MCQ:</span>
+                                        <span class="text-slate-200 font-bold">{{ taskBankMcqEarnedPoints }} / {{ taskBankMcqMaxPoints }} pts</span>
+                                    </div>
+                                    <div v-if="essayQuestions.length" class="flex justify-between text-[8px] uppercase border-t border-slate-800 pt-2 mt-2">
+                                        <span class="text-slate-400 font-sans">MANUAL_ESSAY:</span>
+                                        <span class="text-slate-200 font-bold">{{ taskBankEssayEarnedPoints }} / {{ taskBankEssayMaxPoints }} pts</span>
+                                    </div>
+                                    <div class="flex justify-between text-[8px] uppercase border-t border-slate-800 pt-2 mt-2">
+                                        <span class="text-slate-400 font-sans">TOTAL_POINTS:</span>
+                                        <span class="text-cyan-300 font-bold underline">{{ taskBankEarnedPoints }} / {{ taskBankMaxPoints }} pts</span>
+                                    </div>
+                                </div>
 
-                                <div class="flex items-center gap-4">
-                                    <div class="w-6 h-6 border-2 flex items-center justify-center transition-all"
-                                        :class="item.checked ? 'border-cyan-400 bg-cyan-400' : 'border-slate-700 group-hover:border-cyan-400'">
-                                        <span v-if="item.checked" class="text-black font-bold text-xs">X</span>
+                                <div v-for="(q, idx) in taskQuestions" :key="q.uuid"
+                                    class="p-4 border-2 border-slate-800 bg-black/40 hover:border-cyan-500 transition-all">
+                                    <div class="flex justify-between items-start gap-4">
+                                        <div class="min-w-0">
+                                            <p class="text-[7px] text-slate-500 uppercase italic mb-2">
+                                                Q{{ idx + 1 }} // {{ q.question_type || 'essay' }} // W: {{ q.weight || 0 }}
+                                            </p>
+                                            <p class="text-[12px] font-sans text-slate-200 break-words">{{ q.question_text }}</p>
+                                        </div>
+                                        <div class="text-right text-[8px] uppercase">
+                                            <span v-if="q.question_type === 'multiple_choice'"
+                                                :class="taskBankMcqByQuestion?.[q.uuid]?.is_correct ? 'text-emerald-400' : 'text-red-400'">
+                                                {{ taskBankMcqByQuestion?.[q.uuid]?.is_correct ? 'CORRECT' : 'WRONG' }}
+                                            </span>
+                                            <span v-else class="text-yellow-400">ESSAY</span>
+                                        </div>
                                     </div>
 
-                                    <span class="text-[10px] uppercase font-bold"
-                                        :class="item.checked ? 'text-white' : 'text-slate-600'">
-                                        {{ item.label }}
-                                    </span>
+                                    <div v-if="q.question_type === 'multiple_choice'" class="mt-3 text-[11px] font-sans">
+                                        <p class="text-slate-400 uppercase text-[8px] italic">AUTO_POINTS:</p>
+                                        <p class="text-cyan-300">
+                                            +{{ taskBankMcqByQuestion?.[q.uuid]?.earned_points || 0 }} / {{ q.weight || 0 }}
+                                        </p>
+                                    </div>
+
+                                    <div v-else class="mt-4">
+                                        <label class="block text-[7px] text-slate-500 uppercase italic mb-2">
+                                            ESSAY_SCORE (0–{{ q.weight || 0 }}):
+                                        </label>
+                                        <input
+                                            type="number"
+                                            v-model.number="essayPoints[q.uuid]"
+                                            :min="0"
+                                            :max="q.weight || 0"
+                                            step="1"
+                                            @input="validateEssayPoints(q)"
+                                            class="w-full bg-slate-900 border-2 border-slate-700 p-2 text-[10px] text-cyan-300 uppercase outline-none focus:border-cyan-400"
+                                        />
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template v-else-if="hasRubric">
+                                <div v-for="criterion in rubricCriteria" :key="criterion.id"
+                                    class="p-4 border-2 border-slate-800 bg-black/40 hover:border-cyan-500 transition-all">
+                                    <div class="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                                        <div class="min-w-0">
+                                            <p class="text-[10px] uppercase font-bold text-white break-words">
+                                                {{ criterion.name }}
+                                            </p>
+                                            <p class="text-[7px] text-slate-500 uppercase italic mt-1">
+                                                WEIGHT: <span class="text-slate-300 font-bold">{{ Number(criterion.weight || 0).toFixed(2) }}</span>
+                                            </p>
+                                            <p v-if="rubricCellDescription(criterion.id, selectedLevels[criterion.id])"
+                                                class="text-[11px] font-sans text-slate-300 mt-3 leading-relaxed border-l-2 border-slate-700 pl-3 italic">
+                                                "{{ rubricCellDescription(criterion.id, selectedLevels[criterion.id]) }}"
+                                            </p>
+                                        </div>
+
+                                        <div class="shrink-0 w-full md:w-56">
+                                            <label class="block text-[7px] text-slate-500 uppercase italic mb-2">SELECT_LEVEL:</label>
+                                            <select
+                                                v-model.number="selectedLevels[criterion.id]"
+                                                class="w-full bg-slate-900 border-2 border-slate-700 p-2 text-[10px] text-cyan-300 uppercase outline-none focus:border-cyan-400"
+                                            >
+                                                <option :value="0">-- SELECT --</option>
+                                                <option v-for="lvl in rubricLevels" :key="lvl.id" :value="lvl.id">
+                                                    {{ lvl.label }} ({{ Number(lvl.score_value || 0).toFixed(0) }})
+                                                </option>
+                                            </select>
+                                            <p v-if="missingRubricCriteriaIds.includes(criterion.id)"
+                                                class="text-[8px] text-red-400 uppercase mt-2">
+                                                LEVEL_REQUIRED
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div class="flex items-center gap-2" @click.stop> 
-                                    <input type="number"
-                                        v-model.number="item.weight" 
-                                        @input="validateWeight(item)"
-                                        :max="item.maxWeight"
-                                        class="w-12 bg-transparent border-b-2 border-slate-700 text-right font-mono text-xs text-cyan-500 focus:border-cyan-400 outline-none p-0"
-                                        :class="!item.checked ? 'opacity-30' : 'opacity-100'" />
-                                    <span class="text-[8px] font-mono text-cyan-700">%</span>
+                                <div class="p-4 border-2 border-slate-800 bg-slate-950/30">
+                                    <div class="flex justify-between text-[8px] uppercase">
+                                        <span class="text-slate-400 font-sans">Max Level Score:</span>
+                                        <span class="text-slate-200 font-bold">{{ Number(rubricMaxLevelScore || 0).toFixed(2) }}</span>
+                                    </div>
+                                    <div class="flex justify-between text-[8px] uppercase border-t border-slate-800 pt-2 mt-2">
+                                        <span class="text-slate-400 font-sans">Total Weight:</span>
+                                        <span class="text-slate-200 font-bold">{{ Number(rubricMaxWeight || 0).toFixed(2) }}</span>
+                                    </div>
                                 </div>
-                            </div>
+                            </template>
+
+                            <template v-else>
+                                <div class="p-4 border-2 border-slate-800 bg-black/40">
+                                    <div class="flex items-center justify-between gap-4">
+                                        <div>
+                                            <p class="text-[8px] text-yellow-400 uppercase tracking-widest">>> MANUAL_SCORE_MODE</p>
+                                            <p class="text-[7px] text-slate-500 uppercase italic mt-1">
+                                                Range: 1–100 (fallback tanpa rubric)
+                                            </p>
+                                        </div>
+                                        <div class="shrink-0 w-32">
+                                            <input
+                                                type="number"
+                                                v-model.number="manualFinalScore"
+                                                min="1"
+                                                max="100"
+                                                step="1"
+                                                @input="validateManualScore"
+                                                class="w-full bg-slate-900 border-2 border-slate-700 p-2 text-[10px] text-cyan-300 uppercase outline-none focus:border-cyan-400 text-right font-mono"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
 
                         <div class="lg:col-span-5 flex flex-col justify-between space-y-6">
@@ -204,21 +381,31 @@ import axios from 'axios';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 
 const props = defineProps({
-    submission: Object
+    submission: Object,
+    rubric: Object,
+    rubricSource: String,
 });
 
 // 1. STATE & DATA
 const feedbackText = ref(props.submission.feedback || '');
 const localStatus = ref(['Approved', 'Rejected'].includes(props.submission.status) ? props.submission.status : 'Approved');
 const isScanning = ref(false);
-
-const criteria = ref([
-    { id: 'func', label: 'Functionalitas', weight: 50, maxWeight: 50, checked: false },
-    { id: 'logic', label: 'Logic & Structure', weight: 30, maxWeight: 30, checked: false },
-    { id: 'neat', label: 'Clean Code', weight: 10, maxWeight: 10, checked: false },
-    { id: 'extra', label: 'Extra Effort', weight: 5, maxWeight: 5, checked: false },
-    { id: 'att', label: 'Attitude', weight: 5, maxWeight: 5, checked: false },
-]);
+const manualFinalScore = ref(Math.max(1, Math.min(100, Number(props.submission.grade || 1))));
+const selectedLevels = ref({});
+const essayPoints = ref({});
+const taskAnswers = computed(() => {
+    const answers = props.submission?.scores_detail?.answers;
+    return answers && typeof answers === 'object' ? answers : {};
+});
+const taskBank = computed(() => props.submission?.quest?.task_bank || null);
+const taskQuestions = computed(() => {
+    const questions = taskBank.value?.questions;
+    return Array.isArray(questions) ? questions : [];
+});
+const isTaskBankSubmission = computed(() => taskQuestions.value.length > 0);
+const taskBankType = computed(() => taskBank.value?.assessment_type || null);
+const mcqQuestions = computed(() => taskQuestions.value.filter((q) => q.question_type === 'multiple_choice'));
+const essayQuestions = computed(() => taskQuestions.value.filter((q) => q.question_type !== 'multiple_choice'));
 
 const attachmentPreviewUrl = computed(() => {
     if (!props.submission?.file_path) return null;
@@ -231,8 +418,91 @@ const attachmentPreviewUrl = computed(() => {
 });
 
 // 2. COMPUTED PROPERTIES
+const hasRubric = computed(() => !!props.rubric?.rubric?.id);
+const rubricTitle = computed(() => props.rubric?.rubric?.title || 'N/A');
+const rubricSourceLabel = computed(() => {
+    const src = String(props.rubricSource || '').toLowerCase();
+    if (src === 'quest') return 'quest';
+    if (src === 'task_bank') return 'task_bank';
+    return '';
+});
+const rubricCriteria = computed(() => Array.isArray(props.rubric?.criteria) ? props.rubric.criteria : []);
+const rubricLevels = computed(() => Array.isArray(props.rubric?.levels) ? props.rubric.levels : []);
+const rubricMaxLevelScore = computed(() => {
+    const scores = rubricLevels.value.map((l) => Number(l.score_value || 0));
+    return scores.length ? Math.max(...scores) : 0;
+});
+const rubricMaxWeight = computed(() => rubricCriteria.value.reduce((acc, c) => acc + Number(c.weight || 0), 0));
+const missingRubricCriteriaIds = computed(() => {
+    if (!hasRubric.value) return [];
+    return rubricCriteria.value
+        .filter((c) => Number(selectedLevels.value?.[c.id] || 0) <= 0)
+        .map((c) => c.id);
+});
+
+const rubricTotalScore = computed(() => {
+    if (!hasRubric.value) return 0;
+    const maxLevel = Number(rubricMaxLevelScore.value || 0);
+    const maxWeight = Number(rubricMaxWeight.value || 0);
+    if (maxLevel <= 0 || maxWeight <= 0) return 0;
+
+    let total = 0;
+    rubricCriteria.value.forEach((c) => {
+        const levelId = Number(selectedLevels.value?.[c.id] || 0);
+        const level = rubricLevels.value.find((l) => Number(l.id) === levelId);
+        const selectedScore = level ? Number(level.score_value || 0) : 0;
+        const weight = Number(c.weight || 0);
+        total += (selectedScore / maxLevel) * weight;
+    });
+
+    const percent = Math.round((total / maxWeight) * 100);
+    return Math.max(0, Math.min(100, percent));
+});
+
+const taskBankMcqByQuestion = computed(() => {
+    const by = {};
+    mcqQuestions.value.forEach((q) => {
+        const uuid = String(q.uuid || '');
+        const weight = Math.max(0, Number(q.weight || 0));
+        const selected = String(selectedAnswerFor(q) || '');
+        const answerKey = String(q.answer_key || '');
+        const isCorrect = selected !== '' && answerKey !== '' && selected === answerKey;
+        by[uuid] = {
+            weight,
+            selected,
+            answer_key: answerKey,
+            is_correct: isCorrect,
+            earned_points: isCorrect ? weight : 0,
+        };
+    });
+    return by;
+});
+
+const taskBankMcqMaxPoints = computed(() => Object.values(taskBankMcqByQuestion.value).reduce((acc, v) => acc + Number(v.weight || 0), 0));
+const taskBankMcqEarnedPoints = computed(() => Object.values(taskBankMcqByQuestion.value).reduce((acc, v) => acc + Number(v.earned_points || 0), 0));
+const taskBankEssayMaxPoints = computed(() => essayQuestions.value.reduce((acc, q) => acc + Math.max(0, Number(q.weight || 0)), 0));
+const taskBankEssayEarnedPoints = computed(() => {
+    return essayQuestions.value.reduce((acc, q) => {
+        const uuid = String(q.uuid || '');
+        const max = Math.max(0, Number(q.weight || 0));
+        const raw = Number(essayPoints.value?.[uuid] ?? 0);
+        const clamped = Math.max(0, Math.min(max, isNaN(raw) ? 0 : raw));
+        return acc + clamped;
+    }, 0);
+});
+const taskBankMaxPoints = computed(() => taskQuestions.value.reduce((acc, q) => acc + Math.max(0, Number(q.weight || 0)), 0));
+const taskBankEarnedPoints = computed(() => Number(taskBankMcqEarnedPoints.value || 0) + Number(taskBankEssayEarnedPoints.value || 0));
+const taskBankTotalScore = computed(() => {
+    const max = Number(taskBankMaxPoints.value || 0);
+    if (max <= 0) return 0;
+    const percent = Math.round((Number(taskBankEarnedPoints.value || 0) / max) * 100);
+    return Math.max(0, Math.min(100, percent));
+});
+
 const totalScore = computed(() => {
-    return criteria.value.reduce((acc, item) => acc + (item.checked ? Number(item.weight) : 0), 0);
+    if (isTaskBankSubmission.value) return taskBankTotalScore.value;
+    if (hasRubric.value) return rubricTotalScore.value;
+    return Math.max(1, Math.min(100, Number(manualFinalScore.value || 1)));
 });
 
 const calculatedGold = computed(() => {
@@ -253,13 +523,22 @@ const maxExpReward = computed(() => {
 });
 
 // 3. METHODS
-const toggleCriteria = (item) => {
-    item.checked = !item.checked;
+const validateManualScore = () => {
+    const raw = Number(manualFinalScore.value || 1);
+    if (isNaN(raw)) {
+        manualFinalScore.value = 1;
+        return;
+    }
+    manualFinalScore.value = Math.max(1, Math.min(100, Math.round(raw)));
 };
 
-const validateWeight = (item) => {
-    if (item.weight > item.maxWeight) item.weight = item.maxWeight;
-    if (item.weight < 0) item.weight = 0;
+const validateEssayPoints = (question) => {
+    const uuid = String(question?.uuid || '');
+    if (!uuid) return;
+    const max = Math.max(0, Number(question?.weight || 0));
+    const raw = Number(essayPoints.value?.[uuid] ?? 0);
+    const clamped = Math.max(0, Math.min(max, isNaN(raw) ? 0 : raw));
+    essayPoints.value[uuid] = clamped;
 };
 
 const getStatusClass = (status) => {
@@ -277,52 +556,65 @@ const isMobilePdfPreview = computed(() => {
     return /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(ua) || iPadOs;
 });
 
+const rubricCellDescription = (criteriaId, levelId) => {
+    if (!hasRubric.value) return '';
+    const cid = Number(criteriaId || 0);
+    const lid = Number(levelId || 0);
+    if (!cid || !lid) return '';
+    return props.rubric?.matrix?.[cid]?.[lid] || '';
+};
+
+const selectedAnswerFor = (question) => {
+    const uuid = String(question?.uuid || '');
+    if (!uuid) return '';
+    const value = taskAnswers.value?.[uuid];
+    return typeof value === 'string' ? value : String(value || '');
+};
+
 onMounted(() => {
     const savedScores = props.submission.scores_detail;
-    if (savedScores && typeof savedScores === 'object') {
-        criteria.value.forEach((item) => {
-            const value = Number(savedScores[item.id] ?? 0);
-            if (value > 0) {
-                item.checked = true;
-                item.weight = Math.min(value, item.maxWeight);
-            }
-        });
+
+    if (hasRubric.value) {
+        const verdict = savedScores && typeof savedScores === 'object'
+            ? (savedScores.verdict && typeof savedScores.verdict === 'object' ? savedScores.verdict : null)
+            : null;
+
+        if (verdict && verdict.source === 'rubric' && Number(verdict.rubric_id) === Number(props.rubric.rubric.id)) {
+            selectedLevels.value = { ...(verdict.selected_level_by_criteria_id || {}) };
+        } else {
+            const initial = {};
+            rubricCriteria.value.forEach((c) => { initial[c.id] = 0; });
+            selectedLevels.value = initial;
+        }
         return;
     }
 
-    // Fallback untuk data lama yang belum punya scores_detail
-    if (props.submission.grade > 0) {
-        let remainingGrade = props.submission.grade;
-        // Logic ini mencoba mencocokkan checklist dengan grade yang ada
-        // (Bisa disesuaikan jika kamu ingin menyimpan state checkbox di DB di masa depan)
-        criteria.value.forEach(item => {
-            if (remainingGrade >= item.maxWeight) {
-                item.checked = true;
-                item.weight = item.maxWeight;
-                remainingGrade -= item.maxWeight;
-            } else if (remainingGrade > 0) {
-                item.checked = true;
-                item.weight = remainingGrade;
-                remainingGrade = 0;
-            }
+    if (isTaskBankSubmission.value) {
+        const verdictEssay = savedScores?.verdict?.task_bank?.essay?.by_question || {};
+        const initial = {};
+        essayQuestions.value.forEach((q) => {
+            const uuid = String(q.uuid || '');
+            const saved = verdictEssay?.[uuid]?.earned_points;
+            initial[uuid] = typeof saved === 'number' ? saved : Number(saved || 0);
         });
+        essayPoints.value = initial;
+        return;
     }
 });
 
 const scanWithAI = async () => {
+    if (hasRubric.value || isTaskBankSubmission.value) return;
     isScanning.value = true;
     try {
         const response = await axios.post(route('admin.submissions.checkAI', { submission: props.submission.uuid }));
         const data = response.data;
 
-        if (data.scores) {
-            Object.keys(data.scores).forEach(key => {
-                const item = criteria.value.find(c => c.id === key);
-                if (item) {
-                    item.checked = data.scores[key] > 0;
-                    item.weight = data.scores[key];
-                }
-            });
+        const func = Number(data.func ?? 0);
+        const logic = Number(data.logic ?? 0);
+        const clean = Number(data.clean ?? 0);
+        const suggested = Math.round((func + logic + clean) / 3);
+        if (!isNaN(suggested) && suggested > 0) {
+            manualFinalScore.value = Math.max(1, Math.min(100, suggested));
         }
 
         feedbackText.value = `[AI_ADVISOR]: ${data.feedback}\n\n${feedbackText.value}`;
@@ -345,6 +637,22 @@ const scanWithAI = async () => {
 const submitEvaluation = () => {
     const status = localStatus.value;
 
+    if (hasRubric.value && missingRubricCriteriaIds.value.length > 0) {
+        Swal.fire({
+            title: 'RUBRIC_INCOMPLETE',
+            text: 'Pilih level untuk semua kriteria sebelum menyimpan verdict.',
+            icon: 'warning',
+            background: '#0d1117',
+            color: '#4ed4d4',
+            confirmButtonColor: '#a16207',
+        });
+        return;
+    }
+
+    if (!hasRubric.value && !isTaskBankSubmission.value) {
+        validateManualScore();
+    }
+
     Swal.fire({
         title: `CONFIRM ${status.toUpperCase()}?`,
         html: `
@@ -365,17 +673,25 @@ const submitEvaluation = () => {
         cancelButtonColor: '#1e293b',
     }).then((result) => {
         if (result.isConfirmed) {
-            const scoresDetail = criteria.value.reduce((acc, item) => {
-                acc[item.id] = item.checked ? Number(item.weight) : 0;
-                return acc;
-            }, {});
+            const payload = isTaskBankSubmission.value
+                ? {
+                    status,
+                    feedback: feedbackText.value,
+                    question_points: { ...essayPoints.value },
+                }
+                : (hasRubric.value
+                    ? {
+                        status,
+                        feedback: feedbackText.value,
+                        selected_levels: { ...selectedLevels.value },
+                    }
+                    : {
+                        final_score: manualFinalScore.value,
+                        feedback: feedbackText.value,
+                        status: status,
+                    });
 
-            router.post(route('admin.submissions.verdict', { submission: props.submission.uuid }), {
-                final_score: totalScore.value,
-                feedback: feedbackText.value,
-                status: status,
-                scores_detail: scoresDetail,
-            }, {
+            router.post(route('admin.submissions.verdict', { submission: props.submission.uuid }), payload, {
                 onSuccess: () => {
                     Swal.fire({
                         title: 'SYSTEM_UPDATED',

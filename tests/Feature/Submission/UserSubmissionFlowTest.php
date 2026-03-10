@@ -175,3 +175,87 @@ test('mixed task bank requires answers for all questions and stays pending for m
     expect($submission->scores_detail['answers'][$essay->uuid] ?? null)
         ->toBe('Dependency injection is providing dependencies from outside.');
 });
+
+test('student cannot submit the same quest twice', function () {
+    $user = User::factory()->create();
+
+    $quest = Quest::query()->create([
+        'title' => 'One Attempt Quest',
+        'description' => 'Only one submission allowed',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+    ]);
+
+    $first = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'content' => 'first attempt',
+    ]);
+    $first->assertSessionHasNoErrors();
+
+    $second = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'content' => 'second attempt',
+    ]);
+
+    $second->assertSessionHasErrors('submission');
+});
+
+test('misconfigured multiple_choice task bank with essay questions can still be submitted and stays pending', function () {
+    $user = User::factory()->create();
+
+    $taskBank = TaskBank::query()->create([
+        'name' => 'Broken MCQ Bank',
+        'description' => 'Has essay but flagged as multiple_choice',
+        'assessment_type' => 'multiple_choice',
+        'is_active' => true,
+    ]);
+
+    $mcq = $taskBank->questions()->create([
+        'question_text' => '1+1=?',
+        'question_type' => 'multiple_choice',
+        'options_json' => ['1', '2'],
+        'answer_key' => '2',
+        'weight' => 50,
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
+
+    $essay = $taskBank->questions()->create([
+        'question_text' => 'Explain your reasoning.',
+        'question_type' => 'essay',
+        'options_json' => null,
+        'answer_key' => null,
+        'weight' => 50,
+        'sort_order' => 2,
+        'is_active' => true,
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => 'Broken MCQ Quest',
+        'description' => 'Should not block submit',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 1000,
+        'reward_exp' => 1000,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+        'task_bank_id' => $taskBank->id,
+    ]);
+
+    $response = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'content' => 'notes',
+        'task_answers' => [
+            $mcq->uuid => '2',
+            $essay->uuid => 'Because 1+1 equals 2.',
+        ],
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    $submission = Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->first();
+    expect($submission)->not->toBeNull();
+    expect($submission->status)->toBe('Pending');
+    expect((int) $submission->grade)->toBe(0);
+    expect($submission->scores_detail['assessment_type'] ?? null)->toBe('mixed');
+    expect(($submission->scores_detail['auto_mcq']['earned_points'] ?? null))->toBe(50);
+});

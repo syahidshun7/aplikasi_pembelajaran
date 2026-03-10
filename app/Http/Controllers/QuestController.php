@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Quest;
+use App\Models\Rubric;
 use App\Models\ShopItem;
 use App\Models\ShopTransaction;
 use App\Models\Submission;
@@ -78,7 +79,11 @@ class QuestController extends Controller
         $search = trim((string) ($validated['search'] ?? ''));
 
         $adminQuestQuery = Quest::query()
-            ->with(['studyGroup', 'taskBank:id,uuid,name,assessment_type,job_role_id']);
+            ->with([
+                'studyGroup',
+                'taskBank:id,uuid,name,assessment_type,job_role_id',
+                'rubric:id,title',
+            ]);
 
         if ($this->isMentorUser()) {
             $mentorJobId = $this->requireMentorJobId();
@@ -104,6 +109,11 @@ class QuestController extends Controller
             $taskBankQuery->where('job_role_id', $this->requireMentorJobId());
         }
 
+        $rubricsQuery = Rubric::query()->orderBy('title');
+        if ($this->isMentorUser()) {
+            $rubricsQuery->where('mentor_id', (int) $request->user()?->id);
+        }
+
         return Inertia::render('Quests/Index', [
             'quests' => $adminQuestQuery
                 ->when($search !== '', function ($query) use ($search) {
@@ -123,6 +133,7 @@ class QuestController extends Controller
 
             'studyGroups' => $studyGroupQuery->get(),
             'taskBanks' => $taskBankQuery->get(['id', 'uuid', 'name', 'assessment_type']),
+            'rubrics' => $rubricsQuery->get(['id', 'title']),
             'filters' => [
                 'search' => $search,
             ],
@@ -140,6 +151,7 @@ class QuestController extends Controller
             'status' => 'required|in:Available,In-Progress,Done',
             'study_group_id' => 'nullable|exists:study_groups,id',
             'task_bank_id' => 'nullable|exists:task_banks,id',
+            'rubric_id' => 'nullable|exists:rubrics,id',
             'deadline' => 'nullable|date', // Tambahkan validasi date
         ]);
 
@@ -157,7 +169,13 @@ class QuestController extends Controller
             : 'Available';
         $validated['uuid'] = (string) \Illuminate\Support\Str::uuid();
 
+        $validated['rubric_id'] = $this->resolveQuestRubricId(
+            $validated['rubric_id'] ?? null,
+            $validated['task_bank_id'] ?? null
+        );
+
         $this->assertMentorCanManageQuestPayload($validated);
+        $this->assertMentorCanUseRubricId($validated['rubric_id'] ?? null);
 
         Quest::create($validated);
 
@@ -178,6 +196,7 @@ class QuestController extends Controller
             'status' => 'required|in:Available,In-Progress,Done',
             'study_group_id' => 'nullable|exists:study_groups,id',
             'task_bank_id' => 'nullable|exists:task_banks,id',
+            'rubric_id' => 'nullable|exists:rubrics,id',
             'deadline' => 'nullable|date', // Tambahkan validasi date
         ]);
 
@@ -195,7 +214,13 @@ class QuestController extends Controller
             ? (\Carbon\Carbon::parse($request->deadline)->isFuture() ? 'Available' : 'Done')
             : 'Available';
 
+        $validated['rubric_id'] = $this->resolveQuestRubricId(
+            $validated['rubric_id'] ?? null,
+            $validated['task_bank_id'] ?? null
+        );
+
         $this->assertMentorCanManageQuestPayload($validated);
+        $this->assertMentorCanUseRubricId($validated['rubric_id'] ?? null);
 
         $quest->update($validated);
 
@@ -249,7 +274,7 @@ class QuestController extends Controller
                 ->value('quantity');
         }
 
-        $canSubmit = ! $isLate || $hasQuestUnlock || (bool) $submission;
+        $canSubmit = ! $submission && (! $isLate || $hasQuestUnlock);
 
         return Inertia::render('Quests/Show', [
             'quest' => $quest,
@@ -423,6 +448,42 @@ class QuestController extends Controller
                 ]);
             }
         }
+    }
+
+    private function resolveQuestRubricId($explicitRubricId, $taskBankId): ?int
+    {
+        $taskBankId = (int) ($taskBankId ?? 0);
+        if ($taskBankId > 0) {
+            // Rubric tidak boleh dipakai untuk quest yang sumbernya dari question bank (task bank).
+            return null;
+        }
+
+        $explicitRubricId = (int) ($explicitRubricId ?? 0);
+        if ($explicitRubricId > 0) {
+            return $explicitRubricId;
+        }
+
+        return null;
+    }
+
+    private function assertMentorCanUseRubricId($rubricId): void
+    {
+        if (! $this->isMentorUser()) {
+            return;
+        }
+
+        $rubricId = (int) ($rubricId ?? 0);
+        if ($rubricId <= 0) {
+            return;
+        }
+
+        $mentorId = (int) auth()->id();
+        $isOwned = Rubric::query()
+            ->whereKey($rubricId)
+            ->where('mentor_id', $mentorId)
+            ->exists();
+
+        abort_unless($isOwned, 403, 'MENTOR_CANNOT_USE_RUBRIC_NOT_OWNED');
     }
 
     private function authorizeQuestAccessForCurrentUser(Quest $quest): void

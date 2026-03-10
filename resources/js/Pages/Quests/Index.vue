@@ -8,6 +8,7 @@ const props = defineProps({
     quests: Object,
     studyGroups: Array,
     taskBanks: Array,
+    rubrics: Array,
     filters: Object,
 });
 const page = usePage();
@@ -56,6 +57,7 @@ const form = useForm({
     status: 'Available',
     study_group_id: null,
     task_bank_id: null,
+    rubric_id: null,
     deadline: '', // NEW_FIELD
 });
 const mentorCannotSubmitQuest = computed(() => isMentor.value && !form.study_group_id && !form.task_bank_id);
@@ -89,6 +91,12 @@ const syncStatusFromDeadline = (deadlineValue) => {
 
 watch(() => form.deadline, (newDeadline) => {
     syncStatusFromDeadline(newDeadline);
+});
+
+watch(() => form.task_bank_id, (newTaskBankId) => {
+    if (newTaskBankId) {
+        form.rubric_id = null;
+    }
 });
 
 watch(() => usePage().props.flash, (flash) => {
@@ -133,6 +141,7 @@ const startEdit = (quest) => {
     form.status = quest.status || 'Available';
     form.study_group_id = quest.study_group_id;
     form.task_bank_id = quest.task_bank_id;
+    form.rubric_id = quest.rubric_id ?? null;
     
     // Format deadline for datetime-local input (YYYY-MM-DDTHH:mm)
     if (quest.deadline) {
@@ -152,6 +161,7 @@ const cancelEdit = () => {
     isEditing.value = false;
     editId.value = null;
     form.reset();
+    form.rubric_id = null;
     applyMentorDefaults();
 };
 
@@ -171,6 +181,7 @@ const submit = () => {
                 form.reward_gold = 500;
                 form.reward_exp = 500;
                 form.task_bank_id = null;
+                form.rubric_id = null;
                 applyMentorDefaults();
             },
         });
@@ -318,6 +329,23 @@ const goToPage = (url) => {
                                 </select>
                             </div>
 
+                            <div v-if="!form.task_bank_id">
+                                <label class="block mb-2 text-white">RUBRIC_OVERRIDE:</label>
+                                <select v-model="form.rubric_id"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-cyan-400 outline-none text-cyan-300 uppercase">
+                                    <option :value="null">
+                                        NO_RUBRIC (MANUAL_SCORE_1-100)
+                                    </option>
+                                    <option v-for="rb in (rubrics || [])" :key="rb.id" :value="rb.id">
+                                        {{ rb.title }}
+                                    </option>
+                                </select>
+                                <p v-if="form.errors.rubric_id" class="mt-2 text-red-400 text-[8px]">{{ form.errors.rubric_id }}</p>
+                                <p class="mt-2 text-[8px] text-slate-500 uppercase italic">
+                                    *Rubric hanya untuk quest manual (tanpa task bank).
+                                </p>
+                            </div>
+
                             <div class="flex gap-2">
                                 <button type="submit" :disabled="form.processing || mentorCannotSubmitQuest"
                                     class="flex-1 py-3 border-2 uppercase font-bold transition-all"
@@ -368,6 +396,9 @@ const goToPage = (url) => {
                                         <div class="text-[7px] text-teal-300 uppercase mt-1">
                                             TASK_BANK: {{ q.task_bank?.name || 'MANUAL' }}
                                             <span v-if="q.task_bank?.assessment_type" class="text-yellow-300 ml-1">[{{ q.task_bank.assessment_type }}]</span>
+                                        </div>
+                                        <div class="text-[7px] text-cyan-300 uppercase mt-1">
+                                            SCORING: {{ q.task_bank ? 'QUESTION_BANK (AUTO/MANUAL_BY_WEIGHT)' : (q.rubric?.title ? `RUBRIC: ${q.rubric.title}` : 'MANUAL_SCORE_1-100') }}
                                         </div>
                                     </div>
                                     <div class="text-yellow-500 text-[8px] tracking-widest">+{{ q.reward_gold }} GOLD</div>

@@ -19,6 +19,9 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\SubmissionController;
 use App\Http\Controllers\UserEventController;
 use App\Http\Controllers\ShopController;
+use App\Http\Controllers\RubricController;
+use App\Http\Controllers\RubricCriteriaController;
+use App\Http\Controllers\RubricLevelController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -112,6 +115,25 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
         Route::patch('/{event:uuid}/guides/reorder', [AdminEventController::class, 'reorderGuides'])->name('guides.reorder');
         Route::patch('/{event:uuid}/quests/reorder', [AdminEventController::class, 'reorderQuests'])->name('quests.reorder');
         Route::patch('/{event:uuid}/attendance', [AdminEventController::class, 'updateAttendance'])->name('attendance.update');
+    });
+
+    Route::prefix('admin/rubrics')->name('admin.rubrics.')->group(function () {
+        Route::get('/', [RubricController::class, 'index'])->name('index');
+        Route::get('/create', [RubricController::class, 'create'])->name('create');
+        Route::post('/', [RubricController::class, 'store'])->name('store');
+        Route::get('/{rubric}', [RubricController::class, 'show'])->name('show');
+        Route::get('/{rubric}/edit', [RubricController::class, 'edit'])->name('edit');
+        Route::put('/{rubric}', [RubricController::class, 'update'])->name('update');
+        Route::delete('/{rubric}', [RubricController::class, 'destroy'])->name('destroy');
+        Route::get('/{rubric}/export', [RubricController::class, 'export'])->name('export');
+
+        Route::post('/{rubric}/criteria', [RubricCriteriaController::class, 'store'])->name('criteria.store');
+        Route::patch('/{rubric}/criteria/{criterion}', [RubricCriteriaController::class, 'update'])->name('criteria.update');
+        Route::delete('/{rubric}/criteria/{criterion}', [RubricCriteriaController::class, 'destroy'])->name('criteria.destroy');
+
+        Route::post('/{rubric}/levels', [RubricLevelController::class, 'store'])->name('levels.store');
+        Route::patch('/{rubric}/levels/{level}', [RubricLevelController::class, 'update'])->name('levels.update');
+        Route::delete('/{rubric}/levels/{level}', [RubricLevelController::class, 'destroy'])->name('levels.destroy');
     });
 
 });

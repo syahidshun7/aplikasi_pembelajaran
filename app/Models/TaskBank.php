@@ -15,6 +15,7 @@ class TaskBank extends Model
         'name',
         'description',
         'job_role_id',
+        'rubric_id',
         'assessment_type',
         'is_active',
     ];
@@ -40,6 +41,11 @@ class TaskBank extends Model
     public function jobRole()
     {
         return $this->belongsTo(JobRole::class, 'job_role_id');
+    }
+
+    public function rubric()
+    {
+        return $this->belongsTo(Rubric::class, 'rubric_id');
     }
 
     public function questions()

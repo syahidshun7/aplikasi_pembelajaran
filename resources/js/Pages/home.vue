@@ -65,40 +65,39 @@ const closeMobileMenu = () => {
                     </Link>
                 </div>
 
-                <div class="hidden md:flex gap-2 md:gap-4 items-center">
+                <div class="hidden md:flex items-center">
                     <template v-if="auth.user">
-                        <Link v-if="isStaff" :href="route('admin.dashboard')"
-                            class="text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors">
-                            Admin
-                        </Link>
+                        <div class="nav-dock">
+                            <Link v-if="isStaff" :href="route('admin.dashboard')" class="nav-action nav-action--admin">
+                                Admin
+                            </Link>
 
-                        <Link :href="route('profile.edit')"
-                            class="text-[8px] bg-cyan-300 text-black px-3 py-2 btn-pixel border-cyan-700 uppercase font-bold hover:bg-cyan-200 transition-colors inline-flex items-center gap-1.5 shadow-[0_0_12px_rgba(45,212,191,0.28)]">
-                            <i class="fi fi-rr-user text-[10px] leading-none"></i>
-                            Profile
-                        </Link>
+                            <Link :href="route('profile.edit')" class="nav-action nav-action--profile">
+                                <i class="fi fi-rr-user text-[10px] leading-none"></i>
+                                Profile
+                            </Link>
 
-                        <Link :href="route('shop.index')"
-                            class="text-[8px] bg-yellow-400 text-black px-3 py-2 btn-pixel border-yellow-700 uppercase font-bold hover:bg-yellow-300 transition-colors inline-flex items-center gap-1.5 shadow-[0_0_12px_rgba(250,204,21,0.35)]">
-                            <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
-                            Shop
-                        </Link>
+                            <Link :href="route('shop.index')" class="nav-action nav-action--shop">
+                                <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
+                                Shop
+                            </Link>
 
-                        <button @click="handleLogout"
-                            class="text-[8px] bg-red-900/80 text-white px-3 py-2 btn-pixel border-red-950 uppercase font-bold hover:bg-red-700 transition-colors">
-                            [X]
-                        </button>
+                            <button @click="handleLogout" class="nav-action nav-action--logout" type="button">
+                                <span class="sr-only">Logout</span>
+                                [X]
+                            </button>
+                        </div>
                     </template>
 
                     <template v-else>
-                        <Link :href="route('login')"
-                            class="text-[8px] bg-[#009999] text-black px-4 py-2 btn-pixel border-[#006666] uppercase font-bold hover:bg-[#4ed4d4] transition-all">
-                            Login
-                        </Link>
-                        <Link :href="route('register')"
-                            class="text-[8px] bg-[#facc15] text-black px-4 py-2 btn-pixel border-[#854d0e] uppercase font-bold hover:bg-yellow-400 transition-all">
-                            Register
-                        </Link>
+                        <div class="nav-dock">
+                            <Link :href="route('login')" class="nav-action nav-action--profile" @click="closeMobileMenu">
+                                Login
+                            </Link>
+                            <Link :href="route('register')" class="nav-action nav-action--shop" @click="closeMobileMenu">
+                                Register
+                            </Link>
+                        </div>
                     </template>
                 </div>
 
@@ -147,7 +146,7 @@ const closeMobileMenu = () => {
                         <Link
                             v-if="isStaff"
                             :href="route('admin.dashboard')"
-                            class="w-full text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors inline-flex items-center justify-center"
+                            class="w-full nav-action nav-action--admin justify-center"
                             @click="closeMobileMenu"
                         >
                             Admin
@@ -155,7 +154,7 @@ const closeMobileMenu = () => {
 
                         <Link
                             :href="route('profile.edit')"
-                            class="w-full text-[8px] bg-cyan-300 text-black px-3 py-2 btn-pixel border-cyan-700 uppercase font-bold hover:bg-cyan-200 transition-colors inline-flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(45,212,191,0.28)]"
+                            class="w-full nav-action nav-action--profile justify-center"
                             @click="closeMobileMenu"
                         >
                             <i class="fi fi-rr-user text-[10px] leading-none"></i>
@@ -164,7 +163,7 @@ const closeMobileMenu = () => {
 
                         <Link
                             :href="route('shop.index')"
-                            class="w-full text-[8px] bg-yellow-400 text-black px-3 py-2 btn-pixel border-yellow-700 uppercase font-bold hover:bg-yellow-300 transition-colors inline-flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(250,204,21,0.35)]"
+                            class="w-full nav-action nav-action--shop justify-center"
                             @click="closeMobileMenu"
                         >
                             <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
@@ -173,7 +172,8 @@ const closeMobileMenu = () => {
 
                         <button
                             @click="handleLogout(); closeMobileMenu()"
-                            class="w-full text-[8px] bg-red-900/80 text-white px-3 py-2 btn-pixel border-red-950 uppercase font-bold hover:bg-red-700 transition-colors"
+                            class="w-full nav-action nav-action--logout justify-center"
+                            type="button"
                         >
                             [X]
                         </button>
@@ -182,14 +182,14 @@ const closeMobileMenu = () => {
                     <template v-else>
                         <Link
                             :href="route('login')"
-                            class="w-full text-[8px] bg-[#009999] text-black px-4 py-2 btn-pixel border-[#006666] uppercase font-bold hover:bg-[#4ed4d4] transition-all inline-flex items-center justify-center"
+                            class="w-full nav-action nav-action--profile justify-center"
                             @click="closeMobileMenu"
                         >
                             Login
                         </Link>
                         <Link
                             :href="route('register')"
-                            class="w-full text-[8px] bg-[#facc15] text-black px-4 py-2 btn-pixel border-[#854d0e] uppercase font-bold hover:bg-yellow-400 transition-all inline-flex items-center justify-center"
+                            class="w-full nav-action nav-action--shop justify-center"
                             @click="closeMobileMenu"
                         >
                             Register

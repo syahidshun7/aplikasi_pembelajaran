@@ -21,7 +21,7 @@ class SubmissionController extends Controller
         }]);
         $this->authorizeQuestAccessForCurrentUser($quest);
 
-        $submission = Submission::where('quest_id', $quest->id)
+        $existingSubmission = Submission::where('quest_id', $quest->id)
             ->where('user_id', auth()->id())
             ->latest('id')
             ->first();
@@ -31,19 +31,21 @@ class SubmissionController extends Controller
             ->where('quest_id', $quest->id)
             ->exists();
 
-        if (! $submission && $this->isQuestLate($quest) && ! $hasQuestUnlock) {
+        if (! $existingSubmission && $this->isQuestLate($quest) && ! $hasQuestUnlock) {
             throw ValidationException::withMessages([
                 'content' => 'Quest sudah lewat deadline. Gunakan Time Key untuk membuka ulang quest ini.',
             ]);
         }
 
-        $isUpdate = (bool) $submission;
-
-        if (! $submission) {
-            $submission = new Submission();
-            $submission->quest_id = $quest->id;
-            $submission->user_id = auth()->id();
+        if ($existingSubmission) {
+            throw ValidationException::withMessages([
+                'submission' => 'Submission sudah terkirim dan tidak bisa diulang.',
+            ]);
         }
+
+        $submission = new Submission();
+        $submission->quest_id = $quest->id;
+        $submission->user_id = auth()->id();
 
         $wasEvaluated = $this->isSubmissionEvaluated($submission);
         $isAutoChecked = $this->applyUserSubmissionPayload($request, $quest, $submission);
@@ -54,11 +56,7 @@ class SubmissionController extends Controller
             $this->syncUserRewardTotals((int) $submission->user_id);
         }
 
-        return back()->with('message', $isAutoChecked
-            ? 'AUTO_CHECK_COMPLETED_REWARD_GRANTED'
-            : ($isUpdate
-                ? 'MISSION_REPORT_UPDATED_RE-EVALUATING'
-                : 'MISSION_REPORT_SENT_WAITING_FOR_REVIEW'));
+        return back()->with('message', 'MISSION_REPORT_SENT');
     }
 
     public function showSubmission(Submission $submission)
@@ -84,31 +82,7 @@ class SubmissionController extends Controller
 
     public function update(Request $request, $uuid)
     {
-        $submission = Submission::where('uuid', $uuid)->firstOrFail();
-
-        if ((int) $submission->user_id !== (int) auth()->id()) {
-            abort(403);
-        }
-
-        $submission->load(['quest.taskBank.questions' => function ($query) {
-            $query->where('is_active', true)->orderBy('sort_order');
-        }]);
-
-        $quest = $submission->quest;
-        $this->authorizeQuestAccessForCurrentUser($quest);
-
-        $wasEvaluated = $this->isSubmissionEvaluated($submission);
-        $isAutoChecked = $this->applyUserSubmissionPayload($request, $quest, $submission);
-
-        $submission->save();
-
-        if ($wasEvaluated || $this->isSubmissionEvaluated($submission)) {
-            $this->syncUserRewardTotals((int) $submission->user_id);
-        }
-
-        return back()->with('message', $isAutoChecked
-            ? 'AUTO_CHECK_UPDATED_REWARD_RECALCULATED'
-            : 'MISSION_REPORT_UPDATED_RE-EVALUATING');
+        abort(403, 'SUBMISSION_LOCKED');
     }
 
     private function applyUserSubmissionPayload(Request $request, Quest $quest, Submission $submission): bool
@@ -173,6 +147,15 @@ class SubmissionController extends Controller
             return true;
         }
 
+        $mcqAuto = $this->evaluateTaskBankMcqPortion($quest, $answers);
+        $assessmentType = (string) ($quest->taskBank?->assessment_type ?? 'essay');
+        $questionBankHasEssay = $questions->contains(function ($q) {
+            return (string) ($q->question_type ?? '') !== 'multiple_choice';
+        });
+        if ($assessmentType === 'multiple_choice' && $questionBankHasEssay) {
+            $assessmentType = 'mixed';
+        }
+
         $submission->content = trim((string) ($validated['content'] ?? '')) ?: '[TASK_BANK_SUBMISSION]';
         $submission->file_path = $this->storeUploadedFile($request, $submission);
         $submission->status = 'Pending';
@@ -182,10 +165,11 @@ class SubmissionController extends Controller
         $submission->earned_gold = 0;
         $submission->scores_detail = [
             'source' => 'task_bank_submission',
-            'assessment_type' => (string) ($quest->taskBank?->assessment_type ?? 'essay'),
+            'assessment_type' => $assessmentType,
             'total_questions' => $questions->count(),
             'answered_questions' => collect($answers)->filter(fn ($answer) => $answer !== '')->count(),
             'answers' => $answers,
+            'auto_mcq' => $mcqAuto,
         ];
 
         return false;
@@ -233,16 +217,6 @@ class SubmissionController extends Controller
                 if (! in_array($answer, $options, true)) {
                     $errors["task_answers.{$qUuid}"] = 'Jawaban tidak valid untuk opsi soal ini.';
                 }
-            }
-        }
-
-        if ($this->isMultipleChoiceTaskBankQuest($quest)) {
-            $containsNonMcq = $questions->contains(function ($question) {
-                return (string) ($question->question_type ?? '') !== 'multiple_choice';
-            });
-
-            if ($containsNonMcq) {
-                $errors['task_answers'] = 'Quest auto-check hanya boleh memakai soal pilihan ganda.';
             }
         }
 
@@ -309,7 +283,21 @@ class SubmissionController extends Controller
 
     private function isMultipleChoiceTaskBankQuest(Quest $quest): bool
     {
-        return (bool) ($quest->taskBank && $quest->taskBank->assessment_type === 'multiple_choice');
+        if (! $quest->taskBank || (string) $quest->taskBank->assessment_type !== 'multiple_choice') {
+            return false;
+        }
+
+        $quest->loadMissing(['taskBank.questions' => function ($query) {
+            $query->where('is_active', true);
+        }]);
+
+        $questions = $quest->taskBank?->questions ?? collect();
+        $containsNonMcq = $questions->contains(function ($question) {
+            return (string) ($question->question_type ?? '') !== 'multiple_choice';
+        });
+
+        // Jika ada essay/practical di bank ini, auto-check dimatikan dan flow jadi manual review.
+        return ! $containsNonMcq;
     }
 
     private function isSubmissionEvaluated(Submission $submission): bool
@@ -386,6 +374,54 @@ class SubmissionController extends Controller
                 'correct_weight' => $correctWeight,
                 'answers' => $answers,
             ],
+        ];
+    }
+
+    private function evaluateTaskBankMcqPortion(Quest $quest, array $answers): array
+    {
+        $questions = ($quest->taskBank?->questions ?? collect())
+            ->filter(function ($question) {
+                return (string) ($question->question_type ?? '') === 'multiple_choice';
+            })
+            ->values();
+
+        $maxWeight = (int) $questions->sum(function ($question) {
+            return max(0, (int) ($question->weight ?? 0));
+        });
+
+        $correctWeight = 0;
+        $correctCount = 0;
+        $byQuestion = [];
+
+        foreach ($questions as $question) {
+            $qUuid = (string) $question->uuid;
+            $selected = (string) ($answers[$qUuid] ?? '');
+            $weight = max(0, (int) ($question->weight ?? 0));
+            $answerKey = trim((string) ($question->answer_key ?? ''));
+
+            $isCorrect = $selected !== '' && $answerKey !== '' && $selected === $answerKey;
+            $earned = $isCorrect ? $weight : 0;
+
+            if ($isCorrect) {
+                $correctWeight += $weight;
+                $correctCount++;
+            }
+
+            $byQuestion[$qUuid] = [
+                'weight' => $weight,
+                'is_correct' => $isCorrect,
+                'earned_points' => $earned,
+                'selected' => $selected,
+                'answer_key' => $answerKey,
+            ];
+        }
+
+        return [
+            'total_mcq_questions' => $questions->count(),
+            'correct_questions' => $correctCount,
+            'max_points' => $maxWeight,
+            'earned_points' => $correctWeight,
+            'by_question' => $byQuestion,
         ];
     }
 

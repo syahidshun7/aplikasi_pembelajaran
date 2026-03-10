@@ -39,6 +39,143 @@
     box-shadow: inset 0 0 0 2px #292c3d;
   }
 
+  /* Shared navbar actions (used by AuthenticatedLayout + home) */
+  .nav-dock {
+    display: inline-flex;
+    align-items: stretch;
+    padding: 2px;
+    border: 2px solid rgba(61, 65, 95, 0.95);
+    background: linear-gradient(
+      180deg,
+      rgba(13, 17, 23, 0.55) 0%,
+      rgba(26, 28, 44, 0.70) 100%
+    );
+    box-shadow:
+      inset 0 0 0 1px rgba(0, 0, 0, 0.55),
+      0 14px 32px rgba(0, 0, 0, 0.28);
+  }
+
+  .nav-action {
+    --accent: #4ed4d4;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+
+    padding: 0.55rem 0.9rem;
+    min-height: 34px;
+
+    font-size: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+    line-height: 1;
+
+    color: var(--accent);
+    background: rgba(10, 12, 16, 0.20);
+
+    position: relative;
+    user-select: none;
+
+    transition:
+      background-color 140ms ease,
+      color 140ms ease,
+      transform 120ms ease,
+      box-shadow 140ms ease,
+      text-shadow 140ms ease,
+      filter 140ms ease;
+
+    text-shadow: 0 0 10px var(--accent);
+
+    /* Neon lamp flicker (subtle by default) */
+    /* Longer cycle so flicker feels occasional, not distracting */
+    --flicker-dur: 18s;
+    --flicker-delay: 0s;
+    --wander-dur: 9s;
+    animation: navLampFlicker var(--flicker-dur) infinite;
+    animation-delay: var(--flicker-delay);
+  }
+
+  /* Dividers only when items are inside the dock */
+  .nav-dock .nav-action + .nav-action {
+    border-left: 1px solid rgba(61, 65, 95, 0.95);
+  }
+
+  /* Moving "lamp hotspot" inside the button (the light moves, not the button) */
+  .nav-action::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    pointer-events: none;
+    opacity: 0.22;
+    background:
+      radial-gradient(
+        10px 8px at 20% 45%,
+        rgba(255, 255, 255, 0.22) 0%,
+        rgba(255, 255, 255, 0.10) 35%,
+        rgba(255, 255, 255, 0.00) 70%
+      ),
+      radial-gradient(
+        16px 12px at 70% 60%,
+        rgba(255, 255, 255, 0.14) 0%,
+        rgba(255, 255, 255, 0.06) 40%,
+        rgba(255, 255, 255, 0.00) 75%
+      );
+    /* Use drop-shadow to tint the hotspot with each button's accent color */
+    filter: drop-shadow(0 0 7px var(--accent)) blur(0.2px);
+    animation: navLampWander var(--wander-dur) infinite linear;
+    animation-delay: var(--flicker-delay);
+  }
+
+  .nav-dock .nav-action::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 4px;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0.22;
+    transform: translateY(2px);
+    transition: opacity 140ms ease, transform 140ms ease;
+    box-shadow: 0 0 10px var(--accent);
+  }
+
+  .nav-action:hover {
+    background: rgba(78, 212, 212, 0.06);
+    color: var(--accent);
+    text-shadow: 0 0 14px var(--accent);
+    box-shadow: 0 0 22px var(--accent);
+    filter: saturate(1.1);
+  }
+
+  .nav-action:hover::after {
+    opacity: 0.85;
+    transform: translateY(0);
+  }
+
+  .nav-action:active {
+    transform: translate(1px, 1px);
+  }
+
+  .nav-action:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    box-shadow: 0 0 22px var(--accent);
+    text-shadow: 0 0 12px var(--accent);
+  }
+
+  .nav-action--admin { --accent: #c084fc; }
+  .nav-action--profile { --accent: #67e8f9; }
+  .nav-action--shop { --accent: #facc15; }
+  .nav-action--logout { --accent: #fb7185; }
+
+  /* Stagger timings so they don't flicker in sync */
+  .nav-action--admin { --flicker-delay: -2.7s; --flicker-dur: 22s; --wander-dur: 10s; }
+  .nav-action--profile { --flicker-delay: -6.1s; --flicker-dur: 19s; --wander-dur: 9s; }
+  .nav-action--shop { --flicker-delay: -9.3s; --flicker-dur: 24s; --wander-dur: 11s; }
+  .nav-action--logout { --flicker-delay: -4.8s; --flicker-dur: 20s; --wander-dur: 9s; }
+
   .xp-bar-fill {
     background: repeating-linear-gradient(
       90deg,
@@ -67,6 +204,46 @@
     border-right: 4px solid rgba(0,0,0,0.4) !important;
     margin: 5px !important;
   }
+}
+
+/* "Dying lamp" flicker: occasional drops + quick surges */
+@keyframes navLampFlicker {
+  0% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 10px var(--accent); }
+  80% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 10px var(--accent); }
+
+  /* Short, gentle "dying lamp" moment */
+  82% { filter: brightness(0.90) saturate(0.96); text-shadow: 0 0 7px var(--accent); }
+  83% { filter: brightness(1.12) saturate(1.05); text-shadow: 0 0 14px var(--accent); }
+  84% { filter: brightness(0.78) saturate(0.92); text-shadow: 0 0 5px var(--accent); }
+  85% { filter: brightness(1.06) saturate(1.00); text-shadow: 0 0 12px var(--accent); }
+
+  /* Tiny micro-dip later, very subtle */
+  92% { filter: brightness(0.95) saturate(0.98); text-shadow: 0 0 9px var(--accent); }
+  93% { filter: brightness(1.03) saturate(1.00); text-shadow: 0 0 11px var(--accent); }
+
+  100% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 10px var(--accent); }
+}
+
+/* Hotspot wander: small jumps + drift so the "light" moves around */
+@keyframes navLampWander {
+  0% { transform: translate(0px, 0px); opacity: 0.18; }
+  9% { transform: translate(4px, -1px); opacity: 0.22; }
+  14% { transform: translate(2px, 1px); opacity: 0.12; }
+  18% { transform: translate(7px, 0px); opacity: 0.26; }
+  27% { transform: translate(-2px, 2px); opacity: 0.16; }
+  33% { transform: translate(6px, 1px); opacity: 0.22; }
+  41% { transform: translate(1px, -2px); opacity: 0.10; }
+  52% { transform: translate(8px, 1px); opacity: 0.24; }
+  60% { transform: translate(4px, 2px); opacity: 0.14; }
+  72% { transform: translate(8px, -1px); opacity: 0.26; }
+  79% { transform: translate(3px, 1px); opacity: 0.12; }
+  88% { transform: translate(7px, 2px); opacity: 0.22; }
+  100% { transform: translate(0px, 0px); opacity: 0.18; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-action { animation: none !important; }
+  .nav-action::before { animation: none !important; opacity: 0.14; }
 }
 
 /* --- RPG SWEETALERT OVERRIDE --- */

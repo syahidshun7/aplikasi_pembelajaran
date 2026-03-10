@@ -14,25 +14,28 @@ const props = defineProps({
     timeKeyQty: Number,
 });
 
-const taskAnswersFromSubmission = props.existingSubmission?.scores_detail?.answers &&
-    typeof props.existingSubmission.scores_detail.answers === 'object'
-    ? props.existingSubmission.scores_detail.answers
-    : {};
+const taskAnswersFromSubmission = computed(() => {
+    const answers = props.existingSubmission?.scores_detail?.answers;
+    return answers && typeof answers === 'object' ? answers : {};
+});
 
 const form = useForm({
     content: props.existingSubmission?.content || '',
     file: null,
-    task_answers: { ...taskAnswersFromSubmission },
-    _method: props.hasSubmitted ? 'PUT' : 'POST',
+    task_answers: { ...(taskAnswersFromSubmission.value || {}) },
 });
 
 const unlockForm = useForm({});
 const page = usePage();
 const taskBankType = computed(() => props.quest?.task_bank?.assessment_type || null);
+const isAllMcq = computed(() => {
+    if (!isStructuredTaskBankQuest.value) return false;
+    return taskQuestions.value.length > 0 && taskQuestions.value.every((q) => q.question_type === 'multiple_choice');
+});
 const isStructuredTaskBankQuest = computed(() => {
     return !!props.quest?.task_bank && ['multiple_choice', 'mixed', 'essay'].includes(taskBankType.value);
 });
-const isAutoCheckedTaskBankQuest = computed(() => taskBankType.value === 'multiple_choice');
+const isAutoCheckedTaskBankQuest = computed(() => taskBankType.value === 'multiple_choice' && isAllMcq.value);
 const taskQuestions = computed(() => props.quest?.task_bank?.questions || []);
 const unansweredCount = computed(() => {
     if (!isStructuredTaskBankQuest.value) return 0;
@@ -41,6 +44,13 @@ const unansweredCount = computed(() => {
         return !value || String(value).trim() === '';
     }).length;
 });
+
+const answerFor = (question) => {
+    const uuid = String(question?.uuid || '');
+    if (!uuid) return '';
+    const raw = taskAnswersFromSubmission.value?.[uuid];
+    return raw === undefined || raw === null ? '' : String(raw);
+};
 
 const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -63,6 +73,18 @@ const handleFileChange = (e) => {
 };
 
 const submitReport = () => {
+    if (!props.canSubmit) {
+        Swal.fire({
+            title: 'SUBMISSION_LOCKED',
+            text: 'Kamu sudah submit. Submission tidak bisa diulang.',
+            icon: 'info',
+            background: '#161b22',
+            color: '#4ed4d4',
+            confirmButtonColor: '#1e293b',
+        });
+        return;
+    }
+
     if (isStructuredTaskBankQuest.value && unansweredCount.value > 0) {
         Swal.fire({
             title: 'ANSWER_INCOMPLETE',
@@ -98,20 +120,14 @@ const submitReport = () => {
         customClass: { popup: 'border-4 border-slate-700 font-mono' }
     }).then((result) => {
         if (result.isConfirmed) {
-            const url = props.hasSubmitted
-                ? route('submissions.update', props.existingSubmission.uuid)
-                : route('submissions.store', props.quest.uuid);
+            const url = route('submissions.store', props.quest.uuid);
 
             form.post(url, {
                 preserveScroll: true,
                 onSuccess: () => {
                     Swal.fire({
-                        title: isAutoCheckedTaskBankQuest.value ? 'AUTO_CHECK_DONE!' : 'LOGGED!',
-                        text: isAutoCheckedTaskBankQuest.value
-                            ? 'Skor dan reward sudah dihitung otomatis.'
-                            : (isStructuredTaskBankQuest.value
-                                ? (props.hasSubmitted ? 'TASK BANK SUBMISSION UPDATED.' : 'TASK BANK SUBMISSION SENT.')
-                                : (props.hasSubmitted ? 'YOUR REPORT HAS BEEN UPDATED.' : 'REPORT SENT SUCCESSFULLY.')),
+                        title: 'LOGGED!',
+                        text: 'Submission berhasil dikirim.',
                         icon: 'success',
                         background: '#161b22',
                         color: '#4ed4d4',
@@ -244,12 +260,11 @@ const unlockLateQuest = () => {
                                         BANK: {{ quest.task_bank?.name || 'TASK_BANK' }} [{{ taskBankType || 'essay' }}]
                                     </p>
                                     <p class="text-[10px] text-slate-400 font-sans mt-1">
-                                        <template v-if="isAutoCheckedTaskBankQuest">
-                                            Jawab semua soal. Reward dihitung proporsional dari nilai akhir.
-                                        </template>
-                                        <template v-else>
-                                            Jawab semua soal. Submission akan direview oleh admin.
-                                        </template>
+                                        Jawab semua soal lalu submit. Submission akan diproses oleh sistem/admin.
+                                    </p>
+                                    <p v-if="taskBankType === 'multiple_choice' && !isAllMcq"
+                                        class="text-[10px] text-yellow-300 font-sans mt-2">
+                                        Detected essay question(s). Auto-check dinonaktifkan, submission akan masuk review manual.
                                     </p>
                                 </div>
 
@@ -366,15 +381,75 @@ const unlockLateQuest = () => {
                                     ? 'bg-cyan-800/40 border-cyan-300 text-cyan-200'
                                     : (props.hasSubmitted ? 'bg-yellow-900/20 border-yellow-500 text-yellow-500' : 'bg-cyan-900/40 border-cyan-400 text-cyan-400')"
                             >
-                                {{ form.processing
-                                    ? (isAutoCheckedTaskBankQuest ? 'AUTO_CHECKING...' : 'TRANSMITTING...')
-                                    : (isAutoCheckedTaskBankQuest
-                                        ? (props.hasSubmitted ? 'UPDATE_AND_RECHECK' : 'SUBMIT_AND_AUTO_CHECK')
-                                        : (isStructuredTaskBankQuest
-                                            ? (props.hasSubmitted ? 'UPDATE_TASK_SUBMISSION' : 'SUBMIT_TASK_SUBMISSION')
-                                            : (props.hasSubmitted ? 'UPDATE_REPORT' : 'EXECUTE_REPORT'))) }}
+                                {{ form.processing ? 'TRANSMITTING...' : 'SUBMIT' }}
                             </button>
                         </form>
+                    </div>
+
+                    <div v-else class="mt-8 p-4 md:p-6 border-2 border-dashed border-slate-800 bg-black/20">
+                        <h3 class="text-[12px] mb-3 uppercase tracking-widest text-white">
+                            >> SUBMISSION_LOCKED
+                        </h3>
+                        <p class="text-[12px] text-slate-300 font-sans">
+                            Kamu sudah submit quest ini. Submission tidak bisa diulang.
+                        </p>
+                        <div v-if="existingSubmission?.uuid" class="mt-4 flex flex-col sm:flex-row gap-3">
+                            <Link
+                                :href="route('submissions.show', existingSubmission.uuid)"
+                                class="text-center text-[12px] bg-cyan-900/50 text-cyan-300 px-4 py-3 border border-cyan-700 hover:bg-cyan-500 hover:text-black transition-all uppercase font-bold"
+                            >
+                                [ VIEW_SUBMISSION ]
+                            </Link>
+                        </div>
+
+                        <div v-if="isStructuredTaskBankQuest && taskQuestions.length" class="mt-6 space-y-4">
+                            <div class="bg-slate-900/40 border border-cyan-900/50 p-3">
+                                <p class="text-[10px] text-cyan-300 uppercase">
+                                    BANK: {{ quest.task_bank?.name || 'TASK_BANK' }} [{{ taskBankType || 'essay' }}]
+                                </p>
+                                <p class="text-[10px] text-slate-400 font-sans mt-1">
+                                    Berikut jawaban yang kamu kirim (read-only).
+                                </p>
+                            </div>
+
+                            <div
+                                v-for="(question, index) in taskQuestions"
+                                :key="`locked-${question.uuid}`"
+                                class="bg-black/30 border border-slate-700 p-4 space-y-3"
+                            >
+                                <p class="text-[10px] text-yellow-300 uppercase">
+                                    Q{{ index + 1 }} · WEIGHT {{ question.weight || 1 }}
+                                </p>
+                                <p class="text-[13px] text-slate-200 font-sans whitespace-pre-wrap">
+                                    {{ question.question_text }}
+                                </p>
+
+                                <template v-if="question.question_type === 'multiple_choice'">
+                                    <p class="text-[10px] text-slate-400 font-sans uppercase">Selected_Answer:</p>
+                                    <p class="text-[13px] font-sans" :class="answerFor(question) ? 'text-cyan-300' : 'text-red-400'">
+                                        {{ answerFor(question) || 'NOT_ANSWERED' }}
+                                    </p>
+
+                                    <div v-if="Array.isArray(question.options_json) && question.options_json.length" class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                                        <div
+                                            v-for="(option, optionIndex) in question.options_json"
+                                            :key="`locked-${question.uuid}-${optionIndex}`"
+                                            class="border px-3 py-2 text-[12px] font-sans break-words"
+                                            :class="String(option) === String(answerFor(question)) ? 'border-cyan-500 bg-cyan-500/10 text-cyan-200' : 'border-slate-700 text-slate-400 bg-black/10'"
+                                        >
+                                            {{ option }}
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <template v-else>
+                                    <p class="text-[10px] text-slate-400 font-sans uppercase">Essay_Answer:</p>
+                                    <div class="bg-black/40 border border-slate-700 p-3 text-[13px] text-slate-200 font-sans whitespace-pre-wrap">
+                                        {{ answerFor(question) || 'NOT_ANSWERED' }}
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
                     </div>
 
                     <div
