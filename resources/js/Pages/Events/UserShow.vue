@@ -102,11 +102,15 @@ const normalizedDescription = computed(() => {
                                 Deadline: {{ quest.deadline ? new Date(quest.deadline).toLocaleString('id-ID') : 'No_Limit' }}
                             </p>
                             <Link
+                                v-if="String(quest.status || '') === 'Available'"
                                 :href="route('quests.show', quest.uuid)"
                                 class="text-[8px] px-3 py-1 bg-yellow-900/40 border border-yellow-700 text-yellow-300 hover:bg-yellow-500 hover:text-black uppercase"
                             >
                                 Open_Quest
                             </Link>
+                            <p v-else class="text-[7px] text-slate-500 uppercase italic">
+                                Quest_Inactive
+                            </p>
                         </div>
                         <p v-if="!event.quests.length" class="text-[8px] text-slate-500 uppercase italic">No quests in this event.</p>
                     </div>

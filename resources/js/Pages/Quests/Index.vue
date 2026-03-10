@@ -54,7 +54,7 @@ const form = useForm({
     reward_gold: 500,
     reward_exp: 500,
     description: '',
-    status: 'Available',
+    is_active: true,
     study_group_id: null,
     task_bank_id: null,
     rubric_id: null,
@@ -77,20 +77,6 @@ watch(() => form.difficulty, (newDifficulty) => {
         form.reward_gold = rankGoldMap[newDifficulty] || 0;
         form.reward_exp = rankGoldMap[newDifficulty] || 0;
     }
-});
-
-const syncStatusFromDeadline = (deadlineValue) => {
-    if (!deadlineValue) {
-        form.status = 'Available';
-        return;
-    }
-
-    const selectedDate = new Date(deadlineValue);
-    form.status = selectedDate > new Date() ? 'Available' : 'Done';
-};
-
-watch(() => form.deadline, (newDeadline) => {
-    syncStatusFromDeadline(newDeadline);
 });
 
 watch(() => form.task_bank_id, (newTaskBankId) => {
@@ -138,7 +124,7 @@ const startEdit = (quest) => {
     form.reward_gold = quest.reward_gold;
     form.reward_exp = quest.reward_exp ?? quest.reward_gold ?? 0;
     form.description = quest.description || '';
-    form.status = quest.status || 'Available';
+    form.is_active = String(quest.status || 'Available') === 'Available';
     form.study_group_id = quest.study_group_id;
     form.task_bank_id = quest.task_bank_id;
     form.rubric_id = quest.rubric_id ?? null;
@@ -151,7 +137,6 @@ const startEdit = (quest) => {
     } else {
         form.deadline = '';
     }
-    syncStatusFromDeadline(form.deadline);
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
     Toast.fire({ icon: 'info', title: 'MODIFYING_CONTRACT' });
@@ -182,6 +167,7 @@ const submit = () => {
                 form.reward_exp = 500;
                 form.task_bank_id = null;
                 form.rubric_id = null;
+                form.is_active = true;
                 applyMentorDefaults();
             },
         });
@@ -291,13 +277,17 @@ const goToPage = (url) => {
 
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block mb-2 text-white">MISSION_STATUS:</label>
-                                    <select v-model="form.status"
-                                        class="w-full bg-black border-2 border-slate-700 p-2 focus:border-cyan-400 outline-none text-orange-400 uppercase">
-                                        <option value="Available">Available</option>
-                                        <option value="In-Progress">In-Progress</option>
-                                        <option value="Done">Done</option>
-                                    </select>
+                                    <label class="block mb-2 text-white">QUEST_ACTIVE:</label>
+                                    <label class="inline-flex items-center gap-3 select-none">
+                                        <input v-model="form.is_active" type="checkbox"
+                                            class="h-4 w-4 accent-cyan-400" />
+                                        <span class="text-[8px] uppercase" :class="form.is_active ? 'text-emerald-400' : 'text-orange-400'">
+                                            {{ form.is_active ? 'ACTIVE (AVAILABLE)' : 'INACTIVE (IN-PROGRESS)' }}
+                                        </span>
+                                    </label>
+                                    <p class="mt-2 text-[7px] text-slate-500 uppercase italic">
+                                        *Jika quest tidak aktif, status akan disimpan sebagai IN-PROGRESS.
+                                    </p>
                                 </div>
                                 <div>
                                     <label class="block mb-2 text-white text-orange-500">SET_DEADLINE:</label>

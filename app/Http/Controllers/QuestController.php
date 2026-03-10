@@ -148,7 +148,7 @@ class QuestController extends Controller
             'reward_gold' => 'nullable|integer|min:0',
             'reward_exp' => 'nullable|integer|min:0',
             'description' => 'nullable|string',
-            'status' => 'required|in:Available,In-Progress,Done',
+            'is_active' => 'nullable|boolean',
             'study_group_id' => 'nullable|exists:study_groups,id',
             'task_bank_id' => 'nullable|exists:task_banks,id',
             'rubric_id' => 'nullable|exists:rubrics,id',
@@ -164,10 +164,8 @@ class QuestController extends Controller
 
         $validated['reward_gold'] = $goldTable[$request->difficulty] ?? 0;
         $validated['reward_exp'] = $goldTable[$request->difficulty] ?? 0;
-        $validated['status'] = $request->filled('deadline')
-            ? (\Carbon\Carbon::parse($request->deadline)->isFuture() ? 'Available' : 'Done')
-            : 'Available';
         $validated['uuid'] = (string) \Illuminate\Support\Str::uuid();
+        $validated['status'] = $this->resolveQuestStatusFromActiveFlag($validated['is_active'] ?? null);
 
         $validated['rubric_id'] = $this->resolveQuestRubricId(
             $validated['rubric_id'] ?? null,
@@ -193,7 +191,7 @@ class QuestController extends Controller
             'description' => 'nullable|string',
             'reward_gold' => 'required|integer|min:0',
             'reward_exp' => 'nullable|integer|min:0',
-            'status' => 'required|in:Available,In-Progress,Done',
+            'is_active' => 'nullable|boolean',
             'study_group_id' => 'nullable|exists:study_groups,id',
             'task_bank_id' => 'nullable|exists:task_banks,id',
             'rubric_id' => 'nullable|exists:rubrics,id',
@@ -210,9 +208,7 @@ class QuestController extends Controller
         // Logika update gold jika difficulty berubah
         $validated['reward_gold'] = $goldTable[$request->difficulty] ?? $validated['reward_gold'];
         $validated['reward_exp'] = $goldTable[$request->difficulty] ?? ($validated['reward_exp'] ?? 0);
-        $validated['status'] = $request->filled('deadline')
-            ? (\Carbon\Carbon::parse($request->deadline)->isFuture() ? 'Available' : 'Done')
-            : 'Available';
+        $validated['status'] = $this->resolveQuestStatusFromActiveFlag($validated['is_active'] ?? null);
 
         $validated['rubric_id'] = $this->resolveQuestRubricId(
             $validated['rubric_id'] ?? null,
@@ -471,6 +467,12 @@ class QuestController extends Controller
         }
 
         return null;
+    }
+
+    private function resolveQuestStatusFromActiveFlag($isActive): string
+    {
+        $active = filter_var($isActive, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+        return $active === false ? 'In-Progress' : 'Available';
     }
 
     private function assertMentorCanUseRubricId($rubricId): void

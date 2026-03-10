@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Guide;
+use App\Models\Quest;
 use App\Models\Submission;
 use App\Models\User;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
@@ -78,29 +81,136 @@ class DashboardController extends Controller
             $studentsQuery->where('job_id', $mentorJobId);
         }
 
-        $students = $studentsQuery
-            ->withCount([
-                'submissions as total_completed' => function ($query) {
-                    $query->whereIn('status', ['Approved', 'Rejected']);
-                },
-            ])
-            ->withAvg([
-                'submissions as avg_grade' => function ($query) {
-                    $query->whereIn('status', ['Approved', 'Rejected']);
-                },
-            ], 'grade')
-            ->orderByDesc('avg_grade')
-            ->orderByDesc('total_completed')
-            ->orderBy('name')
-            ->paginate(10)
-            ->withQueryString();
+        // NOTE: Sort + perhitungan avg_grade harus konsisten dengan "grade average" di sisi user/profile:
+        // avg_grade = (sum latest grade per available quest) / (total available quests),
+        // di mana quest yang belum disubmit tetap masuk denominator (nilai 0).
+        $allStudents = $studentsQuery->get(['id', 'name', 'username', $levelColumn]);
+        $userIds = $allStudents->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-        $students->getCollection()->transform(function ($user) use ($levelColumn) {
-            $user->avg_grade = round((float) ($user->avg_grade ?? 0), 1);
-            // Dashboard.vue reads `user.lvl`
-            $user->lvl = (int) ($user->{$levelColumn} ?? 1);
-            return $user;
-        });
+        $students = new LengthAwarePaginator([], 0, 10, LengthAwarePaginator::resolveCurrentPage(), [
+            'path' => LengthAwarePaginator::resolveCurrentPath(),
+            'query' => request()->query(),
+        ]);
+
+        if (!empty($userIds)) {
+            $questGroupIdByQuestId = [];
+            $publicQuestCount = 0;
+            $groupQuestCountByGroupId = [];
+
+            $allQuests = Quest::query()->get(['id', 'study_group_id']);
+            foreach ($allQuests as $quest) {
+                $questId = (int) $quest->id;
+                $groupId = is_null($quest->study_group_id) ? null : (int) $quest->study_group_id;
+
+                $questGroupIdByQuestId[$questId] = $groupId;
+
+                if (is_null($groupId)) {
+                    $publicQuestCount++;
+                } else {
+                    $groupQuestCountByGroupId[$groupId] = ($groupQuestCountByGroupId[$groupId] ?? 0) + 1;
+                }
+            }
+
+            $userGroupIdsMap = DB::table('group_user')
+                ->whereIn('user_id', $userIds)
+                ->select('user_id', 'study_group_id')
+                ->get()
+                ->groupBy('user_id')
+                ->map(fn ($rows) => $rows->pluck('study_group_id')->map(fn ($id) => (int) $id)->unique()->values()->all())
+                ->all();
+
+            $totalCompletedByUser = Submission::query()
+                ->whereIn('user_id', $userIds)
+                ->whereIn('status', ['Approved', 'Rejected'])
+                ->selectRaw('user_id, COUNT(*) as cnt')
+                ->groupBy('user_id')
+                ->pluck('cnt', 'user_id')
+                ->map(fn ($v) => (int) $v)
+                ->all();
+
+            $latestSubmissionIds = Submission::query()
+                ->whereIn('user_id', $userIds)
+                ->selectRaw('MAX(id) as id')
+                ->groupBy('user_id', 'quest_id')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $latestGradeByUserQuest = [];
+            if (!empty($latestSubmissionIds)) {
+                $latestSubmissions = Submission::query()
+                    ->whereIn('id', $latestSubmissionIds)
+                    ->get(['user_id', 'quest_id', 'grade']);
+
+                foreach ($latestSubmissions as $submission) {
+                    $uid = (int) $submission->user_id;
+                    $qid = (int) $submission->quest_id;
+                    $latestGradeByUserQuest[$uid][$qid] = (int) ($submission->grade ?? 0);
+                }
+            }
+
+            $allStudents->transform(function ($user) use ($levelColumn, $publicQuestCount, $groupQuestCountByGroupId, $questGroupIdByQuestId, $userGroupIdsMap, $totalCompletedByUser, $latestGradeByUserQuest) {
+                $uid = (int) $user->id;
+
+                $groupIds = $userGroupIdsMap[$uid] ?? [];
+                $groupIdSet = [];
+                foreach ($groupIds as $gid) {
+                    $groupIdSet[(int) $gid] = true;
+                }
+
+                $totalAvailableQuests = (int) $publicQuestCount;
+                foreach ($groupIdSet as $gid => $_) {
+                    $totalAvailableQuests += (int) ($groupQuestCountByGroupId[(int) $gid] ?? 0);
+                }
+
+                $gradeSum = 0;
+                $userLatestGrades = $latestGradeByUserQuest[$uid] ?? [];
+                foreach ($userLatestGrades as $questId => $grade) {
+                    $questId = (int) $questId;
+                    $groupId = $questGroupIdByQuestId[$questId] ?? null;
+
+                    if (is_null($groupId) || isset($groupIdSet[(int) $groupId])) {
+                        $gradeSum += (int) $grade;
+                    }
+                }
+
+                $user->avg_grade = $totalAvailableQuests > 0
+                    ? round($gradeSum / $totalAvailableQuests, 1)
+                    : 0;
+
+                $user->total_completed = (int) ($totalCompletedByUser[$uid] ?? 0);
+                // Dashboard.vue reads `user.lvl`
+                $user->lvl = (int) ($user->{$levelColumn} ?? 1);
+
+                return $user;
+            });
+
+            $sortedStudents = $allStudents
+                ->sort(function ($a, $b) {
+                    $cmp = ((float) ($b->avg_grade ?? 0)) <=> ((float) ($a->avg_grade ?? 0));
+                    if ($cmp !== 0) {
+                        return $cmp;
+                    }
+
+                    $cmp = ((int) ($b->total_completed ?? 0)) <=> ((int) ($a->total_completed ?? 0));
+                    if ($cmp !== 0) {
+                        return $cmp;
+                    }
+
+                    return strcmp((string) ($a->name ?? ''), (string) ($b->name ?? ''));
+                })
+                ->values();
+
+            $perPage = 10;
+            $page = LengthAwarePaginator::resolveCurrentPage();
+            $total = $sortedStudents->count();
+            $items = $sortedStudents->slice(($page - 1) * $perPage, $perPage)->values();
+
+            $students = new LengthAwarePaginator($items, $total, $perPage, $page, [
+                'path' => LengthAwarePaginator::resolveCurrentPath(),
+                'query' => request()->query(),
+            ]);
+        }
 
         $helpUsersQuery = User::query()
             ->whereNotIn('role', ['admin', 'mentor']);
