@@ -82,10 +82,15 @@ const statusClass = (status) => {
                             <p class="mt-2 text-slate-400 font-sans text-[11px]">{{ item.description || '-' }}</p>
                             <p class="mt-2 text-yellow-500 text-[8px]">Reward: {{ item.reward_gold || 0 }} G</p>
                             <div class="mt-3">
-                                <Link :href="route('quests.show', item.uuid)"
+                                <Link
+                                    v-if="item.user_has_submitted || String(item.status || '') !== 'In-Progress'"
+                                    :href="route('quests.show', item.uuid)"
                                     class="inline-block px-3 py-1 border border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white uppercase text-[8px]">
                                     {{ item.user_has_submitted ? 'View / Edit Report' : 'Open Quest' }}
                                 </Link>
+                                <p v-else class="text-[7px] text-slate-500 uppercase italic">
+                                    Quest_Inactive
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -119,10 +124,15 @@ const statusClass = (status) => {
                                     </td>
                                     <td class="py-3 px-2 text-yellow-500">{{ item.reward_gold || 0 }} G</td>
                                     <td class="py-3 px-2 text-right">
-                                        <Link :href="route('quests.show', item.uuid)"
+                                        <Link
+                                            v-if="item.user_has_submitted || String(item.status || '') !== 'In-Progress'"
+                                            :href="route('quests.show', item.uuid)"
                                             class="inline-block px-3 py-1 border border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white uppercase text-[8px]">
                                             {{ item.user_has_submitted ? 'View / Edit Report' : 'Open Quest' }}
                                         </Link>
+                                        <span v-else class="text-[7px] text-slate-500 uppercase italic">
+                                            Quest_Inactive
+                                        </span>
                                     </td>
                                 </tr>
                                 <tr v-if="quests.data.length === 0">

@@ -251,6 +251,14 @@ class QuestController extends Controller
             ->latest('id')
             ->first();
 
+        $isInactive = (string) ($quest->status ?? '') === 'In-Progress';
+        $isStaff = (bool) auth()->user()?->isStaff();
+        if ($isInactive && ! $isStaff && ! $submission) {
+            return redirect()
+                ->route('quests.user.index')
+                ->withErrors(['quest' => 'QUEST_INACTIVE']);
+        }
+
         $isLate = $this->isQuestLate($quest);
         $hasQuestUnlock = UserQuestUnlock::query()
             ->where('user_id', $userId)
