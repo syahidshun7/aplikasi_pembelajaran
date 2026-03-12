@@ -360,7 +360,7 @@ onBeforeUnmount(() => {
                         :href="route('login')"
                         class="text-[8px] bg-[#009999] text-black px-4 py-2 btn-pixel border-[#006666] uppercase font-bold hover:bg-[#4ed4d4] transition-all"
                     >
-                        Login
+                        Login DFSDFSDFASFD
                     </Link>
                     <Link
                         v-if="canRegister"
