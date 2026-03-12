@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Submission;
 use App\Models\User;
+use App\Support\Cache\CacheVersion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -107,6 +108,8 @@ class AdminSubmissionManagementController extends Controller
 
         $this->syncUserRewardTotals((int) $submission->user_id);
 
+        CacheVersion::bump('dashboard');
+
         return back()->with('message', 'SUBMISSION_UPDATED');
     }
 
@@ -120,6 +123,8 @@ class AdminSubmissionManagementController extends Controller
 
         $submission->delete();
         $this->syncUserRewardTotals($userId);
+
+        CacheVersion::bump('dashboard');
 
         return back()->with('message', 'SUBMISSION_DELETED');
     }

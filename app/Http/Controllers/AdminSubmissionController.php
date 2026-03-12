@@ -6,6 +6,7 @@ use App\Models\Rubric;
 use App\Models\RubricDescription;
 use App\Models\Submission;
 use App\Models\User;
+use App\Support\Cache\CacheVersion;
 use App\Services\RubricScoringService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -310,6 +311,8 @@ class AdminSubmissionController extends Controller
     ]);
 
     $this->syncUserRewardTotals((int) $submission->user_id);
+
+    CacheVersion::bump('dashboard');
 
     return redirect()->back()->with('message', 'Verdict Processed & Rewards Calculated!');
 }

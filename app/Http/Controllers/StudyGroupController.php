@@ -3,7 +3,9 @@ namespace App\Http\Controllers;
 
 use App\Models\StudyGroup;
 use App\Models\StudyGroupJoinRequest;
+use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 
@@ -16,12 +18,20 @@ class StudyGroupController extends Controller
          $user = Auth::user();
          $userJobId = $user?->job_id;
 
+        $studyGroupCacheVersion = CacheVersion::get('study_groups');
+        $jobKey = is_null($userJobId) ? 'none' : (string) (int) $userJobId;
+
         return Inertia::render('StudyGroups/Index', [
-            'groups' => StudyGroup::query()
-                ->withCount('users')
-                ->where('job_id', $userJobId)
-                ->latest()
-                ->get(),
+            'groups' => Cache::remember(
+                "study_groups.list.v{$studyGroupCacheVersion}.job.{$jobKey}",
+                now()->addMinutes(5),
+                fn () => StudyGroup::query()
+                    ->withCount('users')
+                    ->where('job_id', $userJobId)
+                    ->latest()
+                    ->get()
+                    ->map(fn ($group) => $group->toArray())
+            ),
 
             // Mengambil grup milik user melalui query langsung ke Model StudyGroup
             // Ini jauh lebih aman dari error "undefined method"

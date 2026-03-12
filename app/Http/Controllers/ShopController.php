@@ -6,7 +6,9 @@ use App\Models\ShopItem;
 use App\Models\ShopTransaction;
 use App\Models\User;
 use App\Models\UserInventory;
+use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -17,10 +19,23 @@ class ShopController extends Controller
     {
         $user = auth()->user();
 
-        $items = ShopItem::query()
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get();
+        $shopCacheVersion = CacheVersion::get('shop');
+        $items = Cache::remember(
+            "shop.items.v{$shopCacheVersion}",
+            now()->addMinutes(5),
+            fn () => ShopItem::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->select([
+                    'id',
+                    'name',
+                    'description',
+                    'price_gold',
+                    'icon_path',
+                    'is_active',
+                ])
+                ->get()
+        );
 
         $inventories = UserInventory::query()
             ->where('user_id', $user->id)
@@ -102,7 +117,8 @@ class ShopController extends Controller
             ]);
         });
 
+        CacheVersion::bump('shop');
+
         return back()->with('message', 'ITEM_PURCHASE_SUCCESS');
     }
 }
-

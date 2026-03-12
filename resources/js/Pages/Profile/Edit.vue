@@ -78,10 +78,14 @@ watch(
                 <div
                     class="w-20 h-20 border-4 border-cyan-400 bg-slate-800 shadow-[0_0_15px_rgba(78,212,212,0.3)] relative overflow-hidden">
                     <img v-if="userData.profile_photo" :src="'/storage/' + userData.profile_photo"
+                        loading="lazy"
+                        decoding="async"
                         class="w-full h-full object-cover">
 
                     <img v-else
                         :src="`https://api.dicebear.com/7.x/pixel-art/svg?seed=${userData.username || 'guild-member'}`"
+                        loading="lazy"
+                        decoding="async"
                         class="w-full h-full object-cover">
                 </div>
 
@@ -176,11 +180,14 @@ watch(
                         <div v-if="activeTab === 'quests'" class="space-y-6 h-full flex flex-col">
                             <h3 class="text-green-400 mb-6 uppercase tracking-widest border-l-4 border-green-400 pl-3">
                                 Quest_Log</h3>
-                            <div class="flex-1 flex flex-col">
-                                <div v-if="questItems.length > 0" class="space-y-4 flex-1">
-                                    <div v-for="q in questItems" :key="q.uuid"
-                                        class="p-3 border-2 border-slate-700 bg-black/40 flex justify-between items-center hover:border-cyan-500/50 transition-colors">
-                                        <div>
+                                <div class="flex-1 flex flex-col">
+                                    <div v-if="questItems.length > 0" class="space-y-4 flex-1">
+                                        <div
+                                            v-for="q in questItems"
+                                            :key="q.uuid"
+                                            v-memo="[q.uuid, q.title, q.status, q.submitted_at]"
+                                            class="p-3 border-2 border-slate-700 bg-black/40 flex justify-between items-center hover:border-cyan-500/50 transition-colors">
+                                            <div>
                                             <p class="text-white text-[8px]">{{ q.title }}</p>
                                             <p class="text-[6px] text-slate-500 mt-1 uppercase">
                                                 Status:
@@ -212,6 +219,7 @@ watch(
                                     class="flex flex-wrap gap-2 pt-4 mt-4 border-t border-slate-800">
                                     <Link v-for="(link, idx) in questPaginationLinks"
                                         :key="`${idx}-${link.label}`"
+                                        v-memo="[idx, link.label, link.active, link.url]"
                                         :href="link.url || '#'"
                                         class="px-3 py-1 border text-[8px] uppercase transition-all"
                                         :class="[

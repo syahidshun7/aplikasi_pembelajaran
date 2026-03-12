@@ -26,36 +26,42 @@ class ProfileController extends Controller
 
         // 1. Ambil semua quest yang tersedia untuk user: public + party user.
         $userGroupIds = $user->studyGroups()->pluck('study_groups.id')->toArray();
-        $availableQuestIds = Quest::query()
+
+        $availableQuestsQuery = Quest::query()
             ->where(function ($query) use ($userGroupIds) {
                 $query->whereNull('study_group_id')
                     ->orWhereIn('study_group_id', $userGroupIds);
             })
-            ->pluck('id');
+            ->select('id');
 
-        $totalAvailableQuests = $availableQuestIds->count();
+        $totalAvailableQuests = (int) (clone $availableQuestsQuery)->count();
 
-        // 2. Ambil submission terbaru user per quest untuk basis scoring.
+        // 2. Ambil submission terbaru user per quest untuk basis scoring (dedup di SQL).
         $latestSubmissions = Submission::query()
-            ->where('user_id', $user->id)
-            ->whereIn('quest_id', $availableQuestIds)
-            ->orderByDesc('id')
-            ->get(['quest_id', 'grade', 'status'])
-            ->unique('quest_id');
+            ->joinSub(
+                Submission::query()
+                    ->where('user_id', $user->id)
+                    ->whereIn('quest_id', $availableQuestsQuery)
+                    ->selectRaw('MAX(id) as id')
+                    ->groupBy('quest_id'),
+                'latest',
+                fn ($join) => $join->on('submissions.id', '=', 'latest.id')
+            )
+            ->get(['submissions.quest_id', 'submissions.grade', 'submissions.status']);
 
         // 3. Overall grade = total grade submission user / total quest tersedia.
         // Quest yang belum disubmit otomatis bernilai 0 karena tetap masuk denominator.
-        $gradeSum = $latestSubmissions->sum(function ($submission) {
-            return (int) ($submission->grade ?? 0);
-        });
+        $gradeSum = (int) $latestSubmissions->sum(fn ($submission) => (int) ($submission->grade ?? 0));
         $averageGrade = $totalAvailableQuests > 0
             ? round($gradeSum / $totalAvailableQuests, 1)
             : 0;
 
         // "Completed" tetap dihitung dari quest yang submission terbarunya sudah diverifikasi.
-        $totalCompleted = $latestSubmissions
-            ->whereIn('status', ['Approved', 'Rejected'])
+        $totalCompleted = (int) $latestSubmissions
+            ->filter(fn ($submission) => in_array((string) ($submission->status ?? ''), ['Approved', 'Rejected'], true))
             ->count();
+
+        $user->loadMissing('job:id,name,emblem_path');
 
         $userData = [
             'id'            => $user->id,
@@ -75,7 +81,16 @@ class ProfileController extends Controller
         ];
 
         $userQuests = Submission::where('user_id', $user->id)
-            ->with('quest')
+            ->with('quest:id,uuid,title')
+            ->select([
+                'id',
+                'uuid',
+                'user_id',
+                'quest_id',
+                'status',
+                'grade',
+                'created_at',
+            ])
             ->orderBy('created_at', 'desc')
             ->paginate(12)
             ->withQueryString()

@@ -34,6 +34,55 @@ const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
 const profileVerificationHref = computed(() => `${route('profile.edit', { tab: 'profile' })}#email-verification`);
 
+const toSafeDate = (dateLike) => {
+    if (!dateLike) return null;
+    const date = new Date(dateLike);
+    if (Number.isNaN(date.getTime())) return null;
+    return date;
+};
+
+const playerItems = computed(() => {
+    return (players.value || []).map((player) => {
+        const seed = player?.username || player?.name || 'guild-member';
+        return {
+            ...player,
+            __dicebear_src: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${seed}`,
+        };
+    });
+});
+
+const eventItems = computed(() => {
+    return (events.value || []).map((event) => {
+        const startsAtDate = toSafeDate(event?.starts_at);
+        return {
+            ...event,
+            __starts_at_label: startsAtDate ? startsAtDate.toLocaleString('id-ID') : 'Schedule_Not_Set',
+        };
+    });
+});
+
+const questItems = computed(() => {
+    const now = Date.now();
+
+    return (quests.value || []).map((quest) => {
+        const deadlineDate = toSafeDate(quest?.deadline);
+        const deadlineOverdue = Boolean(
+            deadlineDate
+                && deadlineDate.getTime() < now
+                && !quest?.user_has_submitted
+                && !quest?.user_has_unlock
+        );
+
+        return {
+            ...quest,
+            __deadline_overdue: deadlineOverdue,
+            __deadline_label: deadlineDate
+                ? deadlineDate.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).toUpperCase()
+                : 'NO_LIMIT',
+        };
+    });
+});
+
 const closeMobileMenu = () => {
     mobileMenuOpen.value = false;
 };
@@ -208,7 +257,10 @@ const closeMobileMenu = () => {
                             <i class="fi fi-rr-user text-[11px] text-[#4ed4d4]"></i> Leaderboard - Players[{{ players.length }}]
                         </h2>
                         <div class="space-y-4 overflow-y-auto pr-2 custom-scroll flex-1">
-                            <div v-for="(player, index) in players" :key="player.id"
+                            <div
+                                v-for="(player, index) in playerItems"
+                                :key="player.id"
+                                v-memo="[player.id, player.username, player.name, player.level, player.lvl, player.role, player.profile_photo, index]"
                                 class="flex items-center gap-4 p-2 hover:bg-[#009999]/10 border-l-4 border-transparent hover:border-[#009999] transition-all relative">
 
                                 <div class="relative">
@@ -221,15 +273,19 @@ const closeMobileMenu = () => {
 
                                     <div class="w-10 h-10 bg-slate-800 border-2 flex-shrink-0 overflow-hidden shadow-lg"
                                         :class="{
-                                            'border-yellow-400 shadow-yellow-500/50 animate-pulse': index === 0,
-                                            'border-slate-300 shadow-slate-400/50': index === 1,
-                                            'border-amber-600 shadow-amber-700/50': index === 2,
-                                            'border-slate-600': index > 2
-                                        }">
+                                             'border-yellow-400 shadow-yellow-500/50 animate-pulse': index === 0,
+                                             'border-slate-300 shadow-slate-400/50': index === 1,
+                                             'border-amber-600 shadow-amber-700/50': index === 2,
+                                             'border-slate-600': index > 2
+                                         }">
                                         <img v-if="player.profile_photo" :src="'/storage/' + player.profile_photo"
+                                            loading="lazy"
+                                            decoding="async"
                                             class="w-full h-full object-cover">
                                         <img v-else
-                                            :src="`https://api.dicebear.com/7.x/pixel-art/svg?seed=${player.username || player.name}`"
+                                            :src="player.__dicebear_src"
+                                            loading="lazy"
+                                            decoding="async"
                                             class="w-full h-full">
                                     </div>
                                 </div>
@@ -272,7 +328,10 @@ const closeMobileMenu = () => {
                         </div>
 
                         <div class="space-y-4 overflow-y-auto pr-2 custom-scroll-indigo flex-1">
-                            <div v-for="item in guides" :key="item.uuid"
+                            <div
+                                v-for="item in guides"
+                                :key="item.uuid"
+                                v-memo="[item.uuid, item.title, item.description, item.study_group_id, item.study_group?.name]"
                                 class="p-0 bg-[#0d1117] border-2 border-slate-800 hover:border-indigo-500 transition-all group relative overflow-hidden">
 
                                 <div class="absolute top-0 left-0 w-1 h-full bg-indigo-600"></div>
@@ -397,7 +456,10 @@ const closeMobileMenu = () => {
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[260px] overflow-y-auto pr-2 custom-scroll">
-                            <div v-for="event in events" :key="event.uuid"
+                            <div
+                                v-for="event in eventItems"
+                                :key="event.uuid"
+                                v-memo="[event.uuid, event.title, event.sequence_order, event.study_group?.name, event.__starts_at_label, event.guides_count, event.quests_count]"
                                 class="p-3 bg-[#0d1117] border-2 border-slate-800 hover:border-blue-500 transition-all group relative overflow-hidden flex flex-col min-h-[180px]">
                                 <div class="absolute top-0 left-0 w-1 h-full bg-blue-600"></div>
 
@@ -416,7 +478,7 @@ const closeMobileMenu = () => {
                                     {{ event.study_group?.name || 'Public' }}
                                 </p>
                                 <p class="text-[7px] text-slate-400 uppercase mb-2">
-                                    {{ event.starts_at ? new Date(event.starts_at).toLocaleString('id-ID') : 'Schedule_Not_Set' }}
+                                    {{ event.__starts_at_label }}
                                 </p>
                                 <div class="flex items-center justify-between text-[7px] uppercase mt-auto pt-2 border-t border-slate-800">
                                     <span class="text-emerald-400">Guide: {{ event.guides_count || 0 }}</span>
@@ -453,7 +515,10 @@ const closeMobileMenu = () => {
                         <div class="overflow-y-auto pr-2 custom-scroll flex-1">
                             
                             <div v-if="quests.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4">
-                                <div v-for="quest in quests" :key="quest.uuid"
+                                <div
+                                    v-for="quest in questItems"
+                                    :key="quest.uuid"
+                                    v-memo="[quest.uuid, quest.title, quest.difficulty, quest.status, quest.user_submission_status, quest.user_has_submitted, quest.user_has_unlock, quest.__deadline_label, quest.__deadline_overdue, quest.reward_gold, quest.id]"
                                     class="rpg-panel bg-[#161b22] transition-all group cursor-pointer shadow-none flex flex-col h-[200px]"
                                     :class="[
                                         (quest.user_submission_status === 'Approved') ? 'border-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.35)] bg-emerald-950/20' :
@@ -488,13 +553,9 @@ const closeMobileMenu = () => {
                                                 class="text-orange-500 text-[6px] uppercase tracking-tighter">Deadline:</span>
                                             <span :class="[
                                                 'text-[7px] uppercase font-bold tracking-tighter',
-                                                (new Date(quest.deadline) < new Date() && !quest.user_has_submitted && !quest.user_has_unlock) ? 'text-red-500 animate-pulse' : 'text-orange-300'
+                                                quest.__deadline_overdue ? 'text-red-500 animate-pulse' : 'text-orange-300'
                                             ]">
-                                                {{ quest.deadline ? new Date(quest.deadline).toLocaleString('id-ID',
-                                                    {
-                                                        day: '2-digit',
-                                                month:'short', hour:'2-digit', minute:'2-digit'}).toUpperCase() :
-                                                'NO_LIMIT' }}
+                                                {{ quest.__deadline_label }}
                                             </span>
                                         </div>
 

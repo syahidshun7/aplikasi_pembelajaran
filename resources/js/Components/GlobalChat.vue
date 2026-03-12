@@ -1,5 +1,4 @@
 <script setup>
-import { io } from 'socket.io-client';
 import { usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 
@@ -458,7 +457,7 @@ const handleMessageHistory = async (payload = {}) => {
     isLoadingHistory.value = false;
 };
 
-onMounted(() => {
+onMounted(async () => {
     userName.value = resolveUserName();
     userId.value = resolveUserId();
     const token = buildToken();
@@ -468,6 +467,7 @@ onMounted(() => {
         return;
     }
 
+    const { io } = await import('socket.io-client');
     socket = io(getChatServerUrl(), {
         path: getChatSocketPath(),
         transports: ['polling', 'websocket'],
@@ -567,8 +567,9 @@ onBeforeUnmount(() => {
             <div class="max-h-[72px] overflow-y-auto custom-scroll">
                 <div class="flex flex-wrap gap-2">
                     <span
-                        v-for="(user, index) in onlineUsers"
-                        :key="`${user}-${index}`"
+                        v-for="user in onlineUsers"
+                        :key="user"
+                        v-memo="[user]"
                         class="relative text-[8px] uppercase text-slate-200 border border-slate-700 bg-black/40 pl-5 pr-2 py-1 rounded-full"
                     >
                         <span class="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.85)]"></span>
@@ -587,6 +588,7 @@ onBeforeUnmount(() => {
                 <div
                     v-for="(item, index) in messages"
                     :key="item.id ? `msg-${item.id}` : `${item.user}-${item.time}-${index}`"
+                    v-memo="[item.id, item.user, item.message, item.time, item.isMine]"
                     class="flex"
                     :class="item.isMine ? 'justify-end' : 'justify-start'"
                 >

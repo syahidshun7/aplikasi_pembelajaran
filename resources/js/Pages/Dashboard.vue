@@ -177,7 +177,10 @@ const formatTime = (iso) => {
                                         </tr>
                                     </thead>
                                     <tbody class="text-[10px]">
-                                        <tr v-for="user in studentItems" :key="user.id"
+                                        <tr
+                                            v-for="user in studentItems"
+                                            :key="user.id"
+                                            v-memo="[user.id, user.name, user.lvl, user.total_completed, user.avg_grade]"
                                             class="border-b border-slate-800/50 hover:bg-white/5 transition-colors">
                                             <td class="py-4 px-2 text-white uppercase">{{ user.name }}</td>
                                             <td class="py-4 px-2 text-cyan-500">{{ user.lvl }}</td>
@@ -198,6 +201,7 @@ const formatTime = (iso) => {
                                     <button
                                         v-for="(link, idx) in studentLinks"
                                         :key="`${idx}-${link.label}`"
+                                        v-memo="[idx, link.label, link.active, link.url]"
                                         @click="link.url && router.get(link.url, {}, { preserveScroll: true, preserveState: true })"
                                         :disabled="!link.url"
                                         class="px-3 py-1 border text-[8px] uppercase transition-all"
@@ -223,7 +227,10 @@ const formatTime = (iso) => {
                                         </tr>
                                     </thead>
                                     <tbody class="text-[10px]">
-                                        <tr v-for="user in helpUsers" :key="user.id"
+                                        <tr
+                                            v-for="user in helpUsers"
+                                            :key="user.id"
+                                            v-memo="[user.id, user.name, user.lvl, user.graded_count_30d, user.avg_grade_30d]"
                                             class="border-b border-slate-800/50 hover:bg-white/5 transition-colors">
                                             <td class="py-4 px-2 text-white uppercase">{{ user.name }}</td>
                                             <td class="py-4 px-2 text-cyan-500">{{ user.lvl }}</td>
@@ -253,7 +260,12 @@ const formatTime = (iso) => {
                             </div>
 
                             <div class="space-y-3 max-h-[420px] overflow-y-auto pr-2 custom-scroll">
-                                <div v-for="item in pendingSubmissions" :key="item.uuid" class="p-3 border border-slate-700 bg-black/30">
+                                <div
+                                    v-for="item in pendingSubmissions"
+                                    :key="item.uuid"
+                                    v-memo="[item.uuid, item.created_at, item.user?.name, item.quest?.title]"
+                                    class="p-3 border border-slate-700 bg-black/30"
+                                >
                                     <div class="flex items-start justify-between gap-3">
                                         <div class="min-w-0">
                                             <p class="text-[8px] text-slate-400 uppercase">
@@ -307,4 +319,3 @@ const formatTime = (iso) => {
     @apply block w-full p-3 text-left border-r-4 transition-all uppercase text-[10px] hover:translate-x-2;
 }
 </style>
-

@@ -2,6 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { toast } from '@/Utils/Alert';
+import { computed } from 'vue';
 
 const props = defineProps({
     items: {
@@ -20,6 +21,20 @@ const props = defineProps({
 
 const purchaseForm = useForm({
     quantity: 1,
+});
+
+const formatTxTime = (iso) => {
+    if (!iso) return '-';
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('id-ID');
+};
+
+const transactionItems = computed(() => {
+    return (props.transactions || []).map((tx) => ({
+        ...tx,
+        display_time: formatTxTime(tx?.created_at),
+    }));
 });
 
 const buyItem = async (item) => {
@@ -99,12 +114,16 @@ const buyItem = async (item) => {
                                         v-if="item.icon_path"
                                         :src="`/storage/${item.icon_path}`"
                                         :alt="item.name"
+                                        loading="lazy"
+                                        decoding="async"
                                         class="w-full h-full object-cover"
                                     >
                                     <img
                                         v-else
                                         src="/images/logo.png"
                                         :alt="item.name"
+                                        loading="lazy"
+                                        decoding="async"
                                         class="w-8 h-8 object-contain opacity-80"
                                     >
                                 </div>
@@ -138,8 +157,9 @@ const buyItem = async (item) => {
                         <h2 class="text-purple-300 text-[10px] uppercase tracking-widest mb-4">Recent_Transactions</h2>
                         <div class="space-y-3 max-h-[560px] overflow-y-auto pr-2 custom-scroll">
                             <div
-                                v-for="tx in transactions"
+                                v-for="tx in transactionItems"
                                 :key="tx.id"
+                                v-memo="[tx.id, tx.type, tx.quantity, tx.item?.name, tx.display_time]"
                                 class="border border-slate-700 bg-[#0d1117] p-3"
                             >
                                 <p class="text-[8px] uppercase mb-1"
@@ -147,9 +167,9 @@ const buyItem = async (item) => {
                                     {{ tx.type === 'purchase' ? 'Purchase' : 'Use Item' }}
                                 </p>
                                 <p class="text-[9px] text-white font-sans">{{ tx.item?.name || 'Unknown Item' }} x{{ tx.quantity }}</p>
-                                <p class="text-[8px] text-slate-400 font-sans mt-1">{{ new Date(tx.created_at).toLocaleString('id-ID') }}</p>
+                                <p class="text-[8px] text-slate-400 font-sans mt-1">{{ tx.display_time }}</p>
                             </div>
-                            <p v-if="transactions.length === 0" class="text-[8px] text-slate-500 uppercase">
+                            <p v-if="transactionItems.length === 0" class="text-[8px] text-slate-500 uppercase">
                                 No_Transaction_Yet
                             </p>
                         </div>

@@ -61,7 +61,7 @@ const normalizedPropJobs = computed(() => {
             description: job.description ?? null,
         }));
 });
-const hasPropJobsSource = computed(() => Array.isArray(props?.availableJobs));
+const hasPropJobsSource = computed(() => normalizedPropJobs.value.length > 0);
 
 const loadedJobs = ref([]);
 const displayJobs = computed(() => (loadedJobs.value.length > 0 ? loadedJobs.value : fallbackJobs));
@@ -142,11 +142,7 @@ const normalizeJobs = (jobs) => {
 const loadJobs = async () => {
     try {
         if (hasPropJobsSource.value) {
-            const mockApiResponse = { payload: { jobs: normalizedPropJobs.value } };
-            console.log('API response:', mockApiResponse);
-            loadedJobs.value = normalizeJobs(
-                getNestedValue(mockApiResponse, ['payload', 'jobs']) || []
-            );
+            loadedJobs.value = normalizedPropJobs.value;
             return;
         }
 
@@ -162,17 +158,11 @@ const loadJobs = async () => {
         }
 
         const data = await response.json();
-        console.log('API response:', data);
         loadedJobs.value = normalizeJobs(extractJobsFromResponse(data));
     } catch (error) {
         console.error('Jobs load error:', error);
         loadedJobs.value = [];
     }
-};
-
-const setJobCardRef = (el, index) => {
-    if (!el) return;
-    jobCardRefs.value[index] = el;
 };
 
 const getNearestCardIndex = () => {
@@ -273,7 +263,6 @@ const initCarousel = async () => {
     await nextTick();
     await new Promise((resolve) => window.requestAnimationFrame(resolve));
 
-    console.log('refs:', jobCardRefs.value.length);
     if (!jobCardRefs.value.length) return;
 
     syncCarouselMetrics();
@@ -309,20 +298,11 @@ watch(
     () => normalizedPropJobs.value,
     async (jobs) => {
         if (jobs.length > 0) {
-            loadedJobs.value = normalizeJobs(jobs);
+            loadedJobs.value = jobs;
             await initCarousel();
         }
     },
-    { deep: true },
-);
-
-watch(
-    () => displayJobs.value,
-    async () => {
-        await nextTick();
-        await initCarousel();
-    },
-    { deep: true },
+    { deep: false },
 );
 
 onBeforeUnmount(() => {
@@ -521,7 +501,7 @@ onBeforeUnmount(() => {
                         <div
                             ref="jobsCarousel"
                             class="jobs-carousel"
-                            @scroll="handleCarouselScroll"
+                            @scroll.passive="handleCarouselScroll"
                             @pointerdown="onCarouselPointerDown"
                             @pointermove="onCarouselPointerMove"
                             @pointerup="onCarouselPointerUp"
@@ -533,7 +513,8 @@ onBeforeUnmount(() => {
                             <article
                                 v-for="(job, index) in displayJobs"
                                 :key="job.id || `job-card-${index}`"
-                                :ref="(el) => setJobCardRef(el, index)"
+                                ref="jobCardRefs"
+                                v-memo="[index === activeJobIndex, job.id, job.name, job.slug, job.emblem_path, job.description]"
                                 class="job-card relative overflow-hidden snap-center shrink-0 w-[220px] md:w-[260px] h-[340px] md:h-[360px] border p-4"
                                 :class="[
                                     getCardStateClass(index),
@@ -566,12 +547,16 @@ onBeforeUnmount(() => {
                                             v-if="job.emblem_path"
                                             :src="`/storage/${job.emblem_path}`"
                                             :alt="`${job.name || 'Job'} emblem`"
+                                            loading="lazy"
+                                            decoding="async"
                                             class="w-full h-full object-cover"
                                         />
                                         <img
                                             v-else
                                             src="/images/logo.png"
                                             :alt="`${job.name || 'Job'} default`"
+                                            loading="lazy"
+                                            decoding="async"
                                             class="w-16 h-16 object-contain opacity-90"
                                         />
                                     </div>

@@ -6,6 +6,7 @@ use App\Models\Submission;
 use App\Models\Quest;
 use App\Models\User;
 use App\Models\UserQuestUnlock;
+use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Schema;
@@ -75,6 +76,9 @@ class SubmissionController extends Controller
         if ($wasEvaluated || $this->isSubmissionEvaluated($submission)) {
             $this->syncUserRewardTotals((int) $submission->user_id);
         }
+
+        CacheVersion::bump('dashboard');
+        CacheVersion::bump('quests');
 
         return back()->with('message', $isUpdate ? 'MISSION_REPORT_UPDATED' : 'MISSION_REPORT_SENT');
     }

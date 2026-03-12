@@ -1,10 +1,34 @@
 <script setup>
-import { ref } from 'vue';
-import GlobalChat from './GlobalChat.vue';
+import { defineAsyncComponent, onMounted, ref } from 'vue';
 
 const isOpen = ref(false);
 
+let globalChatPreloadPromise = null;
+const preloadGlobalChat = () => {
+    if (!globalChatPreloadPromise) {
+        globalChatPreloadPromise = import('./GlobalChat.vue');
+    }
+    return globalChatPreloadPromise;
+};
+
+const GlobalChat = defineAsyncComponent(() => preloadGlobalChat());
+
+onMounted(() => {
+    if (typeof window === 'undefined') return;
+
+    const warm = () => preloadGlobalChat();
+    if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(warm, { timeout: 1500 });
+        return;
+    }
+
+    window.setTimeout(warm, 800);
+});
+
 const toggleChat = () => {
+    if (!isOpen.value) {
+        preloadGlobalChat();
+    }
     isOpen.value = !isOpen.value;
 };
 

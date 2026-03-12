@@ -13,6 +13,9 @@ use Inertia\Inertia;
 use App\Models\StudyGroup;
 use App\Models\UserInventory;
 use App\Models\UserQuestUnlock;
+use App\Support\Cache\CacheVersion;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -29,38 +32,100 @@ class QuestController extends Controller
         $search = trim((string) ($validated['search'] ?? ''));
         $userId = auth()->id();
         $userGroupIds = auth()->user()->studyGroups()->pluck('study_groups.id')->toArray();
-        $submittedQuestIds = Submission::where('user_id', $userId)->pluck('quest_id')->toArray();
-        $unlockedQuestIds = UserQuestUnlock::query()
-            ->where('user_id', $userId)
-            ->pluck('quest_id')
-            ->toArray();
 
-        $quests = Quest::query()
-            ->where(function ($query) use ($userGroupIds) {
-                $query->whereNull('study_group_id')
-                    ->orWhereIn('study_group_id', $userGroupIds);
-            })
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('title', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%")
-                        ->orWhere('difficulty', 'like', "%{$search}%")
-                        ->orWhere('status', 'like', "%{$search}%")
-                        ->orWhereHas('studyGroup', function ($sq) use ($search) {
-                            $sq->where('name', 'like', "%{$search}%");
+        $questsCacheVersion = CacheVersion::get('quests');
+        $groupKey = sha1(json_encode(collect($userGroupIds)->map(fn ($id) => (int) $id)->unique()->sort()->values()->all()));
+        $searchKey = $search === '' ? 'none' : sha1($search);
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = 15;
+
+        $cached = Cache::remember(
+            "quests.page.v{$questsCacheVersion}.groups.{$groupKey}.search.{$searchKey}.page.{$page}",
+            now()->addMinutes(5),
+            function () use ($userGroupIds, $search, $page, $perPage) {
+                $paginator = Quest::query()
+                    ->where(function ($query) use ($userGroupIds) {
+                        $query->whereNull('study_group_id')
+                            ->orWhereIn('study_group_id', $userGroupIds);
+                    })
+                    ->when($search !== '', function ($query) use ($search) {
+                        $query->where(function ($q) use ($search) {
+                            $q->where('title', 'like', "%{$search}%")
+                                ->orWhere('description', 'like', "%{$search}%")
+                                ->orWhere('difficulty', 'like', "%{$search}%")
+                                ->orWhere('status', 'like', "%{$search}%")
+                                ->orWhereHas('studyGroup', function ($sq) use ($search) {
+                                    $sq->where('name', 'like', "%{$search}%");
+                                });
                         });
-                });
-            })
-            ->with('studyGroup:id,name')
-            ->latest()
-            ->paginate(15)
-            ->withQueryString();
+                    })
+                    ->with('studyGroup:id,name')
+                    ->latest()
+                    ->paginate($perPage, ['*'], 'page', $page);
 
-        $quests->through(function ($quest) use ($submittedQuestIds, $unlockedQuestIds) {
-            $quest->user_has_submitted = in_array($quest->id, $submittedQuestIds, true);
-            $quest->user_has_unlock = in_array($quest->id, $unlockedQuestIds, true);
-            return $quest;
-        });
+                return [
+                    'total' => (int) $paginator->total(),
+                    'per_page' => (int) $paginator->perPage(),
+                    'items' => $paginator->getCollection()->map(fn ($quest) => $quest->toArray())->values()->all(),
+                ];
+            }
+        );
+
+        $quests = new LengthAwarePaginator(
+            $cached['items'] ?? [],
+            (int) ($cached['total'] ?? 0),
+            (int) ($cached['per_page'] ?? $perPage),
+            $page,
+            [
+                'path' => LengthAwarePaginator::resolveCurrentPath(),
+                'query' => $request->query(),
+            ]
+        );
+
+        $pageQuestIds = $quests->getCollection()
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $submittedQuestIdSet = [];
+        if (! empty($pageQuestIds)) {
+            $submittedQuestIds = Submission::query()
+                ->where('user_id', $userId)
+                ->whereIn('quest_id', $pageQuestIds)
+                ->select('quest_id')
+                ->distinct()
+                ->pluck('quest_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $submittedQuestIdSet = array_fill_keys($submittedQuestIds, true);
+        }
+
+        $unlockedQuestIdSet = [];
+        if (! empty($pageQuestIds)) {
+            $unlockedQuestIds = UserQuestUnlock::query()
+                ->where('user_id', $userId)
+                ->whereIn('quest_id', $pageQuestIds)
+                ->pluck('quest_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $unlockedQuestIdSet = array_fill_keys($unlockedQuestIds, true);
+        }
+
+        $quests->setCollection(
+            $quests->getCollection()->map(function ($quest) use ($submittedQuestIdSet, $unlockedQuestIdSet) {
+                $questId = (int) (is_array($quest) ? ($quest['id'] ?? 0) : ($quest->id ?? 0));
+
+                if (is_array($quest)) {
+                    $quest['user_has_submitted'] = isset($submittedQuestIdSet[$questId]);
+                    $quest['user_has_unlock'] = isset($unlockedQuestIdSet[$questId]);
+                    return $quest;
+                }
+
+                $quest->user_has_submitted = isset($submittedQuestIdSet[$questId]);
+                $quest->user_has_unlock = isset($unlockedQuestIdSet[$questId]);
+                return $quest;
+            })
+        );
 
         return Inertia::render('Quests/UserIndex', [
             'quests' => $quests,
@@ -375,6 +440,10 @@ class QuestController extends Controller
                 ],
             ]);
         });
+
+        CacheVersion::bump('home');
+        CacheVersion::bump('quests');
+        CacheVersion::bump('shop');
 
         return back()->with('message', 'QUEST_REOPENED_USING_TIME_KEY');
     }
