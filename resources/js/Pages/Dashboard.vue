@@ -32,6 +32,12 @@ const getRiskColor = (grade) => {
     return 'text-slate-300';
 };
 
+
+
+
+
+
+
 const formatTime = (iso) => {
     if (!iso) return '-';
     const date = new Date(iso);
