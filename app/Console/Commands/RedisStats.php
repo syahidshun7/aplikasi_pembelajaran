@@ -23,19 +23,23 @@ class RedisStats extends Command
             $this->info("✅ Redis aktif");
 
             // Buat beberapa key test
-            $testKeys = ['testkey1', 'testkey2', 'testkey3'];
+            $testKeys = ['redis_stats:testkey1', 'redis_stats:testkey2', 'redis_stats:testkey3'];
             foreach ($testKeys as $key) {
                 $redis->set($key, 'ok', 'EX', 60); // TTL 60 detik
             }
 
-            // Akses key beberapa kali supaya hits/misses tercatat
+            // Paksa 1 miss dan beberapa hit supaya stats bergerak (keyspace_hits / keyspace_misses)
+            $redis->get('redis_stats:missing_key');
             foreach ($testKeys as $key) {
-                $redis->get($key); // pertama -> miss
-                $redis->get($key); // kedua -> hit
+                $redis->get($key);
+                $redis->get($key);
             }
 
             // Ambil statistik Redis
-            $stats = $redis->info('stats');
+            // Predis mengembalikan array per-section: ['Stats' => ['keyspace_hits' => ...]]
+            // PhpRedis biasanya flat: ['keyspace_hits' => ...]
+            $info = $redis->info('stats');
+            $stats = $info['Stats'] ?? $info['stats'] ?? $info;
 
             $this->info("\n📊 Statistik Redis saat ini:");
             $this->line("Hits   : " . ($stats['keyspace_hits'] ?? 0));
