@@ -185,7 +185,6 @@ watch(
                                         <div
                                             v-for="q in questItems"
                                             :key="q.uuid"
-                                            v-memo="[q.uuid, q.title, q.status, q.submitted_at]"
                                             class="p-3 border-2 border-slate-700 bg-black/40 flex justify-between items-center hover:border-cyan-500/50 transition-colors">
                                             <div>
                                             <p class="text-white text-[8px]">{{ q.title }}</p>
@@ -219,7 +218,6 @@ watch(
                                     class="flex flex-wrap gap-2 pt-4 mt-4 border-t border-slate-800">
                                     <Link v-for="(link, idx) in questPaginationLinks"
                                         :key="`${idx}-${link.label}`"
-                                        v-memo="[idx, link.label, link.active, link.url]"
                                         :href="link.url || '#'"
                                         class="px-3 py-1 border text-[8px] uppercase transition-all"
                                         :class="[

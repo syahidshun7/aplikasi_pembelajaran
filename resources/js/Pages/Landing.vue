@@ -61,7 +61,6 @@ const normalizedPropJobs = computed(() => {
             description: job.description ?? null,
         }));
 });
-const hasPropJobsSource = computed(() => normalizedPropJobs.value.length > 0);
 
 const loadedJobs = ref([]);
 const displayJobs = computed(() => (loadedJobs.value.length > 0 ? loadedJobs.value : fallbackJobs));
@@ -100,69 +99,8 @@ const getJobDescription = (job) => {
     return 'Jalur pembelajaran terstruktur untuk membangun skill profesional secara bertahap.';
 };
 
-const getNestedValue = (source, keys = []) => {
-    if (!source || typeof source !== 'object') return undefined;
-
-    let current = source;
-    for (const key of keys) {
-        if (!current || typeof current !== 'object' || !(key in current)) {
-            return undefined;
-        }
-        current = current[key];
-    }
-
-    return current;
-};
-
-const extractJobsFromResponse = (response) => {
-    const jobsCandidate = getNestedValue(response, ['payload', 'jobs'])
-        || getNestedValue(response, ['payload'])
-        || getNestedValue(response, ['data', 'payload', 'jobs'])
-        || getNestedValue(response, ['data', 'payload'])
-        || getNestedValue(response, ['jobs'])
-        || [];
-
-    return Array.isArray(jobsCandidate) ? jobsCandidate : [];
-};
-
-const normalizeJobs = (jobs) => {
-    if (!Array.isArray(jobs)) return [];
-
-    return jobs
-        .filter((job) => job && typeof job === 'object')
-        .map((job, index) => ({
-            id: job.id ?? `job-${index}`,
-            name: String(job.name ?? 'Unknown Job'),
-            slug: String(job.slug ?? ''),
-            emblem_path: job.emblem_path ?? null,
-            description: job.description ?? null,
-        }));
-};
-
-const loadJobs = async () => {
-    try {
-        if (hasPropJobsSource.value) {
-            loadedJobs.value = normalizedPropJobs.value;
-            return;
-        }
-
-        const response = await fetch('/api/jobs', {
-            method: 'GET',
-            headers: {
-                Accept: 'application/json',
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error(`Jobs API failed with status ${response.status}`);
-        }
-
-        const data = await response.json();
-        loadedJobs.value = normalizeJobs(extractJobsFromResponse(data));
-    } catch (error) {
-        console.error('Jobs load error:', error);
-        loadedJobs.value = [];
-    }
+const loadJobs = () => {
+    loadedJobs.value = normalizedPropJobs.value;
 };
 
 const getNearestCardIndex = () => {
@@ -514,7 +452,6 @@ onBeforeUnmount(() => {
                                 v-for="(job, index) in displayJobs"
                                 :key="job.id || `job-card-${index}`"
                                 ref="jobCardRefs"
-                                v-memo="[index === activeJobIndex, job.id, job.name, job.slug, job.emblem_path, job.description]"
                                 class="job-card relative overflow-hidden snap-center shrink-0 w-[220px] md:w-[260px] h-[340px] md:h-[360px] border p-4"
                                 :class="[
                                     getCardStateClass(index),

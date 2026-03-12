@@ -569,7 +569,6 @@ onBeforeUnmount(() => {
                     <span
                         v-for="user in onlineUsers"
                         :key="user"
-                        v-memo="[user]"
                         class="relative text-[8px] uppercase text-slate-200 border border-slate-700 bg-black/40 pl-5 pr-2 py-1 rounded-full"
                     >
                         <span class="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.85)]"></span>
@@ -588,7 +587,6 @@ onBeforeUnmount(() => {
                 <div
                     v-for="(item, index) in messages"
                     :key="item.id ? `msg-${item.id}` : `${item.user}-${item.time}-${index}`"
-                    v-memo="[item.id, item.user, item.message, item.time, item.isMine]"
                     class="flex"
                     :class="item.isMine ? 'justify-end' : 'justify-start'"
                 >

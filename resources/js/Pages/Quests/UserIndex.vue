@@ -72,7 +72,6 @@ const statusClass = (status) => {
                         <div
                             v-for="item in quests.data"
                             :key="`m-${item.uuid}`"
-                            v-memo="[item.uuid, item.title, item.study_group_id, item.study_group?.name, item.difficulty, item.status, item.reward_gold, item.user_has_submitted, item.description]"
                             class="p-3 bg-black/40 border border-slate-800"
                         >
                             <p class="text-white uppercase text-[11px]">{{ item.title }}</p>
@@ -116,7 +115,6 @@ const statusClass = (status) => {
                                 <tr
                                     v-for="item in quests.data"
                                     :key="item.uuid"
-                                    v-memo="[item.uuid, item.title, item.study_group_id, item.study_group?.name, item.difficulty, item.status, item.reward_gold, item.user_has_submitted, item.description]"
                                     class="border-b border-slate-800 hover:bg-slate-900/40"
                                 >
                                     <td class="py-3 px-2 text-white uppercase">{{ item.title }}</td>
@@ -156,7 +154,6 @@ const statusClass = (status) => {
                         <button
                             v-for="(link, idx) in quests.links"
                             :key="`${idx}-${link.label}`"
-                            v-memo="[idx, link.label, link.active, link.url]"
                             @click="goToPage(link.url)"
                             :disabled="!link.url"
                             class="px-3 py-1 border text-[8px] uppercase transition-all"

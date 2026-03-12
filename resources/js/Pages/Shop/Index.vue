@@ -159,7 +159,6 @@ const buyItem = async (item) => {
                             <div
                                 v-for="tx in transactionItems"
                                 :key="tx.id"
-                                v-memo="[tx.id, tx.type, tx.quantity, tx.item?.name, tx.display_time]"
                                 class="border border-slate-700 bg-[#0d1117] p-3"
                             >
                                 <p class="text-[8px] uppercase mb-1"

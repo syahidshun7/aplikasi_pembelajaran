@@ -260,7 +260,6 @@ const closeMobileMenu = () => {
                             <div
                                 v-for="(player, index) in playerItems"
                                 :key="player.id"
-                                v-memo="[player.id, player.username, player.name, player.level, player.lvl, player.role, player.profile_photo, index]"
                                 class="flex items-center gap-4 p-2 hover:bg-[#009999]/10 border-l-4 border-transparent hover:border-[#009999] transition-all relative">
 
                                 <div class="relative">
@@ -331,7 +330,6 @@ const closeMobileMenu = () => {
                             <div
                                 v-for="item in guides"
                                 :key="item.uuid"
-                                v-memo="[item.uuid, item.title, item.description, item.study_group_id, item.study_group?.name]"
                                 class="p-0 bg-[#0d1117] border-2 border-slate-800 hover:border-indigo-500 transition-all group relative overflow-hidden">
 
                                 <div class="absolute top-0 left-0 w-1 h-full bg-indigo-600"></div>
@@ -459,7 +457,6 @@ const closeMobileMenu = () => {
                             <div
                                 v-for="event in eventItems"
                                 :key="event.uuid"
-                                v-memo="[event.uuid, event.title, event.sequence_order, event.study_group?.name, event.__starts_at_label, event.guides_count, event.quests_count]"
                                 class="p-3 bg-[#0d1117] border-2 border-slate-800 hover:border-blue-500 transition-all group relative overflow-hidden flex flex-col min-h-[180px]">
                                 <div class="absolute top-0 left-0 w-1 h-full bg-blue-600"></div>
 
@@ -518,7 +515,6 @@ const closeMobileMenu = () => {
                                 <div
                                     v-for="quest in questItems"
                                     :key="quest.uuid"
-                                    v-memo="[quest.uuid, quest.title, quest.difficulty, quest.status, quest.user_submission_status, quest.user_has_submitted, quest.user_has_unlock, quest.__deadline_label, quest.__deadline_overdue, quest.reward_gold, quest.id]"
                                     class="rpg-panel bg-[#161b22] transition-all group cursor-pointer shadow-none flex flex-col h-[200px]"
                                     :class="[
                                         (quest.user_submission_status === 'Approved') ? 'border-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.35)] bg-emerald-950/20' :
