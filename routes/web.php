@@ -13,6 +13,7 @@ use App\Http\Controllers\AdminJobRoleController;
 use App\Http\Controllers\AdminEventController;
 use App\Http\Controllers\AdminShopItemController;
 use App\Http\Controllers\AdminTaskBankController;
+use App\Http\Controllers\AdminErrorLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HomeController;
@@ -169,6 +170,8 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         Route::patch('/{submission}', [AdminSubmissionManagementController::class, 'update'])->name('update');
         Route::delete('/{submission}', [AdminSubmissionManagementController::class, 'destroy'])->name('destroy');
     });
+
+    Route::get('/admin/error-logs', [AdminErrorLogController::class, 'index'])->name('admin.error-logs.index');
 });
 
 

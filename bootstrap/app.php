@@ -59,6 +59,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 ErrorLog::create([
                     'trace_id' => $traceId,
                     'exception_class' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
                     'message' => Str::limit((string) $e->getMessage(), 2000),
                     'status_code' => $status,
                     'url' => $request?->fullUrl(),

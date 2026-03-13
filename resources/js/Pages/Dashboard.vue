@@ -296,7 +296,10 @@ const formatTime = (iso) => {
                         <div class="rpg-panel h-48 overflow-y-auto border-slate-700 bg-black/20">
                             <div class="flex items-center justify-between mb-2">
                                 <h2 class="text-[8px] text-slate-300 uppercase tracking-widest">Server_Error_Log</h2>
-                                <span class="text-[8px] text-slate-500 uppercase">Last 12</span>
+                                <div class="flex items-center gap-2 text-[8px] text-slate-500 uppercase">
+                                    <span>Last 12</span>
+                                    <Link :href="route('admin.error-logs.index')" class="px-2 py-1 border border-slate-600 bg-slate-900/60 text-slate-200 hover:text-white">[View_All]</Link>
+                                </div>
                             </div>
 
                             <div v-if="errorLogs && errorLogs.length" class="space-y-2">

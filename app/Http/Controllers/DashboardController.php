@@ -86,6 +86,8 @@ class DashboardController extends Controller
                     'trace_id' => (string) ($log->trace_id ?? ''),
                     'status_code' => (int) $log->status_code,
                     'exception_class' => (string) ($log->exception_class ?? ''),
+                    'file' => (string) ($log->file ?? ''),
+                    'line' => $log->line ? (int) $log->line : null,
                     'message' => (string) ($log->message ?? ''),
                     'url' => (string) ($log->url ?? ''),
                     'method' => (string) ($log->method ?? ''),

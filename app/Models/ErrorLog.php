@@ -9,6 +9,8 @@ class ErrorLog extends Model
     protected $fillable = [
         'trace_id',
         'exception_class',
+        'file',
+        'line',
         'message',
         'status_code',
         'url',
