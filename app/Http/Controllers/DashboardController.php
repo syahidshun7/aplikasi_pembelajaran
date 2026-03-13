@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Guide;
+use App\Models\ErrorLog;
 use App\Models\Quest;
 use App\Models\Submission;
 use App\Models\User;
@@ -62,6 +63,37 @@ class DashboardController extends Controller
 
         $dashboardCacheVersion = CacheVersion::get('dashboard');
         $scopeKey = $isMentor ? ('mentor_job.' . $mentorJobId) : 'global';
+
+        $errorLogs = [];
+        if ($authUser?->isAdmin()) {
+            $errorLogs = ErrorLog::query()
+                ->latest()
+                ->take(12)
+                ->get([
+                    'id',
+                    'trace_id',
+                    'status_code',
+                    'exception_class',
+                    'message',
+                    'url',
+                    'method',
+                    'user_id',
+                    'ip',
+                    'created_at',
+                ])
+                ->map(fn ($log) => [
+                    'id' => (int) $log->id,
+                    'trace_id' => (string) ($log->trace_id ?? ''),
+                    'status_code' => (int) $log->status_code,
+                    'exception_class' => (string) ($log->exception_class ?? ''),
+                    'message' => (string) ($log->message ?? ''),
+                    'url' => (string) ($log->url ?? ''),
+                    'method' => (string) ($log->method ?? ''),
+                    'user_id' => $log->user_id ? (int) $log->user_id : null,
+                    'ip' => (string) ($log->ip ?? ''),
+                    'created_at' => $log->created_at?->toDateTimeString(),
+                ]);
+        }
 
         $stats = Cache::remember(
             "dashboard.stats.v{$dashboardCacheVersion}.{$scopeKey}",
@@ -312,6 +344,7 @@ class DashboardController extends Controller
                 ($isMentor ? 'Mentor session started at ' : 'Admin session started at ') . now()->format('H:i'),
                 $isMentor ? ('Scope locked to job_id=' . $mentorJobId) : 'Global scope enabled.',
             ],
+            'errorLogs' => $errorLogs,
         ]);
     }
 }

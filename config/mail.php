@@ -115,4 +115,11 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Admin alert recipient for error notifications
+    |--------------------------------------------------------------------------
+    */
+    'admin_alert' => env('ADMIN_ALERT_EMAIL'),
+
 ];

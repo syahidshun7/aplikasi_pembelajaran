@@ -5,6 +5,11 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
+use App\Models\ErrorLog;
+use App\Mail\ServerErrorAlert;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -25,6 +30,70 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Report hook: kirim alert email untuk 5xx di production (dengan throttling)
+        $exceptions->report(function (\Throwable $e) {
+            if (config('app.debug')) {
+                return null;
+            }
+
+            $status = $e instanceof HttpExceptionInterface ? $e->getStatusCode() : 500;
+            if ($status < 500) {
+                return null;
+            }
+
+            $traceId = (string) Str::uuid();
+            $request = request();
+
+            try {
+                $safePayload = $request ? $request->except([
+                    'password',
+                    'password_confirmation',
+                    'current_password',
+                ]) : [];
+
+                $headers = $request ? collect($request->headers->all())
+                    ->map(fn ($v) => is_array($v) ? array_slice($v, 0, 3) : $v)
+                    ->take(25)
+                    ->all() : [];
+
+                ErrorLog::create([
+                    'trace_id' => $traceId,
+                    'exception_class' => get_class($e),
+                    'message' => Str::limit((string) $e->getMessage(), 2000),
+                    'status_code' => $status,
+                    'url' => $request?->fullUrl(),
+                    'method' => $request?->method(),
+                    'user_id' => $request?->user()?->id,
+                    'ip' => $request?->ip(),
+                    'user_agent' => $request?->userAgent(),
+                    'context' => [
+                        'referer' => $request?->headers->get('referer'),
+                        'payload' => $safePayload,
+                        'headers' => $headers,
+                    ],
+                ]);
+            } catch (\Throwable $logError) {
+                // swallow logging errors to avoid masking the original exception
+            }
+
+            $adminEmail = config('mail.admin_alert');
+            if (empty($adminEmail)) {
+                return null;
+            }
+
+            $hash = sha1(get_class($e).$e->getMessage());
+            $throttleKey = "alert:server-error:{$hash}";
+            if (! Cache::add($throttleKey, 1, now()->addMinutes(10))) {
+                return null; // sudah dikirim baru-baru ini
+            }
+
+            $requestUrl = $request?->fullUrl() ?? '-';
+
+            Mail::to($adminEmail)->queue(new ServerErrorAlert($e, $requestUrl, $status, $traceId));
+
+            return null;
+        });
+
         $exceptions->render(function (\Throwable $e, Request $request) {
             // Biarkan error bawaan Laravel (Whoops) saat debug aktif.
             if (config('app.debug')) {

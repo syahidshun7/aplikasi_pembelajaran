@@ -9,4 +9,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 
-Schedule::command('quests:close-expired')->hourly();
+// Validasi deadline quest: jalankan tiap 30 menit
+Schedule::command('quests:close-expired')->everyThirtyMinutes();

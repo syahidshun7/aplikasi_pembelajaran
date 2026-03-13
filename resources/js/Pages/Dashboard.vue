@@ -9,7 +9,11 @@ const props = defineProps({
     helpUsers: Array,
     pendingSubmissions: Array,
     scope: Object,
-    recentLogs: Array
+    recentLogs: Array,
+    errorLogs: {
+        type: Array,
+        default: () => []
+    }
 });
 
 const page = usePage();
@@ -289,10 +293,43 @@ const formatTime = (iso) => {
                             </div>
                         </div>
 
-                        <div class="rpg-panel h-32 overflow-y-auto border-slate-700 bg-black/20">
-                            <h2 class="text-[8px] text-slate-500 mb-2 uppercase italic">Action_Log</h2>
-                            <div class="space-y-1 text-[8px] text-green-500/70 font-mono">
+                        <div class="rpg-panel h-48 overflow-y-auto border-slate-700 bg-black/20">
+                            <div class="flex items-center justify-between mb-2">
+                                <h2 class="text-[8px] text-slate-300 uppercase tracking-widest">Server_Error_Log</h2>
+                                <span class="text-[8px] text-slate-500 uppercase">Last 12</span>
+                            </div>
+
+                            <div v-if="errorLogs && errorLogs.length" class="space-y-2">
+                                <div
+                                    v-for="log in errorLogs"
+                                    :key="log.id"
+                                    class="p-2 border border-slate-700 bg-slate-900/30"
+                                >
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div class="min-w-0">
+                                            <p class="text-[8px] text-slate-400 uppercase">
+                                                {{ log.created_at || '-' }} | {{ log.method }} | {{ log.status_code }}
+                                            </p>
+                                            <p class="text-[9px] text-red-300 uppercase mt-1 break-words line-clamp-2">
+                                                {{ log.message || '(no message)' }}
+                                            </p>
+                                            <p class="text-[7px] text-slate-500 uppercase mt-1 break-words">
+                                                {{ log.url || '-' }}
+                                            </p>
+                                            <p class="text-[7px] text-slate-500 uppercase mt-1">
+                                                Trace: {{ (log.trace_id || '').substring(0, 8) }} | IP: {{ log.ip || '-' }} | UID: {{ log.user_id || '-' }}
+                                            </p>
+                                        </div>
+                                        <span class="px-2 py-1 text-[8px] uppercase border border-red-500 text-red-300">
+                                            {{ log.exception_class ? log.exception_class.split('\\\\').pop() : 'Exception' }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-else class="space-y-1 text-[8px] text-green-500/70 font-mono">
                                 <p v-for="(log, i) in recentLogs" :key="i">> {{ log }}</p>
+                                <p v-if="!recentLogs || recentLogs.length === 0" class="text-slate-500 uppercase">No logs.</p>
                             </div>
                         </div>
                     </div>
