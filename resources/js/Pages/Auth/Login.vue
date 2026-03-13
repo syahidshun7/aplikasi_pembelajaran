@@ -182,11 +182,12 @@ onMounted(async () => {
             <div class="pt-4">
                 <button 
                     type="submit" 
-                    :class="{ 'opacity-25': form.processing }" 
+                    :class="{ 'opacity-60': form.processing }" 
                     :disabled="form.processing"
-                    class="w-full bg-[#009999] text-black py-4 btn-pixel border-[#006666] font-bold uppercase text-[10px] hover:bg-[#4ed4d4] transition-all"
+                    class="w-full bg-[#009999] text-black py-4 btn-pixel border-[#006666] font-bold uppercase text-[10px] hover:bg-[#4ed4d4] transition-all flex items-center justify-center gap-2"
                 >
-                    Confirm_Access [ENTER]
+                    <span v-if="form.processing" class="inline-block h-4 w-4 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
+                    <span>{{ form.processing ? 'Processing...' : 'Confirm_Access [ENTER]' }}</span>
                 </button>
             </div>
 

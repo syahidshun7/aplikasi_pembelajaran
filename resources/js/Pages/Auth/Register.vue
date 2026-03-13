@@ -308,8 +308,14 @@ onMounted(async () => {
             </div>
 
             <div class="pt-6">
-                <button type="submit" :disabled="form.processing" class="w-full bg-[#facc15] text-black py-4 btn-pixel border-[#854d0e] font-bold uppercase text-[10px] hover:bg-yellow-400 transition-all">
-                    Register_Now
+                <button
+                    type="submit"
+                    :disabled="form.processing"
+                    class="w-full bg-[#facc15] text-black py-4 btn-pixel border-[#854d0e] font-bold uppercase text-[10px] hover:bg-yellow-400 transition-all flex items-center justify-center gap-2"
+                    :class="{ 'opacity-60': form.processing }"
+                >
+                    <span v-if="form.processing" class="inline-block h-4 w-4 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
+                    <span>{{ form.processing ? 'Registering...' : 'Register_Now' }}</span>
                 </button>
             </div>
 

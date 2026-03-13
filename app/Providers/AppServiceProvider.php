@@ -2,6 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\Event;
+use App\Models\Guide;
+use App\Models\Quest;
+use App\Models\StudyGroup;
+use App\Observers\HomeFeedObserver;
+use App\Observers\StudyGroupCacheObserver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -24,6 +30,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Vite::prefetch(concurrency: 3);
+
+        // Cache invalidation for home dashboard listings
+        Quest::observe(HomeFeedObserver::class);
+        Guide::observe(HomeFeedObserver::class);
+        Event::observe(HomeFeedObserver::class);
+        StudyGroup::observe(StudyGroupCacheObserver::class);
 
         // Global IP throttling to reduce automated abuse on auth endpoints.
         RateLimiter::for('register', function (Request $request) {

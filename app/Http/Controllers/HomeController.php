@@ -135,8 +135,8 @@ class HomeController extends Controller
     $studyGroups = Cache::remember(
         "study_groups.list.v{$studyGroupCacheVersion}.job.{$jobKey}",
         now()->addMinutes(5),
-        fn () => \App\Models\StudyGroup::withCount('users')
-            ->where('job_id', $userJobId)
+        fn () => \App\Models\StudyGroup::query()
+            // select dulu lalu tambahkan hitungan agar kolom users_count tidak ter-overwrite
             ->select([
                 'id',
                 'uuid',
@@ -146,6 +146,8 @@ class HomeController extends Controller
                 'max_members',
                 'job_id',
             ])
+            ->withCount('users')
+            ->where('job_id', $userJobId)
             ->latest()
             ->get()
             ->map(fn ($group) => $group->toArray())

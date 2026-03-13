@@ -1,11 +1,13 @@
 import '../css/app.css';
 import './bootstrap';
 
-import { createInertiaApp, usePage } from '@inertiajs/vue3';
+import { createInertiaApp, usePage, router } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
-import { createApp, h, watch } from 'vue';
+import { createApp, h, watch, onUnmounted } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 import Swal from 'sweetalert2';
+import GlobalLoadingBar from '@/Components/GlobalLoadingBar.vue';
+import { startLoading, stopLoading } from '@/Utils/globalLoader';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 const PRELOAD_RECOVERY_KEY = 'vite-preload-recovered-once';
@@ -63,6 +65,11 @@ createInertiaApp({
         const Root = {
             setup() {
                 const page = usePage();
+                // Inertia navigation hooks -> global loader
+                const removeStart = router.on('start', () => startLoading());
+                const removeFinish = router.on('finish', () => stopLoading());
+                const removeError = router.on('error', () => stopLoading());
+                const removeInvalid = router.on('invalid', () => stopLoading());
 
                 watch(
                     () => page.props?.flash?.message,
@@ -86,7 +93,17 @@ createInertiaApp({
                     { immediate: true },
                 );
 
-                return () => h(App, props);
+                onUnmounted(() => {
+                    removeStart?.();
+                    removeFinish?.();
+                    removeError?.();
+                    removeInvalid?.();
+                });
+
+                return () => [
+                    h(GlobalLoadingBar),
+                    h(App, props),
+                ];
             },
         };
 
