@@ -34,18 +34,16 @@ const pagination = computed(() => props.logs || {});
 <template>
     <Head title="Server Error Logs" />
 
-    <div class="min-h-screen bg-[#0a0c10] text-white font-['Press_Start_2P']">
-        <AdminNavbar />
+    <div class="min-h-screen bg-[#0d1117] p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px] relative">
+        <div class="max-w-7xl mx-auto space-y-8">
 
-        <div class="max-w-7xl mx-auto px-4 py-8 space-y-6">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h1 class="text-lg uppercase text-[#4ed4d4] tracking-widest">Server Error Logs</h1>
-                    <p class="text-[9px] text-slate-400 uppercase">Riwayat 5xx + analitik</p>
-                </div>
+            <AdminNavbar />
+
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b-4 border-cyan-900 pb-4">
+                <h1 class="text-base sm:text-xl uppercase tracking-widest">Server_Error_Logs</h1>
                 <Link
                     :href="route('dashboard')"
-                    class="nav-action nav-action--admin px-3 py-2 text-[9px]"
+                    class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white transition-colors uppercase text-[9px] sm:text-[10px]"
                 >[Back_to_HQ]</Link>
             </div>
 
