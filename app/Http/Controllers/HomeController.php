@@ -146,6 +146,7 @@ class HomeController extends Controller
                 'max_members',
                 'job_id',
             ])
+            
             ->withCount('users')
             ->where('job_id', $userJobId)
             ->latest()
