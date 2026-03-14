@@ -318,3 +318,27 @@
     margin-top: 20px !important;
     gap: 10px !important;
 }
+
+/* Global custom scrollbar (re-use across admin tables & panels) */
+.custom-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 #0d1117;
+}
+
+.custom-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+    background: #0d1117;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 999px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+    background: #2dd4bf;
+}

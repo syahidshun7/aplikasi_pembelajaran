@@ -58,7 +58,7 @@
                 <p v-if="page.props.errors?.download" class="px-4 py-2 text-[8px] border-b border-slate-800 text-red-400 uppercase">
                     {{ page.props.errors.download }}
                 </p>
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto custom-scroll">
                 <table class="w-full min-w-[760px] text-left border-collapse">
                     <thead class="bg-slate-900 text-[8px] uppercase">
                         <tr>

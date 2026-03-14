@@ -165,7 +165,7 @@ const goToPage = (url) => {
                     </button>
                 </div>
 
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto custom-scroll">
                     <table class="w-full min-w-[1200px] text-left">
                         <thead class="border-b border-slate-700 text-[8px] uppercase text-slate-500">
                             <tr>

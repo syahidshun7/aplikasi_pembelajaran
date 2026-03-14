@@ -157,7 +157,7 @@ const formatDate = (date) => {
                 <Link href="/dashboard" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white uppercase text-[9px] sm:text-[10px]">[Back_to_HQ]</Link>
             </div>
 
-            <div class="rpg-panel border-slate-700 overflow-x-auto">
+            <div class="rpg-panel border-slate-700 overflow-x-auto custom-scroll">
                 <div class="flex flex-col md:flex-row gap-3 mb-4">
                     <input
                         v-model="filterForm.search"

@@ -100,7 +100,7 @@ const pagination = computed(() => props.logs || {});
                 </div>
             </div>
 
-            <div class="rpg-panel bg-[#0d1117]/80 border-[#3d415f] overflow-x-auto">
+            <div class="rpg-panel bg-[#0d1117]/80 border-[#3d415f] overflow-x-auto custom-scroll">
                 <table class="min-w-full text-left text-[9px]">
                     <thead class="text-slate-400 uppercase">
                         <tr class="border-b border-slate-800">

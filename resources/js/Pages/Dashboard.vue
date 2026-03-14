@@ -170,7 +170,7 @@ const formatTime = (iso) => {
                                 </div>
                             </div>
 
-                            <div class="w-full overflow-x-auto" v-if="performanceTab === 'all'">
+                            <div class="w-full overflow-x-auto custom-scroll" v-if="performanceTab === 'all'">
                                 <table class="w-full text-left border-collapse">
                                     <thead>
                                         <tr class="border-b-2 border-slate-800 text-slate-500 text-[8px]">
@@ -218,7 +218,7 @@ const formatTime = (iso) => {
                                 </div>
                             </div>
 
-                            <div class="w-full overflow-x-auto" v-else>
+                            <div class="w-full overflow-x-auto custom-scroll" v-else>
                                 <table class="w-full text-left border-collapse">
                                     <thead>
                                         <tr class="border-b-2 border-slate-800 text-slate-500 text-[8px]">
@@ -293,7 +293,7 @@ const formatTime = (iso) => {
                             </div>
                         </div>
 
-                        <div class="rpg-panel h-48 overflow-y-auto border-slate-700 bg-black/20">
+                        <div class="rpg-panel h-48 overflow-y-auto custom-scroll border-slate-700 bg-black/20">
                             <div class="flex items-center justify-between mb-2">
                                 <h2 class="text-[8px] text-slate-300 uppercase tracking-widest">Server_Error_Log</h2>
                                 <div class="flex items-center gap-2 text-[8px] text-slate-500 uppercase">
@@ -302,7 +302,7 @@ const formatTime = (iso) => {
                                 </div>
                             </div>
 
-                            <div v-if="errorLogs && errorLogs.length" class="space-y-2">
+                            <div v-if="errorLogs && errorLogs.length" class="space-y-2 custom-scroll">
                                 <div
                                     v-for="log in errorLogs"
                                     :key="log.id"

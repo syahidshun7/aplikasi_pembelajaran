@@ -229,7 +229,7 @@ const cancelTransaction = async (tx) => {
                     </button>
                 </div>
 
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto custom-scroll">
                     <table class="w-full min-w-[980px] text-left">
                         <thead class="border-b border-slate-700 text-slate-500 text-[8px] uppercase">
                             <tr>
