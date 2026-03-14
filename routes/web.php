@@ -24,11 +24,21 @@ use App\Http\Controllers\RubricController;
 use App\Http\Controllers\RubricCriteriaController;
 use App\Http\Controllers\RubricLevelController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Redis;
+
 use Inertia\Inertia;
 
 Route::get('/', [HomeController::class, 'index'])->name('lobby');
 Route::get('/landing', [HomeController::class, 'landing'])->name('landing');
 
+Route::get('/redis-test', function () {
+    Redis::set('test', 'ok');
+    return Redis::get('test');
+});
+
+Route::get('/simulate-500', function () {
+    throw new \Exception('Simulasi error 500 untuk pengujian alert');
+});
 
 
 Route::middleware('auth')->group(function () {
