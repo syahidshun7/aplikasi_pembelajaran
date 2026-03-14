@@ -1,4 +1,5 @@
 import '../css/app.css';
+import '../css/lobby-style.css';
 import './bootstrap';
 
 import { createInertiaApp, usePage, router } from '@inertiajs/vue3';
