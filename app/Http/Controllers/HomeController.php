@@ -214,12 +214,42 @@ private function renderLanding()
             ->map(fn ($job) => $job->toArray())
     );
 
+    $mentors = Cache::remember(
+        "landing.mentors.v{$landingCacheVersion}",
+        now()->addMinutes(10),
+        fn () => User::query()
+            ->select('id', 'name', 'username', 'role', 'profile_photo', 'job_id')
+            ->where('role', User::ROLE_MENTOR)
+            ->with([
+                'job:id,name',
+                'detailUser:id,user_id,bio,experience,location,skills',
+            ])
+            ->latest()
+            ->take(8)
+            ->get()
+            ->map(function ($user) {
+                $detail = $user->detailUser;
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'username' => $user->username,
+                    'profile_photo' => $user->profile_photo,
+                    'job_name' => $user->job?->name,
+                    'bio' => $detail?->bio,
+                    'experience' => $detail?->experience,
+                    'location' => $detail?->location,
+                    'skills' => $detail?->skills,
+                ];
+            })
+    );
+
     $isGuest = !Auth::check();
 
     return Inertia::render('Landing', [
         'canLogin' => $isGuest && Route::has('login'),
         'canRegister' => $isGuest && Route::has('register'),
         'availableJobs' => $availableJobs,
+        'mentors' => $mentors,
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
     ]);

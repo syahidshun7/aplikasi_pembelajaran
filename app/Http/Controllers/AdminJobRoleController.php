@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\JobRole;
+use App\Support\Cache\CacheVersion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -61,6 +62,8 @@ class AdminJobRoleController extends Controller
             'emblem_path' => $emblemPath,
         ]);
 
+        CacheVersion::bump('landing');
+
         return back()->with('message', 'JOB_CREATED');
     }
 
@@ -92,6 +95,8 @@ class AdminJobRoleController extends Controller
             'emblem_path' => $emblemPath,
         ]);
 
+        CacheVersion::bump('landing');
+
         return back()->with('message', 'JOB_UPDATED');
     }
 
@@ -102,6 +107,8 @@ class AdminJobRoleController extends Controller
         }
 
         $jobRole->delete();
+
+        CacheVersion::bump('landing');
 
         return back()->with('message', 'JOB_DELETED');
     }

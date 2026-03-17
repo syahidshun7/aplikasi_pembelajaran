@@ -1,12 +1,15 @@
 <script setup>
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
 import Swal from 'sweetalert2';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
+import Cropper from 'cropperjs';
+import 'cropperjs/dist/cropper.css';
 
 const props = defineProps({
     users: Object,
     availableRoles: Array,
+    jobRoles: Array,
     filters: Object,
 });
 
@@ -18,16 +21,32 @@ const filterForm = useForm({
 });
 
 const selectedUser = ref(null);
+const currentAvatarPath = ref('');
+const avatarPreview = ref('');
+const avatarObjectUrl = ref(null);
+const cropModalOpen = ref(false);
+const cropSourceUrl = ref('');
+const cropImageRef = ref(null);
+let cropperInstance = null;
+let cropSourceObjectUrl = null;
 const editForm = useForm({
     name: '',
     username: '',
     email: '',
     role: 'user',
+    job_id: '',
     gold: 0,
     exp: 0,
     level: 1,
+    bio: '',
+    experience: '',
+    location: '',
+    skills_text: '',
+    profile_photo: null,
+    remove_avatar: false,
     password: '',
     password_confirmation: '',
+    _method: 'patch',
 });
 
 const rows = computed(() => props.users?.data || []);
@@ -63,13 +82,23 @@ const goToPage = (url) => {
 
 const openEditModal = (user) => {
     selectedUser.value = user;
+    const detail = user.detail_user || {};
+    currentAvatarPath.value = user.profile_photo || '';
+    avatarPreview.value = currentAvatarPath.value ? `/storage/${currentAvatarPath.value}` : '';
     editForm.name = user.name || '';
     editForm.username = user.username || '';
     editForm.email = user.email || '';
     editForm.role = user.role || 'user';
+    editForm.job_id = user.job_id ? String(user.job_id) : '';
     editForm.gold = Number(user.gold || 0);
     editForm.exp = Number(user.exp || 0);
     editForm.level = Number(user.level_display || user.level || 1);
+    editForm.bio = detail.bio || '';
+    editForm.experience = detail.experience || '';
+    editForm.location = detail.location || '';
+    editForm.skills_text = Array.isArray(detail.skills) ? detail.skills.join(', ') : (detail.skills || '');
+    editForm.profile_photo = null;
+    editForm.remove_avatar = false;
     editForm.password = '';
     editForm.password_confirmation = '';
     editForm.clearErrors();
@@ -77,15 +106,120 @@ const openEditModal = (user) => {
 
 const closeModal = () => {
     selectedUser.value = null;
+    currentAvatarPath.value = '';
+    avatarPreview.value = '';
+    closeCropper();
+    if (avatarObjectUrl.value) {
+        URL.revokeObjectURL(avatarObjectUrl.value);
+        avatarObjectUrl.value = null;
+    }
     editForm.reset();
     editForm.clearErrors();
 };
 
+const handleAvatarChange = (event) => {
+    const file = event.target.files && event.target.files[0] ? event.target.files[0] : null;
+    event.target.value = '';
+    if (!file) {
+        avatarPreview.value = currentAvatarPath.value ? `/storage/${currentAvatarPath.value}` : '';
+        return;
+    }
+
+    openCropper(file);
+};
+
+const handleRemoveAvatar = () => {
+    if (editForm.remove_avatar) {
+        editForm.profile_photo = null;
+        avatarPreview.value = '';
+        if (avatarObjectUrl.value) {
+            URL.revokeObjectURL(avatarObjectUrl.value);
+            avatarObjectUrl.value = null;
+        }
+        return;
+    }
+
+    avatarPreview.value = currentAvatarPath.value ? `/storage/${currentAvatarPath.value}` : '';
+};
+
+const openCropper = async (file) => {
+    if (cropSourceObjectUrl) {
+        URL.revokeObjectURL(cropSourceObjectUrl);
+    }
+    cropSourceObjectUrl = URL.createObjectURL(file);
+    cropSourceUrl.value = cropSourceObjectUrl;
+    cropModalOpen.value = true;
+
+    await nextTick();
+
+    if (!cropImageRef.value) return;
+    if (cropperInstance) {
+        cropperInstance.destroy();
+        cropperInstance = null;
+    }
+
+    cropperInstance = new Cropper(cropImageRef.value, {
+        aspectRatio: 1,
+        viewMode: 1,
+        autoCropArea: 1,
+        background: false,
+        responsive: true,
+    });
+};
+
+const closeCropper = () => {
+    cropModalOpen.value = false;
+    if (cropperInstance) {
+        cropperInstance.destroy();
+        cropperInstance = null;
+    }
+    if (cropSourceObjectUrl) {
+        URL.revokeObjectURL(cropSourceObjectUrl);
+        cropSourceObjectUrl = null;
+    }
+    cropSourceUrl.value = '';
+};
+
+const applyCrop = () => {
+    if (!cropperInstance) return;
+    const canvas = cropperInstance.getCroppedCanvas({
+        width: 512,
+        height: 512,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high',
+    });
+
+    canvas.toBlob((blob) => {
+        if (!blob) return;
+        const croppedFile = new File([blob], 'avatar.png', { type: 'image/png' });
+        editForm.profile_photo = croppedFile;
+
+        if (avatarObjectUrl.value) {
+            URL.revokeObjectURL(avatarObjectUrl.value);
+            avatarObjectUrl.value = null;
+        }
+        avatarObjectUrl.value = URL.createObjectURL(blob);
+        avatarPreview.value = avatarObjectUrl.value;
+        editForm.remove_avatar = false;
+
+        closeCropper();
+    }, 'image/png', 0.92);
+};
+
+onBeforeUnmount(() => {
+    closeCropper();
+    if (avatarObjectUrl.value) {
+        URL.revokeObjectURL(avatarObjectUrl.value);
+        avatarObjectUrl.value = null;
+    }
+});
+
 const submitEdit = () => {
     if (!selectedUser.value) return;
 
-    editForm.patch(route('admin.users.update', selectedUser.value.id), {
+    editForm.post(route('admin.users.update', selectedUser.value.id), {
         preserveScroll: true,
+        forceFormData: true,
         onSuccess: () => {
             closeModal();
             Swal.fire({
@@ -200,6 +334,7 @@ const formatDate = (date) => {
                             <th class="py-3 px-2">Real_Name</th>
                             <th class="py-3 px-2">Username</th>
                             <th class="py-3 px-2">Email</th>
+                            <th class="py-3 px-2">Job</th>
                             <th class="py-3 px-2">Role</th>
                             <th class="py-3 px-2">Progress</th>
                             <th class="py-3 px-2">
@@ -233,6 +368,7 @@ const formatDate = (date) => {
                             <td class="py-4 px-2 text-white">{{ user.name || '-' }}</td>
                             <td class="py-4 px-2 text-slate-300">{{ user.username || '-' }}</td>
                             <td class="py-4 px-2 text-slate-300">{{ user.email }}</td>
+                            <td class="py-4 px-2 text-slate-300">{{ user.job?.name || 'UNASSIGNED' }}</td>
                             <td class="py-4 px-2">
                                 <span
                                     class="px-2 py-1 border text-[8px] uppercase"
@@ -273,7 +409,7 @@ const formatDate = (date) => {
                             </td>
                         </tr>
                         <tr v-if="rows.length === 0">
-                            <td colspan="9" class="py-8 px-2 text-center text-slate-500 uppercase">
+                            <td colspan="10" class="py-8 px-2 text-center text-slate-500 uppercase">
                                 NO_USERS_MATCH_FILTER
                             </td>
                         </tr>
@@ -304,48 +440,60 @@ const formatDate = (date) => {
             </div>
         </div>
 
-        <div v-if="selectedUser" class="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div class="w-full max-w-xl rpg-panel border-cyan-500/40">
-                <h2 class="text-white uppercase mb-6">Edit_User: {{ selectedUser.name || selectedUser.username }}</h2>
+        <div v-if="selectedUser" class="fixed inset-0 z-[220] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="w-full max-w-2xl rpg-panel border-cyan-500/40 max-h-[90vh] overflow-y-auto modal-scroll">
+                <h2 class="text-white uppercase mb-4">Edit_User: {{ selectedUser.name || selectedUser.username }}</h2>
 
                 <div class="space-y-3">
-                    <input
-                        v-model="editForm.name"
-                        type="text"
-                        placeholder="REAL_NAME"
-                        class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-400 outline-none"
-                    />
-                    <p v-if="editForm.errors.name" class="text-red-500 text-[8px]">{{ editForm.errors.name }}</p>
+                    <div class="space-y-2">
+                        <p class="section-label">Basic_Profile</p>
+                        <input
+                            v-model="editForm.name"
+                            type="text"
+                            placeholder="REAL_NAME"
+                            class="admin-input"
+                        />
+                        <p v-if="editForm.errors.name" class="text-red-500 text-[8px]">{{ editForm.errors.name }}</p>
 
-                    <input
-                        v-model="editForm.username"
-                        type="text"
-                        placeholder="USERNAME"
-                        class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-400 outline-none"
-                    />
-                    <p v-if="editForm.errors.username" class="text-red-500 text-[8px]">{{ editForm.errors.username }}</p>
+                        <input
+                            v-model="editForm.username"
+                            type="text"
+                            placeholder="USERNAME"
+                            class="admin-input"
+                        />
+                        <p v-if="editForm.errors.username" class="text-red-500 text-[8px]">{{ editForm.errors.username }}</p>
 
-                    <input
-                        v-model="editForm.email"
-                        type="email"
-                        placeholder="EMAIL"
-                        class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-400 outline-none"
-                    />
-                    <p v-if="editForm.errors.email" class="text-red-500 text-[8px]">{{ editForm.errors.email }}</p>
+                        <input
+                            v-model="editForm.email"
+                            type="email"
+                            placeholder="EMAIL"
+                            class="admin-input"
+                        />
+                        <p v-if="editForm.errors.email" class="text-red-500 text-[8px]">{{ editForm.errors.email }}</p>
+                    </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <select
                             v-model="editForm.role"
-                            class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
+                            class="admin-input uppercase"
                         >
                             <option v-for="role in availableRoles" :key="role" :value="role">{{ role }}</option>
+                        </select>
+                        <select
+                            v-model="editForm.job_id"
+                            class="admin-input uppercase"
+                        >
+                            <option value="">JOB_ROLE: NONE</option>
+                            <option v-for="job in jobRoles || []" :key="job.id" :value="String(job.id)">
+                                {{ job.name }}
+                            </option>
                         </select>
                         <input
                             v-model.number="editForm.level"
                             type="number"
                             min="1"
                             placeholder="LEVEL"
-                            class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-400 outline-none"
+                            class="admin-input"
                         />
                     </div>
                     <p v-if="editForm.errors.role" class="text-red-500 text-[8px]">{{ editForm.errors.role }}</p>
@@ -357,32 +505,96 @@ const formatDate = (date) => {
                             type="number"
                             min="0"
                             placeholder="EXP"
-                            class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-400 outline-none"
+                            class="admin-input"
                         />
                         <input
                             v-model.number="editForm.gold"
                             type="number"
                             min="0"
                             placeholder="GOLD"
-                            class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-400 outline-none"
+                            class="admin-input"
                         />
                     </div>
                     <p v-if="editForm.errors.exp" class="text-red-500 text-[8px]">{{ editForm.errors.exp }}</p>
                     <p v-if="editForm.errors.gold" class="text-red-500 text-[8px]">{{ editForm.errors.gold }}</p>
 
                     <div class="border-t border-slate-700 pt-4 space-y-3">
-                        <p class="text-[8px] text-slate-500 uppercase">Optional_Reset_Password</p>
+                        <p class="section-label">Avatar</p>
+                        <div class="flex items-center gap-3">
+                            <div class="avatar-preview" :class="{ 'is-empty': !avatarPreview }">
+                                <img v-if="avatarPreview" :src="avatarPreview" alt="Avatar preview" />
+                                <span v-else>NO_AVATAR</span>
+                            </div>
+                            <div class="flex-1 space-y-2">
+                                <input
+                                    type="file"
+                                    accept="image/png, image/jpeg"
+                                    class="admin-input file-input"
+                                    @change="handleAvatarChange"
+                                />
+                                <label class="inline-flex items-center gap-2 text-[8px] text-slate-400 uppercase">
+                                    <input
+                                        v-model="editForm.remove_avatar"
+                                        type="checkbox"
+                                        class="accent-cyan-400"
+                                        @change="handleRemoveAvatar"
+                                    />
+                                    Remove_Avatar
+                                </label>
+                                <p v-if="editForm.errors.profile_photo" class="text-red-500 text-[8px]">{{ editForm.errors.profile_photo }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-700 pt-4 space-y-3">
+                        <p class="section-label">Mentor_Detail</p>
+                        <textarea
+                            v-model="editForm.bio"
+                            rows="3"
+                            placeholder="BIO_MENTOR"
+                            class="admin-textarea"
+                        ></textarea>
+                        <p v-if="editForm.errors.bio" class="text-red-500 text-[8px]">{{ editForm.errors.bio }}</p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <input
+                                v-model="editForm.experience"
+                                type="text"
+                                placeholder="PENGALAMAN (contoh: 5+ tahun)"
+                                class="admin-input"
+                            />
+                            <input
+                                v-model="editForm.location"
+                                type="text"
+                                placeholder="LOKASI (contoh: Jakarta / Remote)"
+                                class="admin-input"
+                            />
+                        </div>
+                        <p v-if="editForm.errors.experience" class="text-red-500 text-[8px]">{{ editForm.errors.experience }}</p>
+                        <p v-if="editForm.errors.location" class="text-red-500 text-[8px]">{{ editForm.errors.location }}</p>
+
+                        <input
+                            v-model="editForm.skills_text"
+                            type="text"
+                            placeholder="SKILLS (pisahkan dengan koma)"
+                            class="admin-input"
+                        />
+                        <p v-if="editForm.errors.skills_text" class="text-red-500 text-[8px]">{{ editForm.errors.skills_text }}</p>
+                    </div>
+
+                    <div class="border-t border-slate-700 pt-4 space-y-3">
+                        <p class="section-label">Optional_Reset_Password</p>
                         <input
                             v-model="editForm.password"
                             type="password"
                             placeholder="NEW_PASSWORD"
-                            class="w-full bg-black border-2 border-slate-700 p-2 text-yellow-400 outline-none"
+                            class="admin-input text-yellow-400"
                         />
                         <input
                             v-model="editForm.password_confirmation"
                             type="password"
                             placeholder="CONFIRM_PASSWORD"
-                            class="w-full bg-black border-2 border-slate-700 p-2 text-yellow-400 outline-none"
+                            class="admin-input text-yellow-400"
                         />
                         <p v-if="editForm.errors.password" class="text-red-500 text-[8px]">{{ editForm.errors.password }}</p>
                     </div>
@@ -412,6 +624,33 @@ const formatDate = (date) => {
                 </button>
             </div>
         </div>
+
+        <div v-if="cropModalOpen" class="fixed inset-0 z-[240] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="cropper-card">
+                <div class="cropper-frame">
+                    <img ref="cropImageRef" :src="cropSourceUrl" alt="Crop avatar" />
+                </div>
+                <div class="mt-4 flex items-center justify-between">
+                    <p class="text-[8px] text-slate-400 uppercase">Crop_Avatar_1_1</p>
+                    <div class="flex gap-2">
+                        <button
+                            type="button"
+                            class="px-3 py-2 border-2 border-slate-600 text-slate-300 hover:bg-slate-700 uppercase text-[8px]"
+                            @click="closeCropper"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            class="px-3 py-2 border-2 border-cyan-400 text-cyan-300 hover:bg-cyan-400 hover:text-black uppercase text-[8px]"
+                            @click="applyCrop"
+                        >
+                            Use_Crop
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -421,5 +660,98 @@ const formatDate = (date) => {
     border-width: 4px;
     padding: 1rem;
     box-shadow: 8px 8px 0 0 rgba(0, 0, 0, 0.5);
+}
+
+.section-label {
+    font-size: 8px;
+    text-transform: uppercase;
+    color: #64748b;
+    letter-spacing: 0.18em;
+}
+
+.admin-input {
+    width: 100%;
+    background: #000000;
+    border: 2px solid #334155;
+    padding: 6px 8px;
+    font-size: 9px;
+    color: #4ed4d4;
+    outline: none;
+}
+
+.admin-textarea {
+    width: 100%;
+    background: #000000;
+    border: 2px solid #334155;
+    padding: 6px 8px;
+    font-size: 9px;
+    color: #4ed4d4;
+    outline: none;
+    resize: vertical;
+}
+
+.admin-input:focus,
+.admin-textarea:focus {
+    border-color: rgba(78, 212, 212, 0.6);
+    box-shadow: 0 0 0 1px rgba(78, 212, 212, 0.25);
+}
+
+.file-input {
+    padding: 4px 6px;
+}
+
+.avatar-preview {
+    width: 64px;
+    height: 64px;
+    border: 2px solid #334155;
+    background: #0f172a;
+    display: grid;
+    place-items: center;
+    color: #64748b;
+    font-size: 7px;
+    text-transform: uppercase;
+}
+
+.avatar-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.modal-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modal-scroll::-webkit-scrollbar-thumb {
+    background: rgba(78, 212, 212, 0.35);
+    border-radius: 999px;
+}
+
+.modal-scroll::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.cropper-card {
+    width: min(520px, 92vw);
+    background: #0b0f1a;
+    border: 2px solid rgba(78, 212, 212, 0.5);
+    padding: 16px;
+    box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.4);
+}
+
+.cropper-frame {
+    width: 100%;
+    height: 360px;
+    background: #0f172a;
+    border: 2px solid rgba(148, 163, 184, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.cropper-frame img {
+    max-width: 100%;
+    display: block;
 }
 </style>

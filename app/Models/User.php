@@ -76,6 +76,11 @@ public function job()
     return $this->belongsTo(JobRole::class, 'job_id');
 }
 
+public function detailUser()
+{
+    return $this->hasOne(DetailUser::class, 'user_id');
+}
+
 public function eventAttendances()
 {
     return $this->hasMany(EventAttendance::class);

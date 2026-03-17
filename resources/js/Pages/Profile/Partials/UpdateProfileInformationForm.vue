@@ -5,8 +5,10 @@ import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { useForm, usePage } from '@inertiajs/vue3';
-import { nextTick, onMounted, ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { toast } from '@/Utils/Alert';
+import Cropper from 'cropperjs';
+import 'cropperjs/dist/cropper.css';
 
 // 1. Tangkap props 'user' yang dikirim dari ProfileController@edit
 const props = defineProps({
@@ -31,6 +33,13 @@ const photoInput = ref(null);
 const showVerificationModal = ref(false);
 const verificationNoticeRef = ref(null);
 const verificationActionRef = ref(null);
+const avatarPreview = ref(user.profile_photo ? `/storage/${user.profile_photo}` : '');
+const cropModalOpen = ref(false);
+const cropSourceUrl = ref('');
+const cropImageRef = ref(null);
+let cropperInstance = null;
+let cropSourceObjectUrl = null;
+let avatarObjectUrl = null;
 
 const form = useForm({
     _method: 'PATCH',
@@ -48,7 +57,14 @@ const browsePhoto = () => {
 };
 
 const handleFileChange = (e) => {
-    form.profile_photo = e.target.files[0];
+    const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+    e.target.value = '';
+    if (!file) {
+        avatarPreview.value = user.profile_photo ? `/storage/${user.profile_photo}` : '';
+        return;
+    }
+
+    openCropper(file);
 };
 
 const submit = () => {
@@ -58,6 +74,68 @@ const submit = () => {
             form.profile_photo = null;
         },
     });
+};
+
+const openCropper = async (file) => {
+    if (cropSourceObjectUrl) {
+        URL.revokeObjectURL(cropSourceObjectUrl);
+    }
+    cropSourceObjectUrl = URL.createObjectURL(file);
+    cropSourceUrl.value = cropSourceObjectUrl;
+    cropModalOpen.value = true;
+
+    await nextTick();
+
+    if (!cropImageRef.value) return;
+    if (cropperInstance) {
+        cropperInstance.destroy();
+        cropperInstance = null;
+    }
+
+    cropperInstance = new Cropper(cropImageRef.value, {
+        aspectRatio: 1,
+        viewMode: 1,
+        autoCropArea: 1,
+        background: false,
+        responsive: true,
+    });
+};
+
+const closeCropper = () => {
+    cropModalOpen.value = false;
+    if (cropperInstance) {
+        cropperInstance.destroy();
+        cropperInstance = null;
+    }
+    if (cropSourceObjectUrl) {
+        URL.revokeObjectURL(cropSourceObjectUrl);
+        cropSourceObjectUrl = null;
+    }
+    cropSourceUrl.value = '';
+};
+
+const applyCrop = () => {
+    if (!cropperInstance) return;
+    const canvas = cropperInstance.getCroppedCanvas({
+        width: 512,
+        height: 512,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high',
+    });
+
+    canvas.toBlob((blob) => {
+        if (!blob) return;
+        const croppedFile = new File([blob], 'avatar.png', { type: 'image/png' });
+        form.profile_photo = croppedFile;
+
+        if (avatarObjectUrl) {
+            URL.revokeObjectURL(avatarObjectUrl);
+        }
+        avatarObjectUrl = URL.createObjectURL(blob);
+        avatarPreview.value = avatarObjectUrl;
+
+        closeCropper();
+    }, 'image/png', 0.92);
 };
 
 const openVerificationModal = () => {
@@ -108,6 +186,14 @@ onMounted(() => {
         focusVerificationSection();
     }
 });
+
+onBeforeUnmount(() => {
+    closeCropper();
+    if (avatarObjectUrl) {
+        URL.revokeObjectURL(avatarObjectUrl);
+        avatarObjectUrl = null;
+    }
+});
 </script>
 
 <template>
@@ -128,8 +214,8 @@ onMounted(() => {
                 <div class="mt-2 flex items-center gap-5">
                     <div class="relative group">
                         <div class="h-20 w-20 rounded-full overflow-hidden border-4 border-indigo-500 bg-slate-200 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)]">
-                            <img v-if="user.profile_photo" 
-                                 :src="'/storage/' + user.profile_photo" 
+                            <img v-if="avatarPreview" 
+                                 :src="avatarPreview" 
                                  class="h-full w-full object-cover">
                             <div v-else class="h-full w-full flex items-center justify-center bg-indigo-100 text-indigo-400">
                                 <span class="text-xs uppercase font-bold">No_Img</span>
@@ -254,6 +340,31 @@ onMounted(() => {
                 </Transition>
             </div>
         </form>
+
+        <Modal :show="cropModalOpen" maxWidth="xl" @close="closeCropper">
+            <div class="p-4">
+                <h3 class="text-sm font-semibold text-slate-900 uppercase tracking-widest">Crop Avatar 1:1</h3>
+                <div class="mt-4 h-[360px] w-full overflow-hidden border border-slate-200 bg-slate-100">
+                    <img ref="cropImageRef" :src="cropSourceUrl" alt="Crop avatar" class="max-h-[360px] w-full object-contain" />
+                </div>
+                <div class="mt-4 flex justify-end gap-2">
+                    <button
+                        type="button"
+                        class="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md text-[10px] uppercase tracking-widest text-slate-600 hover:bg-slate-50"
+                        @click="closeCropper"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        class="inline-flex items-center px-4 py-2 border border-indigo-600 bg-indigo-600 rounded-md text-[10px] uppercase tracking-widest text-white hover:bg-indigo-500"
+                        @click="applyCrop"
+                    >
+                        Use Crop
+                    </button>
+                </div>
+            </div>
+        </Modal>
 
         <Modal :show="showVerificationModal" @close="closeVerificationModal">
             <div class="p-6">

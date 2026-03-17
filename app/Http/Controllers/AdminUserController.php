@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Quest;
 use App\Models\Submission;
 use App\Models\User;
+use App\Models\JobRole;
+use App\Support\Cache\CacheVersion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +40,10 @@ class AdminUserController extends Controller
         $levelColumn = Schema::hasColumn('users', 'lvl') ? 'lvl' : 'level';
 
         $users = User::query()
+            ->with([
+                'detailUser:id,user_id,bio,experience,location,skills',
+                'job:id,name',
+            ])
             ->withCount('submissions')
             ->withMax('submissions as highest_grade', 'grade')
             ->when($role !== '' && $role !== 'all', function ($query) use ($role) {
@@ -79,6 +85,8 @@ class AdminUserController extends Controller
                 'username',
                 'email',
                 'role',
+                'job_id',
+                'profile_photo',
                 'gold',
                 'exp',
                 $levelColumn,
@@ -160,6 +168,9 @@ class AdminUserController extends Controller
         return Inertia::render('Users/Admin/Index', [
             'users' => $users,
             'availableRoles' => User::assignableRoles(),
+            'jobRoles' => JobRole::query()
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'filters' => [
                 'search' => $search,
                 'role' => $role,
@@ -204,6 +215,7 @@ class AdminUserController extends Controller
 
     public function update(Request $request, User $user): RedirectResponse
     {
+        $previousJobId = $user->job_id;
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'username' => [
@@ -220,10 +232,17 @@ class AdminUserController extends Controller
                 Rule::unique('users', 'email')->ignore($user->id),
             ],
             'role' => ['required', 'in:admin,mentor,user,student'],
+            'job_id' => ['nullable', 'integer', 'exists:job_roles,id'],
             'gold' => ['required', 'integer', 'min:0'],
             'exp' => ['required', 'integer', 'min:0'],
             'level' => ['required', 'integer', 'min:1'],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
+            'bio' => ['nullable', 'string', 'max:1200'],
+            'experience' => ['nullable', 'string', 'max:120'],
+            'location' => ['nullable', 'string', 'max:120'],
+            'skills_text' => ['nullable', 'string', 'max:500'],
+            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
+            'remove_avatar' => ['nullable', 'boolean'],
         ]);
 
         if ((int) $request->user()->id === (int) $user->id && $validated['role'] !== 'admin') {
@@ -237,6 +256,7 @@ class AdminUserController extends Controller
             'username' => trim((string) ($validated['username'] ?? '')) ?: null,
             'email' => strtolower(trim((string) $validated['email'])),
             'role' => $validated['role'],
+            'job_id' => $validated['job_id'] ?? null,
             'gold' => (int) $validated['gold'],
             'exp' => (int) $validated['exp'],
         ];
@@ -252,6 +272,71 @@ class AdminUserController extends Controller
         }
 
         $user->forceFill($payload)->save();
+
+        $avatarUpdated = false;
+        if ($request->hasFile('profile_photo')) {
+            if ($user->profile_photo && Storage::disk('public')->exists($user->profile_photo)) {
+                Storage::disk('public')->delete($user->profile_photo);
+            }
+
+            $path = $request->file('profile_photo')->store('profiles', 'public');
+            $user->profile_photo = $path;
+            $user->save();
+            $avatarUpdated = true;
+        } elseif (!empty($validated['remove_avatar'])) {
+            if ($user->profile_photo && Storage::disk('public')->exists($user->profile_photo)) {
+                Storage::disk('public')->delete($user->profile_photo);
+            }
+            $user->profile_photo = null;
+            $user->save();
+            $avatarUpdated = true;
+        }
+
+        $bio = isset($validated['bio']) ? trim((string) $validated['bio']) : null;
+        $experience = isset($validated['experience']) ? trim((string) $validated['experience']) : null;
+        $location = isset($validated['location']) ? trim((string) $validated['location']) : null;
+        $skillsRaw = isset($validated['skills_text']) ? trim((string) $validated['skills_text']) : '';
+
+        $bio = $bio !== '' ? $bio : null;
+        $experience = $experience !== '' ? $experience : null;
+        $location = $location !== '' ? $location : null;
+
+        $skills = [];
+        if ($skillsRaw !== '') {
+            $skills = collect(explode(',', $skillsRaw))
+                ->map(fn ($skill) => trim((string) $skill))
+                ->filter(fn ($skill) => $skill !== '')
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        $detailPayload = [
+            'bio' => $bio,
+            'experience' => $experience,
+            'location' => $location,
+            'skills' => !empty($skills) ? $skills : null,
+        ];
+
+        $hasDetailValues = collect($detailPayload)->contains(function ($value) {
+            if (is_array($value)) {
+                return count($value) > 0;
+            }
+
+            return !is_null($value) && $value !== '';
+        });
+
+        if ($hasDetailValues) {
+            $user->detailUser()->updateOrCreate(['user_id' => $user->id], $detailPayload);
+        } elseif ($user->detailUser) {
+            $user->detailUser()->delete();
+        }
+
+        $jobChanged = (int) ($previousJobId ?? 0) !== (int) ($user->job_id ?? 0);
+
+        if ($validated['role'] === User::ROLE_MENTOR || $user->detailUser || $hasDetailValues || $avatarUpdated || $jobChanged) {
+            CacheVersion::bump('landing');
+        }
 
         return back()->with('message', 'USER_DATA_UPDATED');
     }
