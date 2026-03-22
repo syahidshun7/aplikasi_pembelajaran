@@ -10,7 +10,10 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use App\Models\ErrorLog;
 use App\Mail\ServerErrorAlert;
+use Illuminate\Auth\AuthenticationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Illuminate\Validation\ValidationException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -30,13 +33,23 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $resolveStatusCode = static function (\Throwable $e): int {
+            return match (true) {
+                $e instanceof ValidationException => $e->status,
+                $e instanceof AuthenticationException => 401,
+                $e instanceof ModelNotFoundException => 404,
+                $e instanceof HttpExceptionInterface => $e->getStatusCode(),
+                default => 500,
+            };
+        };
+
         // Report hook: kirim alert email untuk 5xx di production (dengan throttling)
-        $exceptions->report(function (\Throwable $e) {
+        $exceptions->report(function (\Throwable $e) use ($resolveStatusCode) {
             if (config('app.debug')) {
                 return null;
             }
 
-            $status = $e instanceof HttpExceptionInterface ? $e->getStatusCode() : 500;
+            $status = $resolveStatusCode($e);
             if ($status < 500) {
                 return null;
             }
@@ -96,7 +109,38 @@ return Application::configure(basePath: dirname(__DIR__))
             return null;
         });
 
-        $exceptions->render(function (\Throwable $e, Request $request) {
+        $exceptions->render(function (ValidationException $e, Request $request) {
+            if (! ($request->expectsJson() || $request->wantsJson())) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors' => $e->errors(),
+            ], $e->status);
+        });
+
+        $exceptions->render(function (AuthenticationException $e, Request $request) {
+            if (! ($request->expectsJson() || $request->wantsJson())) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $e->getMessage() !== '' ? $e->getMessage() : 'Unauthenticated.',
+            ], 401);
+        });
+
+        $exceptions->render(function (ModelNotFoundException $e, Request $request) {
+            if (! ($request->expectsJson() || $request->wantsJson())) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'Data yang diminta tidak ditemukan.',
+            ], 404);
+        });
+
+        $exceptions->render(function (\Throwable $e, Request $request) use ($resolveStatusCode) {
             // Biarkan error bawaan Laravel (Whoops) saat debug aktif.
             if (config('app.debug')) {
                 return null;
@@ -107,9 +151,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
-            $status = $e instanceof HttpExceptionInterface
-                ? $e->getStatusCode()
-                : 500;
+            $status = $resolveStatusCode($e);
 
             if (! in_array($status, [400, 404, 500], true)) {
                 return null;
