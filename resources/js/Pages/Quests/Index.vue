@@ -8,11 +8,13 @@ const props = defineProps({
     quests: Object,
     studyGroups: Array,
     taskBanks: Array,
+    jobRoles: Array,
     rubrics: Array,
     filters: Object,
 });
 const page = usePage();
 const isMentor = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase() === 'mentor');
+const isAdminScope = computed(() => !isMentor.value);
 const firstStudyGroupId = computed(() => props.studyGroups?.[0]?.id ?? null);
 const firstTaskBankId = computed(() => props.taskBanks?.[0]?.id ?? null);
 
@@ -47,6 +49,23 @@ const filterForm = useForm({
 
 const questItems = computed(() => props.quests?.data || []);
 const paginationLinks = computed(() => props.quests?.links || []);
+const selectedJobScope = ref('');
+
+const filteredStudyGroups = computed(() => {
+    if (isMentor.value || selectedJobScope.value === '') {
+        return props.studyGroups || [];
+    }
+
+    return (props.studyGroups || []).filter((group) => String(group.job_id || '') === selectedJobScope.value);
+});
+
+const filteredTaskBanks = computed(() => {
+    if (isMentor.value || selectedJobScope.value === '') {
+        return props.taskBanks || [];
+    }
+
+    return (props.taskBanks || []).filter((bank) => String(bank.job_role_id || '') === selectedJobScope.value);
+});
 
 const form = useForm({
     title: '',
@@ -98,6 +117,20 @@ watch([isMentor, firstStudyGroupId, firstTaskBankId], () => {
     applyMentorDefaults();
 }, { immediate: true });
 
+watch(selectedJobScope, (jobId) => {
+    if (isMentor.value || jobId === '') {
+        return;
+    }
+
+    if (form.study_group_id && !filteredStudyGroups.value.some((group) => String(group.id) === String(form.study_group_id))) {
+        form.study_group_id = null;
+    }
+
+    if (form.task_bank_id && !filteredTaskBanks.value.some((bank) => String(bank.id) === String(form.task_bank_id))) {
+        form.task_bank_id = null;
+    }
+});
+
 // HELPER: Format date for display
 const formatDeadline = (date) => {
     if (!date) return 'PERMANENT_CONTRACT';
@@ -116,6 +149,15 @@ const isExpired = (date) => {
     return new Date(date) < new Date();
 };
 
+const formatDateTimeLocal = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (number) => String(number).padStart(2, '0');
+
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 const startEdit = (quest) => {
     isEditing.value = true;
     editId.value = quest.uuid;
@@ -128,15 +170,9 @@ const startEdit = (quest) => {
     form.study_group_id = quest.study_group_id;
     form.task_bank_id = quest.task_bank_id;
     form.rubric_id = quest.rubric_id ?? null;
+    selectedJobScope.value = String(quest.study_group?.job_id ?? quest.task_bank?.job_role_id ?? '');
     
-    // Format deadline for datetime-local input (YYYY-MM-DDTHH:mm)
-    if (quest.deadline) {
-        const d = new Date(quest.deadline);
-        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-        form.deadline = d.toISOString().slice(0, 16);
-    } else {
-        form.deadline = '';
-    }
+    form.deadline = quest.deadline ? formatDateTimeLocal(quest.deadline) : '';
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
     Toast.fire({ icon: 'info', title: 'MODIFYING_CONTRACT' });
@@ -147,6 +183,7 @@ const cancelEdit = () => {
     editId.value = null;
     form.reset();
     form.rubric_id = null;
+    selectedJobScope.value = '';
     applyMentorDefaults();
 };
 
@@ -168,6 +205,7 @@ const submit = () => {
                 form.task_bank_id = null;
                 form.rubric_id = null;
                 form.is_active = true;
+                selectedJobScope.value = '';
                 applyMentorDefaults();
             },
         });
@@ -296,14 +334,28 @@ const goToPage = (url) => {
                                 </div>
                             </div>
 
+                            <div v-if="isAdminScope">
+                                <label class="block mb-2 text-white">JOB_SCOPE_FILTER:</label>
+                                <select v-model="selectedJobScope"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-sky-400 outline-none text-sky-300 uppercase">
+                                    <option value="">-- ALL_JOBS_FOR_ADMIN_TESTING --</option>
+                                    <option v-for="job in (jobRoles || [])" :key="job.id" :value="String(job.id)">
+                                        {{ job.name }}
+                                    </option>
+                                </select>
+                                <p class="mt-2 text-[8px] text-slate-500 uppercase italic">
+                                    *Filter ini hanya membantu admin memilih party dan task bank lintas job dengan cepat.
+                                </p>
+                            </div>
+
                             <div>
                                 <label class="block mb-2 text-white">ASSIGN_TO_PARTY:</label>
                                 <select v-model="form.study_group_id"
                                     class="w-full bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-emerald-400 uppercase">
                                     <option v-if="!isMentor" :value="null">-- GLOBAL_QUEST (PUBLIC) --</option>
-                                    <option v-if="isMentor && !studyGroups.length" :value="null" disabled>-- NO_STUDY_GROUP_AVAILABLE --</option>
-                                    <option v-for="group in studyGroups" :key="group.id" :value="group.id">
-                                        >> PARTY: {{ group.name }}
+                                    <option v-if="isMentor && !filteredStudyGroups.length" :value="null" disabled>-- NO_STUDY_GROUP_AVAILABLE --</option>
+                                    <option v-for="group in filteredStudyGroups" :key="group.id" :value="group.id">
+                                        >> PARTY: {{ group.name }}{{ group.job?.name ? ` [${group.job.name}]` : '' }}
                                     </option>
                                 </select>
                             </div>
@@ -313,8 +365,8 @@ const goToPage = (url) => {
                                 <select v-model="form.task_bank_id"
                                     class="w-full bg-black border-2 border-slate-700 p-2 focus:border-teal-400 outline-none text-teal-300 uppercase">
                                     <option :value="null">-- NO_TASK_BANK (MANUAL_QUEST) --</option>
-                                    <option v-for="bank in taskBanks" :key="bank.id" :value="bank.id">
-                                        {{ bank.name }} [{{ bank.assessment_type }}]
+                                    <option v-for="bank in filteredTaskBanks" :key="bank.id" :value="bank.id">
+                                        {{ bank.name }} [{{ bank.assessment_type }}]{{ bank.job_role?.name ? ` [${bank.job_role.name}]` : '' }}
                                     </option>
                                 </select>
                             </div>

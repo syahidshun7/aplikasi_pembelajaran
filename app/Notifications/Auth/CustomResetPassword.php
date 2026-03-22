@@ -28,4 +28,3 @@ class CustomResetPassword extends ResetPassword
             ]);
     }
 }
-

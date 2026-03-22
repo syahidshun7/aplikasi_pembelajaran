@@ -29,6 +29,7 @@ Thumbs.db
 # Node
 /node_modules
 /chat-server/node_modules
+/.npm-cache
 
 # Cache
 .phpunit.result.cache

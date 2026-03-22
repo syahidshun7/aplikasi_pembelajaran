@@ -23,7 +23,7 @@ class AdminUserController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'role' => ['nullable', 'in:all,admin,mentor,user,student'],
+            'role' => ['nullable', Rule::in(array_merge(['all'], User::assignableRoles()))],
             'rank_by' => ['nullable', 'in:newest,highest_gold,highest_exp,highest_grade'],
             'grade_order' => ['nullable', 'in:none,asc,desc'],
         ]);
@@ -183,11 +183,11 @@ class AdminUserController extends Controller
     public function updateRole(Request $request, User $user): RedirectResponse
     {
         $validated = $request->validate([
-            'role' => ['required', 'in:admin,mentor,user,student'],
+            'role' => ['required', Rule::in(User::assignableRoles())],
         ]);
 
         // Prevent an admin from accidentally removing their own admin access.
-        if ((int) $request->user()->id === (int) $user->id && $validated['role'] !== 'admin') {
+        if ((int) $request->user()->id === (int) $user->id && ! in_array($validated['role'], User::adminRoles(), true)) {
             return back()->withErrors([
                 'role' => 'Kamu tidak bisa menurunkan role akun admin yang sedang login.',
             ]);
@@ -231,7 +231,7 @@ class AdminUserController extends Controller
                 'max:255',
                 Rule::unique('users', 'email')->ignore($user->id),
             ],
-            'role' => ['required', 'in:admin,mentor,user,student'],
+            'role' => ['required', Rule::in(User::assignableRoles())],
             'job_id' => ['nullable', 'integer', 'exists:job_roles,id'],
             'gold' => ['required', 'integer', 'min:0'],
             'exp' => ['required', 'integer', 'min:0'],
@@ -245,7 +245,7 @@ class AdminUserController extends Controller
             'remove_avatar' => ['nullable', 'boolean'],
         ]);
 
-        if ((int) $request->user()->id === (int) $user->id && $validated['role'] !== 'admin') {
+        if ((int) $request->user()->id === (int) $user->id && ! in_array($validated['role'], User::adminRoles(), true)) {
             return back()->withErrors([
                 'role' => 'Kamu tidak bisa menurunkan role akun admin yang sedang login.',
             ]);

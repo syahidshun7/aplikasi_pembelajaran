@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Submission;
 use App\Models\Quest;
 use App\Models\User;
+use App\Services\LmsNotificationService;
 use App\Models\UserQuestUnlock;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
@@ -15,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 class SubmissionController extends Controller
 {
-    public function store(Request $request, Quest $quest)
+    public function store(Request $request, Quest $quest, LmsNotificationService $notifications)
     {
         $quest->load(['taskBank.questions' => function ($query) {
             $query->where('is_active', true)->orderBy('sort_order');
@@ -76,6 +77,8 @@ class SubmissionController extends Controller
         if ($wasEvaluated || $this->isSubmissionEvaluated($submission)) {
             $this->syncUserRewardTotals((int) $submission->user_id);
         }
+
+        $notifications->notifySubmissionReceived($submission);
 
         CacheVersion::bump('dashboard');
         CacheVersion::bump('quests');

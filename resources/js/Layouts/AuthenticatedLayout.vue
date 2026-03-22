@@ -2,10 +2,11 @@
 import { Link, usePage, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import FloatingChat from '@/Components/FloatingChat.vue';
+import NotificationBell from '@/Components/NotificationBell.vue';
 import { toast } from '@/Utils/Alert'; // Satukan import di atas
 const page = usePage();
 const auth = computed(() => page.props.auth);
-const isStaff = computed(() => ['admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
+const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
 const showFloatingChat = computed(() => Boolean(auth.value?.user));
 const mobileMenuOpen = ref(false);
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
@@ -66,6 +67,8 @@ const handleLogout = () => {
                             Shop
                         </Link>
 
+                        <NotificationBell />
+
                         <button @click="handleLogout" class="nav-action nav-action--logout" type="button">
                             <span class="sr-only">Logout</span>
                             [X]
@@ -116,6 +119,21 @@ const handleLogout = () => {
                 >
                     <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
                     Shop
+                </Link>
+
+                <Link
+                    :href="route('notifications.index')"
+                    class="w-full nav-action nav-action--profile justify-center"
+                    @click="mobileMenuOpen = false"
+                >
+                    <i class="fi fi-rr-bell text-[10px] leading-none"></i>
+                    Notifications
+                    <span
+                        v-if="Number(page.props?.notificationCenter?.unread_count || 0) > 0"
+                        class="rounded-full bg-cyan-300 px-2 py-[2px] text-[8px] font-bold text-black"
+                    >
+                        {{ Number(page.props?.notificationCenter?.unread_count || 0) }}
+                    </span>
                 </Link>
 
                 <button

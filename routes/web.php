@@ -17,6 +17,8 @@ use App\Http\Controllers\AdminErrorLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\NotificationDispatchController;
 use App\Http\Controllers\SubmissionController;
 use App\Http\Controllers\UserEventController;
 use App\Http\Controllers\ShopController;
@@ -31,14 +33,16 @@ use Inertia\Inertia;
 Route::get('/', [HomeController::class, 'index'])->name('lobby');
 Route::get('/landing', [HomeController::class, 'landing'])->name('landing');
 
-Route::get('/redis-test', function () {
-    Redis::set('test', 'ok');
-    return Redis::get('test');
-});
+if (app()->environment(['local', 'testing'])) {
+    Route::get('/redis-test', function () {
+        Redis::set('test', 'ok');
+        return Redis::get('test');
+    });
 
-Route::get('/simulate-500', function () {
-    throw new \Exception('Simulasi error 500 untuk pengujian alert');
-});
+    Route::get('/simulate-500', function () {
+        throw new \Exception('Simulasi error 500 untuk pengujian alert');
+    });
+}
 
 
 Route::middleware('auth')->group(function () {
@@ -70,6 +74,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/shop/items/{item}/purchase', [ShopController::class, 'purchase'])
         ->middleware('verified')
         ->name('shop.purchase');
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
+    Route::post('/notifications/{notificationId}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::post('/notifications/chat', [NotificationDispatchController::class, 'chat'])->name('notifications.chat');
 });
 
 
@@ -146,6 +155,9 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
         Route::patch('/{rubric}/levels/{level}', [RubricLevelController::class, 'update'])->name('levels.update');
         Route::delete('/{rubric}/levels/{level}', [RubricLevelController::class, 'destroy'])->name('levels.destroy');
     });
+
+    Route::post('/admin/notifications/announcement', [NotificationDispatchController::class, 'announcement'])
+        ->name('admin.notifications.announcement');
 
 });
 

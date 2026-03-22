@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Quest;
+use App\Models\JobRole;
 use App\Models\Rubric;
 use App\Models\ShopItem;
 use App\Models\ShopTransaction;
@@ -162,12 +163,15 @@ class QuestController extends Controller
             });
         }
 
-        $studyGroupQuery = StudyGroup::query()->select('id', 'name');
+        $studyGroupQuery = StudyGroup::query()
+            ->with('job:id,name')
+            ->select('id', 'name', 'job_id');
         if ($this->isMentorUser()) {
             $studyGroupQuery->where('job_id', $this->requireMentorJobId());
         }
 
         $taskBankQuery = TaskBank::query()
+            ->with('jobRole:id,name')
             ->where('is_active', true)
             ->orderBy('name');
         if ($this->isMentorUser()) {
@@ -197,7 +201,11 @@ class QuestController extends Controller
                 ->withQueryString(),
 
             'studyGroups' => $studyGroupQuery->get(),
-            'taskBanks' => $taskBankQuery->get(['id', 'uuid', 'name', 'assessment_type']),
+            'taskBanks' => $taskBankQuery->get(['id', 'uuid', 'name', 'assessment_type', 'job_role_id']),
+            'jobRoles' => JobRole::query()
+                ->when($this->isMentorUser(), fn ($query) => $query->whereKey($this->requireMentorJobId()))
+                ->orderBy('name')
+                ->get(['id', 'name']),
             'rubrics' => $rubricsQuery->get(['id', 'title']),
             'filters' => [
                 'search' => $search,

@@ -1,6 +1,8 @@
 <?php
 
 namespace App\Models;
+use App\Support\DateTimeInput;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Model;
 
@@ -53,6 +55,12 @@ protected $casts = [
     'deadline' => 'datetime',
 ];
 
+    protected function deadline(): Attribute
+    {
+        return Attribute::make(
+            set: fn ($value) => DateTimeInput::normalizeNullable($value),
+        );
+    }
 
 
 }

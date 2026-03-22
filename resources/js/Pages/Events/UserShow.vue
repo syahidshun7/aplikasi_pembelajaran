@@ -43,7 +43,7 @@ const normalizedDescription = computed(() => {
                         <h1 class="text-white text-sm md:text-lg uppercase">{{ event.title }}</h1>
                         <p class="text-[8px] text-slate-400 uppercase mt-2">
                             Meeting_{{ event.sequence_order }}
-                            | Group: {{ event.study_group?.name || 'Public' }}
+                            | Target: {{ event.study_group?.name || (event.job?.name ? `Public / ${event.job.name}` : 'Public') }}
                         </p>
                         <p class="text-[8px] text-slate-400 uppercase mt-2">
                             Start: {{ formatDateTime(event.starts_at) }} | End: {{ formatDateTime(event.ends_at) }}

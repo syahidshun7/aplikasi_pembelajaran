@@ -372,11 +372,13 @@ const formatDate = (date) => {
                             <td class="py-4 px-2">
                                 <span
                                     class="px-2 py-1 border text-[8px] uppercase"
-                                    :class="user.role === 'admin'
+                                    :class="user.role === 'super_admin'
+                                        ? 'text-amber-300 border-amber-700 bg-amber-900/20'
+                                        : (user.role === 'admin'
                                         ? 'text-red-400 border-red-900 bg-red-900/20'
                                         : (user.role === 'mentor'
                                             ? 'text-violet-300 border-violet-800 bg-violet-900/20'
-                                            : 'text-cyan-400 border-cyan-900 bg-cyan-900/20')"
+                                            : 'text-cyan-400 border-cyan-900 bg-cyan-900/20'))"
                                 >
                                     {{ user.role || 'user' }}
                                 </span>

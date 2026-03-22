@@ -11,3 +11,4 @@ Artisan::command('inspire', function () {
 
 // Validasi deadline quest: jalankan tiap 30 menit
 Schedule::command('quests:close-expired')->everyThirtyMinutes();
+Schedule::command('notifications:send-assignment-reminders')->hourly();

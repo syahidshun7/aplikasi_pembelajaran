@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,6 +25,14 @@ class EnsureRole
             ->flatMap(fn (string $roleList) => explode(',', $roleList))
             ->map(fn (string $role) => trim(strtolower($role)))
             ->filter()
+            ->flatMap(function (string $role) {
+                if ($role === User::ROLE_ADMIN) {
+                    return User::adminRoles();
+                }
+
+                return [$role];
+            })
+            ->unique()
             ->values()
             ->all();
 

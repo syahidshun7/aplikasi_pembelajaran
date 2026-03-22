@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Notifications\NotificationPresenter;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -28,19 +29,22 @@ class HandleInertiaRequests extends Middleware
      * @return array<string, mixed>
      */
     public function share(Request $request): array
-{
-    return [
-        ...parent::share($request),
-        'auth' => [
-            'user' => $request->user() ? [
-                'id' => $request->user()->id,
-                'name' => $request->user()->name,
-                'username' => $request->user()->username,
-                'email' => $request->user()->email,
-                'email_verified_at' => $request->user()->email_verified_at,
-                'role' => $request->user()->role,
-            ] : null,
-        ],
-    ];
-}
+    {
+        return [
+            ...parent::share($request),
+            'auth' => [
+                'user' => $request->user() ? [
+                    'id' => $request->user()->id,
+                    'name' => $request->user()->name,
+                    'username' => $request->user()->username,
+                    'email' => $request->user()->email,
+                    'email_verified_at' => $request->user()->email_verified_at,
+                    'role' => $request->user()->role,
+                ] : null,
+            ],
+            'notificationCenter' => $request->user()
+                ? fn () => NotificationPresenter::summary($request->user())
+                : null,
+        ];
+    }
 }

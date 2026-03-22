@@ -169,10 +169,19 @@ class HomeController extends Controller
         "home.events.v{$homeCacheVersion}.job.{$jobKey}.groups.{$groupKey}",
         now()->addMinutes(5),
         fn () => Event::query()
-            ->with('studyGroup:id,name')
+            ->with(['studyGroup:id,name', 'job:id,name'])
             ->withCount(['guides', 'quests'])
-            ->where(function ($query) use ($userGroupIds) {
-                $query->whereNull('study_group_id')
+            ->where(function ($query) use ($userGroupIds, $userJobId) {
+                $query->where(function ($publicQuery) use ($userJobId) {
+                    $publicQuery->whereNull('study_group_id')
+                        ->where(function ($audienceQuery) use ($userJobId) {
+                            $audienceQuery->whereNull('job_id');
+
+                            if (! is_null($userJobId)) {
+                                $audienceQuery->orWhere('job_id', $userJobId);
+                            }
+                        });
+                })
                     ->orWhereIn('study_group_id', $userGroupIds);
             })
             ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')

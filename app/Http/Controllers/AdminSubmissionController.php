@@ -8,6 +8,7 @@ use App\Models\Submission;
 use App\Models\User;
 use App\Support\Cache\CacheVersion;
 use App\Services\RubricScoringService;
+use App\Services\LmsNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Schema;
@@ -81,7 +82,7 @@ class AdminSubmissionController extends Controller
     /**
      * Memproses penilaian (Verdict) dan memberikan reward Gold/EXP.
      */
- public function verdict(Request $request, Submission $submission, RubricScoringService $scoring)
+ public function verdict(Request $request, Submission $submission, RubricScoringService $scoring, LmsNotificationService $notifications)
 {
     $this->assertMentorCanAccessSubmission($submission);
 
@@ -311,6 +312,7 @@ class AdminSubmissionController extends Controller
     ]);
 
     $this->syncUserRewardTotals((int) $submission->user_id);
+    $notifications->notifyGradeReleased($submission->fresh(['user', 'quest']));
 
     CacheVersion::bump('dashboard');
 

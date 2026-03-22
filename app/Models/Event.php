@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\DateTimeInput;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
@@ -13,6 +15,7 @@ class Event extends Model
         'description',
         'sequence_order',
         'study_group_id',
+        'job_id',
         'starts_at',
         'ends_at',
     ];
@@ -21,6 +24,20 @@ class Event extends Model
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
     ];
+
+    protected function startsAt(): Attribute
+    {
+        return Attribute::make(
+            set: fn ($value) => DateTimeInput::normalizeNullable($value),
+        );
+    }
+
+    protected function endsAt(): Attribute
+    {
+        return Attribute::make(
+            set: fn ($value) => DateTimeInput::normalizeNullable($value),
+        );
+    }
 
     protected static function booted(): void
     {
@@ -39,6 +56,11 @@ class Event extends Model
     public function studyGroup()
     {
         return $this->belongsTo(StudyGroup::class);
+    }
+
+    public function job()
+    {
+        return $this->belongsTo(JobRole::class, 'job_id');
     }
 
     public function guides()

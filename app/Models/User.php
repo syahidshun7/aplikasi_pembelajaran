@@ -15,6 +15,7 @@ class User extends Authenticatable implements MustVerifyEmail
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
+    public const ROLE_SUPER_ADMIN = 'super_admin';
     public const ROLE_ADMIN = 'admin';
     public const ROLE_MENTOR = 'mentor';
     public const ROLE_USER = 'user';
@@ -109,6 +110,7 @@ public function sendPasswordResetNotification($token): void
 public static function assignableRoles(): array
 {
     return [
+        self::ROLE_SUPER_ADMIN,
         self::ROLE_ADMIN,
         self::ROLE_MENTOR,
         self::ROLE_USER,
@@ -116,13 +118,30 @@ public static function assignableRoles(): array
     ];
 }
 
+public static function adminRoles(): array
+{
+    return [
+        self::ROLE_SUPER_ADMIN,
+        self::ROLE_ADMIN,
+    ];
+}
+
+public static function staffRoles(): array
+{
+    return [
+        self::ROLE_SUPER_ADMIN,
+        self::ROLE_ADMIN,
+        self::ROLE_MENTOR,
+    ];
+}
+
 public function hasRole(string|array $roles): bool
 {
-    $currentRole = strtolower((string) $this->role);
+    $currentRole = $this->normalizeRoleValue((string) $this->role);
     $roleList = is_array($roles) ? $roles : [$roles];
 
     foreach ($roleList as $role) {
-        if ($currentRole === strtolower((string) $role)) {
+        if ($currentRole === $this->normalizeRoleValue((string) $role)) {
             return true;
         }
     }
@@ -130,9 +149,14 @@ public function hasRole(string|array $roles): bool
     return false;
 }
 
+private function normalizeRoleValue(string $role): string
+{
+    return str_replace([' ', '-'], '_', strtolower(trim($role)));
+}
+
 public function isAdmin(): bool
 {
-    return $this->hasRole(self::ROLE_ADMIN);
+    return $this->hasRole(self::adminRoles());
 }
 
 public function isMentor(): bool
@@ -142,6 +166,6 @@ public function isMentor(): bool
 
 public function isStaff(): bool
 {
-    return $this->hasRole([self::ROLE_ADMIN, self::ROLE_MENTOR]);
+    return $this->hasRole(self::staffRoles());
 }
 }

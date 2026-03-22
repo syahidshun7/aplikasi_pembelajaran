@@ -19,10 +19,20 @@ class UserEventController extends Controller
 
         $search = trim((string) ($validated['search'] ?? ''));
         $userGroupIds = $user->studyGroups()->pluck('study_groups.id')->toArray();
+        $userJobId = (int) ($user->job_id ?? 0);
 
         $events = Event::query()
-            ->where(function ($query) use ($userGroupIds) {
-                $query->whereNull('study_group_id')
+            ->where(function ($query) use ($userGroupIds, $userJobId) {
+                $query->where(function ($publicQuery) use ($userJobId) {
+                    $publicQuery->whereNull('study_group_id')
+                        ->where(function ($audienceQuery) use ($userJobId) {
+                            $audienceQuery->whereNull('job_id');
+
+                            if ($userJobId > 0) {
+                                $audienceQuery->orWhere('job_id', $userJobId);
+                            }
+                        });
+                })
                     ->orWhereIn('study_group_id', $userGroupIds);
             })
             ->when($search !== '', function ($query) use ($search) {
@@ -34,7 +44,7 @@ class UserEventController extends Controller
                         });
                 });
             })
-            ->with('studyGroup:id,name')
+            ->with(['studyGroup:id,name', 'job:id,name'])
             ->withCount(['guides', 'quests'])
             ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
             ->orderBy('starts_at')
@@ -54,12 +64,20 @@ class UserEventController extends Controller
     {
         $user = Auth::user();
         $userGroupIds = $user->studyGroups()->pluck('study_groups.id')->toArray();
+        $userJobId = (int) ($user->job_id ?? 0);
 
-        $isAccessible = is_null($event->study_group_id) || in_array((int) $event->study_group_id, $userGroupIds, true);
+        $isAccessible = (
+            is_null($event->study_group_id)
+            && (
+                is_null($event->job_id)
+                || ($userJobId > 0 && (int) $event->job_id === $userJobId)
+            )
+        ) || in_array((int) $event->study_group_id, $userGroupIds, true);
         abort_unless($isAccessible, 403, 'EVENT_ACCESS_DENIED');
 
         $event->load([
             'studyGroup:id,name',
+            'job:id,name',
             'guides' => function ($q) use ($event) {
                 $q->select('guides.id', 'guides.uuid', 'guides.title', 'guides.description', 'guides.file_path', 'guides.study_group_id')
                     ->with('studyGroup:id,name');

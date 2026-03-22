@@ -29,7 +29,7 @@ class DashboardController extends Controller
         $levelColumn = Schema::hasColumn('users', 'lvl') ? 'lvl' : 'level';
 
         $guideQuery = Guide::query();
-        $studentQuery = User::query()->whereNotIn('role', ['admin', 'mentor']);
+        $studentQuery = User::query()->whereNotIn('role', User::staffRoles());
         $pendingSubmissionQuery = Submission::query()->where('status', 'Pending');
         $gradedSubmissionQuery = Submission::query()->whereIn('status', ['Approved', 'Rejected']);
 
@@ -125,7 +125,7 @@ class DashboardController extends Controller
             now()->addMinutes(3),
             function () use ($isMentor, $mentorJobId, $levelColumn, $page) {
                 $studentsQuery = User::query()
-                    ->whereNotIn('role', ['admin', 'mentor']);
+                    ->whereNotIn('role', User::staffRoles());
 
                 if ($isMentor) {
                     $studentsQuery->where('job_id', $mentorJobId);
@@ -270,7 +270,7 @@ class DashboardController extends Controller
         );
 
         $helpUsersQuery = User::query()
-            ->whereNotIn('role', ['admin', 'mentor']);
+            ->whereNotIn('role', User::staffRoles());
 
         if ($isMentor) {
             $helpUsersQuery->where('job_id', $mentorJobId);

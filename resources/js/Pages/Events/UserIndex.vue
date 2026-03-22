@@ -85,7 +85,7 @@ const shortText = (text, max = 130) => {
                         <div v-for="item in events.data" :key="`m-${item.uuid}`" class="p-3 bg-black/40 border border-slate-800">
                             <p class="text-white uppercase text-[11px]">{{ item.title }}</p>
                             <p class="mt-1 text-[8px] uppercase" :class="item.study_group_id ? 'text-emerald-400' : 'text-cyan-400'">
-                                {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Public' }}
+                                {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : `Public${item.job?.name ? ` / ${item.job.name}` : ''}` }}
                             </p>
                             <p class="mt-2 text-slate-400 font-sans text-[11px]">{{ shortText(item.description, 120) }}</p>
                             <p class="mt-2 text-slate-500 text-[8px]">{{ formatDate(item.starts_at) }}</p>
@@ -121,7 +121,7 @@ const shortText = (text, max = 130) => {
                                             class="px-2 py-1 border text-[8px] uppercase"
                                             :class="item.study_group_id ? 'text-emerald-400 border-emerald-900 bg-emerald-900/20' : 'text-cyan-400 border-cyan-900 bg-cyan-900/20'"
                                         >
-                                            {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Public' }}
+                                            {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : `Public${item.job?.name ? ` / ${item.job.name}` : ''}` }}
                                         </span>
                                     </td>
                                     <td class="py-3 px-2 text-slate-400 font-sans" :title="item.description || ''">

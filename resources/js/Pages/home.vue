@@ -3,6 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import { useLobby } from '@/Composables/useLobby';
 import FloatingChat from '@/Components/FloatingChat.vue';
+import NotificationBell from '@/Components/NotificationBell.vue';
 
 const props = defineProps({
     players: Array,
@@ -29,7 +30,7 @@ const {
 
 const mobileMenuOpen = ref(false);
 const page = usePage();
-const isStaff = computed(() => ['admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
+const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
 const profileVerificationHref = computed(() => `${route('profile.edit', { tab: 'profile' })}#email-verification`);
@@ -126,14 +127,16 @@ const closeMobileMenu = () => {
                                 Profile
                             </Link>
 
-                            <Link :href="route('shop.index')" class="nav-action nav-action--shop">
-                                <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
-                                Shop
-                            </Link>
+                        <Link :href="route('shop.index')" class="nav-action nav-action--shop">
+                            <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
+                            Shop
+                        </Link>
 
-                            <button @click="handleLogout" class="nav-action nav-action--logout" type="button">
-                                <span class="sr-only">Logout</span>
-                                [X]
+                        <NotificationBell />
+
+                        <button @click="handleLogout" class="nav-action nav-action--logout" type="button">
+                            <span class="sr-only">Logout</span>
+                            [X]
                             </button>
                         </div>
                     </template>
@@ -217,6 +220,21 @@ const closeMobileMenu = () => {
                         >
                             <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
                             Shop
+                        </Link>
+
+                        <Link
+                            :href="route('notifications.index')"
+                            class="w-full nav-action nav-action--profile justify-center"
+                            @click="closeMobileMenu"
+                        >
+                            <i class="fi fi-rr-bell text-[10px] leading-none"></i>
+                            Notifications
+                            <span
+                                v-if="Number(page.props?.notificationCenter?.unread_count || 0) > 0"
+                                class="rounded-full bg-cyan-300 px-2 py-[2px] text-[8px] font-bold text-black"
+                            >
+                                {{ Number(page.props?.notificationCenter?.unread_count || 0) }}
+                            </span>
                         </Link>
 
                         <button

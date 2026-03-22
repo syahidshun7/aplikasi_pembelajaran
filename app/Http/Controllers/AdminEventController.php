@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Event;
 use App\Models\EventAttendance;
 use App\Models\Guide;
+use App\Models\JobRole;
 use App\Models\Quest;
 use App\Models\StudyGroup;
 use App\Models\User;
+use App\Services\LmsNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -27,7 +30,7 @@ class AdminEventController extends Controller
         $search = trim((string) ($validated['search'] ?? ''));
 
         $eventsQuery = Event::query()
-            ->with('studyGroup:id,name')
+            ->with(['studyGroup:id,name', 'job:id,name'])
             ->withCount(['guides', 'quests']);
 
         if ($this->isMentorUser()) {
@@ -59,27 +62,31 @@ class AdminEventController extends Controller
 
         return Inertia::render('Events/Admin/Index', [
             'events' => $events,
-            'studyGroups' => $studyGroupQuery->get(['id', 'name']),
+            'studyGroups' => $studyGroupQuery->get(['id', 'name', 'job_id']),
+            'jobRoles' => JobRole::query()->orderBy('name')->get(['id', 'name']),
             'filters' => [
                 'search' => $search,
             ],
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, LmsNotificationService $notifications): RedirectResponse
     {
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'sequence_order' => ['required', 'integer', 'min:1'],
             'study_group_id' => ['nullable', 'exists:study_groups,id'],
+            'job_id' => ['nullable', 'exists:job_roles,id'],
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after:starts_at'],
         ]);
 
         $this->assertMentorCanManageStudyGroupId((int) ($validated['study_group_id'] ?? 0));
+        $validated = $this->normalizeEventAudiencePayload($validated);
 
-        Event::create($validated);
+        $event = Event::create($validated);
+        $notifications->notifyEventPublished($event);
 
         return back()->with('message', 'EVENT_CREATED');
     }
@@ -93,11 +100,13 @@ class AdminEventController extends Controller
             'description' => ['nullable', 'string'],
             'sequence_order' => ['required', 'integer', 'min:1'],
             'study_group_id' => ['nullable', 'exists:study_groups,id'],
+            'job_id' => ['nullable', 'exists:job_roles,id'],
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after:starts_at'],
         ]);
 
         $this->assertMentorCanManageStudyGroupId((int) ($validated['study_group_id'] ?? 0));
+        $validated = $this->normalizeEventAudiencePayload($validated);
 
         $event->update($validated);
 
@@ -118,6 +127,7 @@ class AdminEventController extends Controller
 
         $event->load([
             'studyGroup:id,name',
+            'job:id,name',
             'guides' => function ($q) {
                 $q->select('guides.id', 'guides.uuid', 'guides.title', 'guides.study_group_id')
                     ->with('studyGroup:id,name');
@@ -425,5 +435,26 @@ class AdminEventController extends Controller
             ->exists();
 
         abort_unless($isAllowed, 403, 'MENTOR_CANNOT_MANAGE_EVENT_OUTSIDE_JOB');
+    }
+
+    private function normalizeEventAudiencePayload(array $validated): array
+    {
+        $studyGroupId = (int) ($validated['study_group_id'] ?? 0);
+        $jobId = (int) ($validated['job_id'] ?? 0);
+
+        if ($studyGroupId > 0) {
+            $studyGroup = StudyGroup::query()->select('id', 'job_id')->findOrFail($studyGroupId);
+            $validated['job_id'] = (int) ($studyGroup->job_id ?? 0) ?: null;
+
+            return $validated;
+        }
+
+        if ($jobId <= 0) {
+            throw ValidationException::withMessages([
+                'job_id' => 'Pilih target job untuk event publik.',
+            ]);
+        }
+
+        return $validated;
     }
 }

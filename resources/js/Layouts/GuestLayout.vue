@@ -8,7 +8,7 @@ const page = usePage();
 
 // 2. Definisikan variabel auth yang menyebabkan error tadi
 const auth = computed(() => page.props.auth || {});
-const isStaff = computed(() => ['admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
+const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
 
 const handleLogout = () => {
     toast.confirm('QUIT GAME?', 'Are you sure you want to exit?')

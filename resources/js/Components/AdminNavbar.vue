@@ -2,6 +2,7 @@
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import Swal from 'sweetalert2';
+import NotificationBell from '@/Components/NotificationBell.vue';
 
 const page = usePage();
 const mobileMenuOpen = ref(false);
@@ -79,6 +80,8 @@ const handleLogout = () => {
                 ADMIN_DASHBOARD
             </Link>
 
+            <NotificationBell variant="admin" />
+
             <div class="relative z-[130]">
                 <button
                     type="button"
@@ -112,6 +115,12 @@ const handleLogout = () => {
             <div class="grid grid-cols-1 gap-2">
                 <Link :href="route('lobby')" class="dropdown-item" @click="closeAllMenus">USER_DASHBOARD</Link>
                 <Link :href="route('dashboard')" class="dropdown-item" @click="closeAllMenus">ADMIN_DASHBOARD</Link>
+                <Link :href="route('notifications.index')" class="dropdown-item" @click="closeAllMenus">
+                    NOTIFICATIONS
+                    <span v-if="Number(page.props?.notificationCenter?.unread_count || 0) > 0" class="ml-2 text-cyan-300">
+                        [{{ Number(page.props?.notificationCenter?.unread_count || 0) }}]
+                    </span>
+                </Link>
                 <Link href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
                 <Link :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
                 <Link :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>

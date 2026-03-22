@@ -7,11 +7,13 @@ import Swal from 'sweetalert2';
 const props = defineProps({
     events: Object,
     studyGroups: Array,
+    jobRoles: Array,
     filters: Object,
 });
 const page = usePage();
 const isMentor = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase() === 'mentor');
 const firstStudyGroupId = computed(() => props.studyGroups?.[0]?.id ?? '');
+const studyGroupJobMap = computed(() => Object.fromEntries((props.studyGroups || []).map((group) => [String(group.id), group.job_id || ''])));
 
 const isEditing = ref(false);
 const editUuid = ref(null);
@@ -23,6 +25,7 @@ const form = useForm({
     description: '',
     sequence_order: 1,
     study_group_id: '',
+    job_id: '',
     starts_at: '',
     ends_at: '',
 });
@@ -47,6 +50,7 @@ const startEdit = (event) => {
     form.description = event.description || '';
     form.sequence_order = event.sequence_order || 1;
     form.study_group_id = event.study_group_id || '';
+    form.job_id = event.job_id || '';
     form.starts_at = event.starts_at ? formatDateTimeLocal(event.starts_at) : '';
     form.ends_at = event.ends_at ? formatDateTimeLocal(event.ends_at) : '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -58,6 +62,19 @@ const cancelEdit = () => {
     form.reset();
     form.sequence_order = 1;
     applyMentorDefaultStudyGroup();
+};
+
+const syncAudienceTarget = () => {
+    const groupId = String(form.study_group_id || '');
+
+    if (groupId !== '') {
+        form.job_id = studyGroupJobMap.value[groupId] || '';
+        return;
+    }
+
+    if (isMentor.value) {
+        form.job_id = '';
+    }
 };
 
 const formatDateTimeLocal = (value) => {
@@ -150,6 +167,10 @@ const goToPage = (url) => {
 watch([isMentor, firstStudyGroupId], () => {
     applyMentorDefaultStudyGroup();
 }, { immediate: true });
+
+watch(() => form.study_group_id, () => {
+    syncAudienceTarget();
+}, { immediate: true });
 </script>
 
 <template>
@@ -215,6 +236,23 @@ watch([isMentor, firstStudyGroupId], () => {
                                         </option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <div v-if="!isMentor">
+                                <label class="block mb-2 text-white uppercase">TARGET_JOB:</label>
+                                <select
+                                    v-model="form.job_id"
+                                    :disabled="Boolean(form.study_group_id)"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-blue-400 outline-none text-blue-300 uppercase disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    <option value="">SELECT_JOB_FOR_PUBLIC_EVENT</option>
+                                    <option v-for="job in jobRoles" :key="job.id" :value="job.id">
+                                        {{ job.name }}
+                                    </option>
+                                </select>
+                                <p class="mt-2 text-[7px] uppercase text-slate-500">
+                                    {{ form.study_group_id ? 'Auto mengikuti job dari study group.' : 'Wajib dipilih jika event bersifat public.' }}
+                                </p>
                             </div>
 
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -296,7 +334,8 @@ watch([isMentor, firstStudyGroupId], () => {
                                         </div>
                                         <div class="text-white uppercase">{{ event.title }}</div>
                                         <div class="text-[7px] text-cyan-400 uppercase mt-1">
-                                            GROUP: {{ event.study_group?.name || 'NO_GROUP' }}
+                                            TARGET:
+                                            {{ event.study_group?.name || (event.job?.name ? `PUBLIC_${event.job.name}` : 'PUBLIC_ALL') }}
                                         </div>
                                         <div class="text-[7px] text-slate-300 uppercase mt-1 break-words">
                                             {{ formatScheduleText(event.starts_at, event.ends_at) }}
