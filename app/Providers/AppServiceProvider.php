@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Events\JoinGroupRequested;
+use App\Listeners\SendJoinGroupRequestNotification;
 use App\Models\Event;
 use App\Models\Guide;
 use App\Models\Quest;
@@ -10,6 +12,7 @@ use App\Observers\HomeFeedObserver;
 use App\Observers\StudyGroupCacheObserver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event as EventFacade;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -36,6 +39,7 @@ class AppServiceProvider extends ServiceProvider
         Guide::observe(HomeFeedObserver::class);
         Event::observe(HomeFeedObserver::class);
         StudyGroup::observe(StudyGroupCacheObserver::class);
+        EventFacade::listen(JoinGroupRequested::class, SendJoinGroupRequestNotification::class);
 
         // Global IP throttling to reduce automated abuse on auth endpoints.
         RateLimiter::for('register', function (Request $request) {

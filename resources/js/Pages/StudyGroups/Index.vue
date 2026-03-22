@@ -1,54 +1,20 @@
 <script setup>
-import { useForm } from '@inertiajs/vue3';
-import Swal from 'sweetalert2';
-
-// Form untuk menampung input kode
-const joinForm = useForm({
-    invite_code: '',
-});
-
-const submitJoin = () => {
-    joinForm.post(route('groups.join'), {
-        onSuccess: () => {
-            joinForm.reset();
-            Swal.fire({
-                icon: 'success',
-                title: 'SUCCESS',
-                text: 'Berhasil bergabung dengan party!',
-                background: '#1a1c2c',
-                color: '#4ed4d4'
-            });
-        },
-        onError: (errors) => {
-            Swal.fire({
-                icon: 'error',
-                title: 'JOIN_FAILED',
-                text: Object.values(errors)[0],
-                background: '#1a1c2c',
-                color: '#ff4d4d'
-            });
-        }
-    });
-};
+import { Link } from '@inertiajs/vue3';
 </script>
 
 <template>
     <div class="rpg-panel border-cyan-500">
-        <h2 class="text-cyan-400 mb-4">>> JOIN_VIA_CODE</h2>
-        <form @submit.prevent="submitJoin" class="space-y-4">
-            <input 
-                v-model="joinForm.invite_code" 
-                type="text" 
-                class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-400 text-center tracking-widest uppercase"
-                placeholder="ENTER_INVITE_CODE"
-            >
-            <button 
-                type="submit" 
-                :disabled="joinForm.processing"
-                class="w-full py-2 border-2 border-cyan-500 text-cyan-500 hover:bg-cyan-500 hover:text-black transition-all"
-            >
-                {{ joinForm.processing ? 'CONNECTING...' : 'REQUEST_ACCESS' }}
-            </button>
-        </form>
+        <h2 class="text-cyan-400 mb-4">>> JOIN_VIA_HOME_BUTTON</h2>
+        <p class="text-[10px] uppercase text-slate-300 leading-relaxed">
+            Fitur join via kode sudah dinonaktifkan.
+            Untuk bergabung ke party, buka halaman Home User lalu klik tombol
+            <span class="text-emerald-400">Request_Access</span> pada kartu party.
+        </p>
+        <Link
+            :href="route('lobby')"
+            class="mt-4 inline-block border-2 border-cyan-500 px-4 py-2 text-cyan-300 hover:bg-cyan-500 hover:text-black transition-all uppercase text-[10px]"
+        >
+            Back_To_Home
+        </Link>
     </div>
 </template>

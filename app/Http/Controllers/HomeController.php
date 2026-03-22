@@ -142,7 +142,6 @@ class HomeController extends Controller
                 'uuid',
                 'name',
                 'description',
-                'invite_code',
                 'max_members',
                 'job_id',
             ])

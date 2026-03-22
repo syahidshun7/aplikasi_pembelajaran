@@ -14,6 +14,7 @@ const props = defineProps({
 
 const page = usePage();
 const authUser = computed(() => page.props?.auth?.user || null);
+const isAdmin = computed(() => ['super_admin', 'admin'].includes(String(authUser.value?.role || '').toLowerCase()));
 const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(String(authUser.value?.role || '').toLowerCase()));
 const notificationItems = computed(() => props.notifications?.data || []);
 const notificationMeta = computed(() => props.notifications?.meta || {});
@@ -28,6 +29,7 @@ const categoryLabels = {
     grade: 'Grade',
     chat: 'Chat',
     event: 'Event',
+    study_group: 'Study Group',
     announcement: 'Announcement',
     general: 'General',
 };
@@ -107,6 +109,7 @@ const resourceReference = (notification) => {
 const resolvedActionUrl = (notification) => {
     return resolveNotificationActionUrl(notification, {
         isStaff: isStaff.value,
+        isAdmin: isAdmin.value,
         routeFn: route,
         currentUrl: page.url,
     });

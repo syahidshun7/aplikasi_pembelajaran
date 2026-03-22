@@ -52,7 +52,7 @@ const removeMember = (member) => {
                 <div>
                     <h1 class="text-base sm:text-xl uppercase tracking-widest">Group_Detail</h1>
                     <p class="text-[8px] text-slate-500 mt-2 uppercase">
-                        {{ group.name }} | CODE: {{ group.invite_code }}
+                        {{ group.name }} | ID: {{ group.uuid?.substring(0, 8) }}
                     </p>
                 </div>
                 <Link :href="route('groups.manage')" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white uppercase text-[9px] sm:text-[10px]">[Back]</Link>

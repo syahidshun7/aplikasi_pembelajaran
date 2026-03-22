@@ -1,6 +1,7 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Events\JoinGroupRequested;
 use App\Models\StudyGroup;
 use App\Models\StudyGroupJoinRequest;
 use App\Support\Cache\CacheVersion;
@@ -47,23 +48,27 @@ class StudyGroupController extends Controller
     // Logic JOIN Party
     public function join(Request $request)
     {
-        $validated = $request->validate(['invite_code' => 'required|string|max:255']);
-        $inviteCode = strtoupper(trim($validated['invite_code']));
+        $validated = $request->validate([
+            'study_group_uuid' => ['required', 'uuid'],
+        ]);
+        $groupUuid = trim((string) $validated['study_group_uuid']);
         $userId = (int) Auth::id();
 
-        $group = StudyGroup::where('invite_code', $inviteCode)->first();
+        $group = StudyGroup::query()
+            ->where('uuid', $groupUuid)
+            ->first();
         if (! $group) {
-            return back()->withErrors(['invite_code' => 'KODE_INVALID: Party tidak ditemukan.']);
+            return back()->withErrors(['study_group_uuid' => 'GROUP_NOT_FOUND: Party tidak ditemukan.']);
         }
 
         $user = Auth::user();
         if ((int) $group->job_id !== (int) ($user->job_id ?? 0)) {
-            // Jangan bocorkan detail mismatch jobs, tampilkan seperti kode tidak valid.
-            return back()->withErrors(['invite_code' => 'KODE_INVALID: Party tidak ditemukan.']);
+            // Jangan bocorkan detail mismatch jobs, tampilkan seperti group tidak ditemukan.
+            return back()->withErrors(['study_group_uuid' => 'GROUP_NOT_FOUND: Party tidak ditemukan.']);
         }
 
         if ($group->users()->where('user_id', $userId)->exists()) {
-            return back()->withErrors(['invite_code' => 'ALREADY_MEMBER: Kamu sudah di dalam party ini.']);
+            return back()->withErrors(['study_group_uuid' => 'ALREADY_MEMBER: Kamu sudah di dalam party ini.']);
         }
 
         $joinRequest = StudyGroupJoinRequest::firstOrNew([
@@ -72,12 +77,18 @@ class StudyGroupController extends Controller
         ]);
 
         if ($joinRequest->exists && $joinRequest->status === 'pending') {
-            return back()->withErrors(['invite_code' => 'REQUEST_PENDING: Menunggu persetujuan admin group.']);
+            return back()->withErrors(['study_group_uuid' => 'REQUEST_PENDING: Menunggu persetujuan admin group.']);
         }
 
         $joinRequest->status = 'pending';
         $joinRequest->processed_by = null;
         $joinRequest->save();
+        JoinGroupRequested::dispatch(
+            $joinRequest->loadMissing([
+                'user:id,name,username,email',
+                'studyGroup:id,uuid,name',
+            ])
+        );
 
         return back()->with('message', 'JOIN_REQUEST_SENT_WAITING_APPROVAL');
     }

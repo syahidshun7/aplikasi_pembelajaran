@@ -6,7 +6,7 @@ export function useLobby(props) {
     const page = usePage();
 
     const joinForm = useForm({
-        invite_code: '',
+        study_group_uuid: '',
     });
 
     const handleLeave = (uuid) => {
@@ -22,8 +22,8 @@ export function useLobby(props) {
             });
     };
 
-    const handleJoin = (code) => {
-        joinForm.invite_code = code;
+    const handleJoin = (groupUuid) => {
+        joinForm.study_group_uuid = groupUuid;
         joinForm.post(route('groups.join'), {
             onSuccess: () => {
                 joinForm.reset();

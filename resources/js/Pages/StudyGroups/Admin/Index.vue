@@ -241,7 +241,7 @@ const goToPage = (url) => {
 
                                 <div class="flex justify-between items-start mb-2">
                                     <div class="flex-1">
-                                        <div class="text-[8px] text-slate-500 mb-1 uppercase tracking-tighter">ID: {{ g.uuid.substring(0,8) }} // CODE: {{ g.invite_code }}</div>
+                                        <div class="text-[8px] text-slate-500 mb-1 uppercase tracking-tighter">ID: {{ g.uuid.substring(0,8) }}</div>
                                         <div class="text-[7px] text-cyan-400 uppercase mb-1">
                                             JOB: {{ g.job?.name || 'UNASSIGNED' }}
                                         </div>

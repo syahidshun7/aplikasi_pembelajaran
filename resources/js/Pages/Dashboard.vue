@@ -7,17 +7,11 @@ const props = defineProps({
     stats: Object,
     students: Object,
     helpUsers: Array,
-    pendingSubmissions: Array,
     scope: Object,
-    recentLogs: Array,
-    errorLogs: {
-        type: Array,
-        default: () => []
-    }
 });
 
 const page = usePage();
-const isSuperAdmin = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase() === 'admin');
+const isAdminAccess = computed(() => ['super_admin', 'admin'].includes(String(page.props?.auth?.user?.role || '').toLowerCase()));
 const isMentor = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase() === 'mentor');
 const performanceTab = ref('all'); // all | help
 
@@ -34,19 +28,6 @@ const getRiskColor = (grade) => {
     if (grade < 60) return 'text-red-400';
     if (grade < 75) return 'text-orange-400';
     return 'text-slate-300';
-};
-
-
-
-
-
-
-
-const formatTime = (iso) => {
-    if (!iso) return '-';
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return '-';
-    return date.toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit' });
 };
 </script>
 
@@ -101,7 +82,7 @@ const formatTime = (iso) => {
                             class="menu-btn border-yellow-500 text-yellow-500 bg-yellow-900/10 hover:bg-yellow-500 hover:text-black">
                             [+] QUEST
                         </Link>
-                        <Link v-if="isSuperAdmin" :href="route('admin.jobs.index')"
+                        <Link v-if="isAdminAccess" :href="route('admin.jobs.index')"
                             class="menu-btn border-cyan-500 text-cyan-300 bg-cyan-900/10 hover:bg-cyan-300 hover:text-black">
                             [J] JOBS
                         </Link>
@@ -113,11 +94,11 @@ const formatTime = (iso) => {
                             class="menu-btn border-blue-500 text-blue-300 bg-blue-900/10 hover:bg-blue-300 hover:text-black">
                             [E] EVENTS
                         </Link>
-                        <Link v-if="isSuperAdmin" :href="route('admin.shop-items.index')"
+                        <Link v-if="isAdminAccess" :href="route('admin.shop-items.index')"
                             class="menu-btn border-amber-500 text-amber-300 bg-amber-900/10 hover:bg-amber-300 hover:text-black">
                             [$] SHOP_ITEMS
                         </Link>
-                        <Link v-if="isSuperAdmin" :href="route('admin.submissions.manage.index')"
+                        <Link v-if="isAdminAccess" :href="route('admin.submissions.manage.index')"
                             class="menu-btn border-cyan-500 text-cyan-400 bg-cyan-900/10 hover:bg-cyan-400 hover:text-black">
                             [S] SUBMISSIONS
                         </Link>
@@ -126,13 +107,17 @@ const formatTime = (iso) => {
                             [O] GUIDE
                         </Link>
                         
-                         <Link v-if="isSuperAdmin" :href="route('groups.manage')"
+                         <Link v-if="isAdminAccess" :href="route('groups.manage')"
                             class="menu-btn border-emerald-500 text-emerald-400 bg-emerald-900/10 hover:bg-emerald-500 hover:text-black">
                             [U] STUDY_GROUP
                         </Link>
-                        <Link v-if="isSuperAdmin" :href="route('admin.users.index')"
+                        <Link v-if="isAdminAccess" :href="route('admin.users.index')"
                             class="menu-btn border-orange-500 text-orange-400 bg-orange-900/10 hover:bg-orange-500 hover:text-black">
                             [!] USERS
+                        </Link>
+                        <Link v-if="isAdminAccess" :href="route('admin.error-logs.index')"
+                            class="menu-btn border-rose-500 text-rose-300 bg-rose-900/10 hover:bg-rose-400 hover:text-black">
+                            [X] ERROR_LOGS
                         </Link>
                        
                     </nav>
@@ -252,88 +237,43 @@ const formatTime = (iso) => {
                     </div>
 
                     <div class="col-span-12 xl:col-span-5 space-y-6">
-                        <div class="rpg-panel border-red-500/30 bg-black/20">
+                        <div class="rpg-panel border-cyan-500/30 bg-black/20">
                             <div class="flex items-center justify-between mb-4 border-b border-slate-700 pb-3">
-                                <h2 class="text-[10px] text-red-400 uppercase tracking-widest">Pending_Inbox</h2>
-                                <span class="text-[8px] text-slate-400 uppercase">
-                                    {{ isMentor ? 'Job_Scoped' : 'Global' }}
-                                </span>
+                                <h2 class="text-[10px] text-cyan-300 uppercase tracking-widest">Quick_Operations</h2>
                             </div>
 
-                            <div class="space-y-3 max-h-[420px] overflow-y-auto pr-2 custom-scroll">
-                                <div
-                                    v-for="item in pendingSubmissions"
-                                    :key="item.uuid"
-                                    class="p-3 border border-slate-700 bg-black/30"
+                            <div class="grid grid-cols-1 gap-3">
+                                <Link
+                                    v-if="isAdminAccess"
+                                    :href="route('admin.submissions.manage.index')"
+                                    class="px-3 py-3 border border-amber-600 text-amber-300 hover:bg-amber-400 hover:text-black uppercase text-[9px] transition-colors"
                                 >
-                                    <div class="flex items-start justify-between gap-3">
-                                        <div class="min-w-0">
-                                            <p class="text-[8px] text-slate-400 uppercase">
-                                                {{ formatTime(item.created_at) }} | {{ item.user?.name || 'Unknown' }}
-                                            </p>
-                                            <p class="text-[9px] text-white uppercase mt-1 break-words">
-                                                {{ item.quest?.title || 'Unknown Quest' }}
-                                            </p>
-                                            <p class="text-[7px] text-slate-500 uppercase mt-1">
-                                                SUB_ID: {{ String(item.uuid || '').substring(0, 8) }}
-                                            </p>
-                                        </div>
-                                        <Link
-                                            :href="route('admin.submissions.inspect', item.uuid)"
-                                            class="shrink-0 px-2 py-1 border border-red-500 text-red-400 hover:bg-red-500 hover:text-black uppercase text-[8px]"
-                                        >
-                                            [Review]
-                                        </Link>
-                                    </div>
-                                </div>
-
-                                <p v-if="!pendingSubmissions || pendingSubmissions.length === 0" class="text-[8px] text-slate-500 uppercase italic text-center py-6">
-                                    Inbox clear. No pending submissions.
-                                </p>
+                                    [Open] Submission_Management
+                                </Link>
+                                <Link
+                                    v-if="isAdminAccess"
+                                    :href="route('admin.error-logs.index')"
+                                    class="px-3 py-3 border border-rose-600 text-rose-300 hover:bg-rose-400 hover:text-black uppercase text-[9px] transition-colors"
+                                >
+                                    [Open] Server_Error_Logs
+                                </Link>
+                                <Link
+                                    :href="route('notifications.index')"
+                                    class="px-3 py-3 border border-cyan-600 text-cyan-300 hover:bg-cyan-400 hover:text-black uppercase text-[9px] transition-colors"
+                                >
+                                    [Open] Notification_Center
+                                </Link>
                             </div>
                         </div>
 
-                        <div class="rpg-panel h-48 overflow-y-auto custom-scroll border-slate-700 bg-black/20">
-                            <div class="flex items-center justify-between mb-2">
-                                <h2 class="text-[8px] text-slate-300 uppercase tracking-widest">Server_Error_Log</h2>
-                                <div class="flex items-center gap-2 text-[8px] text-slate-500 uppercase">
-                                    <span>Last 12</span>
-                                    <Link :href="route('admin.error-logs.index')" class="px-2 py-1 border border-slate-600 bg-slate-900/60 text-slate-200 hover:text-white">[View_All]</Link>
-                                </div>
-                            </div>
-
-                            <div v-if="errorLogs && errorLogs.length" class="space-y-2 custom-scroll">
-                                <div
-                                    v-for="log in errorLogs"
-                                    :key="log.id"
-                                    class="p-2 border border-slate-700 bg-slate-900/30"
-                                >
-                                    <div class="flex items-start justify-between gap-3">
-                                        <div class="min-w-0">
-                                            <p class="text-[8px] text-slate-400 uppercase">
-                                                {{ log.created_at || '-' }} | {{ log.method }} | {{ log.status_code }}
-                                            </p>
-                                            <p class="text-[9px] text-red-300 uppercase mt-1 break-words line-clamp-2">
-                                                {{ log.message || '(no message)' }}
-                                            </p>
-                                            <p class="text-[7px] text-slate-500 uppercase mt-1 break-words">
-                                                {{ log.url || '-' }}
-                                            </p>
-                                            <p class="text-[7px] text-slate-500 uppercase mt-1">
-                                                Trace: {{ (log.trace_id || '').substring(0, 8) }} | IP: {{ log.ip || '-' }} | UID: {{ log.user_id || '-' }}
-                                            </p>
-                                        </div>
-                                        <span class="px-2 py-1 text-[8px] uppercase border border-red-500 text-red-300">
-                                            {{ log.exception_class ? log.exception_class.split('\\\\').pop() : 'Exception' }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div v-else class="space-y-1 text-[8px] text-green-500/70 font-mono">
-                                <p v-for="(log, i) in recentLogs" :key="i">> {{ log }}</p>
-                                <p v-if="!recentLogs || recentLogs.length === 0" class="text-slate-500 uppercase">No logs.</p>
-                            </div>
+                        <div class="rpg-panel border-slate-700 bg-black/20">
+                            <h2 class="text-[9px] text-slate-300 uppercase tracking-widest mb-3">Console_Note</h2>
+                            <p class="text-[8px] text-slate-400 uppercase leading-relaxed">
+                                Pending inbox dan preview error log sudah dipindahkan dari dashboard agar query lebih ringan.
+                            </p>
+                            <p class="text-[8px] text-slate-500 uppercase leading-relaxed mt-2">
+                                Gunakan menu khusus untuk monitoring submission dan error log secara detail.
+                            </p>
                         </div>
                     </div>
                 </div>

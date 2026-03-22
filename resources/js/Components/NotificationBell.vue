@@ -107,8 +107,11 @@ const markAllAsRead = async () => {
 };
 
 const resolvedActionUrl = (notification) => {
+    const currentRole = String(authUser.value?.role || '').toLowerCase();
+
     return resolveNotificationActionUrl(notification, {
-        isStaff: ['super_admin', 'admin', 'mentor'].includes(String(authUser.value?.role || '').toLowerCase()),
+        isStaff: ['super_admin', 'admin', 'mentor'].includes(currentRole),
+        isAdmin: ['super_admin', 'admin'].includes(currentRole),
         routeFn: route,
         currentUrl: page.url,
     });

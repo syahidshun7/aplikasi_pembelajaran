@@ -407,7 +407,7 @@ const closeMobileMenu = () => {
                             <h2 class="text-emerald-400 text-[10px] uppercase tracking-widest flex items-center gap-2">
                                 <i class="fi fi-rr-users text-[12px] text-emerald-300 animate-pulse"></i> Active_Parties [{{ studyGroups.length }}]
                             </h2>
-                            <span class="text-[10px] text-slate-500 uppercase font-mono">Join_via_Code</span>
+                            <span class="text-[10px] text-slate-500 uppercase font-mono">Join_via_Request</span>
                         </div>
 
                         <div
@@ -431,7 +431,7 @@ const closeMobileMenu = () => {
 
                                 <div class="flex justify-between items-center">
                                     <span class="text-[10px] text-slate-600 uppercase font-mono tracking-tighter">
-                                        Code: {{ group.invite_code }}
+                                        Party_ID: {{ group.uuid?.substring(0, 8) }}
                                     </span>
 
                                     <button v-if="group.is_member" @click="handleLeave(group.uuid)"
@@ -444,7 +444,7 @@ const closeMobileMenu = () => {
                                         Request_Pending
                                     </button>
 
-                                    <button v-else @click="handleJoin(group.invite_code)"
+                                    <button v-else @click="handleJoin(group.uuid)"
                                         :disabled="joinForm.processing"
                                         class="text-[9px] bg-emerald-900/50 text-emerald-400 px-3 py-1 border border-emerald-700 hover:bg-emerald-500 hover:text-black transition-all uppercase font-['Press_Start_2P']">
                                         {{ joinForm.processing ? 'Sending...' : 'Request_Access' }}

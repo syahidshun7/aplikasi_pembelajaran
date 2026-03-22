@@ -9,10 +9,12 @@ const mobileMenuOpen = ref(false);
 const desktopMenuOpen = ref(false);
 const authUser = computed(() => page.props?.auth?.user || null);
 const currentRole = computed(() => String(authUser.value?.role || 'user').toLowerCase());
-const isSuperAdmin = computed(() => currentRole.value === 'admin');
+const isAdminAccess = computed(() => ['super_admin', 'admin'].includes(currentRole.value));
+const isTrueSuperAdmin = computed(() => currentRole.value === 'super_admin');
 const isMentor = computed(() => currentRole.value === 'mentor');
 const roleLabel = computed(() => {
-    if (isSuperAdmin.value) return 'SUPER_ADMIN';
+    if (isTrueSuperAdmin.value) return 'SUPER_ADMIN';
+    if (currentRole.value === 'admin') return 'ADMIN';
     if (isMentor.value) return 'MENTOR';
     return currentRole.value.toUpperCase();
 });
@@ -96,11 +98,12 @@ const handleLogout = () => {
                     <Link :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
                     <Link :href="route('admin.task-banks.index')" class="dropdown-item" @click="closeAllMenus">TASK BANK</Link>
                     <Link :href="route('admin.rubrics.index')" class="dropdown-item" @click="closeAllMenus">RUBRICS</Link>
-                    <Link v-if="isSuperAdmin" :href="route('admin.jobs.index')" class="dropdown-item" @click="closeAllMenus">JOBS</Link>
-                    <Link v-if="isSuperAdmin" :href="route('admin.shop-items.index')" class="dropdown-item" @click="closeAllMenus">SHOP ITEMS</Link>
-                    <Link v-if="isSuperAdmin" :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
-                    <Link v-if="isSuperAdmin" :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>
-                    <Link v-if="isSuperAdmin" :href="route('admin.users.index')" class="dropdown-item" @click="closeAllMenus">USERS</Link>
+                    <Link v-if="isAdminAccess" :href="route('admin.jobs.index')" class="dropdown-item" @click="closeAllMenus">JOBS</Link>
+                    <Link v-if="isAdminAccess" :href="route('admin.shop-items.index')" class="dropdown-item" @click="closeAllMenus">SHOP ITEMS</Link>
+                    <Link v-if="isAdminAccess" :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
+                    <Link v-if="isAdminAccess" :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>
+                    <Link v-if="isAdminAccess" :href="route('admin.users.index')" class="dropdown-item" @click="closeAllMenus">USERS</Link>
+                    <Link v-if="isAdminAccess" :href="route('admin.error-logs.index')" class="dropdown-item" @click="closeAllMenus">ERROR LOGS</Link>
                     <button @click="handleLogout" class="dropdown-item w-full text-left text-red-400 hover:text-white">
                         DISCONNECT
                     </button>
@@ -126,11 +129,12 @@ const handleLogout = () => {
                 <Link :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
                 <Link :href="route('admin.task-banks.index')" class="dropdown-item" @click="closeAllMenus">TASK BANK</Link>
                 <Link :href="route('admin.rubrics.index')" class="dropdown-item" @click="closeAllMenus">RUBRICS</Link>
-                <Link v-if="isSuperAdmin" :href="route('admin.jobs.index')" class="dropdown-item" @click="closeAllMenus">JOBS</Link>
-                <Link v-if="isSuperAdmin" :href="route('admin.shop-items.index')" class="dropdown-item" @click="closeAllMenus">SHOP ITEMS</Link>
-                <Link v-if="isSuperAdmin" :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
-                <Link v-if="isSuperAdmin" :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>
-                <Link v-if="isSuperAdmin" :href="route('admin.users.index')" class="dropdown-item" @click="closeAllMenus">USERS</Link>
+                <Link v-if="isAdminAccess" :href="route('admin.jobs.index')" class="dropdown-item" @click="closeAllMenus">JOBS</Link>
+                <Link v-if="isAdminAccess" :href="route('admin.shop-items.index')" class="dropdown-item" @click="closeAllMenus">SHOP ITEMS</Link>
+                <Link v-if="isAdminAccess" :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
+                <Link v-if="isAdminAccess" :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>
+                <Link v-if="isAdminAccess" :href="route('admin.users.index')" class="dropdown-item" @click="closeAllMenus">USERS</Link>
+                <Link v-if="isAdminAccess" :href="route('admin.error-logs.index')" class="dropdown-item" @click="closeAllMenus">ERROR LOGS</Link>
                 <button @click="handleLogout" class="dropdown-item w-full text-left text-red-400 hover:text-white">
                     DISCONNECT
                 </button>
