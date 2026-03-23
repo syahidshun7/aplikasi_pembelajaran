@@ -7,13 +7,14 @@ use App\Notifications\Auth\CustomVerifyEmail;
 use App\Models\StudyGroup;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, SoftDeletes;
 
     public const ROLE_SUPER_ADMIN = 'super_admin';
     public const ROLE_ADMIN = 'admin';
@@ -68,7 +69,8 @@ class User extends Authenticatable implements MustVerifyEmail
 public function studyGroups()
 {
     return $this->belongsToMany(StudyGroup::class, 'group_user', 'user_id', 'study_group_id')
-                ->withPivot('role')
+                ->withPivot(['role', 'deleted_at'])
+                ->wherePivotNull('deleted_at')
                 ->withTimestamps();
 }
 

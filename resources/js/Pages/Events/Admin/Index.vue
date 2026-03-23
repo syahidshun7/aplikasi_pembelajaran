@@ -32,10 +32,12 @@ const form = useForm({
 
 const filterForm = useForm({
     search: props.filters?.search || '',
+    view: props.filters?.view || 'active',
 });
 
 const eventItems = computed(() => props.events?.data || []);
 const paginationLinks = computed(() => props.events?.links || []);
+const isTrashView = computed(() => filterForm.view === 'trash');
 
 const applyMentorDefaultStudyGroup = () => {
     if (isMentor.value && !form.study_group_id) {
@@ -144,6 +146,31 @@ const executeDelete = () => {
     });
 };
 
+const restoreEvent = (uuid) => {
+    router.patch(route('admin.events.restore', uuid), {}, {
+        preserveScroll: true,
+    });
+};
+
+const hardDeleteEvent = (uuid) => {
+    Swal.fire({
+        title: 'HARD_DELETE_EVENT?',
+        text: 'Event akan dihapus permanen dan tidak bisa dipulihkan.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'DELETE_PERMANENTLY',
+        cancelButtonText: 'CANCEL',
+        background: '#1a1c2c',
+        color: '#4ed4d4',
+        confirmButtonColor: '#dc2626',
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+        router.delete(route('admin.events.force-destroy', uuid), {
+            preserveScroll: true,
+        });
+    });
+};
+
 const applyFilters = () => {
     router.get(route('admin.events.index'), filterForm.data(), {
         preserveState: true,
@@ -153,6 +180,13 @@ const applyFilters = () => {
 
 const resetFilters = () => {
     filterForm.search = '';
+    applyFilters();
+};
+
+const setView = (view) => {
+    if (filterForm.view === view) return;
+    filterForm.view = view;
+    cancelEdit();
     applyFilters();
 };
 
@@ -297,7 +331,25 @@ watch(() => form.study_group_id, () => {
 
                 <div class="col-span-12 lg:col-span-7">
                     <div class="rpg-panel border-slate-700 h-full">
-                        <h2 class="text-white mb-6 uppercase tracking-tighter">>> ACTIVE_EVENTS_BOARD</h2>
+                        <h2 class="text-white mb-6 uppercase tracking-tighter">
+                            >> {{ isTrashView ? 'TRASH_EVENTS_BOARD' : 'ACTIVE_EVENTS_BOARD' }}
+                        </h2>
+                        <div class="mb-4 flex gap-2">
+                            <button
+                                @click="setView('active')"
+                                class="px-3 py-2 border-2 uppercase"
+                                :class="isTrashView ? 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white' : 'border-blue-400 text-blue-300 bg-blue-900/20'"
+                            >
+                                ACTIVE
+                            </button>
+                            <button
+                                @click="setView('trash')"
+                                class="px-3 py-2 border-2 uppercase"
+                                :class="isTrashView ? 'border-amber-500 text-amber-300 bg-amber-900/20' : 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white'"
+                            >
+                                TRASH
+                            </button>
+                        </div>
 
                         <div class="mb-4 flex flex-col md:flex-row gap-2">
                             <input
@@ -337,8 +389,11 @@ watch(() => form.study_group_id, () => {
                                             TARGET:
                                             {{ event.study_group?.name || (event.job?.name ? `PUBLIC_${event.job.name}` : 'PUBLIC_ALL') }}
                                         </div>
-                                        <div class="text-[7px] text-slate-300 uppercase mt-1 break-words">
+                                        <div v-if="!isTrashView" class="text-[7px] text-slate-300 uppercase mt-1 break-words">
                                             {{ formatScheduleText(event.starts_at, event.ends_at) }}
+                                        </div>
+                                        <div v-else class="text-[7px] text-amber-300 uppercase mt-1 break-words">
+                                            DELETED_AT: {{ new Date(event.deleted_at).toLocaleString('id-ID') }}
                                         </div>
                                     </div>
                                     <div class="text-right">
@@ -357,22 +412,39 @@ watch(() => form.study_group_id, () => {
 
                                 <div class="flex gap-4 self-end mt-2">
                                     <Link
+                                        v-if="!isTrashView"
                                         :href="route('admin.events.detail', event.uuid)"
                                         class="text-cyan-400 hover:text-white text-[8px] uppercase font-bold"
                                     >
                                         [Detail]
                                     </Link>
                                     <button
+                                        v-if="!isTrashView"
                                         @click="startEdit(event)"
                                         class="text-emerald-500 hover:text-white text-[8px] uppercase font-bold"
                                     >
                                         [Edit]
                                     </button>
                                     <button
+                                        v-if="!isTrashView"
                                         @click="confirmDelete(event.uuid)"
                                         class="text-red-500 hover:text-white text-[8px] uppercase font-bold"
                                     >
                                         [Delete]
+                                    </button>
+                                    <button
+                                        v-if="isTrashView"
+                                        @click="restoreEvent(event.uuid)"
+                                        class="text-emerald-400 hover:text-white text-[8px] uppercase font-bold"
+                                    >
+                                        [Restore]
+                                    </button>
+                                    <button
+                                        v-if="isTrashView"
+                                        @click="hardDeleteEvent(event.uuid)"
+                                        class="text-red-500 hover:text-white text-[8px] uppercase font-bold"
+                                    >
+                                        [Hard_Delete]
                                     </button>
                                 </div>
                             </div>
@@ -417,7 +489,7 @@ watch(() => form.study_group_id, () => {
                 <div class="p-8 space-y-6">
                     <div class="border-l-2 border-red-900 pl-4">
                         <p class="text-slate-200 text-[10px] leading-relaxed uppercase">
-                            Are you sure you want to remove this event?
+                            Move this event to trash?
                         </p>
                     </div>
                 </div>
@@ -427,7 +499,7 @@ watch(() => form.study_group_id, () => {
                         :disabled="form.processing"
                         class="flex-1 py-3 bg-red-600/20 border-2 border-red-600 text-red-500 hover:bg-red-600 hover:text-white transition-all uppercase font-bold text-[9px]"
                     >
-                        {{ form.processing ? 'DELETING...' : 'PROCEED' }}
+                        {{ form.processing ? 'ARCHIVING...' : 'ARCHIVE' }}
                     </button>
                     <button
                         @click="showDeleteModal = false"

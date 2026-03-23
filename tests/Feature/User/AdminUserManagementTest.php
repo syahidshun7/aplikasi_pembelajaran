@@ -72,7 +72,7 @@ test('admin can delete another user account but cannot delete self', function ()
         ->delete(route('admin.users.destroy', $target->id));
 
     $deleteResponse->assertRedirect(route('admin.users.index'));
-    $this->assertDatabaseMissing('users', ['id' => $target->id]);
+    $this->assertSoftDeleted('users', ['id' => $target->id]);
 
     $selfDeleteResponse = $this->actingAs($admin)
         ->from(route('admin.users.index'))
@@ -80,5 +80,38 @@ test('admin can delete another user account but cannot delete self', function ()
 
     $selfDeleteResponse->assertRedirect(route('admin.users.index'));
     $selfDeleteResponse->assertSessionHasErrors('user');
-    $this->assertDatabaseHas('users', ['id' => $admin->id]);
+    $this->assertDatabaseHas('users', ['id' => $admin->id, 'deleted_at' => null]);
+});
+
+test('admin can restore and hard delete a trashed user', function () {
+    $admin = User::factory()->create([
+        'role' => 'admin',
+        'email_verified_at' => now(),
+    ]);
+
+    $target = User::factory()->create();
+
+    $this->actingAs($admin)
+        ->delete(route('admin.users.destroy', $target->id))
+        ->assertRedirect();
+
+    $this->assertSoftDeleted('users', ['id' => $target->id]);
+
+    $this->actingAs($admin)
+        ->patch(route('admin.users.restore', $target->id))
+        ->assertRedirect();
+
+    $this->assertDatabaseHas('users', ['id' => $target->id, 'deleted_at' => null]);
+
+    $this->actingAs($admin)
+        ->delete(route('admin.users.destroy', $target->id))
+        ->assertRedirect();
+
+    $this->assertSoftDeleted('users', ['id' => $target->id]);
+
+    $this->actingAs($admin)
+        ->delete(route('admin.users.force-destroy', $target->id))
+        ->assertRedirect();
+
+    $this->assertDatabaseMissing('users', ['id' => $target->id]);
 });

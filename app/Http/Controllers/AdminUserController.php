@@ -26,12 +26,14 @@ class AdminUserController extends Controller
             'role' => ['nullable', Rule::in(array_merge(['all'], User::assignableRoles()))],
             'rank_by' => ['nullable', 'in:newest,highest_gold,highest_exp,highest_grade'],
             'grade_order' => ['nullable', 'in:none,asc,desc'],
+            'view' => ['nullable', 'in:active,trash'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
         $role = (string) ($validated['role'] ?? 'all');
         $rankBy = (string) ($validated['rank_by'] ?? 'newest');
         $gradeOrder = (string) ($validated['grade_order'] ?? 'none');
+        $view = (string) ($validated['view'] ?? 'active');
         if ($rankBy === 'highest_grade' && $gradeOrder === 'none') {
             // Backward compatibility for old query params.
             $gradeOrder = 'desc';
@@ -40,6 +42,7 @@ class AdminUserController extends Controller
         $levelColumn = Schema::hasColumn('users', 'lvl') ? 'lvl' : 'level';
 
         $users = User::query()
+            ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
             ->with([
                 'detailUser:id,user_id,bio,experience,location,skills',
                 'job:id,name',
@@ -91,6 +94,7 @@ class AdminUserController extends Controller
                 'exp',
                 $levelColumn,
                 'created_at',
+                'deleted_at',
             ])
             ->withQueryString();
 
@@ -113,6 +117,7 @@ class AdminUserController extends Controller
 
             $userGroupIdsMap = DB::table('group_user')
                 ->whereIn('user_id', $userIds)
+                ->whereNull('deleted_at')
                 ->select('user_id', 'study_group_id')
                 ->get()
                 ->groupBy('user_id')
@@ -176,6 +181,7 @@ class AdminUserController extends Controller
                 'role' => $role,
                 'rank_by' => $rankBy,
                 'grade_order' => $gradeOrder,
+                'view' => $view,
             ],
         ]);
     }
@@ -349,13 +355,49 @@ class AdminUserController extends Controller
             ]);
         }
 
+        DB::table('sessions')->where('user_id', $user->id)->delete();
+        $user->delete();
+        CacheVersion::bump('home');
+        CacheVersion::bump('dashboard');
+        CacheVersion::bump('landing');
+
+        return back()->with('message', 'USER_ACCOUNT_DELETED');
+    }
+
+    public function restore(int $userId): RedirectResponse
+    {
+        $user = User::onlyTrashed()->findOrFail($userId);
+        $user->restore();
+
+        CacheVersion::bump('home');
+        CacheVersion::bump('dashboard');
+        CacheVersion::bump('landing');
+
+        return back()->with('message', 'USER_ACCOUNT_RESTORED');
+    }
+
+    public function forceDestroy(Request $request, int $userId): RedirectResponse
+    {
+        $user = User::onlyTrashed()->findOrFail($userId);
+
+        if ((int) $request->user()->id === (int) $user->id) {
+            return back()->withErrors([
+                'user' => 'Kamu tidak bisa menghapus permanen akun admin yang sedang login.',
+            ]);
+        }
+
         if ($user->profile_photo && Storage::disk('public')->exists($user->profile_photo)) {
             Storage::disk('public')->delete($user->profile_photo);
         }
 
         DB::table('sessions')->where('user_id', $user->id)->delete();
-        $user->delete();
+        $user->notifications()->delete();
+        $user->forceDelete();
 
-        return back()->with('message', 'USER_ACCOUNT_DELETED');
+        CacheVersion::bump('home');
+        CacheVersion::bump('dashboard');
+        CacheVersion::bump('landing');
+
+        return back()->with('message', 'USER_ACCOUNT_PERMANENTLY_DELETED');
     }
 }

@@ -5,9 +5,11 @@ use App\Support\DateTimeInput;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Quest extends Model
 {
+use SoftDeletes;
    
 protected $fillable = ['uuid','title','status', 'description', 'reward_exp', 'reward_gold','difficulty', 'is_completed','study_group_id','task_bank_id','rubric_id','deadline'];
 

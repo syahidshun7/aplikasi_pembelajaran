@@ -20,4 +20,9 @@ class HomeFeedObserver
     {
         CacheVersion::bump('home');
     }
+
+    public function restored(): void
+    {
+        CacheVersion::bump('home');
+    }
 }

@@ -13,6 +13,7 @@ const filterForm = useForm({
     search: props.filters?.search || '',
     status: props.filters?.status || 'all',
     duplicates: props.filters?.duplicates || '0',
+    view: props.filters?.view || 'active',
 });
 
 const editTarget = ref(null);
@@ -27,6 +28,7 @@ const editForm = useForm({
 
 const rows = computed(() => props.submissions?.data || []);
 const paginationLinks = computed(() => props.submissions?.links || []);
+const isTrashView = computed(() => filterForm.view === 'trash');
 
 const applyFilters = () => {
     router.get(route('admin.submissions.manage.index'), filterForm.data(), {
@@ -39,6 +41,12 @@ const resetFilters = () => {
     filterForm.search = '';
     filterForm.status = 'all';
     filterForm.duplicates = '0';
+    applyFilters();
+};
+
+const setView = (view) => {
+    if (filterForm.view === view) return;
+    filterForm.view = view;
     applyFilters();
 };
 
@@ -78,11 +86,11 @@ const saveEdit = () => {
 
 const removeSubmission = (row) => {
     Swal.fire({
-        title: 'DELETE_SUBMISSION?',
-        text: 'Data submission akan dihapus permanen.',
+        title: 'ARCHIVE_SUBMISSION?',
+        text: 'Data submission akan dipindah ke trash.',
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'YES_DELETE',
+        confirmButtonText: 'YES_ARCHIVE',
         cancelButtonText: 'CANCEL',
         background: '#1a1c2c',
         color: '#4ed4d4',
@@ -91,6 +99,32 @@ const removeSubmission = (row) => {
         if (!result.isConfirmed) return;
 
         router.delete(route('admin.submissions.manage.destroy', row.uuid), {
+            preserveScroll: true,
+        });
+    });
+};
+
+const restoreSubmission = (row) => {
+    router.patch(route('admin.submissions.manage.restore', row.uuid), {}, {
+        preserveScroll: true,
+    });
+};
+
+const hardDeleteSubmission = (row) => {
+    Swal.fire({
+        title: 'HARD_DELETE_SUBMISSION?',
+        text: 'Submission akan dihapus permanen dan tidak bisa dipulihkan.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'DELETE_PERMANENTLY',
+        cancelButtonText: 'CANCEL',
+        background: '#1a1c2c',
+        color: '#4ed4d4',
+        confirmButtonColor: '#b91c1c',
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+
+        router.delete(route('admin.submissions.manage.force-destroy', row.uuid), {
             preserveScroll: true,
         });
     });
@@ -125,6 +159,23 @@ const goToPage = (url) => {
             </div>
 
             <div class="rpg-panel border-slate-700">
+                <div class="flex gap-2 mb-4">
+                    <button
+                        @click="setView('active')"
+                        class="px-3 py-2 border-2 uppercase"
+                        :class="isTrashView ? 'border-slate-600 text-slate-300 hover:bg-slate-600 hover:text-white' : 'border-cyan-400 text-cyan-400 bg-cyan-900/20'"
+                    >
+                        ACTIVE
+                    </button>
+                    <button
+                        @click="setView('trash')"
+                        class="px-3 py-2 border-2 uppercase"
+                        :class="isTrashView ? 'border-amber-500 text-amber-300 bg-amber-900/20' : 'border-slate-600 text-slate-300 hover:bg-slate-600 hover:text-white'"
+                    >
+                        TRASH
+                    </button>
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5">
                     <input
                         v-model="filterForm.search"
@@ -176,7 +227,7 @@ const goToPage = (url) => {
                                 <th class="py-3 px-2">Grade</th>
                                 <th class="py-3 px-2">Reward</th>
                                 <th class="py-3 px-2">Dup</th>
-                                <th class="py-3 px-2">Date</th>
+                                <th class="py-3 px-2">{{ isTrashView ? 'Deleted' : 'Date' }}</th>
                                 <th class="py-3 px-2 text-right">Action</th>
                             </tr>
                         </thead>
@@ -209,7 +260,9 @@ const goToPage = (url) => {
                                         {{ row.duplicate_count || 1 }}
                                     </span>
                                 </td>
-                                <td class="py-3 px-2 text-slate-500 text-[8px]">{{ new Date(row.created_at).toLocaleString('id-ID') }}</td>
+                                <td class="py-3 px-2 text-slate-500 text-[8px]">
+                                    {{ new Date(isTrashView ? row.deleted_at : row.created_at).toLocaleString('id-ID') }}
+                                </td>
                                 <td class="py-3 px-2 text-right space-x-2">
                                     <Link
                                         :href="route('admin.submissions.inspect', { submission: row.uuid })"
@@ -218,16 +271,32 @@ const goToPage = (url) => {
                                         Inspect
                                     </Link>
                                     <button
+                                        v-if="!isTrashView"
                                         @click="openEdit(row)"
                                         class="px-2 py-1 border border-emerald-700 text-emerald-400 hover:bg-emerald-500 hover:text-black uppercase text-[8px]"
                                     >
                                         Edit
                                     </button>
                                     <button
+                                        v-if="!isTrashView"
                                         @click="removeSubmission(row)"
                                         class="px-2 py-1 border border-red-700 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[8px]"
                                     >
                                         Delete
+                                    </button>
+                                    <button
+                                        v-if="isTrashView"
+                                        @click="restoreSubmission(row)"
+                                        class="px-2 py-1 border border-emerald-700 text-emerald-400 hover:bg-emerald-500 hover:text-black uppercase text-[8px]"
+                                    >
+                                        Restore
+                                    </button>
+                                    <button
+                                        v-if="isTrashView"
+                                        @click="hardDeleteSubmission(row)"
+                                        class="px-2 py-1 border border-red-700 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[8px]"
+                                    >
+                                        Hard_Delete
                                     </button>
                                 </td>
                             </tr>

@@ -25,17 +25,21 @@ class AdminEventController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
+            'view' => ['nullable', 'in:active,trash'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
+        $view = (string) ($validated['view'] ?? 'active');
 
         $eventsQuery = Event::query()
+            ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
             ->with(['studyGroup:id,name', 'job:id,name'])
             ->withCount(['guides', 'quests']);
 
         if ($this->isMentorUser()) {
             $mentorJobId = $this->requireMentorJobId();
             $eventsQuery->whereHas('studyGroup', function ($query) use ($mentorJobId) {
+                $query->withTrashed();
                 $query->where('job_id', $mentorJobId);
             });
         }
@@ -66,6 +70,7 @@ class AdminEventController extends Controller
             'jobRoles' => JobRole::query()->orderBy('name')->get(['id', 'name']),
             'filters' => [
                 'search' => $search,
+                'view' => $view,
             ],
         ]);
     }
@@ -119,6 +124,30 @@ class AdminEventController extends Controller
         $event->delete();
 
         return back()->with('message', 'EVENT_DELETED');
+    }
+
+    public function restore(string $uuid): RedirectResponse
+    {
+        $event = Event::onlyTrashed()
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+        $this->assertMentorCanAccessEvent($event);
+
+        $event->restore();
+
+        return back()->with('message', 'EVENT_RESTORED');
+    }
+
+    public function forceDestroy(string $uuid): RedirectResponse
+    {
+        $event = Event::onlyTrashed()
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+        $this->assertMentorCanAccessEvent($event);
+
+        $event->forceDelete();
+
+        return back()->with('message', 'EVENT_PERMANENTLY_DELETED');
     }
 
     public function detail(Event $event): Response
@@ -198,7 +227,8 @@ class AdminEventController extends Controller
                 ->whereIn('users.id', function ($q) use ($event) {
                     $q->from('group_user')
                         ->select('user_id')
-                        ->where('study_group_id', $event->study_group_id);
+                        ->where('study_group_id', $event->study_group_id)
+                        ->whereNull('deleted_at');
                 })
                 ->orderBy('users.name')
                 ->get()
@@ -359,7 +389,8 @@ class AdminEventController extends Controller
                 ->whereIn('id', function ($q) use ($event) {
                     $q->from('group_user')
                         ->select('user_id')
-                        ->where('study_group_id', $event->study_group_id);
+                        ->where('study_group_id', $event->study_group_id)
+                        ->whereNull('deleted_at');
                 })
                 ->pluck('id');
         }
@@ -414,8 +445,11 @@ class AdminEventController extends Controller
         }
 
         $mentorJobId = $this->requireMentorJobId();
-        $event->loadMissing('studyGroup:id,job_id');
-        abort_unless((int) ($event->studyGroup?->job_id ?? 0) === $mentorJobId, 403, 'MENTOR_CANNOT_ACCESS_EVENT_OUTSIDE_JOB');
+        $groupJobId = (int) StudyGroup::withTrashed()
+            ->whereKey((int) ($event->study_group_id ?? 0))
+            ->value('job_id');
+
+        abort_unless($groupJobId === $mentorJobId, 403, 'MENTOR_CANNOT_ACCESS_EVENT_OUTSIDE_JOB');
     }
 
     private function assertMentorCanManageStudyGroupId(int $studyGroupId): void

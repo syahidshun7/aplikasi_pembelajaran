@@ -102,10 +102,6 @@ class AdminJobRoleController extends Controller
 
     public function destroy(JobRole $jobRole): RedirectResponse
     {
-        if ($jobRole->emblem_path && Storage::disk('public')->exists($jobRole->emblem_path)) {
-            Storage::disk('public')->delete($jobRole->emblem_path);
-        }
-
         $jobRole->delete();
 
         CacheVersion::bump('landing');

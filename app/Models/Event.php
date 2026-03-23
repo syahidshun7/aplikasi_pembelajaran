@@ -5,10 +5,13 @@ namespace App\Models;
 use App\Support\DateTimeInput;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
 class Event extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'uuid',
         'title',

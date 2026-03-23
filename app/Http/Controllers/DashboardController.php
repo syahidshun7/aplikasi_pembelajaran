@@ -125,6 +125,7 @@ class DashboardController extends Controller
 
                 $userGroupIdsMap = DB::table('group_user')
                     ->whereIn('user_id', $userIds)
+                    ->whereNull('deleted_at')
                     ->select('user_id', 'study_group_id')
                     ->distinct()
                     ->get()

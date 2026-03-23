@@ -22,11 +22,14 @@ class AdminStudyGroupController extends Controller
 
     $validated = $request->validate([
         'search' => ['nullable', 'string', 'max:255'],
+        'view' => ['nullable', 'in:active,trash'],
     ]);
     $search = trim((string) ($validated['search'] ?? ''));
+    $view = (string) ($validated['view'] ?? 'active');
 
     return Inertia::render('StudyGroups/Admin/Index', [
         'groups' => StudyGroup::query()
+            ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
             ->with('job:id,name')
             ->withCount([
                 'users',
@@ -46,6 +49,7 @@ class AdminStudyGroupController extends Controller
             ->withQueryString(),
         'filters' => [
             'search' => $search,
+            'view' => $view,
         ],
         'jobs' => JobRole::query()->orderBy('name')->get(['id', 'name', 'slug']),
     ]);
@@ -102,7 +106,8 @@ class AdminStudyGroupController extends Controller
                     ->whereIn('id', function ($q) use ($memberIds) {
                         $q->from('group_user')
                             ->select('study_group_id')
-                            ->whereIn('user_id', $memberIds);
+                            ->whereIn('user_id', $memberIds)
+                            ->whereNull('deleted_at');
                     })
                     ->where('job_id', '!=', $newJobId)
                     ->exists();
@@ -127,7 +132,8 @@ class AdminStudyGroupController extends Controller
                 ->whereIn('id', function ($q) use ($group) {
                     $q->from('group_user')
                         ->select('user_id')
-                        ->where('study_group_id', $group->id);
+                        ->where('study_group_id', $group->id)
+                        ->whereNull('deleted_at');
                 })
                 ->update(['job_id' => $newJobId]);
         }
@@ -177,7 +183,8 @@ class AdminStudyGroupController extends Controller
                 ->whereIn('id', function ($q) use ($member) {
                     $q->from('group_user')
                         ->select('study_group_id')
-                        ->where('user_id', $member->id);
+                        ->where('user_id', $member->id)
+                        ->whereNull('deleted_at');
                 })
                 ->where('job_id', '!=', $groupJobId)
                 ->exists();
@@ -192,9 +199,7 @@ class AdminStudyGroupController extends Controller
             }
         }
 
-        $group->users()->syncWithoutDetaching([
-            $joinRequest->user_id => ['role' => 'member'],
-        ]);
+        $group->attachOrRestoreMember((int) $joinRequest->user_id, 'member');
 
         $joinRequest->update([
             'status' => 'approved',
@@ -224,7 +229,7 @@ class AdminStudyGroupController extends Controller
     {
         $group = StudyGroup::where('uuid', $uuid)->firstOrFail();
 
-        $group->users()->detach((int) $userId);
+        $group->softRemoveMember((int) $userId);
         StudyGroupJoinRequest::where('study_group_id', $group->id)
             ->where('user_id', (int) $userId)
             ->update([
@@ -250,6 +255,36 @@ class AdminStudyGroupController extends Controller
         $group->delete();
 
         return back()->with('message', 'PARTY_DISBANDED');
+    }
+
+    public function restore(string $uuid)
+    {
+        if (!Auth::user()->isAdmin()) {
+            abort(403);
+        }
+
+        $group = StudyGroup::onlyTrashed()
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+
+        $group->restore();
+
+        return back()->with('message', 'PARTY_RESTORED');
+    }
+
+    public function forceDestroy(string $uuid)
+    {
+        if (!Auth::user()->isAdmin()) {
+            abort(403);
+        }
+
+        $group = StudyGroup::onlyTrashed()
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+
+        $group->forceDelete();
+
+        return back()->with('message', 'PARTY_PERMANENTLY_DELETED');
     }
 
     private function generateUniqueInviteCode(): string

@@ -20,13 +20,16 @@ class AdminSubmissionManagementController extends Controller
             'search' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'in:all,Pending,Approved,Rejected'],
             'duplicates' => ['nullable', 'in:0,1'],
+            'view' => ['nullable', 'in:active,trash'],
         ]);
 
         $search = $validated['search'] ?? '';
         $status = $validated['status'] ?? 'all';
         $duplicates = $validated['duplicates'] ?? '0';
+        $view = $validated['view'] ?? 'active';
 
         $query = Submission::query()
+            ->when($view === 'trash', fn ($builder) => $builder->onlyTrashed())
             ->with([
                 'user:id,name,username,email',
                 'quest:id,title,uuid,difficulty',
@@ -71,6 +74,7 @@ class AdminSubmissionManagementController extends Controller
                 'search' => $search,
                 'status' => $status,
                 'duplicates' => $duplicates,
+                'view' => $view,
             ],
         ]);
     }
@@ -117,16 +121,46 @@ class AdminSubmissionManagementController extends Controller
     {
         $userId = (int) $submission->user_id;
 
-        if ($submission->file_path && Storage::disk('public')->exists($submission->file_path)) {
-            Storage::disk('public')->delete($submission->file_path);
-        }
-
         $submission->delete();
         $this->syncUserRewardTotals($userId);
 
         CacheVersion::bump('dashboard');
 
         return back()->with('message', 'SUBMISSION_DELETED');
+    }
+
+    public function restore(string $uuid): RedirectResponse
+    {
+        $submission = Submission::onlyTrashed()
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+
+        $submission->restore();
+        $this->syncUserRewardTotals((int) $submission->user_id);
+
+        CacheVersion::bump('dashboard');
+
+        return back()->with('message', 'SUBMISSION_RESTORED');
+    }
+
+    public function forceDestroy(string $uuid): RedirectResponse
+    {
+        $submission = Submission::onlyTrashed()
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+
+        $userId = (int) $submission->user_id;
+
+        if (!empty($submission->file_path) && Storage::disk('public')->exists($submission->file_path)) {
+            Storage::disk('public')->delete($submission->file_path);
+        }
+
+        $submission->forceDelete();
+        $this->syncUserRewardTotals($userId);
+
+        CacheVersion::bump('dashboard');
+
+        return back()->with('message', 'SUBMISSION_PERMANENTLY_DELETED');
     }
 
     private function syncUserRewardTotals(int $userId): void

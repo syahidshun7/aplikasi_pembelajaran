@@ -45,7 +45,9 @@ const showDeleteModal = ref(false);
 const questIdToDelete = ref(null);
 const filterForm = useForm({
     search: props.filters?.search || '',
+    view: props.filters?.view || 'active',
 });
+const isTrashView = computed(() => filterForm.view === 'trash');
 
 const questItems = computed(() => props.quests?.data || []);
 const paginationLinks = computed(() => props.quests?.links || []);
@@ -228,6 +230,31 @@ const executeAbort = () => {
     }
 };
 
+const restoreQuest = (uuid) => {
+    router.patch(route('quests.restore', uuid), {}, {
+        preserveScroll: true,
+    });
+};
+
+const hardDeleteQuest = (uuid) => {
+    Swal.fire({
+        title: 'HARD_DELETE_MISSION?',
+        text: 'Quest akan dihapus permanen dan tidak bisa dipulihkan.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'DELETE_PERMANENTLY',
+        cancelButtonText: 'CANCEL',
+        background: '#1a1c2c',
+        color: '#4ed4d4',
+        confirmButtonColor: '#dc2626',
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+        router.delete(route('quests.force-destroy', uuid), {
+            preserveScroll: true,
+        });
+    });
+};
+
 const applyFilters = () => {
     router.get(route('quests.index'), filterForm.data(), {
         preserveState: true,
@@ -237,6 +264,13 @@ const applyFilters = () => {
 
 const resetFilters = () => {
     filterForm.search = '';
+    applyFilters();
+};
+
+const setView = (view) => {
+    if (filterForm.view === view) return;
+    filterForm.view = view;
+    cancelEdit();
     applyFilters();
 };
 
@@ -405,7 +439,25 @@ const goToPage = (url) => {
 
                 <div class="col-span-12 lg:col-span-7">
                     <div class="rpg-panel border-slate-700 h-full">
-                        <h2 class="text-white mb-6 uppercase tracking-tighter">>> ACTIVE_MISSIONS_BOARD</h2>
+                        <h2 class="text-white mb-6 uppercase tracking-tighter">
+                            >> {{ isTrashView ? 'TRASH_MISSIONS_BOARD' : 'ACTIVE_MISSIONS_BOARD' }}
+                        </h2>
+                        <div class="mb-4 flex gap-2">
+                            <button
+                                @click="setView('active')"
+                                class="px-3 py-2 border-2 uppercase"
+                                :class="isTrashView ? 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white' : 'border-cyan-400 text-cyan-400 bg-cyan-900/20'"
+                            >
+                                ACTIVE
+                            </button>
+                            <button
+                                @click="setView('trash')"
+                                class="px-3 py-2 border-2 uppercase"
+                                :class="isTrashView ? 'border-amber-500 text-amber-300 bg-amber-900/20' : 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white'"
+                            >
+                                TRASH
+                            </button>
+                        </div>
                         <div class="mb-4 flex flex-col md:flex-row gap-2">
                             <input
                                 v-model="filterForm.search"
@@ -446,12 +498,18 @@ const goToPage = (url) => {
                                     <div class="text-yellow-500 text-[8px] tracking-widest">+{{ q.reward_gold }} GOLD</div>
                                 </div>
 
-                                <div class="text-[7px] mb-3 flex items-center gap-1">
+                                <div v-if="!isTrashView" class="text-[7px] mb-3 flex items-center gap-1">
                                     <span class="text-orange-500">>> DEADLINE:</span>
                                     <span :class="isExpired(q.deadline) ? 'text-red-500 animate-pulse font-bold' : 'text-orange-300'">
                                         {{ q.deadline ? formatDeadline(q.deadline) : 'NO_TIME_LIMIT' }}
                                     </span>
                                     <span v-if="isExpired(q.deadline)" class="text-red-600 ml-1">[EXPIRED]</span>
+                                </div>
+                                <div v-else class="text-[7px] mb-3 flex items-center gap-1">
+                                    <span class="text-amber-500">>> DELETED_AT:</span>
+                                    <span class="text-amber-300">
+                                        {{ q.deleted_at ? new Date(q.deleted_at).toLocaleString('id-ID') : '-' }}
+                                    </span>
                                 </div>
 
                                 <div v-if="q.description"
@@ -460,12 +518,16 @@ const goToPage = (url) => {
                                 </div>
 
                                 <div class="flex gap-4 self-end mt-auto">
-                                    <Link :href="route('admin.quests.submissions', q.uuid)"
+                                    <Link v-if="!isTrashView" :href="route('admin.quests.submissions', q.uuid)"
                                         class="text-cyan-400 hover:text-white text-[8px] uppercase font-bold">[Detail]</Link>
-                                    <button @click="startEdit(q)"
+                                    <button v-if="!isTrashView" @click="startEdit(q)"
                                         class="text-green-500 hover:text-white text-[8px] uppercase font-bold">[Edit]</button>
-                                    <button @click="confirmAbort(q.uuid)"
+                                    <button v-if="!isTrashView" @click="confirmAbort(q.uuid)"
                                         class="text-red-500 hover:text-white text-[8px] uppercase font-bold">[Abort]</button>
+                                    <button v-if="isTrashView" @click="restoreQuest(q.uuid)"
+                                        class="text-emerald-400 hover:text-white text-[8px] uppercase font-bold">[Restore]</button>
+                                    <button v-if="isTrashView" @click="hardDeleteQuest(q.uuid)"
+                                        class="text-red-500 hover:text-white text-[8px] uppercase font-bold">[Hard_Delete]</button>
                                 </div>
                             </div>
                         </div>
@@ -505,13 +567,13 @@ const goToPage = (url) => {
                 </div>
                 <div class="p-8 space-y-6">
                     <div class="border-l-2 border-red-900 pl-4">
-                        <p class="text-slate-200 text-[10px] leading-relaxed uppercase">Abort this mission contract?</p>
+                        <p class="text-slate-200 text-[10px] leading-relaxed uppercase">Move this mission contract to trash?</p>
                     </div>
                 </div>
                 <div class="p-6 pt-0 flex gap-4">
                     <button @click="executeAbort" :disabled="form.processing"
                         class="flex-1 py-3 bg-red-600/20 border-2 border-red-600 text-red-500 hover:bg-red-600 hover:text-white transition-all uppercase font-bold text-[9px]">
-                        {{ form.processing ? 'PURGING...' : 'PROCEED' }}
+                        {{ form.processing ? 'ARCHIVING...' : 'ARCHIVE' }}
                     </button>
                     <button @click="showDeleteModal = false"
                         class="flex-1 py-3 bg-slate-800 border-2 border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white transition-all uppercase font-bold text-[9px]">

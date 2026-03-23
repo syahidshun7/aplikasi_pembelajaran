@@ -5,6 +5,7 @@ namespace App\Http\Controllers;// Sesuaikan dengan folder Admin kamu
 use App\Http\Controllers\Controller;
 use App\Models\Guide;
 use App\Models\StudyGroup;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -20,16 +21,20 @@ class AdminGuideController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
+            'view' => ['nullable', 'in:active,trash'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
+        $view = (string) ($validated['view'] ?? 'active');
 
         $guideQuery = Guide::query()
+            ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
             ->with('studyGroup:id,name,job_id');
 
         if ($this->isMentorUser()) {
             $mentorJobId = $this->requireMentorJobId();
             $guideQuery->whereHas('studyGroup', function ($query) use ($mentorJobId) {
+                $query->withTrashed();
                 $query->where('job_id', $mentorJobId);
             });
         }
@@ -56,6 +61,7 @@ class AdminGuideController extends Controller
             'studyGroups' => $studyGroupQuery->get(),
             'filters' => [
                 'search' => $search,
+                'view' => $view,
             ],
         ]);
     }
@@ -130,19 +136,42 @@ class AdminGuideController extends Controller
     /**
      * Menghapus materi dari library
      */
-    public function destroy($uuid)
+    public function destroy($uuid): RedirectResponse
     {
         $guide = Guide::where('uuid', $uuid)->firstOrFail();
         $this->assertMentorCanAccessGuide($guide);
 
-        // Hapus file dari storage fisik sebelum menghapus record di database
-        if ($guide->file_path) {
-            Storage::disk('public')->delete($guide->file_path);
-        }
-
         $guide->delete();
 
         return back()->with('message', 'The scroll has been purged from the archive.');
+    }
+
+    public function restore(string $uuid): RedirectResponse
+    {
+        $guide = Guide::onlyTrashed()
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+        $this->assertMentorCanAccessGuide($guide);
+
+        $guide->restore();
+
+        return back()->with('message', 'SCROLL_RESTORED');
+    }
+
+    public function forceDestroy(string $uuid): RedirectResponse
+    {
+        $guide = Guide::onlyTrashed()
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+        $this->assertMentorCanAccessGuide($guide);
+
+        if (!empty($guide->file_path) && Storage::disk('public')->exists($guide->file_path)) {
+            Storage::disk('public')->delete($guide->file_path);
+        }
+
+        $guide->forceDelete();
+
+        return back()->with('message', 'SCROLL_PERMANENTLY_DELETED');
     }
 
     private function isMentorUser(): bool
@@ -164,8 +193,11 @@ class AdminGuideController extends Controller
         }
 
         $mentorJobId = $this->requireMentorJobId();
-        $guide->loadMissing('studyGroup:id,job_id');
-        abort_unless((int) ($guide->studyGroup?->job_id ?? 0) === $mentorJobId, 403, 'MENTOR_CANNOT_ACCESS_GUIDE_OUTSIDE_JOB');
+        $groupJobId = (int) StudyGroup::withTrashed()
+            ->whereKey((int) ($guide->study_group_id ?? 0))
+            ->value('job_id');
+
+        abort_unless($groupJobId === $mentorJobId, 403, 'MENTOR_CANNOT_ACCESS_GUIDE_OUTSIDE_JOB');
     }
 
     private function assertMentorCanManageStudyGroupId(int $studyGroupId): void

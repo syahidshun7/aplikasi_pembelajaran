@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str; // <-- 1. PASTIKAN ADA INI
 
 class Submission extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'uuid', // Tambahkan ini
         'quest_id',

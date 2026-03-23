@@ -18,6 +18,7 @@ const filterForm = useForm({
     role: props.filters?.role || 'all',
     rank_by: props.filters?.rank_by || 'newest',
     grade_order: props.filters?.grade_order || 'none',
+    view: props.filters?.view || 'active',
 });
 
 const selectedUser = ref(null);
@@ -51,6 +52,7 @@ const editForm = useForm({
 
 const rows = computed(() => props.users?.data || []);
 const paginationLinks = computed(() => props.users?.links || []);
+const isTrashView = computed(() => filterForm.view === 'trash');
 
 const applyFilters = () => {
     router.get(route('admin.users.index'), filterForm.data(), {
@@ -64,6 +66,12 @@ const resetFilters = () => {
     filterForm.role = 'all';
     filterForm.rank_by = 'newest';
     filterForm.grade_order = 'none';
+    applyFilters();
+};
+
+const setView = (view) => {
+    if (filterForm.view === view) return;
+    filterForm.view = view;
     applyFilters();
 };
 
@@ -238,11 +246,11 @@ const deleteUser = () => {
     if (!selectedUser.value) return;
 
     Swal.fire({
-        title: 'HAPUS_AKUN_USER?',
-        text: `Akun ${selectedUser.value.name || selectedUser.value.username} akan dihapus permanen.`,
+        title: 'ARSIPKAN_AKUN_USER?',
+        text: `Akun ${selectedUser.value.name || selectedUser.value.username} akan dipindah ke trash.`,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'YA_HAPUS',
+        confirmButtonText: 'YA_ARSIPKAN',
         cancelButtonText: 'BATAL',
         background: '#1a1c2c',
         color: '#4ed4d4',
@@ -256,7 +264,67 @@ const deleteUser = () => {
                 closeModal();
                 Swal.fire({
                     icon: 'success',
-                    title: 'USER_DELETED',
+                    title: 'USER_ARCHIVED',
+                    timer: 1600,
+                    showConfirmButton: false,
+                    background: '#1a1c2c',
+                    color: '#4ed4d4',
+                });
+            },
+        });
+    });
+};
+
+const restoreUser = (user) => {
+    Swal.fire({
+        title: 'RESTORE_ACCOUNT?',
+        text: `Pulihkan akun ${user.name || user.username}?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'RESTORE',
+        cancelButtonText: 'CANCEL',
+        background: '#1a1c2c',
+        color: '#4ed4d4',
+        confirmButtonColor: '#059669',
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+
+        router.patch(route('admin.users.restore', user.id), {}, {
+            preserveScroll: true,
+            onSuccess: () => {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'USER_RESTORED',
+                    timer: 1600,
+                    showConfirmButton: false,
+                    background: '#1a1c2c',
+                    color: '#4ed4d4',
+                });
+            },
+        });
+    });
+};
+
+const hardDeleteUser = (user) => {
+    Swal.fire({
+        title: 'HARD_DELETE_ACCOUNT?',
+        text: `Akun ${user.name || user.username} akan dihapus permanen dan tidak bisa dipulihkan.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'DELETE_PERMANENTLY',
+        cancelButtonText: 'CANCEL',
+        background: '#1a1c2c',
+        color: '#4ed4d4',
+        confirmButtonColor: '#dc2626',
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+
+        router.delete(route('admin.users.force-destroy', user.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'USER_PERMANENTLY_DELETED',
                     timer: 1600,
                     showConfirmButton: false,
                     background: '#1a1c2c',
@@ -292,6 +360,23 @@ const formatDate = (date) => {
             </div>
 
             <div class="rpg-panel border-slate-700 overflow-x-auto custom-scroll">
+                <div class="flex gap-2 mb-4">
+                    <button
+                        @click="setView('active')"
+                        class="px-3 py-2 border-2 uppercase"
+                        :class="isTrashView ? 'border-slate-600 text-slate-300 hover:bg-slate-600 hover:text-white' : 'border-cyan-400 text-cyan-400 bg-cyan-900/20'"
+                    >
+                        ACTIVE
+                    </button>
+                    <button
+                        @click="setView('trash')"
+                        class="px-3 py-2 border-2 uppercase"
+                        :class="isTrashView ? 'border-amber-500 text-amber-300 bg-amber-900/20' : 'border-slate-600 text-slate-300 hover:bg-slate-600 hover:text-white'"
+                    >
+                        TRASH
+                    </button>
+                </div>
+
                 <div class="flex flex-col md:flex-row gap-3 mb-4">
                     <input
                         v-model="filterForm.search"
@@ -358,7 +443,7 @@ const formatDate = (date) => {
                                     </button>
                                 </div>
                             </th>
-                            <th class="py-3 px-2">Joined</th>
+                            <th class="py-3 px-2">{{ isTrashView ? 'Deleted' : 'Joined' }}</th>
                             <th class="py-3 px-2 text-right">Actions</th>
                         </tr>
                     </thead>
@@ -400,18 +485,35 @@ const formatDate = (date) => {
                                     </span>
                                 </p>
                             </td>
-                            <td class="py-4 px-2 text-slate-500 text-[8px]">{{ formatDate(user.created_at) }}</td>
+                            <td class="py-4 px-2 text-slate-500 text-[8px]">
+                                {{ isTrashView ? formatDate(user.deleted_at) : formatDate(user.created_at) }}
+                            </td>
                             <td class="py-4 px-2 text-right space-x-2">
                                 <button
+                                    v-if="!isTrashView"
                                     @click="openEditModal(user)"
                                     class="px-2 py-1 border border-emerald-600 text-emerald-400 hover:bg-emerald-500 hover:text-black uppercase text-[8px]"
                                 >
                                     Edit
                                 </button>
+                                <button
+                                    v-if="isTrashView"
+                                    @click="restoreUser(user)"
+                                    class="px-2 py-1 border border-emerald-600 text-emerald-300 hover:bg-emerald-500 hover:text-black uppercase text-[8px]"
+                                >
+                                    Restore
+                                </button>
+                                <button
+                                    v-if="isTrashView"
+                                    @click="hardDeleteUser(user)"
+                                    class="px-2 py-1 border border-red-700 text-red-400 hover:bg-red-700 hover:text-white uppercase text-[8px]"
+                                >
+                                    Hard_Delete
+                                </button>
                             </td>
                         </tr>
                         <tr v-if="rows.length === 0">
-                            <td colspan="10" class="py-8 px-2 text-center text-slate-500 uppercase">
+                            <td :colspan="10" class="py-8 px-2 text-center text-slate-500 uppercase">
                                 NO_USERS_MATCH_FILTER
                             </td>
                         </tr>
@@ -614,7 +716,7 @@ const formatDate = (date) => {
                         @click="deleteUser"
                         class="py-3 border-2 border-red-600 text-red-400 hover:bg-red-600 hover:text-white uppercase"
                     >
-                        DELETE_ACCOUNT
+                        ARCHIVE_ACCOUNT
                     </button>
                 </div>
 

@@ -287,10 +287,6 @@ class AdminShopItemController extends Controller
 
     public function destroy(ShopItem $item): RedirectResponse
     {
-        if ($item->icon_path && Storage::disk('public')->exists($item->icon_path)) {
-            Storage::disk('public')->delete($item->icon_path);
-        }
-
         $item->delete();
 
         return back()->with('message', 'SHOP_ITEM_DELETED');

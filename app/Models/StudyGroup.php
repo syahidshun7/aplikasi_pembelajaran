@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids; // 1. Tambahkan ini
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class StudyGroup extends Model
 {
-    use HasUuids; // 2. Gunakan ini
+    use HasUuids, SoftDeletes; // 2. Gunakan ini
 
     protected $fillable = [
         'uuid',
@@ -27,8 +29,57 @@ class StudyGroup extends Model
     public function users()
     {
         return $this->belongsToMany(User::class, 'group_user')
-            ->withPivot('role')
+            ->withPivot(['role', 'deleted_at'])
+            ->wherePivotNull('deleted_at')
             ->withTimestamps();
+    }
+
+    public function usersWithArchivedMemberships()
+    {
+        return $this->belongsToMany(User::class, 'group_user')
+            ->withPivot(['role', 'deleted_at'])
+            ->withTimestamps();
+    }
+
+    public function attachOrRestoreMember(int $userId, string $role = 'member'): void
+    {
+        $existingPivot = DB::table('group_user')
+            ->where('study_group_id', $this->id)
+            ->where('user_id', $userId)
+            ->first();
+
+        if ($existingPivot) {
+            DB::table('group_user')
+                ->where('id', $existingPivot->id)
+                ->update([
+                    'role' => $role,
+                    'deleted_at' => null,
+                    'updated_at' => now(),
+                ]);
+
+            return;
+        }
+
+        DB::table('group_user')->insert([
+            'user_id' => $userId,
+            'study_group_id' => $this->id,
+            'role' => $role,
+            'created_at' => now(),
+            'updated_at' => now(),
+            'deleted_at' => null,
+        ]);
+    }
+
+    public function softRemoveMember(int $userId): void
+    {
+        DB::table('group_user')
+            ->where('study_group_id', $this->id)
+            ->where('user_id', $userId)
+            ->whereNull('deleted_at')
+            ->update([
+                'deleted_at' => now(),
+                'updated_at' => now(),
+            ]);
     }
 
     public function creator()

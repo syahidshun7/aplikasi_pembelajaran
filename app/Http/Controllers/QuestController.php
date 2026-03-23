@@ -18,6 +18,7 @@ use App\Support\Cache\CacheVersion;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class QuestController extends Controller
@@ -140,15 +141,24 @@ class QuestController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
+            'view' => ['nullable', 'in:active,trash'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
+        $view = (string) ($validated['view'] ?? 'active');
 
         $adminQuestQuery = Quest::query()
+            ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
             ->with([
-                'studyGroup',
-                'taskBank:id,uuid,name,assessment_type,job_role_id',
-                'rubric:id,title',
+                'studyGroup' => function ($query) {
+                    $query->withTrashed();
+                },
+                'taskBank' => function ($query) {
+                    $query->withTrashed()->select('id', 'uuid', 'name', 'assessment_type', 'job_role_id');
+                },
+                'rubric' => function ($query) {
+                    $query->withTrashed()->select('id', 'title');
+                },
             ]);
 
         if ($this->isMentorUser()) {
@@ -156,8 +166,10 @@ class QuestController extends Controller
 
             $adminQuestQuery->where(function ($query) use ($mentorJobId) {
                 $query->whereHas('studyGroup', function ($sq) use ($mentorJobId) {
+                    $sq->withTrashed();
                     $sq->where('job_id', $mentorJobId);
                 })->orWhereHas('taskBank', function ($tq) use ($mentorJobId) {
+                    $tq->withTrashed();
                     $tq->where('job_role_id', $mentorJobId);
                 });
             });
@@ -209,6 +221,7 @@ class QuestController extends Controller
             'rubrics' => $rubricsQuery->get(['id', 'title']),
             'filters' => [
                 'search' => $search,
+                'view' => $view,
             ],
         ]);
     }
@@ -302,6 +315,42 @@ class QuestController extends Controller
         $quest->delete();
 
         return redirect()->back()->with('message', 'Mission aborted and removed from board.');
+    }
+
+    public function restore(string $uuid)
+    {
+        $quest = Quest::onlyTrashed()
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+        $this->assertMentorCanManageQuest($quest);
+
+        $quest->restore();
+
+        return redirect()->back()->with('message', 'QUEST_RESTORED');
+    }
+
+    public function forceDestroy(string $uuid)
+    {
+        $quest = Quest::onlyTrashed()
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+        $this->assertMentorCanManageQuest($quest);
+
+        $filePaths = Submission::withTrashed()
+            ->where('quest_id', $quest->id)
+            ->whereNotNull('file_path')
+            ->pluck('file_path')
+            ->filter(fn ($path) => is_string($path) && $path !== '');
+
+        foreach ($filePaths as $path) {
+            if (Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->delete($path);
+            }
+        }
+
+        $quest->forceDelete();
+
+        return redirect()->back()->with('message', 'QUEST_PERMANENTLY_DELETED');
     }
 
 

@@ -35,6 +35,8 @@ class SyncUserJobsFromStudyGroups extends Command
         $rows = DB::table('users')
             ->join('group_user', 'users.id', '=', 'group_user.user_id')
             ->join('study_groups', 'study_groups.id', '=', 'group_user.study_group_id')
+            ->whereNull('group_user.deleted_at')
+            ->whereNull('study_groups.deleted_at')
             ->selectRaw('
                 users.id as user_id,
                 users.name as name,
@@ -131,4 +133,3 @@ class SyncUserJobsFromStudyGroups extends Command
         return self::SUCCESS;
     }
 }
-

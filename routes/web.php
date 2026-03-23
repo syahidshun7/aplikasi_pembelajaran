@@ -92,6 +92,8 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
     Route::get('/quests', [QuestController::class, 'index'])->name('quests.index');
     Route::post('/quests', [QuestController::class, 'store'])->name('quests.store');
     Route::patch('/quests/{quest}', [QuestController::class, 'update'])->name('quests.update');
+    Route::patch('/quests/{uuid}/restore', [QuestController::class, 'restore'])->name('quests.restore');
+    Route::delete('/quests/{uuid}/force', [QuestController::class, 'forceDestroy'])->name('quests.force-destroy');
     Route::delete('/quests/{quest}', [QuestController::class, 'destroy'])->name('quests.destroy');
 
 
@@ -124,6 +126,8 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
         Route::get('/', [AdminEventController::class, 'index'])->name('index');
         Route::post('/', [AdminEventController::class, 'store'])->name('store');
         Route::put('/{event:uuid}', [AdminEventController::class, 'update'])->name('update');
+        Route::patch('/{uuid}/restore', [AdminEventController::class, 'restore'])->name('restore');
+        Route::delete('/{uuid}/force', [AdminEventController::class, 'forceDestroy'])->name('force-destroy');
         Route::delete('/{event:uuid}', [AdminEventController::class, 'destroy'])->name('destroy');
 
         Route::get('/{event:uuid}', [AdminEventController::class, 'detail'])->name('detail');
@@ -165,6 +169,8 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
 Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::prefix('admin/users')->name('admin.users.')->group(function () {
         Route::get('/', [AdminUserController::class, 'index'])->name('index');
+        Route::patch('/{userId}/restore', [AdminUserController::class, 'restore'])->name('restore');
+        Route::delete('/{userId}/force', [AdminUserController::class, 'forceDestroy'])->name('force-destroy');
         Route::patch('/{user}', [AdminUserController::class, 'update'])->name('update');
         Route::delete('/{user}', [AdminUserController::class, 'destroy'])->name('destroy');
         Route::patch('/{user}/role', [AdminUserController::class, 'updateRole'])->name('role.update');
@@ -190,6 +196,8 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::prefix('admin/submissions')->name('admin.submissions.manage.')->group(function () {
         Route::get('/', [AdminSubmissionManagementController::class, 'index'])->name('index');
         Route::patch('/{submission}', [AdminSubmissionManagementController::class, 'update'])->name('update');
+        Route::patch('/{uuid}/restore', [AdminSubmissionManagementController::class, 'restore'])->name('restore');
+        Route::delete('/{uuid}/force', [AdminSubmissionManagementController::class, 'forceDestroy'])->name('force-destroy');
         Route::delete('/{submission}', [AdminSubmissionManagementController::class, 'destroy'])->name('destroy');
     });
 
@@ -207,6 +215,8 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->prefix('admin')->g
 
     // Proses Update (Gunakan POST + Spoofing PATCH di Vue agar upload file aman)
     Route::post('/materi/{uuid}', [AdminGuideController::class, 'update'])->name('materi.update');
+    Route::patch('/materi/{uuid}/restore', [AdminGuideController::class, 'restore'])->name('materi.restore');
+    Route::delete('/materi/{uuid}/force', [AdminGuideController::class, 'forceDestroy'])->name('materi.force-destroy');
 
     // Proses Hapus
     Route::delete('/materi/{uuid}', [AdminGuideController::class, 'destroy'])->name('materi.destroy');
@@ -227,6 +237,8 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         ->name('groups.requests.reject');
     Route::delete('/admin/study-groups/{uuid}/members/{userId}', [AdminStudyGroupController::class, 'removeMember'])
         ->name('groups.members.remove');
+    Route::patch('/admin/study-groups/{uuid}/restore', [AdminStudyGroupController::class, 'restore'])->name('groups.restore');
+    Route::delete('/admin/study-groups/{uuid}/force', [AdminStudyGroupController::class, 'forceDestroy'])->name('groups.force-destroy');
     Route::delete('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'destroy'])->name('groups.destroy');
 });
 

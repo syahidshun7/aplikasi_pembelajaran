@@ -97,7 +97,7 @@ class StudyGroupController extends Controller
     public function leave($uuid)
     {
         $group = StudyGroup::where('uuid', $uuid)->firstOrFail();
-        $group->users()->detach(Auth::id());
+        $group->softRemoveMember((int) Auth::id());
 
         return back()->with('message', 'LEFT_THE_PARTY');
     }

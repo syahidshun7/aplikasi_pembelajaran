@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use App\Models\User;
 
 return new class extends Migration
 {
@@ -24,11 +24,20 @@ return new class extends Migration
 
         // 2. Tahap Kedua: Isi data username untuk User yang sudah ada
         // Kita gunakan ID agar dijamin unik dan tidak error saat penambahan Index Unique nanti
-        User::whereNull('username')->orWhere('username', '')->each(function ($user) {
-            $user->update([
-                'username' => 'player_' . $user->id . rand(10, 99)
-            ]);
-        });
+        DB::table('users')
+            ->where(function ($query) {
+                $query->whereNull('username')
+                    ->orWhere('username', '');
+            })
+            ->orderBy('id')
+            ->get(['id'])
+            ->each(function ($user) {
+                DB::table('users')
+                    ->where('id', $user->id)
+                    ->update([
+                        'username' => 'player_' . $user->id . rand(10, 99),
+                    ]);
+            });
 
         // 3. Tahap Ketiga: Tambahkan Index Unique pada kolom username
         Schema::table('users', function (Blueprint $table) {

@@ -23,4 +23,10 @@ class StudyGroupCacheObserver
         CacheVersion::bump('study_groups');
         CacheVersion::bump('home');
     }
+
+    public function restored(): void
+    {
+        CacheVersion::bump('study_groups');
+        CacheVersion::bump('home');
+    }
 }

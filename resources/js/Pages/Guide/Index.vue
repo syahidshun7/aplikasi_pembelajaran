@@ -44,7 +44,9 @@ const form = useForm({
 const mentorCannotSubmitGuide = computed(() => isMentor.value && !form.study_group_id);
 const searchForm = useForm({
     search: props.filters?.search || '',
+    view: props.filters?.view || 'active',
 });
+const isTrashView = computed(() => searchForm.view === 'trash');
 
 // 3. COMPUTED
 const getOldFileName = computed(() => {
@@ -84,6 +86,13 @@ const applySearch = () => {
 
 const resetSearch = () => {
     searchForm.search = '';
+    applySearch();
+};
+
+const setView = (view) => {
+    if (searchForm.view === view) return;
+    searchForm.view = view;
+    cancelEdit();
     applySearch();
 };
 
@@ -179,7 +188,7 @@ const executeDelete = () => {
                 materiIdToDelete.value = null;
                 Toast.fire({
                     icon: 'success',
-                    title: 'SCROLL_PURGED'
+                    title: 'SCROLL_ARCHIVED'
                 });
             },
             onError: () => {
@@ -190,6 +199,44 @@ const executeDelete = () => {
             }
         });
     }
+};
+
+const restoreGuide = (uuid) => {
+    router.patch(route('materi.restore', uuid), {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            Toast.fire({
+                icon: 'success',
+                title: 'SCROLL_RESTORED',
+            });
+        },
+    });
+};
+
+const hardDeleteGuide = (uuid) => {
+    Swal.fire({
+        title: 'HARD_DELETE_SCROLL?',
+        text: 'Guide akan dihapus permanen dan tidak bisa dipulihkan.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'DELETE_PERMANENTLY',
+        cancelButtonText: 'CANCEL',
+        background: '#1a1c2c',
+        color: '#4ed4d4',
+        confirmButtonColor: '#dc2626',
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+
+        router.delete(route('materi.force-destroy', uuid), {
+            preserveScroll: true,
+            onSuccess: () => {
+                Toast.fire({
+                    icon: 'success',
+                    title: 'SCROLL_PERMANENTLY_DELETED',
+                });
+            },
+        });
+    });
 };
 
 // Pantau Flash Message dari Controller (with('message', ...))
@@ -296,7 +343,25 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
 
                 <div class="col-span-12 lg:col-span-7">
                     <div class="rpg-panel border-slate-700 h-full">
-                        <h2 class="text-white mb-6 uppercase tracking-tighter">>> ARCHIVE_REGISTRY_BOARD</h2>
+                        <h2 class="text-white mb-6 uppercase tracking-tighter">
+                            >> {{ isTrashView ? 'TRASH_ARCHIVE_BOARD' : 'ARCHIVE_REGISTRY_BOARD' }}
+                        </h2>
+                        <div class="mb-4 flex gap-2">
+                            <button
+                                @click="setView('active')"
+                                class="px-3 py-2 border-2 uppercase"
+                                :class="isTrashView ? 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white' : 'border-indigo-400 text-indigo-300 bg-indigo-900/20'"
+                            >
+                                ACTIVE
+                            </button>
+                            <button
+                                @click="setView('trash')"
+                                class="px-3 py-2 border-2 uppercase"
+                                :class="isTrashView ? 'border-amber-500 text-amber-300 bg-amber-900/20' : 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white'"
+                            >
+                                TRASH
+                            </button>
+                        </div>
                         <div class="mb-4 flex flex-col md:flex-row gap-2">
                             <input
                                 v-model="searchForm.search"
@@ -334,16 +399,24 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                                     </div>
                                 </div>
 
+                                <div v-if="isTrashView" class="text-[8px] text-amber-400 mb-2 uppercase tracking-tighter">
+                                    DELETED_AT: {{ new Date(item.deleted_at).toLocaleString('id-ID') }}
+                                </div>
+
                                 <div v-if="item.description"
                                     class="text-[7px] text-slate-500 italic mb-4 border-t border-slate-800 pt-2 leading-loose">
                                     > {{ item.description }}
                                 </div>
 
                                 <div class="flex gap-4 self-end mt-2">
-                                    <button @click="startEdit(item)"
+                                    <button v-if="!isTrashView" @click="startEdit(item)"
                                         class="text-green-500 hover:text-white text-[8px] uppercase font-bold">[Edit]</button>
-                                    <button @click="confirmDelete(item.uuid)"
+                                    <button v-if="!isTrashView" @click="confirmDelete(item.uuid)"
                                         class="text-red-500 hover:text-white text-[8px] uppercase font-bold">[Purge]</button>
+                                    <button v-if="isTrashView" @click="restoreGuide(item.uuid)"
+                                        class="text-emerald-400 hover:text-white text-[8px] uppercase font-bold">[Restore]</button>
+                                    <button v-if="isTrashView" @click="hardDeleteGuide(item.uuid)"
+                                        class="text-red-500 hover:text-white text-[8px] uppercase font-bold">[Hard_Delete]</button>
                                 </div>
                             </div>
 
@@ -386,13 +459,13 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                 <div class="p-8 space-y-6">
                     <div class="border-l-2 border-red-900 pl-4">
                         <p class="text-slate-200 text-[10px] leading-relaxed uppercase">Are you sure you want to
-                            permanently delete this knowledge scroll?</p>
+                            move this knowledge scroll to trash?</p>
                     </div>
                 </div>
                 <div class="p-6 pt-0 flex gap-4">
                     <button @click="executeDelete" :disabled="form.processing"
                         class="flex-1 py-3 bg-red-600/20 border-2 border-red-600 text-red-500 hover:bg-red-600 hover:text-white transition-all uppercase font-bold text-[9px] rounded active:scale-95">
-                        {{ form.processing ? 'PURGING...' : 'EXECUTE' }}
+                        {{ form.processing ? 'ARCHIVING...' : 'ARCHIVE' }}
                     </button>
                     <button @click="showDeleteModal = false"
                         class="flex-1 py-3 bg-slate-800 border-2 border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white transition-all uppercase font-bold text-[9px] rounded active:scale-95">

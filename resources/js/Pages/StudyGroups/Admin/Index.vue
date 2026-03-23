@@ -37,9 +37,11 @@ const form = useForm({
 });
 const filterForm = useForm({
     search: props.filters?.search || '',
+    view: props.filters?.view || 'active',
 });
 const groupItems = computed(() => props.groups?.data || []);
 const paginationLinks = computed(() => props.groups?.links || []);
+const isTrashView = computed(() => filterForm.view === 'trash');
 
 // Pantau Flash Message dari Server
 watch(() => usePage().props.flash, (flash) => {
@@ -120,10 +122,42 @@ const executeAbort = () => {
             onSuccess: () => {
                 showDeleteModal.value = false;
                 groupIdToDelete.value = null;
-                Toast.fire({ icon: 'success', title: 'PARTY_PURGED' });
+                Toast.fire({ icon: 'success', title: 'PARTY_ARCHIVED' });
             }
         });
     }
+};
+
+const restoreGroup = (uuid) => {
+    router.patch(route('groups.restore', uuid), {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            Toast.fire({ icon: 'success', title: 'PARTY_RESTORED' });
+        },
+    });
+};
+
+const hardDeleteGroup = (uuid) => {
+    Swal.fire({
+        title: 'HARD_DELETE_PARTY?',
+        text: 'Group akan dihapus permanen dan tidak bisa dipulihkan.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'DELETE_PERMANENTLY',
+        cancelButtonText: 'CANCEL',
+        background: '#1a1c2c',
+        color: '#4ed4d4',
+        confirmButtonColor: '#dc2626',
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+
+        router.delete(route('groups.force-destroy', uuid), {
+            preserveScroll: true,
+            onSuccess: () => {
+                Toast.fire({ icon: 'success', title: 'PARTY_PERMANENTLY_DELETED' });
+            },
+        });
+    });
 };
 
 const applyFilters = () => {
@@ -135,6 +169,13 @@ const applyFilters = () => {
 
 const resetFilters = () => {
     filterForm.search = '';
+    applyFilters();
+};
+
+const setView = (view) => {
+    if (filterForm.view === view) return;
+    filterForm.view = view;
+    cancelEdit();
     applyFilters();
 };
 
@@ -216,7 +257,25 @@ const goToPage = (url) => {
 
                 <div class="col-span-12 lg:col-span-7">
                     <div class="rpg-panel border-slate-700 h-full">
-                        <h2 class="text-white mb-6 uppercase tracking-tighter">>> ACTIVE_PARTY_BOARD</h2>
+                        <h2 class="text-white mb-6 uppercase tracking-tighter">
+                            >> {{ isTrashView ? 'TRASH_PARTY_BOARD' : 'ACTIVE_PARTY_BOARD' }}
+                        </h2>
+                        <div class="mb-4 flex gap-2">
+                            <button
+                                @click="setView('active')"
+                                class="px-3 py-2 border-2 uppercase"
+                                :class="isTrashView ? 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white' : 'border-emerald-400 text-emerald-300 bg-emerald-900/20'"
+                            >
+                                ACTIVE
+                            </button>
+                            <button
+                                @click="setView('trash')"
+                                class="px-3 py-2 border-2 uppercase"
+                                :class="isTrashView ? 'border-amber-500 text-amber-300 bg-amber-900/20' : 'border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white'"
+                            >
+                                TRASH
+                            </button>
+                        </div>
                         <div class="mb-4 flex flex-col md:flex-row gap-2">
                             <input
                                 v-model="filterForm.search"
@@ -249,8 +308,11 @@ const goToPage = (url) => {
                                     </div>
                                     <div class="text-yellow-500 text-[8px] tracking-widest">{{ g.users_count || 0 }} / {{ g.max_members }} MEMBERS</div>
                                 </div>
-                                <div class="text-[8px] text-orange-400 mb-2 uppercase tracking-tighter">
+                                <div v-if="!isTrashView" class="text-[8px] text-orange-400 mb-2 uppercase tracking-tighter">
                                     PENDING_REQUESTS: {{ g.pending_requests_count || 0 }}
+                                </div>
+                                <div v-else class="text-[8px] text-amber-400 mb-2 uppercase tracking-tighter">
+                                    DELETED_AT: {{ new Date(g.deleted_at).toLocaleString('id-ID') }}
                                 </div>
 
                                 <div v-if="g.description"
@@ -259,12 +321,16 @@ const goToPage = (url) => {
                                 </div>
 
                                 <div class="flex gap-4 self-end mt-2">
-                                    <Link :href="route('groups.detail', g.uuid)"
+                                    <Link v-if="!isTrashView" :href="route('groups.detail', g.uuid)"
                                         class="text-cyan-400 hover:text-white text-[8px] uppercase font-bold">[Detail]</Link>
-                                    <button @click="startEdit(g)"
+                                    <button v-if="!isTrashView" @click="startEdit(g)"
                                         class="text-emerald-500 hover:text-white text-[8px] uppercase font-bold">[Edit]</button>
-                                    <button @click="confirmAbort(g.uuid)"
+                                    <button v-if="!isTrashView" @click="confirmAbort(g.uuid)"
                                         class="text-red-500 hover:text-white text-[8px] uppercase font-bold">[Purge]</button>
+                                    <button v-if="isTrashView" @click="restoreGroup(g.uuid)"
+                                        class="text-emerald-400 hover:text-white text-[8px] uppercase font-bold">[Restore]</button>
+                                    <button v-if="isTrashView" @click="hardDeleteGroup(g.uuid)"
+                                        class="text-red-500 hover:text-white text-[8px] uppercase font-bold">[Hard_Delete]</button>
                                 </div>
                             </div>
                         </div>
@@ -299,18 +365,18 @@ const goToPage = (url) => {
             class="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
             <div class="w-full max-w-lg bg-[#121212] border-2 border-red-600 shadow-[0_0_30px_rgba(220,38,38,0.3)] overflow-hidden rounded-lg">
                 <div class="bg-red-600/10 border-b-2 border-red-600 p-4 flex items-center gap-3">
-                    <span class="text-red-500 text-lg">⚠</span>
-                    <h2 class="text-red-500 font-bold uppercase tracking-tighter text-[10px]">» WARNING: PURGE_PROTOCOL</h2>
+                    <span class="text-red-500 text-lg">[!]</span>
+                    <h2 class="text-red-500 font-bold uppercase tracking-tighter text-[10px]">WARNING: ARCHIVE_PROTOCOL</h2>
                 </div>
                 <div class="p-8 space-y-6">
                     <div class="border-l-2 border-red-900 pl-4">
-                        <p class="text-slate-200 text-[10px] leading-relaxed uppercase">Are you sure you want to terminate this party contract?</p>
+                        <p class="text-slate-200 text-[10px] leading-relaxed uppercase">Pindahkan group ini ke trash (masih bisa direstore)?</p>
                     </div>
                 </div>
                 <div class="p-6 pt-0 flex gap-4">
                     <button @click="executeAbort" :disabled="form.processing"
                         class="flex-1 py-3 bg-red-600/20 border-2 border-red-600 text-red-500 hover:bg-red-600 hover:text-white transition-all uppercase font-bold text-[9px] rounded active:scale-95">
-                        {{ form.processing ? 'PURGING...' : 'PROCEED' }}
+                        {{ form.processing ? 'ARCHIVING...' : 'ARCHIVE' }}
                     </button>
                     <button @click="showDeleteModal = false"
                         class="flex-1 py-3 bg-slate-800 border-2 border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white transition-all uppercase font-bold text-[9px] rounded active:scale-95">
