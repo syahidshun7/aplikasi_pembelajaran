@@ -94,6 +94,21 @@ public function inventories()
     return $this->hasMany(UserInventory::class);
 }
 
+public function creations()
+{
+    return $this->hasMany(Creation::class);
+}
+
+public function creationAppreciations()
+{
+    return $this->hasMany(CreationAppreciation::class);
+}
+
+public function creationInsights()
+{
+    return $this->hasMany(CreationInsight::class);
+}
+
 public function shopTransactions()
 {
     return $this->hasMany(ShopTransaction::class);

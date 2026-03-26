@@ -37,6 +37,10 @@ export const resolveNotificationActionUrl = (
             : notificationIndexUrl;
     }
 
+    if (category === 'creation' && resource?.id) {
+        return routeFn('hall.creations.show', { creation: resource.id });
+    }
+
     if (explicitUrl && explicitUrl !== notificationIndexUrl && explicitUrl !== currentUrl) {
         return explicitUrl;
     }

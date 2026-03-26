@@ -17,7 +17,7 @@
                 Admin
             </Link>
 
-            <Link :href="route('profile.edit')"
+            <Link :href="route('profile.dashboard')"
                 class="text-[8px] bg-[#3d415f]/80 text-white px-3 py-2 btn-pixel border-[#1a1c2c] uppercase font-bold hover:bg-slate-600 transition-colors">
                 Profile
             </Link>

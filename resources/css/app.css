@@ -9,8 +9,31 @@
 /* 2. Base Fixes */
 @layer base {
   /* Memastikan font global jika kamu mau seluruh aplikasi pakai font ini */
+  html {
+    color-scheme: dark;
+  }
+
   body {
     font-family: 'Press Start 2P', cursive;
+  }
+
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='submit']):not([type='button']):not([type='reset']),
+  textarea,
+  select {
+    color-scheme: dark;
+  }
+
+  select option,
+  select optgroup {
+    background-color: #0d1117;
+    color: #a5f3fc;
+  }
+
+  select option:checked,
+  select option:hover,
+  select option:focus {
+    background: linear-gradient(0deg, #164e63, #164e63);
+    color: #ecfeff;
   }
 
   /* Paksa tampilan autofill tetap selaras dengan dark auth theme */
@@ -44,19 +67,18 @@
     display: inline-flex;
     align-items: stretch;
     padding: 2px;
-    border: 2px solid rgba(61, 65, 95, 0.95);
     background: linear-gradient(
       180deg,
-      rgba(13, 17, 23, 0.55) 0%,
-      rgba(26, 28, 44, 0.70) 100%
+      rgba(8, 11, 18, 0.28) 0%,
+      rgba(13, 16, 24, 0.40) 100%
     );
     box-shadow:
-      inset 0 0 0 1px rgba(0, 0, 0, 0.55),
-      0 14px 32px rgba(0, 0, 0, 0.28);
+      0 12px 28px rgba(0, 0, 0, 0.22);
   }
 
   .nav-action {
     --accent: #4ed4d4;
+    --accent-rgb: 78, 212, 212;
 
     display: inline-flex;
     align-items: center;
@@ -72,10 +94,18 @@
     line-height: 1;
 
     color: var(--accent);
-    background: rgba(10, 12, 16, 0.20);
+    background:
+      linear-gradient(
+        180deg,
+        rgba(11, 15, 23, 0.98) 0%,
+        rgba(5, 8, 14, 0.94) 100%
+      );
+    border-top: 1px solid rgba(var(--accent-rgb), 0.32);
+    border-bottom: 1px solid rgba(var(--accent-rgb), 0.18);
 
     position: relative;
     user-select: none;
+    overflow: visible;
 
     transition:
       background-color 140ms ease,
@@ -85,10 +115,13 @@
       text-shadow 140ms ease,
       filter 140ms ease;
 
-    text-shadow: 0 0 10px var(--accent);
+    text-shadow: 0 0 12px var(--accent);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+      inset 0 0 18px rgba(var(--accent-rgb), 0.05),
+      0 0 0 1px rgba(var(--accent-rgb), 0.18);
 
-    /* Neon lamp flicker (subtle by default) */
-    /* Longer cycle so flicker feels occasional, not distracting */
+    /* Keep the neon alive, but stable enough to stay readable at rest. */
     --flicker-dur: 18s;
     --flicker-delay: 0s;
     --wander-dur: 9s;
@@ -98,7 +131,7 @@
 
   /* Dividers only when items are inside the dock */
   .nav-dock .nav-action + .nav-action {
-    border-left: 1px solid rgba(61, 65, 95, 0.95);
+    border-left: 1px solid rgba(61, 65, 95, 0.55);
   }
 
   /* Moving "lamp hotspot" inside the button (the light moves, not the button) */
@@ -107,7 +140,7 @@
     position: absolute;
     inset: 2px;
     pointer-events: none;
-    opacity: 0.22;
+    opacity: 0.26;
     background:
       radial-gradient(
         10px 8px at 20% 45%,
@@ -125,6 +158,7 @@
     filter: drop-shadow(0 0 7px var(--accent)) blur(0.2px);
     animation: navLampWander var(--wander-dur) infinite linear;
     animation-delay: var(--flicker-delay);
+    z-index: 0;
   }
 
   .nav-dock .nav-action::after {
@@ -135,17 +169,31 @@
     bottom: 4px;
     height: 2px;
     background: var(--accent);
-    opacity: 0.22;
+    opacity: 0.48;
     transform: translateY(2px);
     transition: opacity 140ms ease, transform 140ms ease;
     box-shadow: 0 0 10px var(--accent);
+    z-index: 0;
+  }
+
+  .nav-action > * {
+    position: relative;
+    z-index: 1;
   }
 
   .nav-action:hover {
-    background: rgba(78, 212, 212, 0.06);
+    background:
+      linear-gradient(
+        180deg,
+        rgba(13, 18, 27, 1) 0%,
+        rgba(7, 10, 16, 0.96) 100%
+      );
     color: var(--accent);
-    text-shadow: 0 0 14px var(--accent);
-    box-shadow: 0 0 22px var(--accent);
+    text-shadow: 0 0 16px var(--accent);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+      inset 0 0 22px rgba(var(--accent-rgb), 0.12),
+      0 0 16px rgba(var(--accent-rgb), 0.20);
     filter: saturate(1.1);
   }
 
@@ -166,14 +214,24 @@
   }
 
   .nav-action--admin { --accent: #c084fc; }
+  .nav-action--admin { --accent-rgb: 192, 132, 252; }
   .nav-action--profile { --accent: #67e8f9; }
+  .nav-action--profile { --accent-rgb: 103, 232, 249; }
   .nav-action--shop { --accent: #facc15; }
+  .nav-action--shop { --accent-rgb: 250, 204, 21; }
+  .nav-action--hall { --accent: #4ade80; }
+  .nav-action--hall { --accent-rgb: 74, 222, 128; }
+  .nav-action--notifications { --accent: #f97316; }
+  .nav-action--notifications { --accent-rgb: 249, 115, 22; }
   .nav-action--logout { --accent: #fb7185; }
+  .nav-action--logout { --accent-rgb: 251, 113, 133; }
 
   /* Stagger timings so they don't flicker in sync */
   .nav-action--admin { --flicker-delay: -2.7s; --flicker-dur: 22s; --wander-dur: 10s; }
   .nav-action--profile { --flicker-delay: -6.1s; --flicker-dur: 19s; --wander-dur: 9s; }
   .nav-action--shop { --flicker-delay: -9.3s; --flicker-dur: 24s; --wander-dur: 11s; }
+  .nav-action--hall { --flicker-delay: -7.4s; --flicker-dur: 21s; --wander-dur: 10s; }
+  .nav-action--notifications { --flicker-delay: -1.9s; --flicker-dur: 23s; --wander-dur: 8s; }
   .nav-action--logout { --flicker-delay: -4.8s; --flicker-dur: 20s; --wander-dur: 9s; }
 
   .xp-bar-fill {
@@ -206,39 +264,29 @@
   }
 }
 
-/* "Dying lamp" flicker: occasional drops + quick surges */
+/* Keep a living neon shimmer without making the button look off. */
 @keyframes navLampFlicker {
-  0% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 10px var(--accent); }
-  80% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 10px var(--accent); }
-
-  /* Short, gentle "dying lamp" moment */
-  82% { filter: brightness(0.90) saturate(0.96); text-shadow: 0 0 7px var(--accent); }
-  83% { filter: brightness(1.12) saturate(1.05); text-shadow: 0 0 14px var(--accent); }
-  84% { filter: brightness(0.78) saturate(0.92); text-shadow: 0 0 5px var(--accent); }
-  85% { filter: brightness(1.06) saturate(1.00); text-shadow: 0 0 12px var(--accent); }
-
-  /* Tiny micro-dip later, very subtle */
-  92% { filter: brightness(0.95) saturate(0.98); text-shadow: 0 0 9px var(--accent); }
-  93% { filter: brightness(1.03) saturate(1.00); text-shadow: 0 0 11px var(--accent); }
-
-  100% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 10px var(--accent); }
+  0% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 12px var(--accent); }
+  38% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 12px var(--accent); }
+  42% { filter: brightness(0.96) saturate(0.98); text-shadow: 0 0 10px var(--accent); }
+  45% { filter: brightness(1.05) saturate(1.04); text-shadow: 0 0 15px var(--accent); }
+  49% { filter: brightness(0.98) saturate(1.00); text-shadow: 0 0 11px var(--accent); }
+  72% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 12px var(--accent); }
+  77% { filter: brightness(0.97) saturate(0.99); text-shadow: 0 0 10px var(--accent); }
+  80% { filter: brightness(1.04) saturate(1.03); text-shadow: 0 0 14px var(--accent); }
+  100% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 12px var(--accent); }
 }
 
-/* Hotspot wander: small jumps + drift so the "light" moves around */
+/* The hotspot still moves, but it should never make the button feel empty. */
 @keyframes navLampWander {
-  0% { transform: translate(0px, 0px); opacity: 0.18; }
-  9% { transform: translate(4px, -1px); opacity: 0.22; }
-  14% { transform: translate(2px, 1px); opacity: 0.12; }
-  18% { transform: translate(7px, 0px); opacity: 0.26; }
-  27% { transform: translate(-2px, 2px); opacity: 0.16; }
-  33% { transform: translate(6px, 1px); opacity: 0.22; }
-  41% { transform: translate(1px, -2px); opacity: 0.10; }
-  52% { transform: translate(8px, 1px); opacity: 0.24; }
-  60% { transform: translate(4px, 2px); opacity: 0.14; }
-  72% { transform: translate(8px, -1px); opacity: 0.26; }
-  79% { transform: translate(3px, 1px); opacity: 0.12; }
-  88% { transform: translate(7px, 2px); opacity: 0.22; }
-  100% { transform: translate(0px, 0px); opacity: 0.18; }
+  0% { transform: translate(0px, 0px); opacity: 0.22; }
+  12% { transform: translate(4px, -1px); opacity: 0.26; }
+  24% { transform: translate(2px, 1px); opacity: 0.18; }
+  38% { transform: translate(7px, 0px); opacity: 0.30; }
+  51% { transform: translate(-1px, 2px); opacity: 0.20; }
+  66% { transform: translate(6px, 1px); opacity: 0.28; }
+  82% { transform: translate(3px, -1px); opacity: 0.22; }
+  100% { transform: translate(0px, 0px); opacity: 0.24; }
 }
 
 @media (prefers-reduced-motion: reduce) {

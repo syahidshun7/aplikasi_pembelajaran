@@ -4,10 +4,15 @@ namespace App\Providers;
 
 use App\Events\JoinGroupRequested;
 use App\Listeners\SendJoinGroupRequestNotification;
+use App\Models\Creation;
+use App\Models\CreationAppreciation;
+use App\Models\CreationInsight;
+use App\Models\CreationPhoto;
 use App\Models\Event;
 use App\Models\Guide;
 use App\Models\Quest;
 use App\Models\StudyGroup;
+use App\Observers\HallOfCreationsCacheObserver;
 use App\Observers\HomeFeedObserver;
 use App\Observers\StudyGroupCacheObserver;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -39,6 +44,10 @@ class AppServiceProvider extends ServiceProvider
         Guide::observe(HomeFeedObserver::class);
         Event::observe(HomeFeedObserver::class);
         StudyGroup::observe(StudyGroupCacheObserver::class);
+        Creation::observe(HallOfCreationsCacheObserver::class);
+        CreationAppreciation::observe(HallOfCreationsCacheObserver::class);
+        CreationInsight::observe(HallOfCreationsCacheObserver::class);
+        CreationPhoto::observe(HallOfCreationsCacheObserver::class);
         EventFacade::listen(JoinGroupRequested::class, SendJoinGroupRequestNotification::class);
 
         // Global IP throttling to reduce automated abuse on auth endpoints.

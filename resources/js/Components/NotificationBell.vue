@@ -57,7 +57,7 @@ const buttonClass = computed(() => {
         return 'nav-item relative inline-flex items-center gap-2 border border-slate-600 px-3 py-1 hover:border-cyan-400 hover:text-cyan-300';
     }
 
-    return 'nav-action nav-action--profile relative';
+    return 'nav-action nav-action--notifications relative z-20';
 });
 
 const badgeClass = computed(() => {
@@ -65,7 +65,7 @@ const badgeClass = computed(() => {
         return 'absolute -top-2 -right-2 min-w-[18px] rounded-full border border-cyan-200 bg-cyan-400 px-1 py-[1px] text-center text-[8px] font-bold text-black';
     }
 
-    return 'absolute -top-2 -right-2 min-w-[18px] rounded-full border border-cyan-200 bg-cyan-300 px-1 py-[1px] text-center text-[8px] font-bold text-black';
+    return 'pointer-events-none absolute left-1/2 -top-2.5 z-20 min-w-[18px] translate-x-[6px] rounded-full border border-orange-200 bg-orange-300 px-1 py-[1px] text-center text-[8px] font-bold text-black shadow-[0_0_12px_rgba(249,115,22,0.45)]';
 });
 
 const dropdownClass = computed(() => {
@@ -204,7 +204,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div ref="bellRoot" class="relative">
+    <div
+        ref="bellRoot"
+        :class="variant === 'admin' ? 'relative' : 'relative z-20'"
+    >
         <button type="button" :class="buttonClass" @click="toggleDropdown">
             <i class="fi fi-rr-bell text-[10px] leading-none"></i>
             <span v-if="variant === 'admin'">NOTIFS</span>

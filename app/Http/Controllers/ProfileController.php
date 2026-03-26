@@ -18,102 +18,36 @@ use Inertia\Response;
 class ProfileController extends Controller
 {
     /**
-     * Display the user's profile form.
+     * Display the user's profile dashboard.
+     */
+    public function dashboard(Request $request): Response
+    {
+        $user = $request->user();
+
+        [$averageGrade, $totalCompleted] = $this->resolveQuestStats($user);
+
+        return Inertia::render('Profile/Edit', [
+            'user'            => $this->buildUserPayload($user),
+            'userQuests'      => $this->resolveUserQuests($user),
+            'averageGrade'    => $averageGrade,
+            'totalCompleted'  => $totalCompleted,
+            'profileView'     => 'dashboard',
+        ]);
+    }
+
+    /**
+     * Display the user's profile edit form.
      */
     public function edit(Request $request): Response
     {
         $user = $request->user();
 
-        // 1. Ambil semua quest yang tersedia untuk user: public + party user.
-        $userGroupIds = $user->studyGroups()->pluck('study_groups.id')->toArray();
-
-        $availableQuestsQuery = Quest::query()
-            ->where(function ($query) use ($userGroupIds) {
-                $query->whereNull('study_group_id')
-                    ->orWhereIn('study_group_id', $userGroupIds);
-            })
-            ->select('id');
-
-        $totalAvailableQuests = (int) (clone $availableQuestsQuery)->count();
-
-        // 2. Ambil submission terbaru user per quest untuk basis scoring (dedup di SQL).
-        $latestSubmissions = Submission::query()
-            ->joinSub(
-                Submission::query()
-                    ->where('user_id', $user->id)
-                    ->whereIn('quest_id', $availableQuestsQuery)
-                    ->selectRaw('MAX(id) as id')
-                    ->groupBy('quest_id'),
-                'latest',
-                fn ($join) => $join->on('submissions.id', '=', 'latest.id')
-            )
-            ->get(['submissions.quest_id', 'submissions.grade', 'submissions.status']);
-
-        // 3. Overall grade = total grade submission user / total quest tersedia.
-        // Quest yang belum disubmit otomatis bernilai 0 karena tetap masuk denominator.
-        $gradeSum = (int) $latestSubmissions->sum(fn ($submission) => (int) ($submission->grade ?? 0));
-        $averageGrade = $totalAvailableQuests > 0
-            ? round($gradeSum / $totalAvailableQuests, 1)
-            : 0;
-
-        // "Completed" tetap dihitung dari quest yang submission terbarunya sudah diverifikasi.
-        $totalCompleted = (int) $latestSubmissions
-            ->filter(fn ($submission) => in_array((string) ($submission->status ?? ''), ['Approved', 'Rejected'], true))
-            ->count();
-
-        $user->loadMissing('job:id,name,emblem_path');
-
-        $userData = [
-            'id'            => $user->id,
-            'uuid'          => $user->uuid,
-            'name'          => $user->name,
-            'username'      => $user->username,      // [TAMBAHAN] Kirim Username
-            'profile_photo' => $user->profile_photo, // [TAMBAHAN] Kirim Path Foto
-            'email'         => $user->email,
-            'email_verified_at' => $user->email_verified_at,
-            'job_id'        => $user->job_id,
-            'job_name'      => $user->job?->name,
-            'job_emblem_path' => $user->job?->emblem_path,
-            'gold'          => $user->gold ?? 0,
-            'lvl'           => $user->level ?? $user->lvl ?? 1,
-            'exp'           => $user->exp ?? 0,
-            'role'          => $user->role,
-        ];
-
-        $userQuests = Submission::where('user_id', $user->id)
-            ->with('quest:id,uuid,title')
-            ->select([
-                'id',
-                'uuid',
-                'user_id',
-                'quest_id',
-                'status',
-                'grade',
-                'created_at',
-            ])
-            ->orderBy('created_at', 'desc')
-            ->paginate(12)
-            ->withQueryString()
-            ->through(function ($submission) {
-                return [
-                    'id'           => $submission->id,
-                    'uuid'         => $submission->uuid,
-                    'title'        => $submission->quest?->title ?? 'Unknown Quest',
-                    'status'       => $submission->status,
-                    'grade'        => $submission->grade,
-                    'submitted_at' => $submission->created_at->diffForHumans(),
-                    'quest_uuid'   => $submission->quest?->uuid
-                ];
-            });
-
         return Inertia::render('Profile/Edit', [
-            'user'            => $userData,
-            'mustVerifyEmail' => $user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail,
+            'user'            => $this->buildUserPayload($user),
+            'mustVerifyEmail' => $user instanceof MustVerifyEmail,
             'status'          => session('status'),
-            'userQuests'      => $userQuests,
             'jobs'            => JobRole::query()->orderBy('name')->get(['id', 'name', 'slug']),
-            'averageGrade'    => $averageGrade,
-            'totalCompleted'  => $totalCompleted,
+            'profileView'     => 'settings',
         ]);
     }
     /**
@@ -183,5 +117,93 @@ class ProfileController extends Controller
         $request->session()->regenerateToken();
 
         return Redirect::to('/');
+    }
+
+    private function buildUserPayload($user): array
+    {
+        $user->loadMissing('job:id,name,emblem_path');
+
+        return [
+            'id'            => $user->id,
+            'uuid'          => $user->uuid,
+            'name'          => $user->name,
+            'username'      => $user->username,
+            'profile_photo' => $user->profile_photo,
+            'email'         => $user->email,
+            'email_verified_at' => $user->email_verified_at,
+            'job_id'        => $user->job_id,
+            'job_name'      => $user->job?->name,
+            'job_emblem_path' => $user->job?->emblem_path,
+            'gold'          => $user->gold ?? 0,
+            'lvl'           => $user->level ?? $user->lvl ?? 1,
+            'exp'           => $user->exp ?? 0,
+            'role'          => $user->role,
+        ];
+    }
+
+    private function resolveQuestStats($user): array
+    {
+        $userGroupIds = $user->studyGroups()->pluck('study_groups.id')->toArray();
+
+        $availableQuestsQuery = Quest::query()
+            ->where(function ($query) use ($userGroupIds) {
+                $query->whereNull('study_group_id')
+                    ->orWhereIn('study_group_id', $userGroupIds);
+            })
+            ->select('id');
+
+        $totalAvailableQuests = (int) (clone $availableQuestsQuery)->count();
+
+        $latestSubmissions = Submission::query()
+            ->joinSub(
+                Submission::query()
+                    ->where('user_id', $user->id)
+                    ->whereIn('quest_id', $availableQuestsQuery)
+                    ->selectRaw('MAX(id) as id')
+                    ->groupBy('quest_id'),
+                'latest',
+                fn ($join) => $join->on('submissions.id', '=', 'latest.id')
+            )
+            ->get(['submissions.quest_id', 'submissions.grade', 'submissions.status']);
+
+        $gradeSum = (int) $latestSubmissions->sum(fn ($submission) => (int) ($submission->grade ?? 0));
+        $averageGrade = $totalAvailableQuests > 0
+            ? round($gradeSum / $totalAvailableQuests, 1)
+            : 0;
+
+        $totalCompleted = (int) $latestSubmissions
+            ->filter(fn ($submission) => in_array((string) ($submission->status ?? ''), ['Approved', 'Rejected'], true))
+            ->count();
+
+        return [$averageGrade, $totalCompleted];
+    }
+
+    private function resolveUserQuests($user)
+    {
+        return Submission::where('user_id', $user->id)
+            ->with('quest:id,uuid,title')
+            ->select([
+                'id',
+                'uuid',
+                'user_id',
+                'quest_id',
+                'status',
+                'grade',
+                'created_at',
+            ])
+            ->orderBy('created_at', 'desc')
+            ->paginate(12)
+            ->withQueryString()
+            ->through(function ($submission) {
+                return [
+                    'id'           => $submission->id,
+                    'uuid'         => $submission->uuid,
+                    'title'        => $submission->quest?->title ?? 'Unknown Quest',
+                    'status'       => $submission->status,
+                    'grade'        => $submission->grade,
+                    'submitted_at' => $submission->created_at->diffForHumans(),
+                    'quest_uuid'   => $submission->quest?->uuid,
+                ];
+            });
     }
 }

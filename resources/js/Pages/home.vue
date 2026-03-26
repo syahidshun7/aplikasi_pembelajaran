@@ -33,7 +33,7 @@ const page = usePage();
 const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
-const profileVerificationHref = computed(() => `${route('profile.edit', { tab: 'profile' })}#email-verification`);
+const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
 
 const toSafeDate = (dateLike) => {
     if (!dateLike) return null;
@@ -122,7 +122,7 @@ const closeMobileMenu = () => {
                                 Admin
                             </Link>
 
-                            <Link :href="route('profile.edit')" class="nav-action nav-action--profile">
+                            <Link :href="route('profile.dashboard')" class="nav-action nav-action--profile">
                                 <i class="fi fi-rr-user text-[10px] leading-none"></i>
                                 Profile
                             </Link>
@@ -130,6 +130,11 @@ const closeMobileMenu = () => {
                         <Link :href="route('shop.index')" class="nav-action nav-action--shop">
                             <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
                             Shop
+                        </Link>
+
+                        <Link :href="route('hall.creations.index')" class="nav-action nav-action--hall">
+                            <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
+                            Hall
                         </Link>
 
                         <NotificationBell />
@@ -184,7 +189,7 @@ const closeMobileMenu = () => {
                         Verifikasi email berhasil. Semua fitur akun sekarang sudah terbuka.
                     </div>
                     <Link
-                        :href="route('profile.edit', { tab: 'profile' })"
+                        :href="route('profile.dashboard')"
                         class="text-[8px] bg-emerald-300 text-black px-3 py-2 btn-pixel border-emerald-700 uppercase font-bold hover:bg-emerald-200 transition-colors text-center"
                     >
                         Buka Profile
@@ -205,7 +210,7 @@ const closeMobileMenu = () => {
                         </Link>
 
                         <Link
-                            :href="route('profile.edit')"
+                            :href="route('profile.dashboard')"
                             class="w-full nav-action nav-action--profile justify-center"
                             @click="closeMobileMenu"
                         >
@@ -223,8 +228,17 @@ const closeMobileMenu = () => {
                         </Link>
 
                         <Link
+                            :href="route('hall.creations.index')"
+                            class="w-full nav-action nav-action--hall justify-center"
+                            @click="closeMobileMenu"
+                        >
+                            <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
+                            Hall
+                        </Link>
+
+                        <Link
                             :href="route('notifications.index')"
-                            class="w-full nav-action nav-action--profile justify-center"
+                            class="w-full nav-action nav-action--notifications justify-center"
                             @click="closeMobileMenu"
                         >
                             <i class="fi fi-rr-bell text-[10px] leading-none"></i>
@@ -265,20 +279,21 @@ const closeMobileMenu = () => {
                 </div>
             </div>
 
-            <main class="p-4 md:p-8 grid grid-cols-12 gap-8 flex-1">
+            <main class="grid flex-1 grid-cols-12 gap-4 p-3 sm:p-4 md:gap-8 md:p-8">
 
                 <div class="col-span-12 lg:col-span-4 space-y-6">
 
-                    <div class="rpg-panel border-[#3d415f] h-[350px] flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm">
+                    <div class="rpg-panel flex min-h-[300px] flex-col border-[#3d415f] bg-[#1a1c2c]/90 backdrop-blur-sm md:h-[350px]">
                         <h2
-                            class="text-[#4ed4d4] text-[10px] mb-4 flex items-center gap-2 border-b border-slate-700 pb-2 flex-shrink-0 uppercase">
-                            <i class="fi fi-rr-user text-[11px] text-[#4ed4d4]"></i> Leaderboard - Players[{{ players.length }}]
+                            class="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-700 pb-2 text-[9px] uppercase text-[#4ed4d4] sm:text-[10px]">
+                            <i class="fi fi-rr-user text-[11px] text-[#4ed4d4]"></i>
+                            <span class="break-words">Leaderboard - Players[{{ players.length }}]</span>
                         </h2>
                         <div class="space-y-4 overflow-y-auto pr-2 custom-scroll flex-1">
                             <div
                                 v-for="(player, index) in playerItems"
                                 :key="player.id"
-                                class="flex items-center gap-4 p-2 hover:bg-[#009999]/10 border-l-4 border-transparent hover:border-[#009999] transition-all relative">
+                                class="relative flex items-center gap-3 border-l-4 border-transparent p-2 transition-all hover:border-[#009999] hover:bg-[#009999]/10 sm:gap-4">
 
                                 <div class="relative">
                                     <div v-if="index < 3"
@@ -307,18 +322,18 @@ const closeMobileMenu = () => {
                                     </div>
                                 </div>
 
-                                <div class="flex-1">
-                                    <div class="flex justify-between text-[8px] font-sans font-bold items-center">
-                                        <span class="text-[14px] text-white uppercase truncate max-w-[120px]"
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center justify-between gap-2 text-[8px] font-sans font-bold">
+                                        <span class="max-w-[120px] truncate text-[12px] uppercase text-white sm:text-[14px]"
                                             :class="{ 'text-yellow-400 font-black': index === 0 }">
                                             {{ player.username || player.name }}
                                         </span>
-                                        <span class="text-[10px]" :class="index < 3 ? 'text-white' : 'text-[#009999]'">
+                                        <span class="shrink-0 text-[9px] sm:text-[10px]" :class="index < 3 ? 'text-white' : 'text-[#009999]'">
                                             LVL.{{ player.level || 1 }}
                                         </span>
                                     </div>
-                                    <p class="text-[8px] text-slate-400 mt-1 uppercase flex justify-between">
-                                        <span>{{ player.role || 'Adventurer' }}</span>
+                                    <p class="mt-1 flex flex-wrap justify-between gap-1 text-[8px] uppercase text-slate-400">
+                                        <span class="break-words">{{ player.role || 'Adventurer' }}</span>
                                         <span v-if="index < 3" class="italic text-slate-500">Rank #{{ index + 1
                                             }}</span>
                                     </p>
@@ -328,9 +343,9 @@ const closeMobileMenu = () => {
                     </div>
 
                     <div
-                        class="rpg-panel border-indigo-500/50 h-[380px] flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm relative">
+                        class="rpg-panel relative flex min-h-[320px] flex-col border-indigo-500/50 bg-[#1a1c2c]/90 backdrop-blur-sm md:h-[380px]">
                         <div
-                            class="flex justify-between items-start mb-4 border-b border-indigo-900 pb-2 flex-shrink-0">
+                            class="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-indigo-900 pb-2">
                             <h2
                                 class="text-indigo-400 text-[10px] uppercase tracking-widest flex items-center gap-2 font-['Press_Start_2P']">
                                 Materi Ajar
@@ -353,7 +368,7 @@ const closeMobileMenu = () => {
                                 <div class="absolute top-0 left-0 w-1 h-full bg-indigo-600"></div>
 
                                 <div class="p-3 pl-5 relative">
-                                    <div class="flex justify-between items-center mb-1">
+                                    <div class="mb-1 flex flex-wrap items-center justify-between gap-2">
                                         <span
                                             class="text-[7px] text-indigo-400 font-['Press_Start_2P'] uppercase tracking-tighter">[
                                             STUDY_MATERIAL ]</span>
@@ -366,7 +381,7 @@ const closeMobileMenu = () => {
                                     </p>
 
                                     <h3
-                                        class="text-[14px] font-sans font-extrabold text-white uppercase tracking-tight group-hover:text-indigo-300 leading-tight mb-1">
+                                        class="mb-1 break-words text-[12px] font-sans font-extrabold uppercase leading-tight tracking-tight text-white group-hover:text-indigo-300 sm:text-[14px]">
                                         {{ item.title }}
                                     </h3>
 
@@ -402,26 +417,26 @@ const closeMobileMenu = () => {
 
                 <div class="col-span-12 lg:col-span-8 space-y-6">
 
-                    <div class="rpg-panel flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm border-emerald-500/50">
-                        <div class="flex justify-between items-center mb-4 border-b border-emerald-900 pb-2">
-                            <h2 class="text-emerald-400 text-[10px] uppercase tracking-widest flex items-center gap-2">
+                    <div class="rpg-panel flex flex-col border-emerald-500/50 bg-[#1a1c2c]/90 backdrop-blur-sm">
+                        <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-emerald-900 pb-2">
+                            <h2 class="flex items-center gap-2 text-[9px] uppercase tracking-widest text-emerald-400 sm:text-[10px]">
                                 <i class="fi fi-rr-users text-[12px] text-emerald-300 animate-pulse"></i> Active_Parties [{{ studyGroups.length }}]
                             </h2>
                             <span class="text-[10px] text-slate-500 uppercase font-mono">Join_via_Request</span>
                         </div>
 
                         <div
-                            class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[250px] overflow-y-auto pr-2 custom-scroll">
+                            class="grid max-h-[unset] grid-cols-1 gap-4 overflow-y-visible pr-0 md:max-h-[250px] md:grid-cols-2 md:overflow-y-auto md:pr-2 custom-scroll">
                             <div v-for="group in studyGroups" :key="group.uuid"
                                 class="p-3 bg-[#0d1117] border-2 border-slate-800 hover:border-emerald-500 transition-all group relative overflow-hidden">
                                 <div class="absolute top-0 left-0 w-1 h-full bg-emerald-600"></div>
 
-                                <div class="flex justify-between items-start mb-1">
+                                <div class="mb-1 flex items-start justify-between gap-3">
                                     <h3
-                                        class="text-[14px] text-white uppercase group-hover:text-emerald-400 font-bold tracking-tight">
+                                        class="break-words text-[12px] font-bold uppercase tracking-tight text-white group-hover:text-emerald-400 sm:text-[14px]">
                                         {{ group.name }}
                                     </h3>
-                                    <span class="text-[12px] text-yellow-500 font-mono">{{ group.users_count || 0 }}/{{
+                                    <span class="shrink-0 text-[11px] font-mono text-yellow-500 sm:text-[12px]">{{ group.users_count || 0 }}/{{
                                         group.max_members }}</span>
                                 </div>
 
@@ -429,8 +444,8 @@ const closeMobileMenu = () => {
                                     {{ group.description || 'In pursuit of higher knowledge...' }}
                                 </p>
 
-                                <div class="flex justify-between items-center">
-                                    <span class="text-[10px] text-slate-600 uppercase font-mono tracking-tighter">
+                                <div class="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                                    <span class="break-all text-[9px] font-mono uppercase tracking-tighter text-slate-600 sm:text-[10px]">
                                         Party_ID: {{ group.uuid?.substring(0, 8) }}
                                     </span>
 
@@ -459,9 +474,9 @@ const closeMobileMenu = () => {
                         </div>
                     </div>
 
-                    <div class="rpg-panel flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm border-blue-500/50">
-                        <div class="flex justify-between items-center mb-4 border-b border-blue-900 pb-2">
-                            <h2 class="text-blue-300 text-[10px] uppercase tracking-widest flex items-center gap-2">
+                    <div class="rpg-panel flex flex-col border-blue-500/50 bg-[#1a1c2c]/90 backdrop-blur-sm">
+                        <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-blue-900 pb-2">
+                            <h2 class="flex items-center gap-2 text-[9px] uppercase tracking-widest text-blue-300 sm:text-[10px]">
                                 <i class="fi fi-rr-calendar-clock text-[12px]"></i> Event_Timeline [{{ events.length }}]
                             </h2>
                             <Link :href="auth.user ? route('events.user.index') : route('login')"
@@ -471,7 +486,7 @@ const closeMobileMenu = () => {
                             </Link>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[260px] overflow-y-auto pr-2 custom-scroll">
+                        <div class="grid grid-cols-1 gap-4 pr-0 custom-scroll md:max-h-[260px] md:grid-cols-2 md:overflow-y-auto md:pr-2">
                             <div
                                 v-for="event in eventItems"
                                 :key="event.uuid"
@@ -486,7 +501,7 @@ const closeMobileMenu = () => {
                                         #{{ event.uuid.substring(0, 6) }}
                                     </div>
                                 </div>
-                                <h3 class="text-[12px] text-white uppercase mb-2 group-hover:text-blue-300 leading-snug">
+                                <h3 class="mb-2 break-words text-[11px] uppercase leading-snug text-white group-hover:text-blue-300 sm:text-[12px]">
                                     {{ event.title }}
                                 </h3>
                                 <p class="text-[8px] text-cyan-400 uppercase mb-2">
@@ -515,10 +530,10 @@ const closeMobileMenu = () => {
                         </div>
                     </div>
 
-                    <div class="rpg-panel h-[480px] flex flex-col bg-[#1a1c2c]/90 backdrop-blur-sm border-[#3d415f]">
+                    <div class="rpg-panel flex min-h-[420px] flex-col border-[#3d415f] bg-[#1a1c2c]/90 backdrop-blur-sm md:h-[480px]">
                         <div
-                            class="flex justify-between items-center mb-6 border-b border-slate-700 pb-4 flex-shrink-0">
-                            <h2 class="text-yellow-400 text-xs uppercase tracking-widest animate-pulse">Available_Quests
+                            class="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 pb-4">
+                            <h2 class="text-[10px] uppercase tracking-widest text-yellow-400 animate-pulse sm:text-xs">Available_Quests
                             </h2>
                             <Link :href="auth.user ? route('quests.user.index') : route('login')"
                                 class="bg-yellow-900/30 p-2 border-b-4 border-r-4 border-yellow-700 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.5)] flex items-center justify-center hover:bg-yellow-500/40 transition-colors"
@@ -533,7 +548,7 @@ const closeMobileMenu = () => {
                                 <div
                                     v-for="quest in questItems"
                                     :key="quest.uuid"
-                                    class="rpg-panel bg-[#161b22] transition-all group cursor-pointer shadow-none flex flex-col h-[200px]"
+                                    class="rpg-panel group flex min-h-[220px] cursor-pointer flex-col bg-[#161b22] transition-all shadow-none sm:h-[200px]"
                                     :class="[
                                         (quest.user_submission_status === 'Approved') ? 'border-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.35)] bg-emerald-950/20' :
                                         (quest.user_submission_status === 'Pending') ? 'border-yellow-500 shadow-[0_0_12px_rgba(234,179,8,0.35)] bg-yellow-950/20' :
@@ -544,7 +559,7 @@ const closeMobileMenu = () => {
                                     ]">
 
                                     <div class="flex flex-col h-full">
-                                        <div class="flex justify-between items-start mb-3">
+                                        <div class="mb-3 flex items-start justify-between gap-2">
                                             <span
                                                 class="text-[7px] px-2 py-1 bg-slate-800 text-slate-400 border border-slate-600 uppercase">ID:{{
                                                     quest.id }}</span>
@@ -558,7 +573,7 @@ const closeMobileMenu = () => {
                                         </div>
 
                                         <h3
-                                            class="text-[10px] text-white group-hover:text-[#4ed4d4] leading-relaxed transition-colors uppercase line-clamp-3 mb-2">
+                                            class="mb-2 line-clamp-3 break-words text-[9px] uppercase leading-relaxed text-white transition-colors group-hover:text-[#4ed4d4] sm:text-[10px]">
                                             {{ quest.title }}
                                         </h3>
 
@@ -593,7 +608,7 @@ const closeMobileMenu = () => {
                                                 Active_In_Journal...</p>
                                         </div>
 
-                                        <div class="pt-4 flex justify-between items-center border-t border-slate-800">
+                                        <div class="flex flex-col gap-3 border-t border-slate-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
                                             <div class="flex flex-col">
                                                 <span class="text-[6px] text-slate-500 uppercase mb-1">Reward</span>
                                                 <span class="text-yellow-500 text-[8px] tracking-tighter font-bold">{{
@@ -602,7 +617,7 @@ const closeMobileMenu = () => {
 
                                             <template v-if="quest.status !== 'In-Progress'">
                                                 <Link :href="route('quests.show', quest.uuid)" :class="[
-                                                    'text-[8px] px-3 py-2 btn-pixel uppercase font-bold transition-colors whitespace-nowrap',
+                                                    'text-[8px] px-3 py-2 btn-pixel uppercase font-bold transition-colors whitespace-nowrap self-start sm:self-auto',
                                                     (quest.user_submission_status === 'Approved') ? 'bg-emerald-600 text-black border-emerald-800 hover:bg-emerald-400' :
                                                     (quest.user_submission_status === 'Pending') ? 'bg-yellow-600 text-black border-yellow-800 hover:bg-yellow-400' :
                                                     (quest.user_has_unlock && !quest.user_has_submitted) ? 'bg-cyan-600 text-black border-cyan-800 hover:bg-cyan-400' :
@@ -648,8 +663,8 @@ const closeMobileMenu = () => {
 
             <FloatingChat v-if="auth.user" />
 
-            <footer class="p-8 text-center bg-[#1a1c2c]/50 backdrop-blur-md border-t-2 border-white/10 mt-auto">
-                <p class="text-[8px] text-white/50 uppercase tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
+            <footer class="mt-auto border-t-2 border-white/10 bg-[#1a1c2c]/50 p-6 text-center backdrop-blur-md md:p-8">
+                <p class="break-words text-[7px] uppercase tracking-[0.18em] text-white/50 sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
             </footer>
 
         </div>

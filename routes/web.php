@@ -1,34 +1,55 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\QuestController;
-use App\Http\Controllers\StudyGroupController;
-use App\Http\Controllers\AdminStudyGroupController;
-use App\Http\Controllers\AdminQuestController;
-use App\Http\Controllers\AdminSubmissionController;
-use App\Http\Controllers\AdminGuideController;
-use App\Http\Controllers\AdminUserController;
-use App\Http\Controllers\AdminSubmissionManagementController;
-use App\Http\Controllers\AdminJobRoleController;
-use App\Http\Controllers\AdminEventController;
-use App\Http\Controllers\AdminShopItemController;
-use App\Http\Controllers\AdminTaskBankController;
 use App\Http\Controllers\AdminErrorLogController;
+use App\Http\Controllers\AdminEventController;
+use App\Http\Controllers\AdminGuideController;
+use App\Http\Controllers\AdminJobRoleController;
+use App\Http\Controllers\AdminQuestController;
+use App\Http\Controllers\AdminShopItemController;
+use App\Http\Controllers\AdminStudyGroupController;
+use App\Http\Controllers\AdminSubmissionController;
+use App\Http\Controllers\AdminSubmissionManagementController;
+use App\Http\Controllers\AdminTaskBankController;
+use App\Http\Controllers\AdminUserController;
+use App\Http\Controllers\CreationApiController;
+use App\Http\Controllers\CreationInteractionController;
+use App\Http\Controllers\CreationPageController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GuideController;
+use App\Http\Controllers\HallOfCreationApiController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationDispatchController;
-use App\Http\Controllers\SubmissionController;
-use App\Http\Controllers\UserEventController;
-use App\Http\Controllers\ShopController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\QuestController;
 use App\Http\Controllers\RubricController;
 use App\Http\Controllers\RubricCriteriaController;
 use App\Http\Controllers\RubricLevelController;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ShopController;
+use App\Http\Controllers\StudyGroupController;
+use App\Http\Controllers\SubmissionController;
+use App\Http\Controllers\UserEventController;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Route;
 
-use Inertia\Inertia;
+Route::prefix('api')->name('api.')->group(function () {
+    Route::get('/hall-of-creations', [HallOfCreationApiController::class, 'index'])->name('hall.index');
+    Route::get('/hall-of-creations/{creation}', [HallOfCreationApiController::class, 'show'])->name('hall.show');
+    Route::get('/creations/{creation}/insights', [CreationInteractionController::class, 'insights'])->name('creations.insights.index');
+});
+
+Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
+    Route::get('/creations', [CreationApiController::class, 'index'])->name('creations.index');
+    Route::get('/profile/creations', [CreationApiController::class, 'index'])->name('profile.creations.index');
+    Route::post('/creations', [CreationApiController::class, 'store'])->name('creations.store');
+    Route::get('/creations/{creation}', [CreationApiController::class, 'show'])->name('creations.show');
+    Route::put('/creations/{creation}', [CreationApiController::class, 'update'])->name('creations.update');
+    Route::delete('/creations/{creation}', [CreationApiController::class, 'destroy'])->name('creations.destroy');
+
+    Route::post('/creations/{creation}/appreciate', [CreationInteractionController::class, 'appreciate'])->name('creations.appreciate.store');
+    Route::delete('/creations/{creation}/appreciate', [CreationInteractionController::class, 'removeAppreciation'])->name('creations.appreciate.destroy');
+    Route::post('/creations/{creation}/insights', [CreationInteractionController::class, 'storeInsight'])->name('creations.insights.store');
+});
 
 Route::get('/', [HomeController::class, 'index'])->name('lobby');
 Route::get('/landing', [HomeController::class, 'landing'])->name('landing');
@@ -36,6 +57,7 @@ Route::get('/landing', [HomeController::class, 'landing'])->name('landing');
 if (app()->environment(['local', 'testing'])) {
     Route::get('/redis-test', function () {
         Redis::set('test', 'ok');
+
         return Redis::get('test');
     });
 
@@ -44,9 +66,14 @@ if (app()->environment(['local', 'testing'])) {
     });
 }
 
-
 Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::get('/hall-of-creations', [CreationPageController::class, 'hallIndex'])->name('hall.creations.index');
+    Route::get('/my-creations', [CreationPageController::class, 'index'])->name('creations.index');
+    Route::get('/profile/creations', [CreationPageController::class, 'profileCreations'])->name('profile.creations');
+    Route::get('/hall-of-creations/{creation}', [CreationPageController::class, 'show'])->name('hall.creations.show');
+
+    Route::get('/profile', [ProfileController::class, 'dashboard'])->name('profile.dashboard');
+    Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
@@ -81,8 +108,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/chat', [NotificationDispatchController::class, 'chat'])->name('notifications.chat');
 });
 
-
-
 Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/admin/dashboard', function () {
@@ -95,7 +120,6 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
     Route::patch('/quests/{uuid}/restore', [QuestController::class, 'restore'])->name('quests.restore');
     Route::delete('/quests/{uuid}/force', [QuestController::class, 'forceDestroy'])->name('quests.force-destroy');
     Route::delete('/quests/{quest}', [QuestController::class, 'destroy'])->name('quests.destroy');
-
 
     Route::get('/quests/{quest}/submissions', [AdminQuestController::class, 'submissions'])
         ->name('admin.quests.submissions');
@@ -165,7 +189,6 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
 
 });
 
-
 Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::prefix('admin/users')->name('admin.users.')->group(function () {
         Route::get('/', [AdminUserController::class, 'index'])->name('index');
@@ -204,7 +227,6 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::get('/admin/error-logs', [AdminErrorLogController::class, 'index'])->name('admin.error-logs.index');
 });
 
-
 Route::middleware(['auth', 'verified', 'role:admin,mentor'])->prefix('admin')->group(function () {
 
     // Halaman Utama CRUD (List & Form Jadi Satu)
@@ -222,11 +244,9 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->prefix('admin')->g
     Route::delete('/materi/{uuid}', [AdminGuideController::class, 'destroy'])->name('materi.destroy');
 });
 
-
 Route::middleware(['auth', 'verified', 'admin'])->group(function () {
 
-
-    // --- ADMIN AREA ---    
+    // --- ADMIN AREA ---
     Route::get('/admin/study-groups/index', [AdminStudyGroupController::class, 'manage'])->name('groups.manage');
     Route::get('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'detail'])->name('groups.detail');
     Route::post('/admin/study-groups', [AdminStudyGroupController::class, 'store'])->name('groups.store');
@@ -242,4 +262,4 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::delete('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'destroy'])->name('groups.destroy');
 });
 
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';

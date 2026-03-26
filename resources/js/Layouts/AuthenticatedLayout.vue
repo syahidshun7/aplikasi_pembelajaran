@@ -11,7 +11,7 @@ const showFloatingChat = computed(() => Boolean(auth.value?.user));
 const mobileMenuOpen = ref(false);
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
-const profileVerificationHref = computed(() => `${route('profile.edit', { tab: 'profile' })}#email-verification`);
+const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
 
 const handleLogout = () => {
     toast.confirm('QUIT GAME?', 'Are you sure you want to exit?')
@@ -57,7 +57,7 @@ const handleLogout = () => {
                             Admin
                         </Link>
 
-                        <Link :href="route('profile.edit')" class="nav-action nav-action--profile">
+                        <Link :href="route('profile.dashboard')" class="nav-action nav-action--profile">
                             <i class="fi fi-rr-user text-[10px] leading-none"></i>
                             Profile
                         </Link>
@@ -65,6 +65,11 @@ const handleLogout = () => {
                         <Link :href="route('shop.index')" class="nav-action nav-action--shop">
                             <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
                             Shop
+                        </Link>
+
+                        <Link :href="route('hall.creations.index')" class="nav-action nav-action--hall">
+                            <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
+                            Hall
                         </Link>
 
                         <NotificationBell />
@@ -104,7 +109,7 @@ const handleLogout = () => {
                 </Link>
 
                 <Link
-                    :href="route('profile.edit')"
+                    :href="route('profile.dashboard')"
                     class="w-full nav-action nav-action--profile justify-center"
                     @click="mobileMenuOpen = false"
                 >
@@ -122,8 +127,17 @@ const handleLogout = () => {
                 </Link>
 
                 <Link
+                    :href="route('hall.creations.index')"
+                    class="w-full nav-action nav-action--hall justify-center"
+                    @click="mobileMenuOpen = false"
+                >
+                    <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
+                    Hall
+                </Link>
+
+                <Link
                     :href="route('notifications.index')"
-                    class="w-full nav-action nav-action--profile justify-center"
+                    class="w-full nav-action nav-action--notifications justify-center"
                     @click="mobileMenuOpen = false"
                 >
                     <i class="fi fi-rr-bell text-[10px] leading-none"></i>
@@ -176,8 +190,8 @@ const handleLogout = () => {
         <main class="relative z-10 p-4 md:p-8 animate-in fade-in zoom-in-95 duration-500 flex-1">
             <slot />
         </main>
-        <footer class="p-8 text-center bg-[#1a1c2c]/50 backdrop-blur-md border-t-2 border-white/10 mt-auto">
-            <p class="text-[8px] text-white/50 uppercase tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
+        <footer class="mt-auto border-t-2 border-white/10 bg-[#1a1c2c]/50 p-6 text-center backdrop-blur-md md:p-8">
+            <p class="break-words text-[7px] uppercase tracking-[0.18em] text-white/50 sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
         </footer>
 
         <FloatingChat v-if="showFloatingChat" />

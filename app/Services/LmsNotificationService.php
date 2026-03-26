@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Creation;
+use App\Models\CreationInsight;
 use App\Models\Event;
 use App\Models\Message;
 use App\Models\Quest;
@@ -11,6 +13,8 @@ use App\Notifications\AnnouncementNotification;
 use App\Notifications\AssignmentReminderNotification;
 use App\Notifications\AssignmentSubmittedNotification;
 use App\Notifications\ChatMessageNotification;
+use App\Notifications\CreationAppreciatedNotification;
+use App\Notifications\CreationInsightAddedNotification;
 use App\Notifications\EventPublishedNotification;
 use App\Notifications\GradeReleasedNotification;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -96,6 +100,35 @@ class LmsNotificationService
         }
 
         Notification::send($recipients, new EventPublishedNotification($event));
+    }
+
+    public function notifyCreationAppreciated(Creation $creation, User $actor): void
+    {
+        $creation->loadMissing('user:id,name,username,email');
+        $owner = $creation->user;
+
+        if (! $owner || (int) $owner->id === (int) $actor->id) {
+            return;
+        }
+
+        $owner->notify(new CreationAppreciatedNotification($creation, $actor));
+    }
+
+    public function notifyCreationInsightAdded(CreationInsight $insight): void
+    {
+        $insight->loadMissing([
+            'user:id,name,username,email',
+            'creation.user:id,name,username,email',
+        ]);
+
+        $owner = $insight->creation?->user;
+        $actorId = (int) ($insight->user_id ?? 0);
+
+        if (! $owner || (int) $owner->id === $actorId) {
+            return;
+        }
+
+        $owner->notify(new CreationInsightAddedNotification($insight));
     }
 
     private function submissionReviewRecipients(Submission $submission): Collection
