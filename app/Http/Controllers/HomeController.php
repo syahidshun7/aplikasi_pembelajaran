@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Creation;
 use App\Models\Quest;
 use App\Models\Submission;
 use App\Models\StudyGroupJoinRequest;
@@ -212,6 +213,7 @@ public function landing()
 private function renderLanding()
 {
     $landingCacheVersion = CacheVersion::get('landing');
+    $hallCacheVersion = CacheVersion::get('hall_of_creations');
     $availableJobs = Cache::remember(
         "landing.jobs.v{$landingCacheVersion}",
         now()->addMinutes(10),
@@ -251,6 +253,45 @@ private function renderLanding()
             })
     );
 
+    $featuredCreations = Cache::remember(
+        "landing.featured_creations.v{$hallCacheVersion}",
+        now()->addMinutes(5),
+        fn () => Creation::query()
+            ->publicVisible()
+            ->with([
+                'user:id,name,username,profile_photo',
+                'photos:id,creation_id,path,sort_order',
+            ])
+            ->withCount(['appreciations', 'insights', 'photos'])
+            ->orderByDesc('appreciations_count')
+            ->orderByDesc('insights_count')
+            ->latest()
+            ->take(5)
+            ->get()
+            ->map(function (Creation $creation) {
+                $thumbnailUrl = (string) ($creation->photos->first()?->url ?? '');
+
+                return [
+                    'id' => (int) $creation->id,
+                    'title' => (string) $creation->title,
+                    'status' => (string) $creation->status,
+                    'progress' => (int) ($creation->progress ?? 0),
+                    'category' => $creation->category ? (string) $creation->category : null,
+                    'thumbnail_url' => $thumbnailUrl,
+                    'appreciations_count' => (int) ($creation->appreciations_count ?? 0),
+                    'insights_count' => (int) ($creation->insights_count ?? 0),
+                    'photos_count' => (int) ($creation->photos_count ?? $creation->photos->count()),
+                    'creator' => [
+                        'id' => (int) ($creation->user?->id ?? 0),
+                        'name' => (string) ($creation->user?->name ?? ''),
+                        'username' => (string) ($creation->user?->username ?? ''),
+                    ],
+                ];
+            })
+            ->values()
+            ->all()
+    );
+
     $isGuest = !Auth::check();
 
     return Inertia::render('Landing', [
@@ -258,6 +299,7 @@ private function renderLanding()
         'canRegister' => $isGuest && Route::has('register'),
         'availableJobs' => $availableJobs,
         'mentors' => $mentors,
+        'featuredCreations' => $featuredCreations,
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
     ]);

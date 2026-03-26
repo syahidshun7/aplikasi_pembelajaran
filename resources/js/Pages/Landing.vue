@@ -13,6 +13,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    featuredCreations: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const fallbackJobs = Object.freeze([
@@ -125,9 +129,80 @@ const displayJobs = computed(() => (normalizedPropJobs.value.length > 0 ? normal
 const totalAvailableJobs = computed(() => normalizedPropJobs.value.length);
 
 const loadedMentors = computed(() => (normalizedPropMentors.value.length > 0 ? normalizedPropMentors.value : fallbackMentors));
+const featuredCreations = computed(() => (
+    Array.isArray(props?.featuredCreations)
+        ? props.featuredCreations.filter((creation) => creation && typeof creation === 'object').slice(0, 5)
+        : []
+));
 const expandedMentorId = ref(null);
 const isPageLoaded = ref(false);
 let pageLoadHandler = null;
+
+const hallEntryHref = computed(() => (
+    props.canLogin ? route('login') : route('hall.creations.index')
+));
+
+const hallEntryLabel = computed(() => (
+    props.canLogin ? 'Login to Open Hall' : 'Open Hall'
+));
+
+const getCreationStatusClass = (status) => {
+    if (status === 'finished') return 'border-emerald-400/70 bg-emerald-500/10 text-emerald-100';
+    if (status === 'refining') return 'border-amber-300/70 bg-amber-500/10 text-amber-100';
+    return 'border-cyan-300/70 bg-cyan-500/10 text-cyan-100';
+};
+
+const getCreationTheme = (index) => {
+    const mod = Number(index || 0) % 5;
+
+    if (mod === 0) {
+        return {
+            card: 'from-sky-800 to-cyan-700 border-cyan-300/70 shadow-[0_8px_18px_rgba(14,116,144,0.28)]',
+            glow: 'bg-sky-300',
+            line: 'from-cyan-500 to-sky-400',
+            meta: 'text-cyan-50/90',
+            stat: 'border-cyan-200/40 bg-black/20 text-cyan-100',
+        };
+    }
+
+    if (mod === 1) {
+        return {
+            card: 'from-indigo-800 to-violet-700 border-indigo-300/70 shadow-[0_8px_18px_rgba(67,56,202,0.28)]',
+            glow: 'bg-indigo-300',
+            line: 'from-indigo-500 to-violet-400',
+            meta: 'text-indigo-50/90',
+            stat: 'border-indigo-200/40 bg-black/20 text-indigo-100',
+        };
+    }
+
+    if (mod === 2) {
+        return {
+            card: 'from-emerald-800 to-teal-700 border-emerald-300/70 shadow-[0_8px_18px_rgba(6,95,70,0.28)]',
+            glow: 'bg-emerald-300',
+            line: 'from-emerald-500 to-teal-400',
+            meta: 'text-emerald-50/90',
+            stat: 'border-emerald-200/40 bg-black/20 text-emerald-100',
+        };
+    }
+
+    if (mod === 3) {
+        return {
+            card: 'from-cyan-800 to-blue-700 border-sky-300/70 shadow-[0_8px_18px_rgba(30,64,175,0.28)]',
+            glow: 'bg-cyan-300',
+            line: 'from-cyan-400 to-blue-400',
+            meta: 'text-sky-50/90',
+            stat: 'border-sky-200/40 bg-black/20 text-sky-100',
+        };
+    }
+
+    return {
+        card: 'from-amber-700 to-orange-700 border-amber-200/70 shadow-[0_8px_18px_rgba(180,83,9,0.28)]',
+        glow: 'bg-amber-200',
+        line: 'from-amber-400 to-orange-400',
+        meta: 'text-amber-50/90',
+        stat: 'border-amber-200/40 bg-black/20 text-amber-100',
+    };
+};
 
 const toggleMentorCard = (id) => {
     expandedMentorId.value = expandedMentorId.value === id ? null : id;
@@ -708,6 +783,115 @@ onBeforeUnmount(() => {
         </div>
     </article>
 </div>
+                </div>
+            </section>
+
+            <section v-if="featuredCreations.length > 0" class="px-4 md:px-10 pb-12">
+                <div class="mx-auto max-w-5xl">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p class="text-[8px] md:text-[9px] uppercase tracking-[0.24em] text-cyan-700">Hall Preview</p>
+                            <h2 class="mt-2 text-[10px] md:text-xs uppercase text-slate-900">Top 5 Hall of Creations</h2>
+                        </div>
+
+                        <Link
+                            :href="hallEntryHref"
+                            class="text-[8px] md:text-[9px] px-4 py-2 uppercase bg-slate-900 text-cyan-200 border border-cyan-300/60 border-b-4 border-r-4 border-b-slate-950 border-r-slate-950 hover:bg-cyan-800/90 hover:text-white transition-colors"
+                        >
+                            {{ hallEntryLabel }}
+                        </Link>
+                    </div>
+
+                    <div class="mt-6 flex flex-wrap justify-center gap-4">
+                        <article
+                            v-for="(creation, index) in featuredCreations"
+                            :key="creation.id"
+                            class="group relative w-full max-w-[220px] overflow-hidden border border-white/70 border-r-4 border-b-4 border-r-slate-900 border-b-slate-900 bg-gradient-to-br text-left transition-all duration-200 hover:-translate-y-1 active:translate-y-0.5 active:border-r-2 active:border-b-2"
+                            :class="getCreationTheme(index).card"
+                        >
+                            <div
+                                class="absolute -right-10 -top-10 h-24 w-24 rounded-full blur-2xl opacity-35"
+                                :class="getCreationTheme(index).glow"
+                            ></div>
+                            <div
+                                class="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r"
+                                :class="getCreationTheme(index).line"
+                            ></div>
+
+                            <div class="relative z-10 px-3 pt-3">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="border border-white/40 bg-black/15 px-2 py-1 text-[6px] uppercase text-white/90">
+                                        Hall Rank
+                                    </span>
+                                    <span class="border border-white/40 bg-black/15 px-2 py-1 text-[6px] uppercase text-white/90">
+                                        0{{ index + 1 }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="relative mt-3 aspect-[4/3] overflow-hidden border-y border-white/25 bg-black/15">
+                                <img
+                                    v-if="creation.thumbnail_url"
+                                    :src="creation.thumbnail_url"
+                                    :alt="creation.title"
+                                    class="h-full w-full object-cover object-center"
+                                    loading="lazy"
+                                    decoding="async"
+                                />
+                                <div v-else class="flex h-full items-center justify-center">
+                                    <i class="fi fi-rr-lightbulb-on text-[28px] text-cyan-200/80"></i>
+                                </div>
+
+                                <span
+                                    class="absolute left-2 top-2 rounded border px-2 py-1 text-[6px] uppercase backdrop-blur-[1px]"
+                                    :class="getCreationStatusClass(creation.status)"
+                                >
+                                    {{ creation.status }}
+                                </span>
+
+                                <div class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/55 to-transparent"></div>
+                            </div>
+
+                            <div class="relative z-10 space-y-2 p-3 text-white">
+                                <div class="min-w-0">
+                                    <h3 class="line-clamp-1 text-[9px] uppercase text-white [text-shadow:1px_1px_0_rgba(2,6,23,0.45)]">
+                                        {{ creation.title }}
+                                    </h3>
+                                    <p class="mt-1 line-clamp-1 text-[7px] uppercase" :class="getCreationTheme(index).meta">
+                                        {{ creation.creator?.username || creation.creator?.name || 'Adventurer' }}
+                                    </p>
+                                </div>
+
+                                <div v-if="creation.status !== 'finished'" class="space-y-1">
+                                    <div class="h-1.5 overflow-hidden border border-white/25 bg-slate-950/80">
+                                        <div
+                                            class="h-full bg-gradient-to-r"
+                                            :class="getCreationTheme(index).line"
+                                            :style="{ width: `${creation.progress || 0}%` }"
+                                        ></div>
+                                    </div>
+                                    <p class="text-[6px] uppercase tracking-[0.18em] text-white/75">{{ creation.progress || 0 }}%</p>
+                                </div>
+
+                                <div class="flex items-center justify-between border-t border-white/15 pt-2 text-[7px] uppercase">
+                                    <div class="flex items-center gap-2">
+                                        <span class="inline-flex items-center gap-1 border px-2 py-1" :class="getCreationTheme(index).stat">
+                                            <i class="fi fi-rr-heart text-[9px]"></i>
+                                            {{ creation.appreciations_count || 0 }}
+                                        </span>
+                                        <span class="inline-flex items-center gap-1 border px-2 py-1" :class="getCreationTheme(index).stat">
+                                            <i class="fi fi-rr-comment-alt text-[9px]"></i>
+                                            {{ creation.insights_count || 0 }}
+                                        </span>
+                                    </div>
+
+                                    <span class="line-clamp-1 max-w-[72px] text-right text-[6px] text-white/65">
+                                        {{ creation.category || 'General' }}
+                                    </span>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
                 </div>
             </section>
 
