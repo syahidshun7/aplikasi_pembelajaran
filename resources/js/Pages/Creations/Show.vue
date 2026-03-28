@@ -31,6 +31,26 @@ const insightForm = reactive({
 });
 const insightsSection = ref(null);
 const activePhotoUrl = ref('');
+const relativeRoute = (name, params = {}) => route(name, params, false);
+
+const getAppreciationErrorMessage = (error) => {
+    const status = Number(error?.response?.status || 0);
+    const serverMessage = String(error?.response?.data?.message || '').trim();
+
+    if (status === 401) {
+        return 'Session expired. Please log in again.';
+    }
+
+    if (status === 419) {
+        return 'Session mismatch detected. Reload the page and try again.';
+    }
+
+    if (serverMessage !== '') {
+        return serverMessage;
+    }
+
+    return 'Unable to update appreciation.';
+};
 
 const toDisplayDate = (value) => {
     if (!value) {
@@ -48,7 +68,7 @@ const toDisplayDate = (value) => {
 const fetchCreation = async () => {
     loadingCreation.value = true;
     try {
-        const response = await window.axios.get(route('api.hall.show', { creation: props.creationId }));
+        const response = await window.axios.get(relativeRoute('api.hall.show', { creation: props.creationId }));
         creation.value = response.data?.data || null;
         activePhotoUrl.value = String(
             creation.value?.photos?.[0]?.url
@@ -57,6 +77,12 @@ const fetchCreation = async () => {
         );
         return Boolean(creation.value);
     } catch (error) {
+        console.error('creation detail load failed', {
+            status: error?.response?.status,
+            message: error?.response?.data?.message,
+            url: error?.config?.url,
+            method: error?.config?.method,
+        });
         creation.value = null;
         activePhotoUrl.value = '';
         toast.error('LOAD_FAILED', 'Unable to load creation detail.');
@@ -69,7 +95,7 @@ const fetchCreation = async () => {
 const fetchInsights = async (pageNum = 1, append = false) => {
     loadingInsights.value = true;
     try {
-        const response = await window.axios.get(route('api.creations.insights.index', { creation: props.creationId }), {
+        const response = await window.axios.get(relativeRoute('api.creations.insights.index', { creation: props.creationId }), {
             params: {
                 page: pageNum,
                 per_page: 10,
@@ -84,6 +110,12 @@ const fetchInsights = async (pageNum = 1, append = false) => {
             last_page: Number(payload.meta?.last_page || 1),
         };
     } catch (error) {
+        console.error('creation insights load failed', {
+            status: error?.response?.status,
+            message: error?.response?.data?.message,
+            url: error?.config?.url,
+            method: error?.config?.method,
+        });
         toast.error('LOAD_FAILED', 'Unable to load insights.');
     } finally {
         loadingInsights.value = false;
@@ -99,16 +131,22 @@ const toggleAppreciation = async () => {
 
     try {
         if (creation.value.is_appreciated) {
-            const response = await window.axios.delete(route('api.creations.appreciate.destroy', { creation: creation.value.id }));
+            const response = await window.axios.delete(relativeRoute('api.creations.appreciate.destroy', { creation: creation.value.id }));
             creation.value.is_appreciated = false;
             creation.value.appreciations_count = Number(response.data?.appreciations_count || 0);
         } else {
-            const response = await window.axios.post(route('api.creations.appreciate.store', { creation: creation.value.id }));
+            const response = await window.axios.post(relativeRoute('api.creations.appreciate.store', { creation: creation.value.id }));
             creation.value.is_appreciated = true;
             creation.value.appreciations_count = Number(response.data?.appreciations_count || 0);
         }
     } catch (error) {
-        toast.error('ACTION_FAILED', 'Unable to update appreciation.');
+        console.error('creation detail appreciation failed', {
+            status: error?.response?.status,
+            message: error?.response?.data?.message,
+            url: error?.config?.url,
+            method: error?.config?.method,
+        });
+        toast.error('ACTION_FAILED', getAppreciationErrorMessage(error));
     } finally {
         togglingAppreciation.value = false;
     }
@@ -123,7 +161,7 @@ const submitInsight = async () => {
 
     postingInsight.value = true;
     try {
-        await window.axios.post(route('api.creations.insights.store', { creation: props.creationId }), {
+        await window.axios.post(relativeRoute('api.creations.insights.store', { creation: props.creationId }), {
             content,
             parent_id: insightForm.parent_id || null,
         });

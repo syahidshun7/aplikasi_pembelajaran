@@ -21,11 +21,32 @@ const filters = reactive({
     sort: 'popular',
 });
 
+const relativeRoute = (name, params = {}) => route(name, params, false);
+
+const getAppreciationErrorMessage = (error) => {
+    const status = Number(error?.response?.status || 0);
+    const serverMessage = String(error?.response?.data?.message || '').trim();
+
+    if (status === 401) {
+        return 'Session expired. Please log in again.';
+    }
+
+    if (status === 419) {
+        return 'Session mismatch detected. Reload the page and try again.';
+    }
+
+    if (serverMessage !== '') {
+        return serverMessage;
+    }
+
+    return 'Unable to update appreciation.';
+};
+
 const fetchCreations = async (page = 1) => {
     loading.value = true;
 
     try {
-        const response = await window.axios.get(route('api.hall.index'), {
+        const response = await window.axios.get(relativeRoute('api.hall.index'), {
             params: {
                 page,
                 per_page: 12,
@@ -52,7 +73,7 @@ const fetchCreations = async (page = 1) => {
 };
 
 const openDetail = (creation) => {
-    router.visit(route('hall.creations.show', { creation: creation.id }));
+    router.visit(relativeRoute('hall.creations.show', { creation: creation.id }));
 };
 
 const toggleAppreciation = async (creation) => {
@@ -64,16 +85,22 @@ const toggleAppreciation = async (creation) => {
 
     try {
         if (creation.is_appreciated) {
-            const response = await window.axios.delete(route('api.creations.appreciate.destroy', { creation: creation.id }));
+            const response = await window.axios.delete(relativeRoute('api.creations.appreciate.destroy', { creation: creation.id }));
             creation.is_appreciated = false;
             creation.appreciations_count = Number(response.data?.appreciations_count || creation.appreciations_count || 0);
         } else {
-            const response = await window.axios.post(route('api.creations.appreciate.store', { creation: creation.id }));
+            const response = await window.axios.post(relativeRoute('api.creations.appreciate.store', { creation: creation.id }));
             creation.is_appreciated = true;
             creation.appreciations_count = Number(response.data?.appreciations_count || creation.appreciations_count || 0);
         }
     } catch (error) {
-        toast.error('ACTION_FAILED', 'Unable to update appreciation.');
+        console.error('hall appreciation failed', {
+            status: error?.response?.status,
+            message: error?.response?.data?.message,
+            url: error?.config?.url,
+            method: error?.config?.method,
+        });
+        toast.error('ACTION_FAILED', getAppreciationErrorMessage(error));
     } finally {
         togglingId.value = 0;
     }
