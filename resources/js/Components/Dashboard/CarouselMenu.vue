@@ -42,17 +42,25 @@ const syncFlag = (duration = 360) => {
 };
 
 const centerCard = (key, behavior = 'smooth') => {
+    const container = containerRef.value;
     const card = cardRefs.get(key);
 
-    if (!card) {
+    if (!container || !card) {
         return;
     }
 
+    const targetLeft = Math.max(
+        0,
+        Math.min(
+            card.offsetLeft - ((container.clientWidth - card.offsetWidth) / 2),
+            container.scrollWidth - container.clientWidth,
+        ),
+    );
+
     syncFlag(behavior === 'smooth' ? 360 : 120);
-    card.scrollIntoView({
+    container.scrollTo({
+        left: targetLeft,
         behavior,
-        block: 'nearest',
-        inline: 'center',
     });
 };
 
@@ -138,6 +146,10 @@ const getNodeType = (key) => {
 };
 
 const handleResize = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        return;
+    }
+
     centerCard(props.modelValue, 'auto');
 };
 

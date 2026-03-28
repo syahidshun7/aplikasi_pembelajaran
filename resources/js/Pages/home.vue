@@ -176,13 +176,17 @@ const closeMobileMenu = () => {
     <Head title="DOOPTECH" />
 
     <div
-        class="min-h-screen bg-[#0a0c10] bg-cover bg-center bg-no-repeat bg-fixed relative font-['Press_Start_2P']"
-        style="background-image: url('/images/bg-loby.png');"
+        class="relative min-h-screen overflow-x-hidden bg-[#0a0c10] font-['Press_Start_2P']"
     >
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-[1px]"></div>
+        <div
+            aria-hidden="true"
+            class="absolute inset-0 z-0 bg-[#0a0c10] bg-cover bg-center bg-no-repeat"
+            style="background-image: url('/images/bg-loby.png');"
+        ></div>
+        <div class="absolute inset-0 z-0 bg-black/60"></div>
 
         <div class="relative z-10 flex min-h-screen flex-col">
-            <nav class="sticky top-0 z-50 flex items-center justify-between border-b-4 border-[#3d415f] bg-[#1a1c2c]/90 p-4 shadow-2xl backdrop-blur-sm md:px-8">
+            <nav class="sticky top-0 z-50 flex items-center justify-between border-b-4 border-[#3d415f] bg-[#1a1c2c] p-4 shadow-2xl md:bg-[#1a1c2c]/90 md:backdrop-blur-sm md:px-8">
                 <div class="flex items-center gap-4">
                     <Link :href="route('lobby')" class="group flex items-center gap-4" @click="closeMobileMenu">
                         <div class="flex h-10 w-10 items-center justify-center overflow-hidden border-b-4 border-r-4 border-[#4ed4d4] bg-[#0a0c10] transition-transform group-hover:scale-110">
@@ -278,7 +282,7 @@ const closeMobileMenu = () => {
             </div>
 
             <div v-if="mobileMenuOpen" class="relative z-50 px-4 pb-4 lg:hidden">
-                <div class="space-y-2 border-2 border-[#3d415f] bg-[#1a1c2c]/95 p-3 shadow-2xl backdrop-blur-sm">
+                <div class="space-y-2 border-2 border-[#3d415f] bg-[#1a1c2c] p-3 shadow-2xl md:bg-[#1a1c2c]/95 md:backdrop-blur-sm">
                     <template v-if="auth.user">
                         <Link
                             v-if="isStaff"
@@ -419,7 +423,7 @@ const closeMobileMenu = () => {
 
             <FloatingChat v-if="auth.user" />
 
-            <footer class="mt-auto border-t-2 border-white/10 bg-[#1a1c2c]/50 p-6 text-center backdrop-blur-md md:p-8">
+            <footer class="mt-auto border-t-2 border-white/10 bg-[#1a1c2c] p-6 text-center md:bg-[#1a1c2c]/50 md:backdrop-blur-md md:p-8">
                 <p class="break-words text-[7px] uppercase tracking-[0.18em] text-white/50 sm:text-[8px] sm:tracking-[0.3em]">
                     Build_Ver_1.1.0 // P-Quest Engine
                 </p>
