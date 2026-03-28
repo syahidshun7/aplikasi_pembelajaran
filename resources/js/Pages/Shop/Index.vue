@@ -77,7 +77,7 @@ const buyItem = async (item) => {
     <AuthenticatedLayout>
         <Head title="Shop" />
 
-        <div class="max-w-7xl mx-auto text-[#4ed4d4]">
+        <div class="user-page-shell text-[#4ed4d4]">
             <div class="rpg-panel mb-6 bg-[#1a1c2c]/90 border-yellow-500/50 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 class="text-yellow-400 text-xs uppercase tracking-widest">Item_Shop</h1>

@@ -1,6 +1,7 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
 import { computed, nextTick, onBeforeUnmount, onBeforeUpdate, onMounted, ref, watch } from 'vue';
+import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
 
 const props = defineProps({
     canLogin: Boolean,
@@ -438,9 +439,14 @@ onBeforeUnmount(() => {
     </Head>
 
     <div
-        class="min-h-screen bg-cover bg-center bg-fixed text-slate-900 relative overflow-x-hidden font-['Press_Start_2P']"
-        style="background-color: #f2d9d9; background-image: linear-gradient(rgba(248,250,252,0.58), rgba(238,246,255,0.62)), url('/images/bg-loby2.png');"
+        class="relative isolate min-h-screen overflow-x-hidden font-['Press_Start_2P'] text-slate-900"
+        style="background-color: #f2d9d9;"
     >
+        <AppBackgroundLayer
+            image="/images/bg-loby2.png"
+            overlay-class="bg-[linear-gradient(rgba(248,250,252,0.58),rgba(238,246,255,0.62))]"
+            glow-class="bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.28),transparent_32%),radial-gradient(circle_at_82%_12%,rgba(103,232,249,0.18),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.12))]"
+        />
         <div v-if="!isPageLoaded" class="page-loader" role="status" aria-live="polite">
             <div class="page-loader__card">
                 <div class="page-loader__grid">

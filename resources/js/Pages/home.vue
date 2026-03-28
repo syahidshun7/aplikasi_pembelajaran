@@ -1,6 +1,7 @@
 <script setup>
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, defineAsyncComponent, ref } from 'vue';
+import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
 import { useLobby } from '@/Composables/useLobby';
 import FloatingChat from '@/Components/FloatingChat.vue';
 import NotificationBell from '@/Components/NotificationBell.vue';
@@ -176,14 +177,9 @@ const closeMobileMenu = () => {
     <Head title="DOOPTECH" />
 
     <div
-        class="relative min-h-screen overflow-x-hidden bg-[#0a0c10] font-['Press_Start_2P']"
+        class="relative isolate min-h-screen overflow-x-hidden bg-[#0a0c10] font-['Press_Start_2P']"
     >
-        <div
-            aria-hidden="true"
-            class="absolute inset-0 z-0 bg-[#0a0c10] bg-cover bg-center bg-no-repeat"
-            style="background-image: url('/images/bg-loby.png');"
-        ></div>
-        <div class="absolute inset-0 z-0 bg-black/60"></div>
+        <AppBackgroundLayer overlay-class="bg-black/60" />
 
         <div class="relative z-10 flex min-h-screen flex-col">
             <nav class="sticky top-0 z-50 flex items-center justify-between border-b-4 border-[#3d415f] bg-[#1a1c2c] p-4 shadow-2xl md:bg-[#1a1c2c]/90 md:backdrop-blur-sm md:px-8">
@@ -363,62 +359,64 @@ const closeMobileMenu = () => {
                 </div>
             </div>
 
-            <main class="flex-1 p-3 sm:p-4 md:p-8">
-                <section class="academy-hub academy-hub--joined">
-                    <div class="academy-scene">
-                        <div class="academy-scene__backdrop"></div>
-                        <div class="academy-scene__content">
-                            <CarouselMenu v-model="activeMenu" :items="carouselItems" />
+            <main class="flex-1 px-3 py-3 sm:px-4 sm:py-4 md:px-8 md:py-8">
+                <div class="user-page-shell">
+                    <section class="academy-hub academy-hub--joined">
+                        <div class="academy-scene">
+                            <div class="academy-scene__backdrop"></div>
+                            <div class="academy-scene__content">
+                                <CarouselMenu v-model="activeMenu" :items="carouselItems" />
 
-                            <div class="academy-scene__footer">
-                                <p class="academy-scene__copy">
-                                    Swipe, drag, or click a node to focus the dashboard without reloading the page.
-                                </p>
+                                <div class="academy-scene__footer">
+                                    <p class="academy-scene__copy">
+                                        Swipe, drag, or click a node to focus the dashboard without reloading the page.
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <section class="dashboard-focus-shell dashboard-focus-shell--joined">
-                        <div class="dashboard-focus-shell__meta">
-                            <p class="dashboard-focus-shell__eyebrow">Latest Snapshot</p>
-                            <h2 class="dashboard-focus-shell__title">{{ activeCarouselItem?.title }}</h2>
-                            <p class="dashboard-focus-shell__helper">{{ latestModuleMeta.helper }}</p>
-                        </div>
+                        <section class="dashboard-focus-shell dashboard-focus-shell--joined">
+                            <div class="dashboard-focus-shell__meta">
+                                <p class="dashboard-focus-shell__eyebrow">Latest Snapshot</p>
+                                <h2 class="dashboard-focus-shell__title">{{ activeCarouselItem?.title }}</h2>
+                                <p class="dashboard-focus-shell__helper">{{ latestModuleMeta.helper }}</p>
+                            </div>
 
-                        <Transition name="dashboard-section" mode="out-in">
-                            <QuestSection
-                                v-if="activeMenu === 'quest'"
-                                :items="questPreview"
-                                :auth-user="isLoggedIn"
-                            />
+                            <Transition name="dashboard-section" mode="out-in">
+                                <QuestSection
+                                    v-if="activeMenu === 'quest'"
+                                    :items="questPreview"
+                                    :auth-user="isLoggedIn"
+                                />
 
-                            <LibrarySection
-                                v-else-if="activeMenu === 'library'"
-                                :items="guidePreview"
-                                :auth-user="isLoggedIn"
-                            />
+                                <LibrarySection
+                                    v-else-if="activeMenu === 'library'"
+                                    :items="guidePreview"
+                                    :auth-user="isLoggedIn"
+                                />
 
-                            <EventSection
-                                v-else-if="activeMenu === 'townhall'"
-                                :items="upcomingEventPreview"
-                                :auth-user="isLoggedIn"
-                            />
+                                <EventSection
+                                    v-else-if="activeMenu === 'townhall'"
+                                    :items="upcomingEventPreview"
+                                    :auth-user="isLoggedIn"
+                                />
 
-                            <PartySection
-                                v-else-if="activeMenu === 'party'"
-                                :items="groupPreview"
-                                :join-processing="joinForm.processing"
-                                :on-join="handleJoin"
-                                :on-leave="handleLeave"
-                            />
+                                <PartySection
+                                    v-else-if="activeMenu === 'party'"
+                                    :items="groupPreview"
+                                    :join-processing="joinForm.processing"
+                                    :on-join="handleJoin"
+                                    :on-leave="handleLeave"
+                                />
 
-                            <LeaderboardSection
-                                v-else
-                                :items="leaderboardPreview"
-                            />
-                        </Transition>
+                                <LeaderboardSection
+                                    v-else
+                                    :items="leaderboardPreview"
+                                />
+                            </Transition>
+                        </section>
                     </section>
-                </section>
+                </div>
             </main>
 
             <FloatingChat v-if="auth.user" />

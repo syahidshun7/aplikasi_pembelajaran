@@ -56,6 +56,10 @@
 
 /* 3. Custom Layer RPG Components */
 @layer components {
+  .user-page-shell {
+    @apply mx-auto w-full max-w-7xl;
+  }
+
   .rpg-panel {
     @apply bg-[#1a1c2c] border-4 border-[#3d4153] p-4 relative;
     outline: 2px solid #10121d;

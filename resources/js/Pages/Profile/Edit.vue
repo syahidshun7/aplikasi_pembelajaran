@@ -87,7 +87,7 @@ watch(
     <AuthenticatedLayout>
         <Head :title="isDashboardView ? 'HERO_STATUS | P-QUEST' : 'PROFILE_SETTINGS | P-QUEST'" />
 
-        <div class="mx-auto max-w-7xl space-y-6 font-['Press_Start_2P'] text-[10px] leading-relaxed text-[#4ed4d4] md:space-y-8">
+        <div class="user-page-shell space-y-6 font-['Press_Start_2P'] text-[10px] leading-relaxed text-[#4ed4d4] md:space-y-8">
             <div class="rpg-panel flex flex-col items-center gap-4 border-cyan-500/50 bg-[#1a1c2c]/80 backdrop-blur-md md:flex-row md:gap-6">
                 <div class="w-20 h-20 border-4 border-cyan-400 bg-slate-800 shadow-[0_0_15px_rgba(78,212,212,0.3)] relative overflow-hidden">
                     <img

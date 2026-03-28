@@ -149,7 +149,7 @@ const toggleAppreciation = async (creation) => {
     <AuthenticatedLayout>
         <Head :title="`${user.username || user.name} | Profile`" />
 
-        <div class="mx-auto max-w-7xl space-y-6 font-['Press_Start_2P'] text-[10px] leading-relaxed text-[#4ed4d4] md:space-y-8">
+        <div class="user-page-shell space-y-6 font-['Press_Start_2P'] text-[10px] leading-relaxed text-[#4ed4d4] md:space-y-8">
             <section class="profile-hero">
                 <div class="profile-hero__glow" />
 

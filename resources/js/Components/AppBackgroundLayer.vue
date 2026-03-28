@@ -1,0 +1,51 @@
+<script setup>
+import { computed } from 'vue';
+
+const props = defineProps({
+    image: {
+        type: String,
+        default: '/images/bg-loby.png',
+    },
+    overlayClass: {
+        type: [String, Array, Object],
+        default: 'bg-black/65',
+    },
+    glowClass: {
+        type: [String, Array, Object],
+        default: 'bg-[radial-gradient(circle_at_18%_20%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_82%_14%,rgba(45,212,191,0.14),transparent_30%),linear-gradient(180deg,rgba(2,6,23,0.16),rgba(2,6,23,0.4))]',
+    },
+    showGlow: {
+        type: Boolean,
+        default: true,
+    },
+});
+
+const backgroundStyle = computed(() => ({
+    backgroundImage: `url('${props.image}')`,
+}));
+</script>
+
+<template>
+    <div aria-hidden="true" class="app-bg-layer fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+        <div class="app-bg-layer__image" :style="backgroundStyle"></div>
+        <div class="absolute inset-0" :class="overlayClass"></div>
+        <div v-if="showGlow" class="absolute inset-0" :class="glowClass"></div>
+    </div>
+</template>
+
+<style scoped>
+.app-bg-layer {
+    background: #0a0c10;
+}
+
+.app-bg-layer__image {
+    position: absolute;
+    inset: 0;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+}
+</style>

@@ -1,6 +1,7 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
 
 const props = defineProps({
     status: { type: Number, default: 500 },
@@ -48,11 +49,8 @@ const timestamp = new Date().toLocaleString('id-ID');
 <template>
     <Head :title="`Error ${meta.status}`" />
 
-    <div
-        class="min-h-screen bg-[#0a0c10] bg-cover bg-center bg-no-repeat bg-fixed relative"
-        style="background-image: url('/images/bg-loby.png');"
-    >
-        <div class="absolute inset-0 bg-black/70 backdrop-blur-[2px]"></div>
+    <div class="relative isolate min-h-screen bg-[#0a0c10]">
+        <AppBackgroundLayer overlay-class="bg-black/70" />
 
         <div class="relative z-10 flex items-center justify-center min-h-screen px-4 py-10">
             <div class="w-full max-w-4xl rpg-panel bg-[#0f172a]/90 border-[#3d415f] text-white space-y-6">

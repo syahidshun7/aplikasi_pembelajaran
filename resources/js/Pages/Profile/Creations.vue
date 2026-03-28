@@ -234,7 +234,7 @@ onBeforeUnmount(() => {
     <AuthenticatedLayout>
         <Head title="Profile Creations" />
 
-        <div class="mx-auto max-w-7xl space-y-6 font-['Press_Start_2P'] text-[#4ed4d4]">
+        <div class="user-page-shell space-y-6 font-['Press_Start_2P'] text-[#4ed4d4]">
             <section class="rpg-panel border-cyan-500/40 bg-[#1a1c2c]/85">
                 <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 pb-3">
                     <div>

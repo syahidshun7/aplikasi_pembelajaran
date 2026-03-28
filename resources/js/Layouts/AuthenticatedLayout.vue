@@ -1,6 +1,7 @@
 <script setup>
 import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
 import FloatingChat from '@/Components/FloatingChat.vue';
 import NotificationBell from '@/Components/NotificationBell.vue';
 import { toast } from '@/Utils/Alert'; // Satukan import di atas
@@ -31,17 +32,8 @@ const handleLogout = () => {
         <meta head-key="robots" name="robots" content="noindex,nofollow" />
     </Head>
 
-    <div class="min-h-screen bg-[#0d1117] font-['Press_Start_2P'] selection:bg-[#009999] relative overflow-x-hidden text-[#4ed4d4] flex flex-col">
-        <div
-            aria-hidden="true"
-            class="absolute inset-0 z-0 bg-[#0d1117] bg-cover bg-center bg-no-repeat"
-            style="background-image: url('/images/bg-loby.png');"
-        ></div>
-        <div class="absolute inset-0 bg-black/70 z-0"></div>
-
-        <div
-            class="pointer-events-none absolute inset-0 z-0 hidden bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%] opacity-10 md:fixed md:z-40 md:block">
-        </div>
+    <div class="min-h-screen font-['Press_Start_2P'] selection:bg-[#009999] relative isolate overflow-x-hidden text-[#4ed4d4] flex flex-col">
+        <AppBackgroundLayer />
 
         <nav
             class="bg-[#1a1c2c]/90 backdrop-blur-sm border-b-4 border-[#3d415f] p-4 md:px-8 flex justify-between items-center shadow-2xl sticky top-0 z-50">
