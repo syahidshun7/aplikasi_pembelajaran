@@ -1,5 +1,5 @@
 <script setup>
-import { Link, usePage, router } from '@inertiajs/vue3';
+import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import FloatingChat from '@/Components/FloatingChat.vue';
 import NotificationBell from '@/Components/NotificationBell.vue';
@@ -27,6 +27,10 @@ const handleLogout = () => {
 </script>
 
 <template>
+    <Head>
+        <meta head-key="robots" name="robots" content="noindex,nofollow" />
+    </Head>
+
     <div class="min-h-screen bg-[#0d1117] font-['Press_Start_2P'] selection:bg-[#009999] relative overflow-x-hidden text-[#4ed4d4] bg-cover bg-center bg-no-repeat bg-fixed flex flex-col"
         style="background-image: url('/images/bg-loby.png');">
         <div class="absolute inset-0 bg-black/70 z-0"></div>

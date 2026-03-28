@@ -16,7 +16,9 @@ const meta = ref({
 
 const filters = reactive({
     search: '',
+    category: '',
     status: '',
+    sort: 'popular',
 });
 
 const fetchCreations = async (page = 1) => {
@@ -27,9 +29,10 @@ const fetchCreations = async (page = 1) => {
             params: {
                 page,
                 per_page: 12,
-                sort: 'popular',
                 search: filters.search || undefined,
+                category: filters.category || undefined,
                 status: filters.status || undefined,
+                sort: filters.sort || undefined,
             },
         });
 
@@ -80,6 +83,14 @@ const openInsight = (creation) => {
     openDetail(creation);
 };
 
+const resetFilters = () => {
+    filters.search = '';
+    filters.category = '';
+    filters.status = '';
+    filters.sort = 'popular';
+    fetchCreations(1);
+};
+
 onMounted(() => {
     fetchCreations();
 });
@@ -111,6 +122,17 @@ onMounted(() => {
                         </label>
 
                         <label class="icon-input">
+                            <i class="fi fi-rr-apps-sort text-[11px]" />
+                            <input
+                                v-model="filters.category"
+                                type="text"
+                                class="bg-transparent text-[8px] uppercase text-cyan-200 outline-none placeholder:text-slate-500"
+                                placeholder="Category"
+                                @keyup.enter="fetchCreations(1)"
+                            >
+                        </label>
+
+                        <label class="icon-input">
                             <i class="fi fi-rr-filter text-[11px]" />
                             <select
                                 v-model="filters.status"
@@ -123,6 +145,26 @@ onMounted(() => {
                                 <option value="finished">Finished</option>
                             </select>
                         </label>
+
+                        <label class="icon-input">
+                            <i class="fi fi-rr-sort-amount-down text-[11px]" />
+                            <select
+                                v-model="filters.sort"
+                                class="bg-transparent text-[8px] uppercase text-cyan-200 outline-none"
+                                @change="fetchCreations(1)"
+                            >
+                                <option value="popular">Popular</option>
+                                <option value="latest">Latest</option>
+                            </select>
+                        </label>
+
+                        <button
+                            type="button"
+                            class="filter-action-btn"
+                            @click="resetFilters"
+                        >
+                            Reset
+                        </button>
                     </div>
                 </div>
             </section>
@@ -201,5 +243,9 @@ onMounted(() => {
 
 .pager-btn {
     @apply inline-flex h-8 w-8 items-center justify-center border border-slate-700 bg-slate-900/90 text-cyan-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:border-cyan-500 hover:text-cyan-200;
+}
+
+.filter-action-btn {
+    @apply inline-flex min-h-8 items-center justify-center border border-cyan-500/50 bg-cyan-500/10 px-4 text-[8px] uppercase tracking-[0.18em] text-cyan-200 transition-colors hover:border-cyan-400 hover:bg-cyan-500/20 hover:text-white;
 }
 </style>

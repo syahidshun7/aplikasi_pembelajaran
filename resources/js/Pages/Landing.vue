@@ -146,6 +146,18 @@ const hallEntryLabel = computed(() => (
     props.canLogin ? 'Login to Open Hall' : 'Open Hall'
 ));
 
+const seoTitle = 'DOOPTECH | Platform Pembelajaran Quest-Based';
+const seoDescription = 'DOOPTECH adalah aplikasi pembelajaran berbasis game yang menghubungkan pemula dan profesional dalam satu ekosistem belajar.';
+const seoCanonicalUrl = computed(() => route('lobby'));
+const seoImageUrl = computed(() => new URL('/images/bg-loby2.png', seoCanonicalUrl.value).toString());
+const seoSchemaJson = computed(() => JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'DOOPTECH',
+    url: seoCanonicalUrl.value,
+    description: seoDescription,
+}, null, 2));
+
 const getCreationStatusClass = (status) => {
     if (status === 'finished') return 'border-emerald-400/70 bg-emerald-500/10 text-emerald-100';
     if (status === 'refining') return 'border-amber-300/70 bg-amber-500/10 text-amber-100';
@@ -407,8 +419,22 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <Head title="DOOPTECH">
+    <Head :title="seoTitle">
+        <meta head-key="description" name="description" :content="seoDescription" />
+        <meta head-key="robots" name="robots" content="index,follow" />
+        <meta head-key="og:type" property="og:type" content="website" />
+        <meta head-key="og:site_name" property="og:site_name" content="DOOPTECH" />
+        <meta head-key="og:title" property="og:title" :content="seoTitle" />
+        <meta head-key="og:description" property="og:description" :content="seoDescription" />
+        <meta head-key="og:url" property="og:url" :content="seoCanonicalUrl" />
+        <meta head-key="og:image" property="og:image" :content="seoImageUrl" />
+        <meta head-key="twitter:card" name="twitter:card" content="summary_large_image" />
+        <meta head-key="twitter:title" name="twitter:title" :content="seoTitle" />
+        <meta head-key="twitter:description" name="twitter:description" :content="seoDescription" />
+        <meta head-key="twitter:image" name="twitter:image" :content="seoImageUrl" />
+        <link head-key="canonical" rel="canonical" :href="seoCanonicalUrl" />
         <link rel="preload" as="image" href="/images/bg-loby2.png" />
+        <script head-key="ld-json-website" type="application/ld+json" v-html="seoSchemaJson"></script>
     </Head>
 
     <div

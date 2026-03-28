@@ -53,6 +53,56 @@ Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
 
 Route::get('/', [HomeController::class, 'index'])->name('lobby');
 Route::get('/landing', [HomeController::class, 'landing'])->name('landing');
+Route::get('/robots.txt', function () {
+    $content = implode(PHP_EOL, [
+        'User-agent: *',
+        'Allow: /',
+        'Sitemap: '.url('/sitemap.xml'),
+    ]);
+
+    return response($content, 200)->header('Content-Type', 'text/plain; charset=UTF-8');
+});
+
+Route::get('/sitemap.xml', function () {
+    $urls = [
+        [
+            'loc' => route('lobby'),
+            'changefreq' => 'daily',
+            'priority' => '1.0',
+        ],
+    ];
+
+    if (Route::has('login')) {
+        $urls[] = [
+            'loc' => route('login'),
+            'changefreq' => 'weekly',
+            'priority' => '0.7',
+        ];
+    }
+
+    if (Route::has('register')) {
+        $urls[] = [
+            'loc' => route('register'),
+            'changefreq' => 'weekly',
+            'priority' => '0.7',
+        ];
+    }
+
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>';
+    $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+
+    foreach ($urls as $item) {
+        $xml .= '<url>';
+        $xml .= '<loc>'.e($item['loc']).'</loc>';
+        $xml .= '<changefreq>'.$item['changefreq'].'</changefreq>';
+        $xml .= '<priority>'.$item['priority'].'</priority>';
+        $xml .= '</url>';
+    }
+
+    $xml .= '</urlset>';
+
+    return response($xml, 200)->header('Content-Type', 'application/xml; charset=UTF-8');
+})->name('sitemap');
 
 if (app()->environment(['local', 'testing'])) {
     Route::get('/redis-test', function () {

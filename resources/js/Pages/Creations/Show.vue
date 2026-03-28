@@ -55,8 +55,12 @@ const fetchCreation = async () => {
             || creation.value?.thumbnail_url
             || ''
         );
+        return Boolean(creation.value);
     } catch (error) {
+        creation.value = null;
+        activePhotoUrl.value = '';
         toast.error('LOAD_FAILED', 'Unable to load creation detail.');
+        return false;
     } finally {
         loadingCreation.value = false;
     }
@@ -169,8 +173,11 @@ const selectPhoto = (url) => {
 };
 
 onMounted(async () => {
-    await fetchCreation();
-    await fetchInsights();
+    const loaded = await fetchCreation();
+
+    if (loaded) {
+        await fetchInsights();
+    }
 });
 </script>
 
@@ -280,6 +287,10 @@ onMounted(async () => {
                         <i class="fi fi-rr-pencil text-[12px]" />
                     </Link>
                 </div>
+            </section>
+
+            <section v-else class="rpg-panel border-rose-500/30 bg-[#161b22]/90 text-center text-[8px] uppercase text-slate-300">
+                Creation detail is unavailable.
             </section>
 
             <section v-if="creation" ref="insightsSection" class="rpg-panel border-amber-500/30 bg-[#161b22]/90">

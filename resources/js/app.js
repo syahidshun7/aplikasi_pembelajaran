@@ -10,7 +10,7 @@ import Swal from 'sweetalert2';
 import GlobalLoadingBar from '@/Components/GlobalLoadingBar.vue';
 import { startLoading, stopLoading } from '@/Utils/globalLoader';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'DOOPTECH';
 const PRELOAD_RECOVERY_KEY = 'vite-preload-recovered-once';
 
 if (typeof window !== 'undefined') {

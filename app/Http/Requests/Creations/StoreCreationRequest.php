@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Creations;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\Rule;
 
 class StoreCreationRequest extends FormRequest
@@ -23,7 +24,11 @@ class StoreCreationRequest extends FormRequest
             'progress' => ['required', 'integer', 'between:0,100'],
             'is_public' => ['sometimes', 'boolean'],
             'photos' => ['sometimes', 'array', 'max:8'],
-            'photos.*' => ['image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
+            'photos.*' => [
+                File::image()
+                    ->types(['jpg', 'jpeg', 'png', 'webp'])
+                    ->max(4096),
+            ],
         ];
     }
 }
