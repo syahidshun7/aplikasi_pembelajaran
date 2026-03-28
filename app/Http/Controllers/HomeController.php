@@ -150,6 +150,7 @@ class HomeController extends Controller
             ->withCount('users')
             ->where('job_id', $userJobId)
             ->latest()
+            ->take(10)
             ->get()
             ->map(fn ($group) => $group->toArray())
     );
@@ -187,7 +188,7 @@ class HomeController extends Controller
             ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
             ->orderBy('starts_at')
             ->orderBy('sequence_order')
-            ->take(8)
+            ->take(10)
             ->get()
             ->map(fn ($event) => $event->toArray())
     );
@@ -197,7 +198,7 @@ class HomeController extends Controller
         'canRegister' => Route::has('register'),
         'quests' => $quests,
         'materi' => $materi,
-        'players' => $players, // Sekarang berisi Top 10 pemain terkuat
+        'players' => $players,
         'studyGroups' => $studyGroups,
         'events' => $events,
         'laravelVersion' => \Illuminate\Foundation\Application::VERSION,

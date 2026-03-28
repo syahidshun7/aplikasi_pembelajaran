@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, useForm, router, usePage } from '@inertiajs/vue3';
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 import Swal from 'sweetalert2';
 
@@ -19,6 +19,10 @@ const isEditing = ref(false);
 const editUuid = ref(null);
 const showDeleteModal = ref(false);
 const deleteUuid = ref(null);
+const imageInputRef = ref(null);
+const selectedImageFiles = ref([]);
+const newImagePreviews = ref([]);
+const existingImages = ref([]);
 
 const form = useForm({
     title: '',
@@ -28,6 +32,9 @@ const form = useForm({
     job_id: '',
     starts_at: '',
     ends_at: '',
+    self_attendance_enabled: false,
+    images: [],
+    remove_image_ids: [],
 });
 
 const filterForm = useForm({
@@ -38,6 +45,26 @@ const filterForm = useForm({
 const eventItems = computed(() => props.events?.data || []);
 const paginationLinks = computed(() => props.events?.links || []);
 const isTrashView = computed(() => filterForm.view === 'trash');
+
+const clearNewImagePreviews = () => {
+    newImagePreviews.value.forEach((preview) => {
+        if (preview?.url) {
+            URL.revokeObjectURL(preview.url);
+        }
+    });
+    newImagePreviews.value = [];
+};
+
+const resetImageState = () => {
+    selectedImageFiles.value = [];
+    existingImages.value = [];
+    form.images = [];
+    form.remove_image_ids = [];
+    clearNewImagePreviews();
+    if (imageInputRef.value) {
+        imageInputRef.value.value = '';
+    }
+};
 
 const applyMentorDefaultStudyGroup = () => {
     if (isMentor.value && !form.study_group_id) {
@@ -55,6 +82,15 @@ const startEdit = (event) => {
     form.job_id = event.job_id || '';
     form.starts_at = event.starts_at ? formatDateTimeLocal(event.starts_at) : '';
     form.ends_at = event.ends_at ? formatDateTimeLocal(event.ends_at) : '';
+    form.self_attendance_enabled = Boolean(event.self_attendance_enabled);
+    existingImages.value = Array.isArray(event.images) ? event.images : [];
+    form.remove_image_ids = [];
+    selectedImageFiles.value = [];
+    form.images = [];
+    clearNewImagePreviews();
+    if (imageInputRef.value) {
+        imageInputRef.value.value = '';
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
@@ -63,6 +99,8 @@ const cancelEdit = () => {
     editUuid.value = null;
     form.reset();
     form.sequence_order = 1;
+    form.self_attendance_enabled = false;
+    resetImageState();
     applyMentorDefaultStudyGroup();
 };
 
@@ -97,38 +135,57 @@ const formatScheduleText = (startAt, endAt) => {
 };
 
 const submit = () => {
-    if (isEditing.value) {
-        form.put(route('admin.events.update', editUuid.value), {
-            onSuccess: () => cancelEdit(),
-            onError: (errors) => {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'UPDATE_FAILED',
-                    text: Object.values(errors)[0] || 'UNKNOWN_ERROR',
-                    background: '#1a1c2c',
-                    color: '#ff4d4d',
-                });
-            },
-        });
-        return;
-    }
+    form.images = selectedImageFiles.value;
 
-    form.post(route('admin.events.store'), {
+    form.transform((data) => ({
+        ...data,
+        sequence_order: Number(data.sequence_order || 1),
+        self_attendance_enabled: data.self_attendance_enabled ? '1' : '0',
+        _method: isEditing.value ? 'PUT' : undefined,
+    }));
+
+    form.post(isEditing.value ? route('admin.events.update', editUuid.value) : route('admin.events.store'), {
+        forceFormData: true,
         onSuccess: () => {
-            form.reset();
-            form.sequence_order = 1;
-            applyMentorDefaultStudyGroup();
+            cancelEdit();
         },
         onError: (errors) => {
             Swal.fire({
-                icon: 'warning',
-                title: 'CREATE_FAILED',
+                icon: isEditing.value ? 'error' : 'warning',
+                title: isEditing.value ? 'UPDATE_FAILED' : 'CREATE_FAILED',
                 text: Object.values(errors)[0] || 'UNKNOWN_ERROR',
                 background: '#1a1c2c',
-                color: '#facc15',
+                color: isEditing.value ? '#ff4d4d' : '#facc15',
             });
         },
     });
+};
+
+const onImageInputChange = (event) => {
+    const fileList = Array.from(event?.target?.files || []);
+    clearNewImagePreviews();
+    selectedImageFiles.value = fileList.slice(0, 8);
+    form.images = selectedImageFiles.value;
+    newImagePreviews.value = selectedImageFiles.value.map((file) => ({
+        key: `${file.name}-${file.size}-${file.lastModified}`,
+        url: URL.createObjectURL(file),
+    }));
+};
+
+const toggleRemoveExistingImage = (imageId) => {
+    const current = form.remove_image_ids.map((id) => Number(id));
+    const target = Number(imageId);
+
+    if (current.includes(target)) {
+        form.remove_image_ids = current.filter((id) => id !== target);
+        return;
+    }
+
+    form.remove_image_ids = [...current, target];
+};
+
+const isExistingImageRemoved = (imageId) => {
+    return form.remove_image_ids.map((id) => Number(id)).includes(Number(imageId));
 };
 
 const confirmDelete = (uuid) => {
@@ -205,6 +262,10 @@ watch([isMentor, firstStudyGroupId], () => {
 watch(() => form.study_group_id, () => {
     syncAudienceTarget();
 }, { immediate: true });
+
+onBeforeUnmount(() => {
+    clearNewImagePreviews();
+});
 </script>
 
 <template>
@@ -308,6 +369,58 @@ watch(() => form.study_group_id, () => {
                                 </div>
                             </div>
 
+                            <label class="flex items-center gap-2 text-white uppercase">
+                                <input v-model="form.self_attendance_enabled" type="checkbox">
+                                <span>User can self-attend this event</span>
+                            </label>
+
+                            <div>
+                                <label class="block mb-2 text-white uppercase">EVENT_IMAGES:</label>
+                                <input
+                                    ref="imageInputRef"
+                                    type="file"
+                                    multiple
+                                    accept="image/jpeg,image/png,image/webp,image/jpg"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-blue-400 outline-none text-blue-300"
+                                    @change="onImageInputChange"
+                                >
+                                <p class="mt-2 text-[7px] uppercase text-slate-500">
+                                    Max 8 gambar. Format: JPG, JPEG, PNG, WEBP.
+                                </p>
+                            </div>
+
+                            <div v-if="isEditing && existingImages.length > 0">
+                                <p class="mb-2 text-[8px] uppercase text-slate-400">Existing Images</p>
+                                <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                    <button
+                                        v-for="image in existingImages"
+                                        :key="image.id"
+                                        type="button"
+                                        class="relative overflow-hidden border"
+                                        :class="isExistingImageRemoved(image.id) ? 'border-red-500/70 opacity-50' : 'border-slate-700'"
+                                        @click="toggleRemoveExistingImage(image.id)"
+                                    >
+                                        <img :src="image.url" alt="Event image" class="h-20 w-full object-cover">
+                                        <span class="absolute right-1 top-1 rounded bg-black/65 px-1 py-[1px] text-[7px] uppercase text-white">
+                                            <i class="fi" :class="isExistingImageRemoved(image.id) ? 'fi-rr-undo' : 'fi-rr-trash'" />
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div v-if="newImagePreviews.length > 0">
+                                <p class="mb-2 text-[8px] uppercase text-slate-400">New Images</p>
+                                <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                    <div
+                                        v-for="preview in newImagePreviews"
+                                        :key="preview.key"
+                                        class="overflow-hidden border border-blue-500/60"
+                                    >
+                                        <img :src="preview.url" alt="Event image preview" class="h-20 w-full object-cover">
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="flex gap-2">
                                 <button
                                     type="submit"
@@ -385,6 +498,9 @@ watch(() => form.study_group_id, () => {
                                             ID: {{ event.uuid.substring(0, 8) }}
                                         </div>
                                         <div class="text-white uppercase">{{ event.title }}</div>
+                                        <div class="text-[7px] text-emerald-400 uppercase mt-1">
+                                            SELF_ATTENDANCE: {{ event.self_attendance_enabled ? 'ENABLED' : 'DISABLED' }}
+                                        </div>
                                         <div class="text-[7px] text-cyan-400 uppercase mt-1">
                                             TARGET:
                                             {{ event.study_group?.name || (event.job?.name ? `PUBLIC_${event.job.name}` : 'PUBLIC_ALL') }}

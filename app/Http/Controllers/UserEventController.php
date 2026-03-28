@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\EventAttendance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -63,21 +65,12 @@ class UserEventController extends Controller
     public function show(Event $event): Response
     {
         $user = Auth::user();
-        $userGroupIds = $user->studyGroups()->pluck('study_groups.id')->toArray();
-        $userJobId = (int) ($user->job_id ?? 0);
-
-        $isAccessible = (
-            is_null($event->study_group_id)
-            && (
-                is_null($event->job_id)
-                || ($userJobId > 0 && (int) $event->job_id === $userJobId)
-            )
-        ) || in_array((int) $event->study_group_id, $userGroupIds, true);
-        abort_unless($isAccessible, 403, 'EVENT_ACCESS_DENIED');
+        $this->ensureUserCanAccessEvent($event, $user);
 
         $event->load([
             'studyGroup:id,name',
             'job:id,name',
+            'images:id,event_id,path,sort_order',
             'guides' => function ($q) use ($event) {
                 $q->select('guides.id', 'guides.uuid', 'guides.title', 'guides.description', 'guides.file_path', 'guides.study_group_id')
                     ->with('studyGroup:id,name');
@@ -88,8 +81,67 @@ class UserEventController extends Controller
             },
         ]);
 
+        $attendance = EventAttendance::query()
+            ->where('event_id', (int) $event->id)
+            ->where('user_id', (int) $user->id)
+            ->first();
+
+        $attendanceStatus = (string) ($attendance?->status ?? 'pending');
+        $canSelfAttend = (bool) $event->self_attendance_enabled
+            && ! in_array($attendanceStatus, ['present', 'absent', 'excused'], true);
+
         return Inertia::render('Events/UserShow', [
             'event' => $event,
+            'userAttendance' => [
+                'status' => $attendanceStatus,
+                'checked_at' => $attendance?->checked_at?->toISOString(),
+                'can_self_attend' => $canSelfAttend,
+            ],
         ]);
+    }
+
+    public function selfAttend(Request $request, Event $event): RedirectResponse
+    {
+        $user = Auth::user();
+        $this->ensureUserCanAccessEvent($event, $user);
+
+        abort_unless((bool) $event->self_attendance_enabled, 403, 'EVENT_SELF_ATTENDANCE_DISABLED');
+
+        $attendance = EventAttendance::query()->firstOrNew([
+            'event_id' => (int) $event->id,
+            'user_id' => (int) $user->id,
+        ]);
+
+        $currentStatus = (string) ($attendance->status ?? 'pending');
+
+        if (in_array($currentStatus, ['absent', 'excused'], true)) {
+            return back()->with('message', 'EVENT_ATTENDANCE_ALREADY_FINALIZED');
+        }
+
+        if ($currentStatus === 'present') {
+            return back()->with('message', 'EVENT_SELF_ATTENDANCE_RECORDED');
+        }
+
+        $attendance->status = 'present';
+        $attendance->checked_at = now();
+        $attendance->save();
+
+        return back()->with('message', 'EVENT_SELF_ATTENDANCE_RECORDED');
+    }
+
+    private function ensureUserCanAccessEvent(Event $event, $user): void
+    {
+        $userGroupIds = $user->studyGroups()->pluck('study_groups.id')->toArray();
+        $userJobId = (int) ($user->job_id ?? 0);
+
+        $isAccessible = (
+            is_null($event->study_group_id)
+            && (
+                is_null($event->job_id)
+                || ($userJobId > 0 && (int) $event->job_id === $userJobId)
+            )
+        ) || in_array((int) $event->study_group_id, $userGroupIds, true);
+
+        abort_unless($isAccessible, 403, 'EVENT_ACCESS_DENIED');
     }
 }

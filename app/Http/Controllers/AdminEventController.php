@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\EventAttendance;
+use App\Models\EventImage;
 use App\Models\Guide;
 use App\Models\JobRole;
 use App\Models\Quest;
@@ -12,8 +13,12 @@ use App\Models\User;
 use App\Services\LmsNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rules\File;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -33,7 +38,7 @@ class AdminEventController extends Controller
 
         $eventsQuery = Event::query()
             ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
-            ->with(['studyGroup:id,name', 'job:id,name'])
+            ->with(['studyGroup:id,name', 'job:id,name', 'images:id,event_id,path,sort_order'])
             ->withCount(['guides', 'quests']);
 
         if ($this->isMentorUser()) {
@@ -77,20 +82,19 @@ class AdminEventController extends Controller
 
     public function store(Request $request, LmsNotificationService $notifications): RedirectResponse
     {
-        $validated = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'sequence_order' => ['required', 'integer', 'min:1'],
-            'study_group_id' => ['nullable', 'exists:study_groups,id'],
-            'job_id' => ['nullable', 'exists:job_roles,id'],
-            'starts_at' => ['nullable', 'date'],
-            'ends_at' => ['nullable', 'date', 'after:starts_at'],
-        ]);
+        $validated = $request->validate($this->eventRules(false));
 
         $this->assertMentorCanManageStudyGroupId((int) ($validated['study_group_id'] ?? 0));
         $validated = $this->normalizeEventAudiencePayload($validated);
 
-        $event = Event::create($validated);
+        $payload = collect($validated)
+            ->except(['images', 'remove_image_ids'])
+            ->all();
+
+        $event = Event::create($payload);
+        $uploadedImages = $this->uploadedImages($request);
+        $this->assertImageLimit($event, collect(), count($uploadedImages));
+        $this->attachImages($event, $uploadedImages);
         $notifications->notifyEventPublished($event);
 
         return back()->with('message', 'EVENT_CREATED');
@@ -100,20 +104,44 @@ class AdminEventController extends Controller
     {
         $this->assertMentorCanAccessEvent($event);
 
-        $validated = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'sequence_order' => ['required', 'integer', 'min:1'],
-            'study_group_id' => ['nullable', 'exists:study_groups,id'],
-            'job_id' => ['nullable', 'exists:job_roles,id'],
-            'starts_at' => ['nullable', 'date'],
-            'ends_at' => ['nullable', 'date', 'after:starts_at'],
-        ]);
+        $validated = $request->validate($this->eventRules(true));
 
         $this->assertMentorCanManageStudyGroupId((int) ($validated['study_group_id'] ?? 0));
         $validated = $this->normalizeEventAudiencePayload($validated);
 
-        $event->update($validated);
+        $payload = collect($validated)
+            ->except(['images', 'remove_image_ids'])
+            ->all();
+
+        $removeImageIds = collect($validated['remove_image_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($removeImageIds->isNotEmpty()) {
+            $belongsToEventCount = EventImage::query()
+                ->where('event_id', (int) $event->id)
+                ->whereIn('id', $removeImageIds->all())
+                ->count();
+
+            if ($belongsToEventCount !== $removeImageIds->count()) {
+                throw ValidationException::withMessages([
+                    'remove_image_ids' => ['One or more images are invalid for this event.'],
+                ]);
+            }
+        }
+
+        $uploadedImages = $this->uploadedImages($request);
+        $this->assertImageLimit($event, $removeImageIds, count($uploadedImages));
+
+        $event->update($payload);
+
+        if ($removeImageIds->isNotEmpty()) {
+            $this->removeImages($event, $removeImageIds);
+        }
+
+        $this->attachImages($event, $uploadedImages);
 
         return back()->with('message', 'EVENT_UPDATED');
     }
@@ -157,6 +185,7 @@ class AdminEventController extends Controller
         $event->load([
             'studyGroup:id,name',
             'job:id,name',
+            'images:id,event_id,path,sort_order',
             'guides' => function ($q) {
                 $q->select('guides.id', 'guides.uuid', 'guides.title', 'guides.study_group_id')
                     ->with('studyGroup:id,name');
@@ -475,6 +504,7 @@ class AdminEventController extends Controller
     {
         $studyGroupId = (int) ($validated['study_group_id'] ?? 0);
         $jobId = (int) ($validated['job_id'] ?? 0);
+        $validated['self_attendance_enabled'] = (bool) ($validated['self_attendance_enabled'] ?? false);
 
         if ($studyGroupId > 0) {
             $studyGroup = StudyGroup::query()->select('id', 'job_id')->findOrFail($studyGroupId);
@@ -490,5 +520,110 @@ class AdminEventController extends Controller
         }
 
         return $validated;
+    }
+
+    private function eventRules(bool $isUpdate): array
+    {
+        $rules = [
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'sequence_order' => ['required', 'integer', 'min:1'],
+            'study_group_id' => ['nullable', 'exists:study_groups,id'],
+            'job_id' => ['nullable', 'exists:job_roles,id'],
+            'starts_at' => ['nullable', 'date'],
+            'ends_at' => ['nullable', 'date', 'after:starts_at'],
+            'self_attendance_enabled' => ['nullable', 'boolean'],
+            'images' => ['nullable', 'array'],
+            'images.*' => [
+                File::image()
+                    ->types(['jpg', 'jpeg', 'png', 'webp'])
+                    ->max(4096),
+            ],
+        ];
+
+        if ($isUpdate) {
+            $rules['remove_image_ids'] = ['nullable', 'array'];
+            $rules['remove_image_ids.*'] = ['integer', 'exists:event_images,id'];
+        }
+
+        return $rules;
+    }
+
+    /**
+     * @return UploadedFile[]
+     */
+    private function uploadedImages(Request $request): array
+    {
+        $images = $request->file('images', []);
+        if (! is_array($images)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $images,
+            fn ($image) => $image instanceof UploadedFile
+        ));
+    }
+
+    private function assertImageLimit(Event $event, Collection $removeImageIds, int $newImageCount): void
+    {
+        $currentCount = (int) $event->images()->count();
+        $removedCount = $removeImageIds->isEmpty()
+            ? 0
+            : (int) $event->images()->whereIn('id', $removeImageIds->all())->count();
+
+        $finalCount = $currentCount - $removedCount + $newImageCount;
+
+        if ($finalCount > 8) {
+            throw ValidationException::withMessages([
+                'images' => ['Maximum 8 images are allowed for one event.'],
+            ]);
+        }
+    }
+
+    private function removeImages(Event $event, Collection $removeImageIds): void
+    {
+        $images = EventImage::query()
+            ->where('event_id', (int) $event->id)
+            ->whereIn('id', $removeImageIds->all())
+            ->get(['id', 'path']);
+
+        $paths = $images->pluck('path')
+            ->filter(fn ($path) => is_string($path) && trim($path) !== '')
+            ->values()
+            ->all();
+
+        if (! empty($paths)) {
+            Storage::disk('public')->delete($paths);
+        }
+
+        if ($images->isNotEmpty()) {
+            EventImage::query()
+                ->whereIn('id', $images->pluck('id')->all())
+                ->delete();
+        }
+    }
+
+    /**
+     * @param  UploadedFile[]  $images
+     */
+    private function attachImages(Event $event, array $images): void
+    {
+        if (empty($images)) {
+            return;
+        }
+
+        $nextSortOrder = (int) $event->images()->max('sort_order');
+
+        foreach ($images as $image) {
+            $nextSortOrder++;
+            $path = $image->store('events', 'public');
+
+            EventImage::query()->create([
+                'event_id' => (int) $event->id,
+                'path' => $path,
+                'sort_order' => $nextSortOrder,
+            ]);
+        }
     }
 }

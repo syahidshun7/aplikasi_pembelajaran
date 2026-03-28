@@ -1,9 +1,16 @@
 <script setup>
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, defineAsyncComponent, ref } from 'vue';
 import { useLobby } from '@/Composables/useLobby';
 import FloatingChat from '@/Components/FloatingChat.vue';
 import NotificationBell from '@/Components/NotificationBell.vue';
+import QuestSection from '@/Components/Dashboard/QuestSection.vue';
+import LibrarySection from '@/Components/Dashboard/LibrarySection.vue';
+import EventSection from '@/Components/Dashboard/EventSection.vue';
+import PartySection from '@/Components/Dashboard/PartySection.vue';
+import LeaderboardSection from '@/Components/Dashboard/LeaderboardSection.vue';
+
+const CarouselMenu = defineAsyncComponent(() => import('@/Components/Dashboard/CarouselMenu.vue'));
 
 const props = defineProps({
     players: Array,
@@ -11,10 +18,9 @@ const props = defineProps({
     studyGroups: Array,
     materi: Array,
     events: Array,
-    auth: Object
+    auth: Object,
 });
 
-// Memanggil Logic tanpa mengubah isinya
 const {
     joinForm,
     handleLeave,
@@ -25,15 +31,17 @@ const {
     studyGroups,
     guides,
     events,
-    handleLogout
+    handleLogout,
 } = useLobby(props);
 
 const mobileMenuOpen = ref(false);
+const activeMenu = ref('townhall');
 const page = usePage();
 const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
 const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
+const isLoggedIn = computed(() => Boolean(auth.value?.user));
 
 const toSafeDate = (dateLike) => {
     if (!dateLike) return null;
@@ -45,22 +53,29 @@ const toSafeDate = (dateLike) => {
 const playerItems = computed(() => {
     return (players.value || []).map((player) => {
         const seed = player?.username || player?.name || 'guild-member';
+
         return {
             ...player,
             __dicebear_src: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${seed}`,
+            __score: Number(player?.exp ?? player?.points ?? ((player?.level || 1) * 100)),
         };
     });
 });
 
+const leaderboardPreview = computed(() => playerItems.value.slice(0, 10));
+
 const eventItems = computed(() => {
     return (events.value || []).map((event) => {
         const startsAtDate = toSafeDate(event?.starts_at);
+
         return {
             ...event,
             __starts_at_label: startsAtDate ? startsAtDate.toLocaleString('id-ID') : 'Schedule_Not_Set',
         };
     });
 });
+
+const upcomingEventPreview = computed(() => eventItems.value.slice(0, 10));
 
 const questItems = computed(() => {
     const now = Date.now();
@@ -84,38 +99,102 @@ const questItems = computed(() => {
     });
 });
 
+const questPreview = computed(() => questItems.value.slice(0, 10));
+const guidePreview = computed(() => (guides.value || []).slice(0, 10));
+const groupPreview = computed(() => (studyGroups.value || []).slice(0, 10));
+
+const carouselItems = computed(() => ([
+    {
+        key: 'quest',
+        title: 'Quest Board',
+        subtitle: `${questPreview.value.length} mission node ready`,
+        accent: 'from-amber-node',
+        icon: 'fi fi-rr-target',
+    },
+    {
+        key: 'library',
+        title: 'Library',
+        subtitle: `${guidePreview.value.length} material archive`,
+        accent: 'from-indigo-node',
+        icon: 'fi fi-rr-book-alt',
+    },
+    {
+        key: 'townhall',
+        title: 'Events',
+        subtitle: `${upcomingEventPreview.value.length} event timeline`,
+        accent: 'from-blue-node',
+        icon: 'fi fi-rr-calendar-clock',
+    },
+    {
+        key: 'party',
+        title: 'Party Guild',
+        subtitle: `${groupPreview.value.length} ally slots open`,
+        accent: 'from-emerald-node',
+        icon: 'fi fi-rr-users',
+    },
+    {
+        key: 'leaderboard',
+        title: 'Leaderboard',
+        subtitle: `${leaderboardPreview.value.length} top rankers`,
+        accent: 'from-cyan-node',
+        icon: 'fi fi-rr-trophy',
+    },
+]));
+
+const activeCarouselItem = computed(() => {
+    return carouselItems.value.find((item) => item.key === activeMenu.value) ?? carouselItems.value[0];
+});
+
+const latestModuleMeta = computed(() => {
+    const moduleMap = {
+        quest: {
+            helper: `Showing latest ${questPreview.value.length} quests.`,
+        },
+        library: {
+            helper: `Showing latest ${guidePreview.value.length} materials.`,
+        },
+        townhall: {
+            helper: `Showing latest ${upcomingEventPreview.value.length} scheduled events.`,
+        },
+        party: {
+            helper: `Showing latest ${groupPreview.value.length} guild records.`,
+        },
+        leaderboard: {
+            helper: `Showing current top ${leaderboardPreview.value.length} ranks.`,
+        },
+    };
+
+    return moduleMap[activeMenu.value] ?? { helper: 'Showing preview data only.' };
+});
+
 const closeMobileMenu = () => {
     mobileMenuOpen.value = false;
 };
 </script>
 
 <template>
-
     <Head title="DOOPTECH" />
 
-    <div class="min-h-screen bg-[#0a0c10] bg-cover bg-center bg-no-repeat bg-fixed relative font-['Press_Start_2P']"
-        style="background-image: url('/images/bg-loby.png');">
-
+    <div
+        class="min-h-screen bg-[#0a0c10] bg-cover bg-center bg-no-repeat bg-fixed relative font-['Press_Start_2P']"
+        style="background-image: url('/images/bg-loby.png');"
+    >
         <div class="absolute inset-0 bg-black/60 backdrop-blur-[1px]"></div>
 
-        <div class="relative z-10 flex flex-col min-h-screen">
-
-            <nav
-                class="bg-[#1a1c2c]/90 backdrop-blur-sm border-b-4 border-[#3d415f] p-4 md:px-8 flex justify-between items-center shadow-2xl sticky top-0 z-50">
+        <div class="relative z-10 flex min-h-screen flex-col">
+            <nav class="sticky top-0 z-50 flex items-center justify-between border-b-4 border-[#3d415f] bg-[#1a1c2c]/90 p-4 shadow-2xl backdrop-blur-sm md:px-8">
                 <div class="flex items-center gap-4">
-                    <Link :href="route('lobby')" class="flex items-center gap-4 group" @click="closeMobileMenu">
-                        <div
-                            class="w-10 h-10 bg-[#0a0c10] flex items-center justify-center border-b-4 border-r-4 border-[#4ed4d4] overflow-hidden group-hover:scale-110 transition-transform">
-                            <img src="/images/logo.png" alt="Logo" class="w-7 h-7 object-contain pixelated">
+                    <Link :href="route('lobby')" class="group flex items-center gap-4" @click="closeMobileMenu">
+                        <div class="flex h-10 w-10 items-center justify-center overflow-hidden border-b-4 border-r-4 border-[#4ed4d4] bg-[#0a0c10] transition-transform group-hover:scale-110">
+                            <img src="/images/logo.png" alt="Logo" class="pixelated h-7 w-7 object-contain">
                         </div>
-                        <h1
-                            class="text-[#009999] text-[8px] md:text-sm tracking-tighter uppercase group-hover:text-[#4ed4d4]">
+                        <h1 class="text-[8px] uppercase tracking-tighter text-[#009999] group-hover:text-[#4ed4d4] md:text-sm">
                             DOOPTECH
                         </h1>
                     </Link>
                 </div>
 
-                <div class="hidden md:flex items-center">
+                <div class="hidden items-center lg:flex">
                     <template v-if="auth.user">
                         <div class="nav-dock">
                             <Link v-if="isStaff" :href="route('admin.dashboard')" class="nav-action nav-action--admin">
@@ -127,21 +206,22 @@ const closeMobileMenu = () => {
                                 Profile
                             </Link>
 
-                        <Link :href="route('shop.index')" class="nav-action nav-action--shop">
-                            <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
-                            Shop
-                        </Link>
+                            <Link :href="route('shop.index')" class="nav-action nav-action--shop">
+                                <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
+                                Shop
+                            </Link>
 
-                        <Link :href="route('hall.creations.index')" class="nav-action nav-action--hall">
-                            <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
-                            Hall
-                        </Link>
+                            <Link :href="route('hall.creations.index')" class="nav-action nav-action--hall">
+                                <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
+                                <span class="hidden xl:inline">Hall of Creations</span>
+                                <span class="xl:hidden">Hall</span>
+                            </Link>
 
-                        <NotificationBell />
+                            <NotificationBell />
 
-                        <button @click="handleLogout" class="nav-action nav-action--logout" type="button">
-                            <span class="sr-only">Logout</span>
-                            [X]
+                            <button @click="handleLogout" class="nav-action nav-action--logout" type="button">
+                                <span class="sr-only">Logout</span>
+                                [X]
                             </button>
                         </div>
                     </template>
@@ -160,7 +240,7 @@ const closeMobileMenu = () => {
 
                 <button
                     type="button"
-                    class="md:hidden inline-flex items-center justify-center w-10 h-10 border-2 border-slate-600 bg-slate-900/70 text-cyan-300"
+                    class="inline-flex h-10 w-10 items-center justify-center border-2 border-slate-600 bg-slate-900/70 text-cyan-300 lg:hidden"
                     @click="mobileMenuOpen = !mobileMenuOpen"
                     :aria-expanded="mobileMenuOpen ? 'true' : 'false'"
                     aria-label="Toggle menu"
@@ -169,41 +249,41 @@ const closeMobileMenu = () => {
                 </button>
             </nav>
 
-            <div v-if="isEmailUnverified" class="px-4 md:px-8 pt-4">
-                <div class="border-2 border-amber-400/60 bg-amber-500/15 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div class="text-[9px] leading-relaxed text-amber-100 uppercase tracking-wide">
+            <div v-if="isEmailUnverified" class="px-4 pt-4 md:px-8">
+                <div class="flex flex-col gap-3 border-2 border-amber-400/60 bg-amber-500/15 p-3 md:flex-row md:items-center md:justify-between">
+                    <div class="text-[9px] uppercase leading-relaxed tracking-wide text-amber-100">
                         Email belum terverifikasi. Kamu tetap bisa eksplor Home, tapi beberapa fitur akan dikunci sampai verifikasi selesai.
                     </div>
                     <Link
                         :href="profileVerificationHref"
-                        class="text-[8px] bg-amber-300 text-black px-3 py-2 btn-pixel border-amber-700 uppercase font-bold hover:bg-amber-200 transition-colors text-center"
+                        class="btn-pixel border-amber-700 bg-amber-300 px-3 py-2 text-center text-[8px] font-bold uppercase text-black transition-colors hover:bg-amber-200"
                     >
                         Verifikasi di Profile
                     </Link>
                 </div>
             </div>
 
-            <div v-else-if="isEmailVerifiedSuccess" class="px-4 md:px-8 pt-4">
-                <div class="border-2 border-emerald-400/60 bg-emerald-500/15 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div class="text-[9px] leading-relaxed text-emerald-100 uppercase tracking-wide">
+            <div v-else-if="isEmailVerifiedSuccess" class="px-4 pt-4 md:px-8">
+                <div class="flex flex-col gap-3 border-2 border-emerald-400/60 bg-emerald-500/15 p-3 md:flex-row md:items-center md:justify-between">
+                    <div class="text-[9px] uppercase leading-relaxed tracking-wide text-emerald-100">
                         Verifikasi email berhasil. Semua fitur akun sekarang sudah terbuka.
                     </div>
                     <Link
                         :href="route('profile.dashboard')"
-                        class="text-[8px] bg-emerald-300 text-black px-3 py-2 btn-pixel border-emerald-700 uppercase font-bold hover:bg-emerald-200 transition-colors text-center"
+                        class="btn-pixel border-emerald-700 bg-emerald-300 px-3 py-2 text-center text-[8px] font-bold uppercase text-black transition-colors hover:bg-emerald-200"
                     >
                         Buka Profile
                     </Link>
                 </div>
             </div>
 
-            <div v-if="mobileMenuOpen" class="md:hidden relative z-50 px-4 pb-4">
-                <div class="bg-[#1a1c2c]/95 backdrop-blur-sm border-2 border-[#3d415f] p-3 space-y-2 shadow-2xl">
+            <div v-if="mobileMenuOpen" class="relative z-50 px-4 pb-4 lg:hidden">
+                <div class="space-y-2 border-2 border-[#3d415f] bg-[#1a1c2c]/95 p-3 shadow-2xl backdrop-blur-sm">
                     <template v-if="auth.user">
                         <Link
                             v-if="isStaff"
                             :href="route('admin.dashboard')"
-                            class="w-full nav-action nav-action--admin justify-center"
+                            class="nav-action nav-action--admin w-full justify-center"
                             @click="closeMobileMenu"
                         >
                             Admin
@@ -211,7 +291,7 @@ const closeMobileMenu = () => {
 
                         <Link
                             :href="route('profile.dashboard')"
-                            class="w-full nav-action nav-action--profile justify-center"
+                            class="nav-action nav-action--profile w-full justify-center"
                             @click="closeMobileMenu"
                         >
                             <i class="fi fi-rr-user text-[10px] leading-none"></i>
@@ -220,7 +300,7 @@ const closeMobileMenu = () => {
 
                         <Link
                             :href="route('shop.index')"
-                            class="w-full nav-action nav-action--shop justify-center"
+                            class="nav-action nav-action--shop w-full justify-center"
                             @click="closeMobileMenu"
                         >
                             <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
@@ -229,16 +309,16 @@ const closeMobileMenu = () => {
 
                         <Link
                             :href="route('hall.creations.index')"
-                            class="w-full nav-action nav-action--hall justify-center"
+                            class="nav-action nav-action--hall w-full justify-center"
                             @click="closeMobileMenu"
                         >
                             <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
-                            Hall
+                            Hall of Creations
                         </Link>
 
                         <Link
                             :href="route('notifications.index')"
-                            class="w-full nav-action nav-action--notifications justify-center"
+                            class="nav-action nav-action--notifications w-full justify-center"
                             @click="closeMobileMenu"
                         >
                             <i class="fi fi-rr-bell text-[10px] leading-none"></i>
@@ -253,7 +333,7 @@ const closeMobileMenu = () => {
 
                         <button
                             @click="handleLogout(); closeMobileMenu()"
-                            class="w-full nav-action nav-action--logout justify-center"
+                            class="nav-action nav-action--logout w-full justify-center"
                             type="button"
                         >
                             [X]
@@ -263,14 +343,14 @@ const closeMobileMenu = () => {
                     <template v-else>
                         <Link
                             :href="route('login')"
-                            class="w-full nav-action nav-action--profile justify-center"
+                            class="nav-action nav-action--profile w-full justify-center"
                             @click="closeMobileMenu"
                         >
                             Login
                         </Link>
                         <Link
                             :href="route('register')"
-                            class="w-full nav-action nav-action--shop justify-center"
+                            class="nav-action nav-action--shop w-full justify-center"
                             @click="closeMobileMenu"
                         >
                             Register
@@ -279,399 +359,181 @@ const closeMobileMenu = () => {
                 </div>
             </div>
 
-            <main class="grid flex-1 grid-cols-12 gap-4 p-3 sm:p-4 md:gap-8 md:p-8">
+            <main class="flex-1 p-3 sm:p-4 md:p-8">
+                <section class="academy-hub academy-hub--joined">
+                    <div class="academy-scene">
+                        <div class="academy-scene__backdrop"></div>
+                        <div class="academy-scene__content">
+                            <CarouselMenu v-model="activeMenu" :items="carouselItems" />
 
-                <div class="col-span-12 lg:col-span-4 space-y-6">
-
-                    <div class="rpg-panel flex min-h-[300px] flex-col border-[#3d415f] bg-[#1a1c2c]/90 backdrop-blur-sm md:h-[350px]">
-                        <h2
-                            class="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-700 pb-2 text-[9px] uppercase text-[#4ed4d4] sm:text-[10px]">
-                            <i class="fi fi-rr-user text-[11px] text-[#4ed4d4]"></i>
-                            <span class="break-words">Leaderboard - Players[{{ players.length }}]</span>
-                        </h2>
-                        <div class="space-y-4 overflow-y-auto pr-2 custom-scroll flex-1">
-                            <div
-                                v-for="(player, index) in playerItems"
-                                :key="player.id"
-                                class="relative flex items-center gap-3 border-l-4 border-transparent p-2 transition-all hover:border-[#009999] hover:bg-[#009999]/10 sm:gap-4">
-
-                                <div class="relative">
-                                    <div v-if="index < 3"
-                                        class="absolute -top-3 -left-2 z-10 drop-shadow-[0_0_5px_rgba(0,0,0,0.5)]">
-                                        <span v-if="index === 0" class="text-xl">👑</span>
-                                        <span v-else-if="index === 1" class="text-xl">🥈</span>
-                                        <span v-else-if="index === 2" class="text-xl">🥉</span>
-                                    </div>
-
-                                    <div class="w-10 h-10 bg-slate-800 border-2 flex-shrink-0 overflow-hidden shadow-lg"
-                                        :class="{
-                                             'border-yellow-400 shadow-yellow-500/50 animate-pulse': index === 0,
-                                             'border-slate-300 shadow-slate-400/50': index === 1,
-                                             'border-amber-600 shadow-amber-700/50': index === 2,
-                                             'border-slate-600': index > 2
-                                         }">
-                                        <img v-if="player.profile_photo" :src="'/storage/' + player.profile_photo"
-                                            loading="lazy"
-                                            decoding="async"
-                                            class="w-full h-full object-cover">
-                                        <img v-else
-                                            :src="player.__dicebear_src"
-                                            loading="lazy"
-                                            decoding="async"
-                                            class="w-full h-full">
-                                    </div>
-                                </div>
-
-                                <div class="min-w-0 flex-1">
-                                    <div class="flex items-center justify-between gap-2 text-[8px] font-sans font-bold">
-                                        <span class="max-w-[120px] truncate text-[12px] uppercase text-white sm:text-[14px]"
-                                            :class="{ 'text-yellow-400 font-black': index === 0 }">
-                                            {{ player.username || player.name }}
-                                        </span>
-                                        <span class="shrink-0 text-[9px] sm:text-[10px]" :class="index < 3 ? 'text-white' : 'text-[#009999]'">
-                                            LVL.{{ player.level || 1 }}
-                                        </span>
-                                    </div>
-                                    <p class="mt-1 flex flex-wrap justify-between gap-1 text-[8px] uppercase text-slate-400">
-                                        <span class="break-words">{{ player.role || 'Adventurer' }}</span>
-                                        <span v-if="index < 3" class="italic text-slate-500">Rank #{{ index + 1
-                                            }}</span>
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div
-                        class="rpg-panel relative flex min-h-[320px] flex-col border-indigo-500/50 bg-[#1a1c2c]/90 backdrop-blur-sm md:h-[380px]">
-                        <div
-                            class="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-indigo-900 pb-2">
-                            <h2
-                                class="text-indigo-400 text-[10px] uppercase tracking-widest flex items-center gap-2 font-['Press_Start_2P']">
-                                Materi Ajar
-                            </h2>
-
-                            <Link
-                                :href="auth.user ? route('guides.user.index') : route('login')"
-                                class="bg-indigo-900/40 p-2 border-b-4 border-r-4 border-indigo-500 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.5)] flex items-center justify-center hover:bg-indigo-500/50 transition-colors"
-                                title="Lihat semua materi">
-                                <i class="fi fi-rr-book-alt text-xl leading-none text-indigo-200"></i>
-                            </Link>
-                        </div>
-
-                        <div class="space-y-4 overflow-y-auto pr-2 custom-scroll-indigo flex-1">
-                            <div
-                                v-for="item in guides"
-                                :key="item.uuid"
-                                class="p-0 bg-[#0d1117] border-2 border-slate-800 hover:border-indigo-500 transition-all group relative overflow-hidden">
-
-                                <div class="absolute top-0 left-0 w-1 h-full bg-indigo-600"></div>
-
-                                <div class="p-3 pl-5 relative">
-                                    <div class="mb-1 flex flex-wrap items-center justify-between gap-2">
-                                        <span
-                                            class="text-[7px] text-indigo-400 font-['Press_Start_2P'] uppercase tracking-tighter">[
-                                            STUDY_MATERIAL ]</span>
-                                        <span class="text-[10px] text-slate-600 font-mono italic uppercase">Ref.{{
-                                            item.uuid.substring(0, 5) }}</span>
-                                    </div>
-                                    <p class="text-[8px] uppercase mb-1"
-                                        :class="item.study_group_id ? 'text-emerald-400' : 'text-cyan-400'">
-                                        {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
-                                    </p>
-
-                                    <h3
-                                        class="mb-1 break-words text-[12px] font-sans font-extrabold uppercase leading-tight tracking-tight text-white group-hover:text-indigo-300 sm:text-[14px]">
-                                        {{ item.title }}
-                                    </h3>
-
-                                    <p
-                                        class="text-[12px] font-sans text-slate-500 italic mb-4 line-clamp-2 leading-snug">
-                                        {{ item.description || 'Accessing knowledge database...' }}
-                                    </p>
-
-                                    <div class="flex justify-between items-center border-t border-slate-800/50 pt-2.5">
-                                        <div class="flex items-center gap-1">
-                                            <span class="w-1 h-1 bg-green-500 rounded-full animate-pulse"></span>
-                                            <span
-                                                class="text-[8px] text-slate-500 font-['Press_Start_2P'] uppercase">Verified</span>
-                                        </div>
-
-                                        <Link :href="route('guides.user.show', item.uuid)"
-                                            class="text-[8px] bg-[#1a1c2c] text-indigo-300 px-3 py-1.5 border-b-2 border-r-2 border-indigo-900 hover:bg-indigo-500 hover:text-white transition-all uppercase font-['Press_Start_2P']">
-                                            DETAIL
-                                        </Link>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div v-if="guides.length === 0" class="text-center py-8">
-                                <p
-                                    class="text-slate-700 text-[8px] uppercase font-['Press_Start_2P'] italic tracking-tighter">
-                                    Database_Empty</p>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-
-                <div class="col-span-12 lg:col-span-8 space-y-6">
-
-                    <div class="rpg-panel flex flex-col border-emerald-500/50 bg-[#1a1c2c]/90 backdrop-blur-sm">
-                        <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-emerald-900 pb-2">
-                            <h2 class="flex items-center gap-2 text-[9px] uppercase tracking-widest text-emerald-400 sm:text-[10px]">
-                                <i class="fi fi-rr-users text-[12px] text-emerald-300 animate-pulse"></i> Active_Parties [{{ studyGroups.length }}]
-                            </h2>
-                            <span class="text-[10px] text-slate-500 uppercase font-mono">Join_via_Request</span>
-                        </div>
-
-                        <div
-                            class="grid max-h-[unset] grid-cols-1 gap-4 overflow-y-visible pr-0 md:max-h-[250px] md:grid-cols-2 md:overflow-y-auto md:pr-2 custom-scroll">
-                            <div v-for="group in studyGroups" :key="group.uuid"
-                                class="p-3 bg-[#0d1117] border-2 border-slate-800 hover:border-emerald-500 transition-all group relative overflow-hidden">
-                                <div class="absolute top-0 left-0 w-1 h-full bg-emerald-600"></div>
-
-                                <div class="mb-1 flex items-start justify-between gap-3">
-                                    <h3
-                                        class="break-words text-[12px] font-bold uppercase tracking-tight text-white group-hover:text-emerald-400 sm:text-[14px]">
-                                        {{ group.name }}
-                                    </h3>
-                                    <span class="shrink-0 text-[11px] font-mono text-yellow-500 sm:text-[12px]">{{ group.users_count || 0 }}/{{
-                                        group.max_members }}</span>
-                                </div>
-
-                                <p class="text-[8px] text-slate-500 italic line-clamp-1 mb-3">
-                                    {{ group.description || 'In pursuit of higher knowledge...' }}
-                                </p>
-
-                                <div class="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-                                    <span class="break-all text-[9px] font-mono uppercase tracking-tighter text-slate-600 sm:text-[10px]">
-                                        Party_ID: {{ group.uuid?.substring(0, 8) }}
-                                    </span>
-
-                                    <button v-if="group.is_member" @click="handleLeave(group.uuid)"
-                                        class="text-[9px] bg-red-900/50 text-red-400 px-3 py-1 border border-red-700 hover:bg-red-600 hover:text-white transition-all uppercase font-['Press_Start_2P']">
-                                        Leave_Party
-                                    </button>
-
-                                    <button v-else-if="group.join_request_status === 'pending'" disabled
-                                        class="text-[9px] bg-slate-900/60 text-slate-400 px-3 py-1 border border-slate-700 uppercase font-['Press_Start_2P'] cursor-not-allowed">
-                                        Request_Pending
-                                    </button>
-
-                                    <button v-else @click="handleJoin(group.uuid)"
-                                        :disabled="joinForm.processing"
-                                        class="text-[9px] bg-emerald-900/50 text-emerald-400 px-3 py-1 border border-emerald-700 hover:bg-emerald-500 hover:text-black transition-all uppercase font-['Press_Start_2P']">
-                                        {{ joinForm.processing ? 'Sending...' : 'Request_Access' }}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div v-if="studyGroups.length === 0" class="col-span-2 text-center py-4">
-                                <p class="text-slate-700 text-[8px] uppercase italic tracking-tighter">
-                                    No_Parties_Found_In_This_Realm</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="rpg-panel flex flex-col border-blue-500/50 bg-[#1a1c2c]/90 backdrop-blur-sm">
-                        <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-blue-900 pb-2">
-                            <h2 class="flex items-center gap-2 text-[9px] uppercase tracking-widest text-blue-300 sm:text-[10px]">
-                                <i class="fi fi-rr-calendar-clock text-[12px]"></i> Event_Timeline [{{ events.length }}]
-                            </h2>
-                            <Link :href="auth.user ? route('events.user.index') : route('login')"
-                                class="bg-blue-900/30 p-2 border-b-4 border-r-4 border-blue-700 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.5)] flex items-center justify-center hover:bg-blue-500/40 transition-colors"
-                                title="Lihat semua event">
-                                <i class="fi fi-rr-calendar text-xl leading-none text-blue-200"></i>
-                            </Link>
-                        </div>
-
-                        <div class="grid grid-cols-1 gap-4 pr-0 custom-scroll md:max-h-[260px] md:grid-cols-2 md:overflow-y-auto md:pr-2">
-                            <div
-                                v-for="event in eventItems"
-                                :key="event.uuid"
-                                class="p-3 bg-[#0d1117] border-2 border-slate-800 hover:border-blue-500 transition-all group relative overflow-hidden flex flex-col min-h-[180px]">
-                                <div class="absolute top-0 left-0 w-1 h-full bg-blue-600"></div>
-
-                                <div class="flex justify-between items-start mb-1">
-                                    <div class="text-[7px] text-slate-500 uppercase">
-                                        Meeting_{{ event.sequence_order }}
-                                    </div>
-                                    <div class="text-[7px] uppercase text-blue-300">
-                                        #{{ event.uuid.substring(0, 6) }}
-                                    </div>
-                                </div>
-                                <h3 class="mb-2 break-words text-[11px] uppercase leading-snug text-white group-hover:text-blue-300 sm:text-[12px]">
-                                    {{ event.title }}
-                                </h3>
-                                <p class="text-[8px] text-cyan-400 uppercase mb-2">
-                                    {{ event.study_group?.name || 'Public' }}
-                                </p>
-                                <p class="text-[7px] text-slate-400 uppercase mb-2">
-                                    {{ event.__starts_at_label }}
-                                </p>
-                                <div class="flex items-center justify-between text-[7px] uppercase mt-auto pt-2 border-t border-slate-800">
-                                    <span class="text-emerald-400">Guide: {{ event.guides_count || 0 }}</span>
-                                    <span class="text-yellow-400">Quest: {{ event.quests_count || 0 }}</span>
-                                </div>
-                                <div class="mt-3 self-end">
-                                    <Link :href="route('events.show', event.uuid)"
-                                        class="text-[8px] bg-blue-900/50 text-blue-300 px-3 py-1.5 btn-pixel border-blue-800 hover:bg-blue-500 hover:text-black transition-all uppercase">
-                                        View_Detail
-                                    </Link>
-                                </div>
-                            </div>
-
-                            <div v-if="events.length === 0" class="col-span-2 text-center py-4">
-                                <p class="text-slate-700 text-[8px] uppercase italic tracking-tighter">
-                                    No_Events_Available
+                            <div class="academy-scene__footer">
+                                <p class="academy-scene__copy">
+                                    Swipe, drag, or click a node to focus the dashboard without reloading the page.
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    <div class="rpg-panel flex min-h-[420px] flex-col border-[#3d415f] bg-[#1a1c2c]/90 backdrop-blur-sm md:h-[480px]">
-                        <div
-                            class="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 pb-4">
-                            <h2 class="text-[10px] uppercase tracking-widest text-yellow-400 animate-pulse sm:text-xs">Available_Quests
-                            </h2>
-                            <Link :href="auth.user ? route('quests.user.index') : route('login')"
-                                class="bg-yellow-900/30 p-2 border-b-4 border-r-4 border-yellow-700 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.5)] flex items-center justify-center hover:bg-yellow-500/40 transition-colors"
-                                title="Lihat semua quest">
-                                <i class="fi fi-rr-target text-xl leading-none text-yellow-200"></i>
-                            </Link>
+                    <section class="dashboard-focus-shell dashboard-focus-shell--joined">
+                        <div class="dashboard-focus-shell__meta">
+                            <p class="dashboard-focus-shell__eyebrow">Latest Snapshot</p>
+                            <h2 class="dashboard-focus-shell__title">{{ activeCarouselItem?.title }}</h2>
+                            <p class="dashboard-focus-shell__helper">{{ latestModuleMeta.helper }}</p>
                         </div>
 
-                        <div class="overflow-y-auto pr-2 custom-scroll flex-1">
-                            
-                            <div v-if="quests.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4">
-                                <div
-                                    v-for="quest in questItems"
-                                    :key="quest.uuid"
-                                    class="rpg-panel group flex min-h-[220px] cursor-pointer flex-col bg-[#161b22] transition-all shadow-none sm:h-[200px]"
-                                    :class="[
-                                        (quest.user_submission_status === 'Approved') ? 'border-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.35)] bg-emerald-950/20' :
-                                        (quest.user_submission_status === 'Pending') ? 'border-yellow-500 shadow-[0_0_12px_rgba(234,179,8,0.35)] bg-yellow-950/20' :
-                                        (quest.user_has_unlock && !quest.user_has_submitted) ? 'border-cyan-500 shadow-[0_0_12px_rgba(34,211,238,0.3)] bg-cyan-950/20' :
-                                        (quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock) ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.2)]' :
-                                            (quest.status === 'In-Progress') ? 'border-slate-500 bg-slate-900/50' :
-                                                quest.user_has_submitted ? 'border-yellow-600 shadow-[0_0_10px_rgba(202,138,4,0.2)]' : 'border-slate-700 hover:border-[#009999]'
-                                    ]">
+                        <Transition name="dashboard-section" mode="out-in">
+                            <QuestSection
+                                v-if="activeMenu === 'quest'"
+                                :items="questPreview"
+                                :auth-user="isLoggedIn"
+                            />
 
-                                    <div class="flex flex-col h-full">
-                                        <div class="mb-3 flex items-start justify-between gap-2">
-                                            <span
-                                                class="text-[7px] px-2 py-1 bg-slate-800 text-slate-400 border border-slate-600 uppercase">ID:{{
-                                                    quest.id }}</span>
-                                            <span :class="{
-                                                'text-red-500': quest.difficulty === 'S-Rank',
-                                                'text-orange-500': quest.difficulty === 'A-Rank',
-                                                'text-cyan-500': quest.difficulty === 'B-Rank',
-                                                'text-green-500': quest.difficulty === 'C-Rank'
-                                            }" class="text-[8px] font-bold tracking-widest">{{ quest.difficulty
-                                            }}</span>
-                                        </div>
+                            <LibrarySection
+                                v-else-if="activeMenu === 'library'"
+                                :items="guidePreview"
+                                :auth-user="isLoggedIn"
+                            />
 
-                                        <h3
-                                            class="mb-2 line-clamp-3 break-words text-[9px] uppercase leading-relaxed text-white transition-colors group-hover:text-[#4ed4d4] sm:text-[10px]">
-                                            {{ quest.title }}
-                                        </h3>
+                            <EventSection
+                                v-else-if="activeMenu === 'townhall'"
+                                :items="upcomingEventPreview"
+                                :auth-user="isLoggedIn"
+                            />
 
-                                        <div class="mb-2 flex items-center gap-1">
-                                            <span
-                                                class="text-orange-500 text-[6px] uppercase tracking-tighter">Deadline:</span>
-                                            <span :class="[
-                                                'text-[7px] uppercase font-bold tracking-tighter',
-                                                quest.__deadline_overdue ? 'text-red-500 animate-pulse' : 'text-orange-300'
-                                            ]">
-                                                {{ quest.__deadline_label }}
-                                            </span>
-                                        </div>
+                            <PartySection
+                                v-else-if="activeMenu === 'party'"
+                                :items="groupPreview"
+                                :join-processing="joinForm.processing"
+                                :on-join="handleJoin"
+                                :on-leave="handleLeave"
+                            />
 
-                                        <div class="flex-grow">
-                                            <p v-if="quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock"
-                                                class="text-[6px] text-red-500 uppercase">Mission_Expired</p>
-                                            <p v-if="quest.user_has_unlock && !quest.user_has_submitted"
-                                                class="text-[6px] text-cyan-300 uppercase italic tracking-widest">
-                                                Quest_Reopened_With_Time_Key
-                                            </p>
-                                            <p v-if="quest.user_submission_status === 'Pending'"
-                                                class="text-[6px] text-yellow-400 uppercase italic tracking-widest">
-                                                Waiting_For_Review...
-                                            </p>
-                                            <p v-if="quest.user_submission_status === 'Approved'"
-                                                class="text-[6px] text-emerald-400 uppercase italic tracking-widest">
-                                                Approved!
-                                            </p>
-                                            <p v-if="quest.status === 'In-Progress'"
-                                                class="text-[6px] text-slate-500 uppercase italic tracking-widest">
-                                                Active_In_Journal...</p>
-                                        </div>
-
-                                        <div class="flex flex-col gap-3 border-t border-slate-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                                            <div class="flex flex-col">
-                                                <span class="text-[6px] text-slate-500 uppercase mb-1">Reward</span>
-                                                <span class="text-yellow-500 text-[8px] tracking-tighter font-bold">{{
-                                                    quest.reward_gold }}G</span>
-                                            </div>
-
-                                            <template v-if="quest.status !== 'In-Progress'">
-                                                <Link :href="route('quests.show', quest.uuid)" :class="[
-                                                    'text-[8px] px-3 py-2 btn-pixel uppercase font-bold transition-colors whitespace-nowrap self-start sm:self-auto',
-                                                    (quest.user_submission_status === 'Approved') ? 'bg-emerald-600 text-black border-emerald-800 hover:bg-emerald-400' :
-                                                    (quest.user_submission_status === 'Pending') ? 'bg-yellow-600 text-black border-yellow-800 hover:bg-yellow-400' :
-                                                    (quest.user_has_unlock && !quest.user_has_submitted) ? 'bg-cyan-600 text-black border-cyan-800 hover:bg-cyan-400' :
-                                                    (quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock) ? 'bg-red-700 text-white border-red-950 hover:bg-red-600' :
-                                                        quest.user_has_submitted ? 'bg-slate-700 text-white border-slate-900 hover:bg-slate-600' :
-                                                            'bg-[#009999] text-black border-[#006666] hover:bg-[#4ed4d4]'
-                                                ]">
-                                                    <template
-                                                        v-if="quest.user_submission_status === 'Approved'">View</template>
-                                                    <template
-                                                        v-else-if="quest.user_submission_status === 'Pending'">Preview</template>
-                                                    <template
-                                                        v-else-if="quest.user_has_unlock && !quest.user_has_submitted">Continue</template>
-                                                    <template
-                                                        v-else-if="quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock">Late</template>
-                                                    <template v-else>{{ quest.user_has_submitted ? 'View' :
-                                                        'Take_Quest' }}</template>
-                                                </Link>
-                                            </template>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div v-else
-                                class="flex flex-col items-center justify-center h-[300px] border-2 border-dashed border-slate-800 rounded-lg p-6 text-center">
-                                <div class="text-slate-600 text-4xl mb-4 italic">!</div>
-                                <h3 class="text-[#4ed4d4] text-[12px] uppercase tracking-[0.2em] mb-2 font-bold">No
-                                    Quests Available
-                                </h3>
-                                <p class="text-slate-500 text-[9px] uppercase leading-relaxed max-w-[250px]">
-                                    Your quest journal is empty. Please join a <span class="text-white underline">Party
-                                        / Study
-                                        Group</span> to unlock exclusive missions and challenges.
-                                </p>
-                                <div class="mt-6 h-[1px] w-20 bg-slate-800"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
+                            <LeaderboardSection
+                                v-else
+                                :items="leaderboardPreview"
+                            />
+                        </Transition>
+                    </section>
+                </section>
             </main>
 
             <FloatingChat v-if="auth.user" />
 
             <footer class="mt-auto border-t-2 border-white/10 bg-[#1a1c2c]/50 p-6 text-center backdrop-blur-md md:p-8">
-                <p class="break-words text-[7px] uppercase tracking-[0.18em] text-white/50 sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
+                <p class="break-words text-[7px] uppercase tracking-[0.18em] text-white/50 sm:text-[8px] sm:tracking-[0.3em]">
+                    Build_Ver_1.1.0 // P-Quest Engine
+                </p>
             </footer>
-
         </div>
     </div>
 </template>
 
 <style scoped>
-/* Vite akan otomatis memproses file ini dan meng-enkapsulasinya ke komponen ini saja */
 @import "../../css/lobby-style.css";
+
+.academy-hub {
+    @apply overflow-hidden border-2 border-[#3d415f] bg-[#1a1c2c] p-2 shadow-[0_14px_38px_rgba(2,8,16,0.42)];
+}
+
+.academy-hub--joined {
+    @apply space-y-5;
+}
+
+.academy-scene {
+    @apply relative overflow-hidden border border-slate-700 bg-[#1a1c2c];
+    min-height: 268px;
+}
+
+.academy-scene__backdrop {
+    @apply absolute inset-0 bg-[#1a1c2c];
+}
+
+.academy-scene__content {
+    @apply relative z-10 flex min-h-[268px] flex-col justify-center pt-1;
+}
+
+.academy-scene__copy {
+    @apply mx-auto max-w-[760px] px-4 pb-4 text-center text-[9px] uppercase leading-relaxed tracking-[0.16em] text-slate-300;
+}
+
+.academy-scene__footer {
+    @apply -mt-1;
+}
+
+.dashboard-focus-shell {
+    @apply space-y-4;
+}
+
+.dashboard-focus-shell--joined {
+    @apply border-t border-[#33415f] px-2 pb-2 pt-5;
+}
+
+.dashboard-focus-shell__meta {
+    @apply flex flex-col gap-2 px-1;
+}
+
+.dashboard-focus-shell__eyebrow {
+    @apply text-[7px] uppercase tracking-[0.26em] text-cyan-300/70;
+}
+
+.dashboard-focus-shell__title {
+    @apply text-[11px] uppercase tracking-[0.14em] text-white;
+}
+
+.dashboard-focus-shell__helper {
+    @apply max-w-[560px] text-[7px] uppercase leading-relaxed tracking-[0.12em] text-slate-400;
+}
+
+.dashboard-section-enter-active,
+.dashboard-section-leave-active {
+    transition: opacity 0.35s ease-in-out, transform 0.35s ease-in-out;
+}
+
+.dashboard-section-enter-from,
+.dashboard-section-leave-to {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+}
+
+@media (max-width: 1279px) {
+    .academy-scene {
+        min-height: 244px;
+    }
+
+    .academy-scene__content {
+        min-height: 244px;
+        padding-top: 0.25rem;
+    }
+}
+
+@media (max-width: 767px) {
+    .academy-hub {
+        @apply p-2;
+    }
+
+    .academy-hub--joined {
+        @apply space-y-4;
+    }
+
+    .academy-scene {
+        min-height: 232px;
+    }
+
+    .academy-scene__content {
+        min-height: 232px;
+        padding-top: 0.25rem;
+    }
+
+    .academy-scene__copy {
+        @apply max-w-[320px] px-3 pb-3 text-[8px];
+    }
+
+    .dashboard-focus-shell--joined {
+        @apply px-1 pb-1 pt-4;
+    }
+
+    .dashboard-focus-shell__helper {
+        @apply max-w-[300px] text-[6px];
+    }
+}
 </style>

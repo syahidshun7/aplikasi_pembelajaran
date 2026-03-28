@@ -44,7 +44,7 @@ const previewClass = computed(() => {
 </script>
 
 <template>
-    <article class="group mx-auto w-full max-w-[320px] overflow-hidden border-2 border-slate-700 bg-[#121722]/90 shadow-[6px_6px_0_rgba(0,0,0,0.35)] transition-colors hover:border-cyan-500/60">
+    <article class="group w-full overflow-hidden border-2 border-slate-700 bg-[#121722]/90 shadow-[6px_6px_0_rgba(0,0,0,0.35)] transition-colors hover:border-cyan-500/60">
         <button
             type="button"
             class="block w-full text-left"
@@ -57,6 +57,8 @@ const previewClass = computed(() => {
                     v-if="creation.thumbnail_url"
                     :src="creation.thumbnail_url"
                     alt="Creation thumbnail"
+                    loading="lazy"
+                    decoding="async"
                     class="absolute inset-0 h-full w-full object-cover object-center"
                 >
                 <i v-else class="fi fi-rr-lightbulb-on text-[30px] text-cyan-200/80" />
@@ -69,19 +71,26 @@ const previewClass = computed(() => {
                 </span>
             </div>
 
-            <div class="space-y-2 p-2.5">
-                <div class="flex items-start justify-between gap-3">
-                    <h3 class="line-clamp-1 text-[9px] uppercase tracking-wide text-white">
+            <div class="space-y-2.5 p-3">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <h3 class="line-clamp-2 text-[8px] uppercase leading-relaxed tracking-wide text-white sm:text-[9px]">
                         {{ creation.title }}
                     </h3>
-                    <span class="rounded border px-2 py-[2px] text-[7px] uppercase" :class="statusClass">
+                    <span class="w-fit rounded border px-2 py-[2px] text-[7px] uppercase" :class="statusClass">
                         {{ creation.status }}
                     </span>
                 </div>
 
-                <p class="line-clamp-1 text-[6px] uppercase text-slate-400">
-                    {{ creation.creator?.username || creation.creator?.name || 'Adventurer' }}
-                </p>
+                <div class="flex flex-wrap items-center gap-2 text-[6px] uppercase sm:text-[7px]">
+                    <span class="inline-flex items-center gap-1 text-slate-400">
+                        <i class="fi fi-rr-user text-[8px]"></i>
+                        <span class="line-clamp-1">{{ creation.creator?.username || creation.creator?.name || 'Adventurer' }}</span>
+                    </span>
+                    <span v-if="creation.category" class="inline-flex items-center gap-1 border border-cyan-500/20 bg-cyan-500/5 px-2 py-1 text-cyan-200/80">
+                        <i class="fi fi-rr-apps text-[8px]"></i>
+                        {{ creation.category }}
+                    </span>
+                </div>
 
                 <div v-if="creation.status !== 'finished'" class="space-y-1">
                     <div class="h-1.5 overflow-hidden border border-slate-700 bg-slate-950">
@@ -92,7 +101,7 @@ const previewClass = computed(() => {
             </div>
         </button>
 
-        <div class="flex items-center justify-between border-t border-slate-700 px-2.5 py-2">
+        <div class="flex items-center justify-between border-t border-slate-700 px-3 py-2.5">
             <button
                 type="button"
                 class="inline-flex items-center gap-1 text-[8px] transition-colors"

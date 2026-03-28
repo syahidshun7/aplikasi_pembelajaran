@@ -3,9 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\Creation;
+use App\Models\CreationAppreciation;
+use App\Models\CreationPhoto;
 use App\Models\JobRole;
 use App\Models\Quest;
 use App\Models\Submission;
+use App\Models\User;
+use App\Support\Cache\CacheVersion;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -50,13 +55,33 @@ class ProfileController extends Controller
             'profileView'     => 'settings',
         ]);
     }
+
+    /**
+     * Display a public-style profile for another user.
+     */
+    public function show(Request $request, User $user): Response
+    {
+        [$averageGrade, $totalCompleted] = $this->resolveQuestStats($user);
+
+        return Inertia::render('Profile/Show', [
+            'user' => $this->buildUserPayload($user),
+            'averageGrade' => $averageGrade,
+            'totalCompleted' => $totalCompleted,
+            'creations' => $this->resolvePublicCreations($user, (int) ($request->user()?->id ?? 0)),
+            'creationStats' => [
+                'total_public' => $this->resolveTotalPublicCreations($user),
+                'total_appreciations_received' => $this->resolveTotalCreationAppreciationsReceived($user),
+            ],
+        ]);
+    }
     /**
      * Update the user's profile information.
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
         $user = $request->user();
-        $requestedJobId = (int) ($request->validated('job_id') ?? 0);
+        $validated = $request->validated();
+        $requestedJobId = (int) ($validated['job_id'] ?? 0);
         $currentJobId = (int) ($user->job_id ?? 0);
 
         if ($requestedJobId > 0 && $requestedJobId !== $currentJobId) {
@@ -72,7 +97,7 @@ class ProfileController extends Controller
         }
 
         // 1. Isi data teks (name, email, username) dari hasil validasi
-        $user->fill($request->validated());
+        $user->fill($validated);
 
         // 2. Reset verifikasi email jika email diubah
         if ($user->isDirty('email')) {
@@ -93,8 +118,55 @@ class ProfileController extends Controller
             $user->profile_photo = $path;
         }
 
+        $bio = isset($validated['bio']) ? trim((string) $validated['bio']) : null;
+        $experience = isset($validated['experience']) ? trim((string) $validated['experience']) : null;
+        $location = isset($validated['location']) ? trim((string) $validated['location']) : null;
+        $skillsRaw = isset($validated['skills_text']) ? trim((string) $validated['skills_text']) : '';
+
+        $bio = $bio !== '' ? $bio : null;
+        $experience = $experience !== '' ? $experience : null;
+        $location = $location !== '' ? $location : null;
+
+        $skills = [];
+        if ($skillsRaw !== '') {
+            $skills = collect(explode(',', $skillsRaw))
+                ->map(fn ($skill) => trim((string) $skill))
+                ->filter(fn ($skill) => $skill !== '')
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        $detailPayload = [
+            'bio' => $bio,
+            'experience' => $experience,
+            'location' => $location,
+            'skills' => !empty($skills) ? $skills : null,
+        ];
+
+        $hasDetailValues = collect($detailPayload)->contains(function ($value) {
+            if (is_array($value)) {
+                return count($value) > 0;
+            }
+
+            return !is_null($value) && $value !== '';
+        });
+
+        if ($hasDetailValues) {
+            $user->detailUser()->updateOrCreate(['user_id' => $user->id], $detailPayload);
+        } elseif ($user->detailUser) {
+            $user->detailUser()->delete();
+        }
+
         // 4. Eksekusi simpan ke database
         $user->save();
+
+        CacheVersion::bump('home');
+        CacheVersion::bump('hall_of_creations');
+
+        if ($user->hasRole(User::ROLE_MENTOR)) {
+            CacheVersion::bump('landing');
+        }
 
         return Redirect::route('profile.edit')->with('status', 'profile-updated');
     }
@@ -121,7 +193,10 @@ class ProfileController extends Controller
 
     private function buildUserPayload($user): array
     {
-        $user->loadMissing('job:id,name,emblem_path');
+        $user->loadMissing([
+            'job:id,name,emblem_path',
+            'detailUser:id,user_id,bio,experience,location,skills',
+        ]);
 
         return [
             'id'            => $user->id,
@@ -138,6 +213,10 @@ class ProfileController extends Controller
             'lvl'           => $user->level ?? $user->lvl ?? 1,
             'exp'           => $user->exp ?? 0,
             'role'          => $user->role,
+            'bio'           => $user->detailUser?->bio,
+            'experience'    => $user->detailUser?->experience,
+            'location'      => $user->detailUser?->location,
+            'skills'        => $user->detailUser?->skills,
         ];
     }
 
@@ -205,5 +284,86 @@ class ProfileController extends Controller
                     'quest_uuid'   => $submission->quest?->uuid,
                 ];
             });
+    }
+
+    private function resolvePublicCreations(User $user, int $viewerId): array
+    {
+        $creations = Creation::query()
+            ->publicVisible()
+            ->where('user_id', $user->id)
+            ->with([
+                'user:id,name,username,profile_photo',
+                'photos:id,creation_id,path,sort_order',
+            ])
+            ->withCount(['appreciations', 'insights', 'photos'])
+            ->orderByDesc('appreciations_count')
+            ->orderByDesc('insights_count')
+            ->latest()
+            ->take(12)
+            ->get();
+
+        $appreciatedIds = $viewerId > 0 && $creations->isNotEmpty()
+            ? CreationAppreciation::query()
+                ->where('user_id', $viewerId)
+                ->whereIn('creation_id', $creations->pluck('id')->all())
+                ->pluck('creation_id')
+                ->map(fn ($id) => (int) $id)
+                ->all()
+            : [];
+
+        return $creations
+            ->map(function (Creation $creation) use ($appreciatedIds) {
+                return [
+                    'id' => (int) $creation->id,
+                    'user_id' => (int) $creation->user_id,
+                    'title' => (string) $creation->title,
+                    'description' => (string) $creation->description,
+                    'link' => (string) ($creation->link ?? ''),
+                    'category' => $creation->category ? (string) $creation->category : null,
+                    'status' => (string) $creation->status,
+                    'progress' => (int) ($creation->progress ?? 0),
+                    'is_public' => (bool) $creation->is_public,
+                    'appreciations_count' => (int) ($creation->appreciations_count ?? 0),
+                    'insights_count' => (int) ($creation->insights_count ?? 0),
+                    'photos_count' => (int) ($creation->photos_count ?? $creation->photos->count()),
+                    'thumbnail_url' => (string) ($creation->photos->first()?->url ?? ''),
+                    'photos' => $creation->photos
+                        ->map(fn (CreationPhoto $photo) => [
+                            'id' => (int) $photo->id,
+                            'url' => (string) $photo->url,
+                            'sort_order' => (int) ($photo->sort_order ?? 0),
+                        ])
+                        ->values()
+                        ->all(),
+                    'creator' => [
+                        'id' => (int) ($creation->user?->id ?? 0),
+                        'name' => (string) ($creation->user?->name ?? ''),
+                        'username' => (string) ($creation->user?->username ?? ''),
+                        'profile_photo' => (string) ($creation->user?->profile_photo ?? ''),
+                    ],
+                    'created_at' => $creation->created_at?->toISOString(),
+                    'updated_at' => $creation->updated_at?->toISOString(),
+                    'is_appreciated' => in_array((int) $creation->id, $appreciatedIds, true),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function resolveTotalPublicCreations(User $user): int
+    {
+        return (int) Creation::query()
+            ->publicVisible()
+            ->where('user_id', $user->id)
+            ->count();
+    }
+
+    private function resolveTotalCreationAppreciationsReceived(User $user): int
+    {
+        return (int) CreationAppreciation::query()
+            ->whereHas('creation', function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+            })
+            ->count();
     }
 }

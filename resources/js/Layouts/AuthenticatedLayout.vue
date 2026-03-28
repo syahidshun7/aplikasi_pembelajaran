@@ -54,7 +54,7 @@ const handleLogout = () => {
                 </Link>
             </div>
 
-            <div class="hidden md:flex items-center">
+            <div class="hidden lg:flex items-center">
                 <template v-if="auth.user">
                     <div class="nav-dock">
                         <Link v-if="isStaff" :href="route('admin.dashboard')" class="nav-action nav-action--admin">
@@ -73,7 +73,8 @@ const handleLogout = () => {
 
                         <Link :href="route('hall.creations.index')" class="nav-action nav-action--hall">
                             <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
-                            Hall
+                            <span class="hidden xl:inline">Hall of Creations</span>
+                            <span class="xl:hidden">Hall</span>
                         </Link>
 
                         <NotificationBell />
@@ -89,7 +90,7 @@ const handleLogout = () => {
             <button
                 v-if="auth.user"
                 type="button"
-                class="md:hidden inline-flex items-center justify-center w-10 h-10 border-2 border-slate-600 bg-slate-900/70 text-cyan-300"
+                class="inline-flex h-10 w-10 items-center justify-center border-2 border-slate-600 bg-slate-900/70 text-cyan-300 lg:hidden"
                 @click="mobileMenuOpen = !mobileMenuOpen"
                 :aria-expanded="mobileMenuOpen ? 'true' : 'false'"
                 aria-label="Toggle menu"
@@ -100,7 +101,7 @@ const handleLogout = () => {
 
         <div
             v-if="auth.user && mobileMenuOpen"
-            class="md:hidden relative z-50 px-4 pb-4"
+            class="relative z-50 px-4 pb-4 lg:hidden"
         >
             <div class="bg-[#1a1c2c]/95 backdrop-blur-sm border-2 border-[#3d415f] p-3 space-y-2 shadow-2xl">
                 <Link
@@ -136,7 +137,7 @@ const handleLogout = () => {
                     @click="mobileMenuOpen = false"
                 >
                     <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
-                    Hall
+                    Hall of Creations
                 </Link>
 
                 <Link

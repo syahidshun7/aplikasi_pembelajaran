@@ -47,6 +47,10 @@ const form = useForm({
     username: user.username || '', // Sekarang akan terisi dari $userData di Controller
     email: user.email,
     job_id: user.job_id || '',
+    bio: user.bio || '',
+    experience: user.experience || '',
+    location: user.location || '',
+    skills_text: Array.isArray(user.skills) ? user.skills.join(', ') : (user.skills || ''),
     profile_photo: null,
 });
 
@@ -302,6 +306,57 @@ onBeforeUnmount(() => {
                     </option>
                 </select>
                 <InputError class="mt-2" :message="form.errors.job_id" />
+            </div>
+
+            <div>
+                <InputLabel for="location" value="Location" />
+                <TextInput
+                    id="location"
+                    type="text"
+                    class="mt-1 block w-full"
+                    v-model="form.location"
+                    autocomplete="address-level2"
+                    placeholder="e.g. Jakarta"
+                />
+                <InputError class="mt-2" :message="form.errors.location" />
+            </div>
+
+            <div>
+                <InputLabel for="experience" value="Experience / Tagline" />
+                <TextInput
+                    id="experience"
+                    type="text"
+                    class="mt-1 block w-full"
+                    v-model="form.experience"
+                    placeholder="e.g. Front-end Developer"
+                />
+                <InputError class="mt-2" :message="form.errors.experience" />
+            </div>
+
+            <div>
+                <InputLabel for="skills_text" value="Skills" />
+                <TextInput
+                    id="skills_text"
+                    type="text"
+                    class="mt-1 block w-full"
+                    v-model="form.skills_text"
+                    placeholder="Vue, Laravel, UI Design"
+                />
+                <p class="mt-2 text-[10px] text-slate-500">
+                    Pisahkan skill dengan koma supaya tampil sebagai badge di profil.
+                </p>
+                <InputError class="mt-2" :message="form.errors.skills_text" />
+            </div>
+
+            <div class="md:col-span-2">
+                <InputLabel for="bio" value="Bio" />
+                <textarea
+                    id="bio"
+                    v-model="form.bio"
+                    class="mt-1 block min-h-[120px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    placeholder="Ceritakan sedikit tentang dirimu, fokus belajar, atau karya yang sedang kamu bangun."
+                />
+                <InputError class="mt-2" :message="form.errors.bio" />
             </div>
 
             <div

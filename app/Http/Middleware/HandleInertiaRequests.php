@@ -45,6 +45,9 @@ class HandleInertiaRequests extends Middleware
             'notificationCenter' => $request->user()
                 ? fn () => NotificationPresenter::summary($request->user())
                 : null,
+            'flash' => [
+                'message' => fn () => $request->session()->get('message'),
+            ],
         ];
     }
 }

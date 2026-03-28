@@ -434,7 +434,7 @@ onBeforeUnmount(() => {
         <meta head-key="twitter:image" name="twitter:image" :content="seoImageUrl" />
         <link head-key="canonical" rel="canonical" :href="seoCanonicalUrl" />
         <link rel="preload" as="image" href="/images/bg-loby2.png" />
-        <script head-key="ld-json-website" type="application/ld+json" v-html="seoSchemaJson"></script>
+        <component :is="'script'" head-key="ld-json-website" type="application/ld+json" v-html="seoSchemaJson" />
     </Head>
 
     <div

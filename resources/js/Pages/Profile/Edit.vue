@@ -27,6 +27,16 @@ const userExp = computed(() => Number(userData.value?.exp ?? 0));
 const userGold = computed(() => Number(userData.value?.gold ?? 0));
 const userLvl = computed(() => Number(userData.value?.lvl ?? 1));
 const userExpProgress = computed(() => (userExp.value % 1000) / 10);
+const userSkills = computed(() => {
+    if (Array.isArray(userData.value?.skills)) {
+        return userData.value.skills.filter(Boolean);
+    }
+
+    return String(userData.value?.skills || '')
+        .split(',')
+        .map((skill) => skill.trim())
+        .filter(Boolean);
+});
 const questItems = computed(() => Array.isArray(props.userQuests) ? props.userQuests : (props.userQuests?.data || []));
 const questPaginationLinks = computed(() => Array.isArray(props.userQuests) ? [] : (props.userQuests?.links || []));
 
@@ -118,6 +128,15 @@ watch(
                         <span>LVL. {{ userLvl }}</span>
                         <span>EXP: {{ userExp % 1000 }} / 1000</span>
                     </div>
+
+                    <div class="flex flex-wrap gap-2 text-[7px] uppercase text-slate-400">
+                        <span v-if="userData.location">{{ userData.location }}</span>
+                        <span v-if="userData.experience">{{ userData.experience }}</span>
+                    </div>
+
+                    <p v-if="userData.bio" class="text-[8px] uppercase leading-relaxed text-slate-300">
+                        {{ userData.bio }}
+                    </p>
                 </div>
             </div>
 
@@ -222,7 +241,7 @@ watch(
                         </div>
                     </div>
 
-                    <div class="col-span-12 lg:col-span-3">
+                    <div class="col-span-12 lg:col-span-3 space-y-4">
                         <div class="rpg-panel border-indigo-500/50 bg-indigo-900/20">
                             <h2 class="text-indigo-400 mb-6 border-b-2 border-indigo-900 pb-2 uppercase text-center text-[8px]">
                                 Jobs_Status
@@ -251,6 +270,45 @@ watch(
                                         </p>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="rpg-panel border-emerald-500/40 bg-emerald-950/15">
+                            <h2 class="text-emerald-300 mb-4 border-b border-emerald-900/60 pb-2 uppercase text-center text-[8px]">
+                                Biodata_User
+                            </h2>
+                            <div class="space-y-3 text-[7px] uppercase text-slate-400">
+                                <div>
+                                    <p class="text-slate-500">Display_Name</p>
+                                    <p class="mt-1 break-words text-white">{{ userData.name || userData.username }}</p>
+                                </div>
+                                <div v-if="userData.location">
+                                    <p class="text-slate-500">Location</p>
+                                    <p class="mt-1 break-words text-white">{{ userData.location }}</p>
+                                </div>
+                                <div v-if="userData.experience">
+                                    <p class="text-slate-500">Experience</p>
+                                    <p class="mt-1 break-words text-white">{{ userData.experience }}</p>
+                                </div>
+                                <div v-if="userSkills.length > 0">
+                                    <p class="text-slate-500">Skills</p>
+                                    <div class="mt-2 flex flex-wrap gap-2">
+                                        <span
+                                            v-for="skill in userSkills"
+                                            :key="skill"
+                                            class="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[7px] text-emerald-200"
+                                        >
+                                            {{ skill }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div v-if="userData.bio">
+                                    <p class="text-slate-500">Bio</p>
+                                    <p class="mt-1 break-words text-[7px] leading-relaxed text-slate-300">{{ userData.bio }}</p>
+                                </div>
+                                <p v-if="!userData.bio && !userData.location && !userData.experience && userSkills.length === 0" class="leading-relaxed text-slate-500">
+                                    Lengkapi biodata dari menu edit profile agar profilmu terlihat lebih hidup.
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -336,7 +394,7 @@ watch(
                         </div>
                     </div>
 
-                    <div class="col-span-12 lg:col-span-3">
+                    <div class="col-span-12 lg:col-span-3 space-y-4">
                         <div class="rpg-panel border-indigo-500/50 bg-indigo-900/20">
                             <h2 class="text-indigo-400 mb-6 border-b-2 border-indigo-900 pb-2 uppercase text-center text-[8px]">
                                 Jobs_Status
@@ -367,6 +425,45 @@ watch(
                                 </div>
                             </div>
                         </div>
+
+                        <div class="rpg-panel border-emerald-500/40 bg-emerald-950/15">
+                            <h2 class="text-emerald-300 mb-4 border-b border-emerald-900/60 pb-2 uppercase text-center text-[8px]">
+                                Biodata_User
+                            </h2>
+                            <div class="space-y-3 text-[7px] uppercase text-slate-400">
+                                <div>
+                                    <p class="text-slate-500">Display_Name</p>
+                                    <p class="mt-1 break-words text-white">{{ userData.name || userData.username }}</p>
+                                </div>
+                                <div v-if="userData.location">
+                                    <p class="text-slate-500">Location</p>
+                                    <p class="mt-1 break-words text-white">{{ userData.location }}</p>
+                                </div>
+                                <div v-if="userData.experience">
+                                    <p class="text-slate-500">Experience</p>
+                                    <p class="mt-1 break-words text-white">{{ userData.experience }}</p>
+                                </div>
+                                <div v-if="userSkills.length > 0">
+                                    <p class="text-slate-500">Skills</p>
+                                    <div class="mt-2 flex flex-wrap gap-2">
+                                        <span
+                                            v-for="skill in userSkills"
+                                            :key="skill"
+                                            class="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[7px] text-emerald-200"
+                                        >
+                                            {{ skill }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div v-if="userData.bio">
+                                    <p class="text-slate-500">Bio</p>
+                                    <p class="mt-1 break-words text-[7px] leading-relaxed text-slate-300">{{ userData.bio }}</p>
+                                </div>
+                                <p v-if="!userData.bio && !userData.location && !userData.experience && userSkills.length === 0" class="leading-relaxed text-slate-500">
+                                    Biodata publikmu masih kosong. Isi dari tab Edit Identity.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </template>
@@ -390,6 +487,11 @@ button {
 }
 
 .form-container :deep(input) {
+    @apply bg-[#0d1117] border-2 border-slate-700 text-cyan-400 p-2 text-[10px] w-full mt-1 focus:border-cyan-400 outline-none;
+}
+
+.form-container :deep(textarea),
+.form-container :deep(select) {
     @apply bg-[#0d1117] border-2 border-slate-700 text-cyan-400 p-2 text-[10px] w-full mt-1 focus:border-cyan-400 outline-none;
 }
 

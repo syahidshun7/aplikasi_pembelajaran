@@ -1,10 +1,11 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     event: Object,
+    userAttendance: Object,
 });
 
 const formatDateTime = (value) => {
@@ -30,6 +31,54 @@ const normalizedDescription = computed(() => {
     const raw = props.event?.description || '';
     return String(raw).replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
 });
+
+const eventImages = computed(() => props.event?.images || []);
+const activeImageUrl = ref('');
+const galleryModalOpen = ref(false);
+const attendanceForm = useForm({});
+
+const selectImage = (url) => {
+    activeImageUrl.value = String(url || '');
+    galleryModalOpen.value = activeImageUrl.value !== '';
+};
+
+const closeGalleryModal = () => {
+    galleryModalOpen.value = false;
+};
+
+const attendanceBadgeClass = computed(() => {
+    const status = String(props.userAttendance?.status || 'pending');
+
+    if (status === 'present') return 'border-emerald-500/70 text-emerald-300';
+    if (status === 'absent') return 'border-rose-500/70 text-rose-300';
+    if (status === 'excused') return 'border-amber-500/70 text-amber-300';
+    return 'border-slate-600 text-slate-300';
+});
+
+const attendanceStatusLabel = computed(() => {
+    const status = String(props.userAttendance?.status || 'pending');
+
+    if (status === 'present') return 'Sudah hadir';
+    if (status === 'absent') return 'Tidak hadir';
+    if (status === 'excused') return 'Izin';
+    return 'Belum absensi';
+});
+
+const attendanceCheckedAtLabel = computed(() => {
+    const value = props.userAttendance?.checked_at;
+    if (!value) return '';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+
+    return date.toLocaleString('id-ID');
+});
+
+const submitSelfAttendance = () => {
+    attendanceForm.post(route('events.attendance.self', props.event.uuid), {
+        preserveScroll: true,
+    });
+};
 </script>
 
 <template>
@@ -51,6 +100,14 @@ const normalizedDescription = computed(() => {
                         <p class="text-[8px] text-yellow-400 uppercase mt-2">
                             Durasi: {{ durationText(event.starts_at, event.ends_at) }}
                         </p>
+                        <div class="mt-3 flex flex-wrap items-center gap-2 text-[8px] uppercase">
+                            <span class="rounded border px-2 py-1" :class="attendanceBadgeClass">
+                                Attendance: {{ userAttendance?.status || 'pending' }}
+                            </span>
+                            <span class="rounded border border-slate-700 px-2 py-1 text-slate-300">
+                                Self Check-In: {{ event.self_attendance_enabled ? 'enabled' : 'disabled' }}
+                            </span>
+                        </div>
                     </div>
                     <Link :href="route('lobby')" class="text-[8px] text-slate-400 hover:text-white uppercase">
                         [Back_Home]
@@ -61,11 +118,64 @@ const normalizedDescription = computed(() => {
                         [Back_Event_List]
                     </Link>
                 </div>
+                <div class="mt-4 border px-4 py-3" :class="String(userAttendance?.status || 'pending') === 'present' ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-700 bg-black/20'">
+                    <p class="text-[8px] uppercase" :class="String(userAttendance?.status || 'pending') === 'present' ? 'text-emerald-300' : 'text-slate-300'">
+                        Status_Absensi: {{ attendanceStatusLabel }}
+                    </p>
+                    <p v-if="attendanceCheckedAtLabel" class="mt-2 text-[8px] uppercase text-slate-400">
+                        Tercatat: {{ attendanceCheckedAtLabel }}
+                    </p>
+                </div>
+                <div v-if="userAttendance?.can_self_attend" class="mt-4">
+                    <button
+                        type="button"
+                        class="px-3 py-2 border border-emerald-500 text-emerald-300 hover:bg-emerald-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
+                        :disabled="attendanceForm.processing"
+                        @click="submitSelfAttendance"
+                    >
+                        {{ attendanceForm.processing ? 'Saving_Attendance...' : '[Check_In_Myself]' }}
+                    </button>
+                </div>
                 <div v-if="event.description" class="mt-4 p-4 border border-slate-700 bg-black/30">
                     <p class="text-[8px] text-slate-300 uppercase mb-3 tracking-widest">Event_Description</p>
                     <p class="text-[13px] md:text-[14px] font-sans text-slate-200 leading-7 whitespace-pre-line break-words">
                         {{ normalizedDescription }}
                     </p>
+                </div>
+            </div>
+
+            <div v-if="eventImages.length > 0" class="rpg-panel border-fuchsia-500/50">
+                <h2 class="text-fuchsia-300 text-[10px] uppercase mb-4">Event_Gallery</h2>
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+                    <button
+                        v-for="image in eventImages"
+                        :key="image.id"
+                        type="button"
+                        class="group overflow-hidden border border-slate-700 bg-black/30 transition-colors hover:border-fuchsia-500/70"
+                        @click="selectImage(image.url)"
+                    >
+                        <img :src="image.url" alt="Event thumbnail" class="h-20 w-full object-cover transition-transform group-hover:scale-[1.03]">
+                    </button>
+                </div>
+            </div>
+
+            <div
+                v-if="galleryModalOpen && activeImageUrl"
+                class="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+                @click.self="closeGalleryModal"
+            >
+                <div class="w-full max-w-5xl border-2 border-fuchsia-500/60 bg-[#111827] p-3 shadow-[0_0_30px_rgba(217,70,239,0.2)]">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                        <p class="text-[8px] uppercase text-fuchsia-300">Event Image Preview</p>
+                        <button
+                            type="button"
+                            class="border border-slate-600 px-2 py-1 text-[8px] uppercase text-slate-300 hover:border-fuchsia-400 hover:text-white"
+                            @click="closeGalleryModal"
+                        >
+                            Close
+                        </button>
+                    </div>
+                    <img :src="activeImageUrl" alt="Event preview" class="max-h-[75vh] w-full object-contain">
                 </div>
             </div>
 

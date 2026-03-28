@@ -124,6 +124,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'dashboard'])->name('profile.dashboard');
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::get('/profiles/{user:username}', [ProfileController::class, 'show'])->name('profiles.show');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
@@ -147,6 +148,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/guides/{guide}', [GuideController::class, 'userShow'])->name('guides.user.show');
     Route::get('/events', [UserEventController::class, 'index'])->name('events.user.index');
     Route::get('/events/{event:uuid}', [UserEventController::class, 'show'])->name('events.show');
+    Route::post('/events/{event:uuid}/attendance/self', [UserEventController::class, 'selfAttend'])->name('events.attendance.self');
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::post('/shop/items/{item}/purchase', [ShopController::class, 'purchase'])
         ->middleware('verified')

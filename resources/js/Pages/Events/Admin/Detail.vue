@@ -106,6 +106,19 @@ const durationText = computed(() => {
     if (hours <= 0) return `${minutes} MENIT`;
     return `${hours} JAM ${minutes} MENIT`;
 });
+
+const eventImages = computed(() => props.event?.images || []);
+const activeImageUrl = ref('');
+const galleryModalOpen = ref(false);
+
+const selectImage = (url) => {
+    activeImageUrl.value = String(url || '');
+    galleryModalOpen.value = activeImageUrl.value !== '';
+};
+
+const closeGalleryModal = () => {
+    galleryModalOpen.value = false;
+};
 </script>
 
 <template>
@@ -129,6 +142,9 @@ const durationText = computed(() => {
                             | END: <span class="text-emerald-400">{{ formatSchedule(event.ends_at) }}</span>
                             | DURATION: <span class="text-yellow-400">{{ durationText }}</span>
                         </p>
+                        <p class="text-[8px] text-emerald-300 uppercase mt-2 leading-relaxed break-words">
+                            SELF_ATTENDANCE: {{ event.self_attendance_enabled ? 'ENABLED' : 'DISABLED' }}
+                        </p>
                         <p v-if="event.description" class="text-[8px] text-slate-500 mt-3 leading-loose uppercase">
                             > {{ event.description }}
                         </p>
@@ -144,6 +160,41 @@ const durationText = computed(() => {
                     >
                         [Manage_Attendance]
                     </Link>
+                </div>
+            </div>
+
+            <div v-if="eventImages.length > 0" class="rpg-panel border-fuchsia-500/40">
+                <h2 class="text-fuchsia-300 uppercase mb-4">Event_Gallery</h2>
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+                    <button
+                        v-for="image in eventImages"
+                        :key="image.id"
+                        type="button"
+                        class="group overflow-hidden border border-slate-700 bg-black/30 transition-colors hover:border-fuchsia-500/70"
+                        @click="selectImage(image.url)"
+                    >
+                        <img :src="image.url" alt="Event thumbnail" class="h-20 w-full object-cover transition-transform group-hover:scale-[1.03]">
+                    </button>
+                </div>
+            </div>
+
+            <div
+                v-if="galleryModalOpen && activeImageUrl"
+                class="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+                @click.self="closeGalleryModal"
+            >
+                <div class="w-full max-w-5xl border-2 border-fuchsia-500/60 bg-[#111827] p-3 shadow-[0_0_30px_rgba(217,70,239,0.2)]">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                        <p class="text-[8px] uppercase text-fuchsia-300">Event Image Preview</p>
+                        <button
+                            type="button"
+                            class="border border-slate-600 px-2 py-1 text-[8px] uppercase text-slate-300 hover:border-fuchsia-400 hover:text-white"
+                            @click="closeGalleryModal"
+                        >
+                            Close
+                        </button>
+                    </div>
+                    <img :src="activeImageUrl" alt="Event preview" class="max-h-[75vh] w-full object-contain">
                 </div>
             </div>
 

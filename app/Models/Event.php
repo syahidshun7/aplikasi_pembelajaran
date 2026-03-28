@@ -6,6 +6,7 @@ use App\Support\DateTimeInput;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class Event extends Model
@@ -21,11 +22,13 @@ class Event extends Model
         'job_id',
         'starts_at',
         'ends_at',
+        'self_attendance_enabled',
     ];
 
     protected $casts = [
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
+        'self_attendance_enabled' => 'boolean',
     ];
 
     protected function startsAt(): Attribute
@@ -47,6 +50,22 @@ class Event extends Model
         static::creating(function ($event) {
             if (empty($event->uuid)) {
                 $event->uuid = (string) Str::uuid();
+            }
+        });
+
+        static::deleting(function (Event $event) {
+            if (! method_exists($event, 'isForceDeleting') || ! $event->isForceDeleting()) {
+                return;
+            }
+
+            $paths = $event->images()
+                ->pluck('path')
+                ->filter(fn ($path) => is_string($path) && trim($path) !== '')
+                ->values()
+                ->all();
+
+            if (! empty($paths)) {
+                Storage::disk('public')->delete($paths);
             }
         });
     }
@@ -85,5 +104,10 @@ class Event extends Model
     public function attendances()
     {
         return $this->hasMany(EventAttendance::class);
+    }
+
+    public function images()
+    {
+        return $this->hasMany(EventImage::class)->orderBy('sort_order');
     }
 }
