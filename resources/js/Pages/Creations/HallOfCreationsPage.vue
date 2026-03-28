@@ -42,6 +42,33 @@ const getAppreciationErrorMessage = (error) => {
     return 'Unable to update appreciation.';
 };
 
+const replaceCreationCard = (creationId, nextCreation) => {
+    const targetId = Number(creationId || 0);
+    if (!targetId || !nextCreation) {
+        return;
+    }
+
+    creations.value = creations.value.map((item) => {
+        if (Number(item?.id || 0) !== targetId) {
+            return item;
+        }
+
+        return {
+            ...item,
+            ...nextCreation,
+        };
+    });
+};
+
+const refreshCreationCard = async (creationId) => {
+    const response = await window.axios.get(relativeRoute('api.hall.show', { creation: creationId }));
+    const nextCreation = response.data?.data || null;
+
+    if (nextCreation) {
+        replaceCreationCard(creationId, nextCreation);
+    }
+};
+
 const fetchCreations = async (page = 1) => {
     loading.value = true;
 
@@ -93,6 +120,8 @@ const toggleAppreciation = async (creation) => {
             creation.is_appreciated = true;
             creation.appreciations_count = Number(response.data?.appreciations_count || creation.appreciations_count || 0);
         }
+
+        await refreshCreationCard(creation.id);
     } catch (error) {
         console.error('hall appreciation failed', {
             status: error?.response?.status,
