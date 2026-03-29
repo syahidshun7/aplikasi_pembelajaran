@@ -285,24 +285,66 @@
                             </template>
 
                             <template v-else>
-                                <div class="p-4 border-2 border-slate-800 bg-black/40">
-                                    <div class="flex items-center justify-between gap-4">
-                                        <div>
+                                <div class="p-5 border-2 border-slate-700 bg-gradient-to-br from-[#101722] via-black/70 to-[#111827] shadow-[0_16px_36px_rgba(2,8,16,0.34)] md:p-6">
+                                    <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_240px] xl:items-start">
+                                        <div class="space-y-4">
                                             <p class="text-[8px] text-yellow-400 uppercase tracking-widest">>> MANUAL_SCORE_MODE</p>
                                             <p class="text-[7px] text-slate-500 uppercase italic mt-1">
                                                 Range: 1–100 (fallback tanpa rubric)
                                             </p>
+                                            <div class="space-y-3">
+                                                <label for="manual-score-range" class="block text-[7px] text-slate-500 uppercase italic">
+                                                    Quick_Adjust
+                                                </label>
+                                                <input
+                                                    id="manual-score-range"
+                                                    type="range"
+                                                    v-model.number="manualFinalScore"
+                                                    min="1"
+                                                    max="100"
+                                                    step="1"
+                                                    @input="validateManualScore"
+                                                    class="manual-score-range"
+                                                />
+                                                <div class="flex items-center justify-between text-[7px] uppercase text-slate-500">
+                                                    <span>1</span>
+                                                    <span>25</span>
+                                                    <span>50</span>
+                                                    <span>75</span>
+                                                    <span>100</span>
+                                                </div>
+                                            </div>
+
+                                            <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                                                <button type="button" class="manual-score-step" @click="adjustManualScore(-10)">-10</button>
+                                                <button type="button" class="manual-score-step" @click="adjustManualScore(-1)">-1</button>
+                                                <button type="button" class="manual-score-step" @click="setManualScore(50)">50</button>
+                                                <button type="button" class="manual-score-step" @click="adjustManualScore(1)">+1</button>
+                                                <button type="button" class="manual-score-step" @click="adjustManualScore(10)">+10</button>
+                                            </div>
                                         </div>
-                                        <div class="shrink-0 w-32">
-                                            <input
-                                                type="number"
-                                                v-model.number="manualFinalScore"
-                                                min="1"
-                                                max="100"
-                                                step="1"
-                                                @input="validateManualScore"
-                                                class="w-full bg-slate-900 border-2 border-slate-700 p-2 text-[10px] text-cyan-300 uppercase outline-none focus:border-cyan-400 text-right font-mono"
-                                            />
+                                        <div class="manual-score-display">
+                                            <label for="manual-score-input" class="manual-score-display__label">
+                                                Final Score
+                                            </label>
+                                            <div class="manual-score-display__input-shell">
+                                                <input
+                                                    id="manual-score-input"
+                                                    type="number"
+                                                    v-model.number="manualFinalScore"
+                                                    min="1"
+                                                    max="100"
+                                                    step="1"
+                                                    inputmode="numeric"
+                                                    @input="validateManualScore"
+                                                    @blur="validateManualScore"
+                                                    class="manual-score-display__input"
+                                                />
+                                                <span class="manual-score-display__suffix">%</span>
+                                            </div>
+                                            <p class="manual-score-display__helper">
+                                                Ketik langsung atau pakai kontrol cepat di samping.
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -532,6 +574,15 @@ const validateManualScore = () => {
     manualFinalScore.value = Math.max(1, Math.min(100, Math.round(raw)));
 };
 
+const setManualScore = (value) => {
+    manualFinalScore.value = Number(value || 1);
+    validateManualScore();
+};
+
+const adjustManualScore = (delta) => {
+    setManualScore(Number(manualFinalScore.value || 1) + Number(delta || 0));
+};
+
 const validateEssayPoints = (question) => {
     const uuid = String(question?.uuid || '');
     if (!uuid) return;
@@ -735,5 +786,64 @@ input::-webkit-inner-spin-button {
 /* Firefox */
 input[type=number] {
   -moz-appearance: textfield;
+}
+
+.manual-score-range {
+    width: 100%;
+    height: 1rem;
+    appearance: none;
+    background: linear-gradient(90deg, rgba(234, 179, 8, 0.18), rgba(34, 211, 238, 0.28));
+    border: 1px solid rgba(71, 85, 105, 0.9);
+    border-radius: 9999px;
+    outline: none;
+}
+
+.manual-score-range::-webkit-slider-thumb {
+    appearance: none;
+    width: 1.25rem;
+    height: 1.25rem;
+    background: #22d3ee;
+    border: 2px solid #082f49;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.16);
+    cursor: pointer;
+}
+
+.manual-score-range::-moz-range-thumb {
+    width: 1.25rem;
+    height: 1.25rem;
+    background: #22d3ee;
+    border: 2px solid #082f49;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.16);
+    cursor: pointer;
+}
+
+.manual-score-step {
+    @apply border border-cyan-900/80 bg-slate-950/80 px-3 py-3 text-[9px] uppercase text-cyan-200 transition-all hover:border-cyan-400 hover:bg-cyan-400 hover:text-black active:translate-y-[1px];
+}
+
+.manual-score-display {
+    @apply flex flex-col justify-center gap-3 border-2 border-cyan-400/20 bg-slate-950/80 p-4 md:p-5;
+}
+
+.manual-score-display__label {
+    @apply text-[7px] uppercase tracking-[0.22em] text-cyan-300/70;
+}
+
+.manual-score-display__input-shell {
+    @apply flex items-center border-2 border-cyan-400/30 bg-[#0f172a] px-4 py-3 shadow-[0_0_0_1px_rgba(34,211,238,0.08)];
+}
+
+.manual-score-display__input {
+    @apply min-w-0 flex-1 bg-transparent text-right font-mono text-[28px] text-cyan-300 outline-none md:text-[34px];
+}
+
+.manual-score-display__suffix {
+    @apply pl-3 font-mono text-[18px] text-cyan-100 md:text-[22px];
+}
+
+.manual-score-display__helper {
+    @apply font-sans text-[11px] leading-relaxed text-slate-400;
 }
 </style>

@@ -74,7 +74,13 @@ const {
 const mobileMenuOpen = ref(false);
 const activeMenu = ref(resolveInitialActiveMenu());
 const page = usePage();
+const normalizedUserRole = computed(() => String(auth.value?.user?.role || '').trim().toLowerCase());
 const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
+const staffNavLabel = computed(() => {
+    if (normalizedUserRole.value === 'super_admin') return 'Super Admin';
+    if (normalizedUserRole.value === 'mentor') return 'Mentor';
+    return 'Admin';
+});
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
 const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
@@ -253,7 +259,7 @@ watch(activeMenu, (nextValue) => {
                     <template v-if="auth.user">
                         <div class="nav-dock">
                             <Link v-if="isStaff" :href="route('admin.dashboard')" class="nav-action nav-action--admin">
-                                Admin
+                                {{ staffNavLabel }}
                             </Link>
 
                             <Link :href="route('profile.dashboard')" class="nav-action nav-action--profile">
@@ -341,7 +347,7 @@ watch(activeMenu, (nextValue) => {
                             class="nav-action nav-action--admin w-full justify-center"
                             @click="closeMobileMenu"
                         >
-                            Admin
+                            {{ staffNavLabel }}
                         </Link>
 
                         <Link
