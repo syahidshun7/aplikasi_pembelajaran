@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { computed, defineAsyncComponent, ref } from 'vue';
+import { computed, defineAsyncComponent, ref, watch } from 'vue';
 import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
 import { useLobby } from '@/Composables/useLobby';
 import FloatingChat from '@/Components/FloatingChat.vue';
@@ -12,6 +12,42 @@ import PartySection from '@/Components/Dashboard/PartySection.vue';
 import LeaderboardSection from '@/Components/Dashboard/LeaderboardSection.vue';
 
 const CarouselMenu = defineAsyncComponent(() => import('@/Components/Dashboard/CarouselMenu.vue'));
+const ACTIVE_MENU_STORAGE_KEY = 'home-active-menu';
+const ACTIVE_MENU_DEFAULT_KEY = 'townhall';
+const ACTIVE_MENU_INVALID_FALLBACK = 'quest';
+const validActiveMenuKeys = ['quest', 'library', 'townhall', 'party', 'leaderboard'];
+const activeMenuAliases = {
+    event: 'townhall',
+};
+
+const normalizeActiveMenu = (value, fallback = ACTIVE_MENU_INVALID_FALLBACK) => {
+    if (typeof value !== 'string') {
+        return fallback;
+    }
+
+    const normalizedValue = value.trim().toLowerCase();
+    const resolvedValue = activeMenuAliases[normalizedValue] ?? normalizedValue;
+
+    return validActiveMenuKeys.includes(resolvedValue) ? resolvedValue : fallback;
+};
+
+const resolveInitialActiveMenu = () => {
+    if (typeof window === 'undefined') {
+        return ACTIVE_MENU_DEFAULT_KEY;
+    }
+
+    try {
+        const storedValue = window.localStorage.getItem(ACTIVE_MENU_STORAGE_KEY);
+
+        if (!storedValue) {
+            return normalizeActiveMenu('event', ACTIVE_MENU_DEFAULT_KEY);
+        }
+
+        return normalizeActiveMenu(storedValue, ACTIVE_MENU_INVALID_FALLBACK);
+    } catch {
+        return ACTIVE_MENU_DEFAULT_KEY;
+    }
+};
 
 const props = defineProps({
     players: Array,
@@ -36,7 +72,7 @@ const {
 } = useLobby(props);
 
 const mobileMenuOpen = ref(false);
-const activeMenu = ref('townhall');
+const activeMenu = ref(resolveInitialActiveMenu());
 const page = usePage();
 const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
@@ -171,6 +207,25 @@ const latestModuleMeta = computed(() => {
 const closeMobileMenu = () => {
     mobileMenuOpen.value = false;
 };
+
+watch(activeMenu, (nextValue) => {
+    const normalizedValue = normalizeActiveMenu(nextValue);
+
+    if (normalizedValue !== nextValue) {
+        activeMenu.value = normalizedValue;
+        return;
+    }
+
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        window.localStorage.setItem(ACTIVE_MENU_STORAGE_KEY, normalizedValue);
+    } catch {
+        // Ignore storage write failures so the page stays interactive.
+    }
+}, { immediate: true });
 </script>
 
 <template>
