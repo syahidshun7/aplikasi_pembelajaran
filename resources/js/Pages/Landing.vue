@@ -1094,9 +1094,10 @@ onBeforeUnmount(() => {
 }
 /* Mentor Card - Match Reference */
 .mentor-card {
-    width: 100%;
-    max-width: 240px;
-    aspect-ratio: 2 / 3;
+    width: 220px;
+    height: 340px;
+    max-width: none;
+    flex: 0 0 auto;
     position: relative;
     perspective: 900px;
     --mentor-outer-from: #5a3a8b;
@@ -1114,9 +1115,16 @@ onBeforeUnmount(() => {
     --mentor-text-glow: rgba(167, 139, 250, 0.6);
 }
 
+@media (min-width: 768px) {
+    .mentor-card {
+        width: 260px;
+        height: 360px;
+    }
+}
+
 .mentor-card__inner {
     height: 100%;
-    border-radius: 14px;
+    border-radius: 0;
     background: linear-gradient(180deg, var(--mentor-outer-from) 0%, var(--mentor-outer-to) 100%);
     box-shadow: 0 12px 24px rgba(7, 6, 18, 0.6);
     padding: 6px;
@@ -1131,8 +1139,8 @@ onBeforeUnmount(() => {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.25);
-    background: linear-gradient(90deg, var(--mentor-header-from), var(--mentor-header-mid), var(--mentor-header-to));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.55);
+    background: rgba(0, 0, 0, 0.18);
     color: #ffffff;
     text-transform: uppercase;
     font-weight: 700;
@@ -1146,8 +1154,8 @@ onBeforeUnmount(() => {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.18);
-    border: 1px solid rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.72);
     display: grid;
     place-items: center;
     font-size: 10px;
@@ -1164,9 +1172,9 @@ onBeforeUnmount(() => {
 .mentor-card__body {
     flex: 1;
     margin: 8px;
-    border: 1px solid var(--mentor-border);
-    border-radius: 4px;
-    background: var(--mentor-body-bg);
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    border-radius: 0;
+    background: rgba(0, 0, 0, 0.16);
     overflow: hidden;
 }
 
@@ -1178,19 +1186,19 @@ onBeforeUnmount(() => {
 }
 
 .mentor-card__photo--empty {
-    background: var(--mentor-body-bg);
+    background: rgba(0, 0, 0, 0.16);
 }
 
 .mentor-card__footer {
     height: 44px;
     margin: 0 8px 8px;
-    border: 1px solid var(--mentor-border);
-    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    border-radius: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 10px;
-    background: linear-gradient(90deg, var(--mentor-header-from), var(--mentor-header-mid), var(--mentor-header-to));
+    background: rgba(0, 0, 0, 0.2);
     color: #ffffff;
     text-transform: uppercase;
     font-weight: 700;
@@ -1210,10 +1218,10 @@ onBeforeUnmount(() => {
     position: absolute;
     right: 10px;
     top: -10px;
-    background: var(--mentor-panel-bg);
+    background: rgba(0, 0, 0, 0.38);
     padding: 4px 8px;
-    border-radius: 10px;
-    border: 1px solid var(--mentor-border);
+    border-radius: 0;
+    border: 1px solid rgba(255, 255, 255, 0.4);
     display: flex;
     gap: 2px;
     font-size: 8px;
@@ -1247,8 +1255,8 @@ onBeforeUnmount(() => {
 .mentor-card__front {
     position: absolute;
     inset: 6px;
-    border-radius: 12px;
-    background: var(--mentor-panel-bg);
+    border-radius: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.12));
     display: flex;
     flex-direction: column;
     backface-visibility: hidden;
@@ -1259,8 +1267,10 @@ onBeforeUnmount(() => {
 .mentor-card__overlay {
     position: absolute;
     inset: 6px;
-    border-radius: 12px;
-    background: linear-gradient(to bottom, var(--mentor-header-mid), var(--mentor-header-from));
+    border-radius: 0;
+    background:
+        linear-gradient(180deg, rgba(2, 6, 23, 0.92), rgba(15, 23, 42, 0.88)),
+        linear-gradient(180deg, var(--mentor-outer-from), var(--mentor-outer-to));
     transform: rotateY(180deg);
     z-index: 30;
     display: flex;

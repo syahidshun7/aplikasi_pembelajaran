@@ -106,6 +106,7 @@ const playerItems = computed(() => {
 });
 
 const leaderboardPreview = computed(() => playerItems.value.slice(0, 10));
+const isLeaderboardEmpty = computed(() => leaderboardPreview.value.length === 0);
 
 const eventItems = computed(() => {
     return (events.value || []).map((event) => {
@@ -178,7 +179,7 @@ const carouselItems = computed(() => ([
     {
         key: 'leaderboard',
         title: 'Leaderboard',
-        subtitle: `${leaderboardPreview.value.length} top rankers`,
+        subtitle: isLeaderboardEmpty.value ? 'No rank data yet' : `${leaderboardPreview.value.length} top rankers`,
         accent: 'from-cyan-node',
         icon: 'fi fi-rr-trophy',
     },
@@ -203,7 +204,9 @@ const latestModuleMeta = computed(() => {
             helper: `Showing latest ${groupPreview.value.length} guild records.`,
         },
         leaderboard: {
-            helper: `Showing current top ${leaderboardPreview.value.length} ranks.`,
+            helper: isLeaderboardEmpty.value
+                ? 'Leaderboard masih kosong. Rank akan tampil setelah player mulai mengumpulkan progres.'
+                : `Showing current top ${leaderboardPreview.value.length} ranks.`,
         },
     };
 

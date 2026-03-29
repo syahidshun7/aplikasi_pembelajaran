@@ -7,6 +7,8 @@ defineProps({
         default: () => [],
     },
 });
+
+const hasProfileRoute = (player) => Boolean(player?.username);
 </script>
 
 <template>
@@ -46,11 +48,13 @@ defineProps({
             </article>
 
             <div class="space-y-3">
-                <Link
+                <component
                     v-for="(player, index) in items"
                     :key="player.id"
-                    :href="route('profiles.show', { user: player.username })"
-                    class="flex items-center gap-3 border border-slate-800 bg-[#0d1117] p-3 transition-all hover:border-cyan-500/60"
+                    :is="hasProfileRoute(player) ? Link : 'div'"
+                    :href="hasProfileRoute(player) ? route('profiles.show', { user: player.username }) : undefined"
+                    class="flex items-center gap-3 border border-slate-800 bg-[#0d1117] p-3 transition-all"
+                    :class="hasProfileRoute(player) ? 'hover:border-cyan-500/60' : 'opacity-90'"
                 >
                     <div class="flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-400/10 text-[9px] uppercase text-cyan-100">
                         #{{ index + 1 }}
@@ -68,10 +72,10 @@ defineProps({
                         </div>
                         <div class="mt-2 flex items-center justify-between gap-2 text-[7px] uppercase text-slate-500">
                             <span>{{ player.__score }} PTS</span>
-                            <span>Visit ></span>
+                            <span>{{ hasProfileRoute(player) ? 'Visit >' : 'Profile unavailable' }}</span>
                         </div>
                     </div>
-                </Link>
+                </component>
             </div>
         </div>
 
