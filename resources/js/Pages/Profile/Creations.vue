@@ -30,11 +30,64 @@ const form = reactive({
     progress: 0,
     is_public: true,
 });
+const formErrors = ref({});
 
 const selectedPhotoFiles = ref([]);
 const newPhotoPreviews = ref([]);
 const existingPhotos = ref([]);
 const removedPhotoIds = ref([]);
+const creationFieldLabels = {
+    title: 'Title',
+    description: 'Description',
+    link: 'Link',
+    category: 'Category',
+    status: 'Status',
+    progress: 'Progress',
+    photos: 'Photos',
+    remove_photo_ids: 'Photos',
+};
+const creationErrorEntries = computed(() => {
+    return Object.entries(formErrors.value || {})
+        .map(([field, message]) => {
+            const normalizedField = String(field || '').replace(/\.\d+$/, '').replace(/\.\*$/, '');
+
+            return {
+                field,
+                label: creationFieldLabels[normalizedField] || 'Form',
+                message: String(message || '').trim(),
+            };
+        })
+        .filter((entry) => entry.message !== '');
+});
+const photoErrorMessage = computed(() => {
+    const photoEntry = Object.entries(formErrors.value || {}).find(([field]) => {
+        return field === 'photos'
+            || field === 'remove_photo_ids'
+            || field.startsWith('photos.')
+            || field.startsWith('remove_photo_ids.');
+    });
+
+    return String(photoEntry?.[1] || '').trim();
+});
+
+const clearFormErrors = () => {
+    formErrors.value = {};
+};
+
+const setFormErrors = (errors) => {
+    const nextErrors = {};
+
+    Object.entries(errors || {}).forEach(([field, value]) => {
+        const firstMessage = Array.isArray(value) ? value[0] : value;
+        const normalizedMessage = String(firstMessage || '').trim();
+
+        if (normalizedMessage !== '') {
+            nextErrors[field] = normalizedMessage;
+        }
+    });
+
+    formErrors.value = nextErrors;
+};
 
 const clearNewPhotoPreviews = () => {
     newPhotoPreviews.value.forEach((preview) => {
@@ -77,6 +130,7 @@ const fetchCreations = async (page = 1) => {
 
 const resetForm = () => {
     editingId.value = 0;
+    clearFormErrors();
     form.title = '';
     form.description = '';
     form.link = '';
@@ -95,6 +149,7 @@ const resetForm = () => {
 
 const editCreation = (creation) => {
     editingId.value = Number(creation.id);
+    clearFormErrors();
     form.title = String(creation.title || '');
     form.description = String(creation.description || '');
     form.link = String(creation.link || '');
@@ -140,6 +195,7 @@ const isExistingPhotoRemoved = (photoId) => {
 
 const submit = async () => {
     saving.value = true;
+    clearFormErrors();
 
     const formData = new FormData();
     formData.append('title', form.title);
@@ -179,8 +235,16 @@ const submit = async () => {
         resetForm();
         fetchCreations(meta.value.current_page);
     } catch (error) {
-        const firstError = Object.values(error?.response?.data?.errors || {})?.[0]?.[0] || 'Validation failed.';
-        toast.error('SAVE_FAILED', String(firstError));
+        const validationErrors = error?.response?.data?.errors || {};
+
+        if (Object.keys(validationErrors).length > 0) {
+            setFormErrors(validationErrors);
+
+            const firstError = creationErrorEntries.value[0]?.message || 'Periksa kembali form creation kamu.';
+            toast.error('SAVE_FAILED', firstError);
+        } else {
+            toast.error('SAVE_FAILED', 'Creation gagal disimpan. Coba cek lagi input yang dimasukkan.');
+        }
     } finally {
         saving.value = false;
     }
@@ -253,38 +317,57 @@ onBeforeUnmount(() => {
                 </div>
 
                 <form class="grid grid-cols-1 gap-3 md:grid-cols-2" @submit.prevent="submit">
+                    <div v-if="creationErrorEntries.length > 0" class="validation-panel md:col-span-2">
+                        <p class="validation-panel__title">Periksa input berikut sebelum menyimpan:</p>
+                        <ul class="space-y-1">
+                            <li
+                                v-for="entry in creationErrorEntries"
+                                :key="`${entry.field}-${entry.message}`"
+                                class="validation-panel__item"
+                            >
+                                <span class="text-rose-200">{{ entry.label }}:</span> {{ entry.message }}
+                            </li>
+                        </ul>
+                    </div>
+
                     <label class="field-label md:col-span-2">
                         Title
-                        <input v-model="form.title" class="field-input" required type="text" maxlength="255">
+                        <input v-model="form.title" class="field-input" :class="{ 'field-input--error': formErrors.title }" required type="text" maxlength="255">
+                        <p v-if="formErrors.title" class="field-error">{{ formErrors.title }}</p>
                     </label>
 
                     <label class="field-label md:col-span-2">
                         Description
-                        <textarea v-model="form.description" class="field-input min-h-[100px]" required />
+                        <textarea v-model="form.description" class="field-input min-h-[100px]" :class="{ 'field-input--error': formErrors.description }" required />
+                        <p v-if="formErrors.description" class="field-error">{{ formErrors.description }}</p>
                     </label>
 
                     <label class="field-label">
                         Link
-                        <input v-model="form.link" class="field-input" type="url" placeholder="https://...">
+                        <input v-model="form.link" class="field-input" :class="{ 'field-input--error': formErrors.link }" type="url" placeholder="https://...">
+                        <p v-if="formErrors.link" class="field-error">{{ formErrors.link }}</p>
                     </label>
 
                     <label class="field-label">
                         Category
-                        <input v-model="form.category" class="field-input" type="text" maxlength="120">
+                        <input v-model="form.category" class="field-input" :class="{ 'field-input--error': formErrors.category }" type="text" maxlength="120">
+                        <p v-if="formErrors.category" class="field-error">{{ formErrors.category }}</p>
                     </label>
 
                     <label class="field-label">
                         Status
-                        <select v-model="form.status" class="field-input">
+                        <select v-model="form.status" class="field-input" :class="{ 'field-input--error': formErrors.status }">
                             <option value="crafting">Crafting</option>
                             <option value="refining">Refining</option>
                             <option value="finished">Finished</option>
                         </select>
+                        <p v-if="formErrors.status" class="field-error">{{ formErrors.status }}</p>
                     </label>
 
                     <label class="field-label">
                         Progress
-                        <input v-model.number="form.progress" class="field-input" type="number" min="0" max="100">
+                        <input v-model.number="form.progress" class="field-input" :class="{ 'field-input--error': formErrors.progress }" type="number" min="0" max="100">
+                        <p v-if="formErrors.progress" class="field-error">{{ formErrors.progress }}</p>
                     </label>
 
                     <label class="field-label inline-flex items-center gap-2">
@@ -297,11 +380,14 @@ onBeforeUnmount(() => {
                         <input
                             ref="photoInputRef"
                             class="field-input"
+                            :class="{ 'field-input--error': photoErrorMessage }"
                             type="file"
                             accept="image/jpeg,image/png,image/webp,image/jpg"
                             multiple
                             @change="onPhotoInputChange"
                         >
+                        <p class="text-[7px] uppercase text-slate-500">Gunakan JPG, PNG, atau WEBP dengan ukuran maksimal 4MB per file.</p>
+                        <p v-if="photoErrorMessage" class="field-error">{{ photoErrorMessage }}</p>
                     </label>
 
                     <div v-if="isEditing && existingPhotos.length > 0" class="md:col-span-2">
@@ -466,6 +552,26 @@ onBeforeUnmount(() => {
 
 .field-input {
     @apply border-2 border-slate-700 bg-[#0d1117] p-2 text-[8px] text-cyan-300 outline-none transition-colors focus:border-cyan-500;
+}
+
+.field-input--error {
+    @apply border-rose-500 text-rose-100 focus:border-rose-400;
+}
+
+.field-error {
+    @apply text-[7px] uppercase text-rose-300;
+}
+
+.validation-panel {
+    @apply border border-rose-500/60 bg-rose-950/40 px-3 py-3 text-[7px] uppercase text-rose-100;
+}
+
+.validation-panel__title {
+    @apply mb-2 text-[8px] text-rose-200;
+}
+
+.validation-panel__item {
+    @apply leading-relaxed text-rose-100;
 }
 
 .action-btn {

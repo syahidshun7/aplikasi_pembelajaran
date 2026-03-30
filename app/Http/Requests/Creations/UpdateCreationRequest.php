@@ -33,4 +33,45 @@ class UpdateCreationRequest extends FormRequest
             'remove_photo_ids.*' => ['integer', 'exists:creation_photos,id'],
         ];
     }
+
+    public function messages(): array
+    {
+        return [
+            'title.required' => 'Judul creation wajib diisi.',
+            'title.max' => 'Judul creation maksimal 255 karakter.',
+            'description.required' => 'Deskripsi creation wajib diisi.',
+            'link.url' => 'Link project harus berupa URL yang valid, misalnya https://contoh.com.',
+            'link.max' => 'Link project terlalu panjang.',
+            'category.max' => 'Kategori maksimal 120 karakter.',
+            'status.required' => 'Status creation wajib dipilih.',
+            'status.in' => 'Status creation hanya boleh crafting, refining, atau finished.',
+            'progress.required' => 'Progress wajib diisi.',
+            'progress.integer' => 'Progress harus berupa angka bulat.',
+            'progress.between' => 'Progress harus berada di antara 0 sampai 100.',
+            'photos.array' => 'Format upload foto tidak valid.',
+            'photos.max' => 'Maksimal 8 foto untuk satu creation.',
+            'photos.*.image' => 'Setiap file foto harus berupa gambar.',
+            'photos.*.mimes' => 'Foto harus berformat JPG, JPEG, PNG, atau WEBP.',
+            'photos.*.max' => 'Ukuran setiap foto maksimal 4MB.',
+            'remove_photo_ids.array' => 'Daftar foto yang akan dihapus tidak valid.',
+            'remove_photo_ids.*.integer' => 'Data foto yang akan dihapus tidak valid.',
+            'remove_photo_ids.*.exists' => 'Foto yang dipilih untuk dihapus tidak ditemukan.',
+        ];
+    }
+
+    public function attributes(): array
+    {
+        return [
+            'title' => 'judul creation',
+            'description' => 'deskripsi creation',
+            'link' => 'link project',
+            'category' => 'kategori',
+            'status' => 'status creation',
+            'progress' => 'progress',
+            'photos' => 'foto creation',
+            'photos.*' => 'foto creation',
+            'remove_photo_ids' => 'foto yang akan dihapus',
+            'remove_photo_ids.*' => 'foto yang akan dihapus',
+        ];
+    }
 }

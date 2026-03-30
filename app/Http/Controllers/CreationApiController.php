@@ -119,7 +119,7 @@ class CreationApiController extends Controller
 
             if ($belongsToCreationCount !== $removePhotoIds->count()) {
                 throw ValidationException::withMessages([
-                    'remove_photo_ids' => ['One or more photos are invalid for this creation.'],
+                    'remove_photo_ids' => ['Ada foto yang tidak cocok dengan creation ini, jadi tidak bisa dihapus.'],
                 ]);
             }
         }
@@ -189,7 +189,7 @@ class CreationApiController extends Controller
 
         if ($finalCount > 8) {
             throw ValidationException::withMessages([
-                'photos' => ['Maximum 8 photos are allowed for one creation.'],
+                'photos' => ['Jumlah total foto maksimal 8 untuk satu creation.'],
             ]);
         }
     }

@@ -5,6 +5,36 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import CreationCard from '@/Components/Creations/CreationCard.vue';
 import { toast } from '@/Utils/Alert';
 
+const HALL_RETURN_URL_STORAGE_KEY = 'hall.creations.return_to';
+const HALL_DEFAULT_SORT = 'popular';
+const allowedHallSorts = ['popular', 'latest'];
+const allowedHallStatuses = ['crafting', 'refining', 'finished'];
+const readHallStateFromUrl = () => {
+    if (typeof window === 'undefined') {
+        return {
+            page: 1,
+            search: '',
+            category: '',
+            status: '',
+            sort: HALL_DEFAULT_SORT,
+        };
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const page = Number(params.get('page') || 1);
+    const status = String(params.get('status') || '');
+    const sort = String(params.get('sort') || HALL_DEFAULT_SORT);
+
+    return {
+        page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
+        search: String(params.get('search') || ''),
+        category: String(params.get('category') || ''),
+        status: allowedHallStatuses.includes(status) ? status : '',
+        sort: allowedHallSorts.includes(sort) ? sort : HALL_DEFAULT_SORT,
+    };
+};
+
+const initialHallState = readHallStateFromUrl();
 const loading = ref(false);
 const initialLoading = ref(true);
 const togglingId = ref(0);
@@ -16,16 +46,47 @@ const meta = ref({
 });
 
 const filters = reactive({
-    search: '',
-    category: '',
-    status: '',
-    sort: 'popular',
+    search: initialHallState.search,
+    category: initialHallState.category,
+    status: initialHallState.status,
+    sort: initialHallState.sort,
 });
 
 const relativeRoute = (name, params = {}) => route(name, params, false);
 const requestVersion = ref(0);
 const fetchError = ref('');
 let searchDebounceTimeout = null;
+
+const persistHallReturnUrl = (page = meta.value.current_page || 1) => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const url = new URL(window.location.href);
+    const params = url.searchParams;
+
+    if (page > 1) {
+        params.set('page', String(page));
+    } else {
+        params.delete('page');
+    }
+
+    if (filters.search) params.set('search', filters.search);
+    else params.delete('search');
+
+    if (filters.category) params.set('category', filters.category);
+    else params.delete('category');
+
+    if (filters.status) params.set('status', filters.status);
+    else params.delete('status');
+
+    if (filters.sort && filters.sort !== HALL_DEFAULT_SORT) params.set('sort', filters.sort);
+    else params.delete('sort');
+
+    const nextRelativeUrl = `${url.pathname}${params.toString() ? `?${params.toString()}` : ''}${url.hash || ''}`;
+    window.history.replaceState(window.history.state, '', nextRelativeUrl);
+    window.sessionStorage.setItem(HALL_RETURN_URL_STORAGE_KEY, nextRelativeUrl);
+};
 
 const hasCreations = computed(() => creations.value.length > 0);
 const isRefreshing = computed(() => loading.value && hasCreations.value);
@@ -107,6 +168,7 @@ const fetchCreations = async (page = 1) => {
             last_page: Number(payload.meta?.last_page || 1),
             total: Number(payload.meta?.total || 0),
         };
+        persistHallReturnUrl(meta.value.current_page);
     } catch (error) {
         if (nextRequestVersion !== requestVersion.value) {
             return;
@@ -123,6 +185,7 @@ const fetchCreations = async (page = 1) => {
 };
 
 const openDetail = (creation) => {
+    persistHallReturnUrl(meta.value.current_page);
     router.visit(relativeRoute('hall.creations.show', { creation: creation.id }));
 };
 
@@ -196,7 +259,7 @@ onBeforeUnmount(() => {
 });
 
 onMounted(() => {
-    fetchCreations();
+    fetchCreations(initialHallState.page);
 });
 </script>
 

@@ -12,6 +12,7 @@ const props = defineProps({
 });
 
 const page = usePage();
+const HALL_RETURN_URL_STORAGE_KEY = 'hall.creations.return_to';
 const authUser = computed(() => page.props?.auth?.user || null);
 const creation = ref(null);
 const loadingCreation = ref(false);
@@ -32,6 +33,18 @@ const insightForm = reactive({
 const insightsSection = ref(null);
 const activePhotoUrl = ref('');
 const relativeRoute = (name, params = {}) => route(name, params, false);
+const backToHallHref = computed(() => {
+    const fallbackHref = route('hall.creations.index');
+
+    if (typeof window === 'undefined') {
+        return fallbackHref;
+    }
+
+    const savedHref = String(window.sessionStorage.getItem(HALL_RETURN_URL_STORAGE_KEY) || '').trim();
+    const hallIndexPath = relativeRoute('hall.creations.index');
+
+    return savedHref.startsWith(hallIndexPath) ? savedHref : fallbackHref;
+});
 
 const getAppreciationErrorMessage = (error) => {
     const status = Number(error?.response?.status || 0);
@@ -239,7 +252,7 @@ onMounted(async () => {
                             by {{ creation.creator?.username || creation.creator?.name || 'Unknown Creator' }}
                         </p>
                     </div>
-                    <Link :href="route('hall.creations.index')" class="text-[8px] uppercase text-amber-300 hover:text-amber-200">
+                    <Link :href="backToHallHref" class="text-[8px] uppercase text-amber-300 hover:text-amber-200">
                         Back To Hall
                     </Link>
                 </div>
