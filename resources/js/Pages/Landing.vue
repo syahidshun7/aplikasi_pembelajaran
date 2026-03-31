@@ -511,17 +511,16 @@ onBeforeUnmount(() => {
                         </span>
                         <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
                             <span>Should Be</span>
-                            <span class="text-emerald-600">Enjoyable</span>
+                            <span class="text-emerald-600">Enjoyable.</span>
+                        </span>
+                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[0.9em] md:text-[0.95em]">
                             <span class="text-cyan-700">No Matter</span>
+                            <span>If We</span>
+                            <span class="text-indigo-600">Lose Or Win,</span>
                         </span>
                         <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[0.9em] md:text-[0.95em]">
-                            <span>If We Win Or Lose,</span>
-                            <span class="text-indigo-600">We'll Keep</span>
-                            <span class="text-emerald-600">Coming Back</span>
-                        </span>
-                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[0.9em] md:text-[0.95em]">
-                            <span>To It Again</span>
-                            <span class="text-cyan-700">And Again</span>
+                            <span>We'll Always</span>
+                            <span class="text-cyan-700">Return</span>
                         </span>
                     </h1>
                     <p class="text-[10px] md:text-xs text-slate-700 leading-relaxed max-w-3xl mx-auto font-sans">
