@@ -1,30 +1,16 @@
 <script setup>
-import { Head, Link, usePage, router } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { Head, Link, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
 import FloatingChat from '@/Components/FloatingChat.vue';
-import NotificationBell from '@/Components/NotificationBell.vue';
-import { toast } from '@/Utils/Alert'; // Satukan import di atas
+import UserNavbar from '@/Components/UserNavbar.vue';
+
 const page = usePage();
 const auth = computed(() => page.props.auth);
-const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
 const showFloatingChat = computed(() => Boolean(auth.value?.user));
-const mobileMenuOpen = ref(false);
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
 const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
-
-const handleLogout = () => {
-    toast.confirm('QUIT GAME?', 'Are you sure you want to exit?')
-        .then((result) => {
-            if (result.isConfirmed) {
-                // Gunakan route() langsung, Inertia/Ziggy akan menanganinya
-                mobileMenuOpen.value = false;
-                router.post(route('logout'));
-            }
-        });
-};
-
 </script>
 
 <template>
@@ -35,131 +21,7 @@ const handleLogout = () => {
     <div class="min-h-screen font-['Press_Start_2P'] selection:bg-[#009999] relative isolate overflow-x-hidden text-[#4ed4d4] flex flex-col">
         <AppBackgroundLayer />
 
-        <nav
-            class="bg-[#1a1c2c]/90 backdrop-blur-sm border-b-4 border-[#3d415f] p-4 md:px-8 flex justify-between items-center shadow-2xl sticky top-0 z-50">
-            <div class="flex items-center gap-4">
-                <Link :href="route('lobby')" class="flex items-center gap-4 group" @click="mobileMenuOpen = false">
-                    <div
-                        class="w-10 h-10 bg-[#0a0c10] flex items-center justify-center border-b-4 border-r-4 border-[#4ed4d4] overflow-hidden group-hover:scale-110 transition-transform">
-                        <img src="/images/logo.png" alt="Logo" class="w-7 h-7 object-contain pixelated">
-                    </div>
-                    <h1
-                        class="text-[#009999] text-[8px] md:text-sm tracking-tighter uppercase group-hover:text-[#4ed4d4]">
-                        DOOPTECH
-                    </h1>
-                </Link>
-            </div>
-
-            <div class="hidden lg:flex items-center">
-                <template v-if="auth.user">
-                    <div class="nav-dock">
-                        <Link v-if="isStaff" :href="route('admin.dashboard')" class="nav-action nav-action--admin">
-                            Admin
-                        </Link>
-
-                        <Link :href="route('profile.dashboard')" class="nav-action nav-action--profile">
-                            <i class="fi fi-rr-user text-[10px] leading-none"></i>
-                            Profile
-                        </Link>
-
-                        <Link :href="route('shop.index')" class="nav-action nav-action--shop">
-                            <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
-                            Shop
-                        </Link>
-
-                        <Link :href="route('hall.creations.index')" class="nav-action nav-action--hall">
-                            <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
-                            <span class="hidden xl:inline">Hall of Creations</span>
-                            <span class="xl:hidden">Hall</span>
-                        </Link>
-
-                        <NotificationBell />
-
-                        <button @click="handleLogout" class="nav-action nav-action--logout" type="button">
-                            <span class="sr-only">Logout</span>
-                            [X]
-                        </button>
-                    </div>
-                </template>
-            </div>
-
-            <button
-                v-if="auth.user"
-                type="button"
-                class="inline-flex h-10 w-10 items-center justify-center border-2 border-slate-600 bg-slate-900/70 text-cyan-300 lg:hidden"
-                @click="mobileMenuOpen = !mobileMenuOpen"
-                :aria-expanded="mobileMenuOpen ? 'true' : 'false'"
-                aria-label="Toggle menu"
-            >
-                <i :class="mobileMenuOpen ? 'fi fi-rr-cross-small' : 'fi fi-rr-menu-burger'" class="text-[14px]"></i>
-            </button>
-        </nav>
-
-        <div
-            v-if="auth.user && mobileMenuOpen"
-            class="relative z-50 px-4 pb-4 lg:hidden"
-        >
-            <div class="bg-[#1a1c2c]/95 backdrop-blur-sm border-2 border-[#3d415f] p-3 space-y-2 shadow-2xl">
-                <Link
-                    v-if="isStaff"
-                    :href="route('admin.dashboard')"
-                    class="w-full nav-action nav-action--admin justify-center"
-                    @click="mobileMenuOpen = false"
-                >
-                    Admin
-                </Link>
-
-                <Link
-                    :href="route('profile.dashboard')"
-                    class="w-full nav-action nav-action--profile justify-center"
-                    @click="mobileMenuOpen = false"
-                >
-                    <i class="fi fi-rr-user text-[10px] leading-none"></i>
-                    Profile
-                </Link>
-
-                <Link
-                    :href="route('shop.index')"
-                    class="w-full nav-action nav-action--shop justify-center"
-                    @click="mobileMenuOpen = false"
-                >
-                    <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
-                    Shop
-                </Link>
-
-                <Link
-                    :href="route('hall.creations.index')"
-                    class="w-full nav-action nav-action--hall justify-center"
-                    @click="mobileMenuOpen = false"
-                >
-                    <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
-                    Hall of Creations
-                </Link>
-
-                <Link
-                    :href="route('notifications.index')"
-                    class="w-full nav-action nav-action--notifications justify-center"
-                    @click="mobileMenuOpen = false"
-                >
-                    <i class="fi fi-rr-bell text-[10px] leading-none"></i>
-                    Notifications
-                    <span
-                        v-if="Number(page.props?.notificationCenter?.unread_count || 0) > 0"
-                        class="rounded-full bg-cyan-300 px-2 py-[2px] text-[8px] font-bold text-black"
-                    >
-                        {{ Number(page.props?.notificationCenter?.unread_count || 0) }}
-                    </span>
-                </Link>
-
-                <button
-                    @click="handleLogout"
-                    class="w-full nav-action nav-action--logout justify-center"
-                    type="button"
-                >
-                    [X]
-                </button>
-            </div>
-        </div>
+        <UserNavbar />
 
         <div v-if="isEmailUnverified" class="relative z-20 px-4 md:px-8 pt-4">
             <div class="border-2 border-amber-400/60 bg-amber-500/10 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">

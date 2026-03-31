@@ -6,7 +6,9 @@ import CreationCard from '@/Components/Creations/CreationCard.vue';
 import { toast } from '@/Utils/Alert';
 
 const HALL_RETURN_URL_STORAGE_KEY = 'hall.creations.return_to';
+const HALL_CACHE_STORAGE_KEY = 'hall.creations.cache';
 const HALL_DEFAULT_SORT = 'popular';
+const HALL_CACHE_TTL = 5 * 60 * 1000;
 const allowedHallSorts = ['popular', 'latest'];
 const allowedHallStatuses = ['crafting', 'refining', 'finished'];
 const readHallStateFromUrl = () => {
@@ -57,12 +59,12 @@ const requestVersion = ref(0);
 const fetchError = ref('');
 let searchDebounceTimeout = null;
 
-const persistHallReturnUrl = (page = meta.value.current_page || 1) => {
+const buildHallRelativeUrl = (page = meta.value.current_page || initialHallState.page || 1) => {
     if (typeof window === 'undefined') {
-        return;
+        return relativeRoute('hall.creations.index');
     }
 
-    const url = new URL(window.location.href);
+    const url = new URL(relativeRoute('hall.creations.index'), window.location.origin);
     const params = url.searchParams;
 
     if (page > 1) {
@@ -83,9 +85,105 @@ const persistHallReturnUrl = (page = meta.value.current_page || 1) => {
     if (filters.sort && filters.sort !== HALL_DEFAULT_SORT) params.set('sort', filters.sort);
     else params.delete('sort');
 
-    const nextRelativeUrl = `${url.pathname}${params.toString() ? `?${params.toString()}` : ''}${url.hash || ''}`;
+    return `${url.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
+};
+
+const persistHallReturnUrl = (page = meta.value.current_page || 1) => {
+    if (typeof window === 'undefined') {
+        return '';
+    }
+
+    const nextRelativeUrl = buildHallRelativeUrl(page);
     window.history.replaceState(window.history.state, '', nextRelativeUrl);
     window.sessionStorage.setItem(HALL_RETURN_URL_STORAGE_KEY, nextRelativeUrl);
+    return nextRelativeUrl;
+};
+
+const persistHallCache = (page = meta.value.current_page || 1) => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const cachePayload = {
+        url: buildHallRelativeUrl(page),
+        cachedAt: Date.now(),
+        creations: Array.isArray(creations.value) ? creations.value : [],
+        meta: {
+            current_page: Number(meta.value.current_page || 1),
+            last_page: Number(meta.value.last_page || 1),
+            total: Number(meta.value.total || 0),
+        },
+    };
+
+    window.sessionStorage.setItem(HALL_CACHE_STORAGE_KEY, JSON.stringify(cachePayload));
+};
+
+const readHallCache = () => {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    try {
+        const rawValue = window.sessionStorage.getItem(HALL_CACHE_STORAGE_KEY);
+        if (!rawValue) {
+            return null;
+        }
+
+        const parsed = JSON.parse(rawValue);
+        if (!parsed || typeof parsed !== 'object') {
+            return null;
+        }
+
+        return {
+            url: String(parsed.url || ''),
+            cachedAt: Number(parsed.cachedAt || 0),
+            creations: Array.isArray(parsed.creations) ? parsed.creations : [],
+            meta: {
+                current_page: Number(parsed.meta?.current_page || 1),
+                last_page: Number(parsed.meta?.last_page || 1),
+                total: Number(parsed.meta?.total || 0),
+            },
+        };
+    } catch (error) {
+        window.sessionStorage.removeItem(HALL_CACHE_STORAGE_KEY);
+        return null;
+    }
+};
+
+const restoreHallCache = () => {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+
+    const cache = readHallCache();
+    const navigationEntry = window.performance?.getEntriesByType?.('navigation')?.[0];
+    const navigationType = String(navigationEntry?.type || '');
+    const isReload = navigationType === 'reload';
+    const currentUrl = buildHallRelativeUrl(initialHallState.page);
+
+    if (!cache || isReload) {
+        return false;
+    }
+
+    const isFreshCache = cache.cachedAt > 0 && (Date.now() - cache.cachedAt) <= HALL_CACHE_TTL;
+    const isSameView = cache.url === currentUrl;
+
+    if (!isFreshCache || !isSameView) {
+        return false;
+    }
+
+    creations.value = cache.creations;
+    meta.value = {
+        current_page: Number(cache.meta.current_page || 1),
+        last_page: Number(cache.meta.last_page || 1),
+        total: Number(cache.meta.total || 0),
+    };
+    fetchError.value = '';
+    loading.value = false;
+    initialLoading.value = false;
+    persistHallReturnUrl(meta.value.current_page);
+
+    return true;
 };
 
 const hasCreations = computed(() => creations.value.length > 0);
@@ -127,6 +225,7 @@ const replaceCreationCard = (creationId, nextCreation) => {
             ...nextCreation,
         };
     });
+    persistHallCache(meta.value.current_page);
 };
 
 const refreshCreationCard = async (creationId) => {
@@ -169,6 +268,7 @@ const fetchCreations = async (page = 1) => {
             total: Number(payload.meta?.total || 0),
         };
         persistHallReturnUrl(meta.value.current_page);
+        persistHallCache(meta.value.current_page);
     } catch (error) {
         if (nextRequestVersion !== requestVersion.value) {
             return;
@@ -186,6 +286,7 @@ const fetchCreations = async (page = 1) => {
 
 const openDetail = (creation) => {
     persistHallReturnUrl(meta.value.current_page);
+    persistHallCache(meta.value.current_page);
     router.visit(relativeRoute('hall.creations.show', { creation: creation.id }));
 };
 
@@ -259,6 +360,10 @@ onBeforeUnmount(() => {
 });
 
 onMounted(() => {
+    if (restoreHallCache()) {
+        return;
+    }
+
     fetchCreations(initialHallState.page);
 });
 </script>

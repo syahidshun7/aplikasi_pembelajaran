@@ -216,13 +216,25 @@ private function renderLanding()
     $landingCacheVersion = CacheVersion::get('landing');
     $hallCacheVersion = CacheVersion::get('hall_of_creations');
     $availableJobs = Cache::remember(
-        "landing.jobs.v{$landingCacheVersion}",
+        "landing.jobs.v{$landingCacheVersion}.card_v5",
         now()->addMinutes(10),
         fn () => JobRole::query()
-            ->select('id', 'name', 'slug', 'emblem_path')
+            ->select('id', 'name', 'slug', 'description', 'emblem_path')
+            ->withCount([
+                'users as mentors_count' => fn ($query) => $query->where('role', User::ROLE_MENTOR),
+            ])
             ->orderBy('name')
             ->get()
-            ->map(fn ($job) => $job->toArray())
+            ->map(fn ($job) => [
+                'id' => (int) $job->id,
+                'name' => (string) $job->name,
+                'slug' => (string) $job->slug,
+                'description' => $job->description ? (string) $job->description : null,
+                'emblem_path' => $job->emblem_path,
+                'mentors_count' => (int) ($job->mentors_count ?? 0),
+            ])
+            ->values()
+            ->all()
     );
 
     $mentors = Cache::remember(

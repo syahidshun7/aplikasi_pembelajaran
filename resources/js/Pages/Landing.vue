@@ -27,6 +27,7 @@ const fallbackJobs = Object.freeze([
         slug: 'fallback',
         emblem_path: null,
         description: 'Jalur pembelajaran baru sedang dipersiapkan. Cek kembali beberapa saat lagi.',
+        mentors_count: 0,
     },
 ]);
 
@@ -103,7 +104,8 @@ const normalizedPropJobs = computed(() => {
             name: String(job.name ?? 'Unknown Job'),
             slug: String(job.slug ?? ''),
             emblem_path: job.emblem_path ?? null,
-            description: job.description ?? null,
+            description: job.description ? String(job.description) : null,
+            mentors_count: Number(job.mentors_count ?? 0),
         }));
 });
 
@@ -467,7 +469,7 @@ onBeforeUnmount(() => {
             </div>
         </div>
         <div class="relative z-10">
-            <nav class="bg-[#1a1c2c]/80 backdrop-blur-md border-b-2 border-white/10 p-4 md:px-8 flex justify-between items-center shadow-2xl sticky top-0 z-50">
+            <nav class="landing-nav border-b-2 border-white/10 p-4 md:px-8 flex justify-between items-center shadow-2xl sticky top-0 z-50">
                 <Link :href="route('lobby')" class="flex items-center gap-4 group">
                     <div class="w-10 h-10 bg-[#0a0c10] flex items-center justify-center border-b-4 border-r-4 border-[#4ed4d4] overflow-hidden group-hover:scale-110 transition-transform">
                         <img src="/images/logo.png" alt="DOOPTECH Logo" class="w-7 h-7 object-contain pixelated" />
@@ -701,13 +703,18 @@ onBeforeUnmount(() => {
                                         />
                                     </div>
 
-                                    <div class="mt-3 border border-white/60 bg-black/20 px-2 py-2 h-[92px]">
+                                    <div class="mt-3 flex h-[104px] flex-col border border-white/60 bg-black/20 px-2 py-2">
                                         <p class="text-[10px] uppercase text-white leading-snug">
                                             {{ job.name || 'UNKNOWN JOB' }}
                                         </p>
-                                        <p class="text-[10px] font-sans text-white/85 mt-1 leading-[1.35] normal-case">
+                                        <p class="line-clamp-3 text-[10px] font-sans text-white/85 mt-1 leading-[1.35] normal-case">
                                             {{ job.description || getJobDescription(job) }}
                                         </p>
+                                        <div class="mt-auto pt-2">
+                                            <div class="border-t border-white/20 pt-2 text-[8px] font-sans uppercase tracking-[0.18em] text-white/65">
+                                                Active Mentor: {{ job.mentors_count || 0 }}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </article>
@@ -1006,10 +1013,11 @@ onBeforeUnmount(() => {
     overflow-y: visible;
     scroll-snap-type: x mandatory;
     scroll-behavior: smooth;
-    touch-action: pan-x;
     -webkit-overflow-scrolling: touch;
     cursor: grab;
     padding-block: 1.25rem;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: auto;
     scrollbar-width: none;
 }
 
@@ -1056,6 +1064,10 @@ onBeforeUnmount(() => {
         width: 28px;
     }
 
+    .jobs-carousel {
+        scroll-snap-type: x proximity;
+    }
+
     .job-card--focus {
         transform: scale(1.06);
     }
@@ -1063,6 +1075,10 @@ onBeforeUnmount(() => {
     .job-card--side {
         transform: scale(0.92);
         opacity: 0.74;
+    }
+
+    .job-card {
+        scroll-snap-stop: normal;
     }
 }
 
@@ -1365,6 +1381,32 @@ onBeforeUnmount(() => {
     --mentor-accent: #7dd3fc;
     --mentor-accent-glow: rgba(125, 211, 252, 0.75);
     --mentor-text-glow: rgba(125, 211, 252, 0.6);
+}
+
+.landing-nav {
+    position: sticky;
+    top: 0;
+    isolation: isolate;
+    background: rgba(26, 28, 44, 0.8);
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+.landing-nav::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: rgba(26, 28, 44, 0.8);
+}
+
+@supports ((-webkit-backdrop-filter: blur(10px)) or (backdrop-filter: blur(10px))) {
+    .landing-nav::before {
+        background: rgba(26, 28, 44, 0.8);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+    }
 }
 
 .page-loader {

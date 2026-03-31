@@ -4,6 +4,11 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { toast } from '@/Utils/Alert';
 
+const MAX_CREATION_PHOTOS = 8;
+const MAX_PHOTO_SIZE_BYTES = 4 * 1024 * 1024;
+const ALLOWED_PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/x-png', 'image/webp'];
+const ALLOWED_PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
+
 const loading = ref(false);
 const saving = ref(false);
 const editingId = ref(0);
@@ -37,14 +42,14 @@ const newPhotoPreviews = ref([]);
 const existingPhotos = ref([]);
 const removedPhotoIds = ref([]);
 const creationFieldLabels = {
-    title: 'Title',
-    description: 'Description',
+    title: 'Judul',
+    description: 'Deskripsi',
     link: 'Link',
-    category: 'Category',
+    category: 'Kategori',
     status: 'Status',
     progress: 'Progress',
-    photos: 'Photos',
-    remove_photo_ids: 'Photos',
+    photos: 'Foto',
+    remove_photo_ids: 'Foto',
 };
 const creationErrorEntries = computed(() => {
     return Object.entries(formErrors.value || {})
@@ -69,6 +74,13 @@ const photoErrorMessage = computed(() => {
 
     return String(photoEntry?.[1] || '').trim();
 });
+const titleCharacterCount = computed(() => String(form.title || '').length);
+const activeExistingPhotoCount = computed(() => {
+    return existingPhotos.value.filter((photo) => !isExistingPhotoRemoved(photo.id)).length;
+});
+const availablePhotoSlots = computed(() => {
+    return Math.max(0, MAX_CREATION_PHOTOS - activeExistingPhotoCount.value);
+});
 
 const clearFormErrors = () => {
     formErrors.value = {};
@@ -89,6 +101,30 @@ const setFormErrors = (errors) => {
     formErrors.value = nextErrors;
 };
 
+const setFieldError = (field, message) => {
+    formErrors.value = {
+        ...formErrors.value,
+        [field]: String(message || '').trim(),
+    };
+};
+
+const clearPhotoErrors = () => {
+    const nextErrors = { ...formErrors.value };
+
+    Object.keys(nextErrors).forEach((field) => {
+        if (
+            field === 'photos'
+            || field === 'remove_photo_ids'
+            || field.startsWith('photos.')
+            || field.startsWith('remove_photo_ids.')
+        ) {
+            delete nextErrors[field];
+        }
+    });
+
+    formErrors.value = nextErrors;
+};
+
 const clearNewPhotoPreviews = () => {
     newPhotoPreviews.value.forEach((preview) => {
         if (preview?.url) {
@@ -99,6 +135,60 @@ const clearNewPhotoPreviews = () => {
 };
 
 const isEditing = computed(() => editingId.value > 0);
+
+const setSelectedPhotoPreviews = () => {
+    clearNewPhotoPreviews();
+    newPhotoPreviews.value = selectedPhotoFiles.value.map((file) => ({
+        key: `${file.name}-${file.size}-${file.lastModified}`,
+        url: URL.createObjectURL(file),
+    }));
+};
+
+const isAllowedPhotoFile = (file) => {
+    const fileName = String(file?.name || '');
+    const extension = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+    const mimeType = String(file?.type || '').toLowerCase();
+
+    return ALLOWED_PHOTO_MIME_TYPES.includes(mimeType) || ALLOWED_PHOTO_EXTENSIONS.includes(extension);
+};
+
+const validateSelectedPhotoFiles = (files) => {
+    const normalizedFiles = Array.isArray(files) ? files : [];
+    const validFiles = [];
+    const slots = availablePhotoSlots.value;
+    let errorMessage = '';
+
+    for (const file of normalizedFiles) {
+        if (validFiles.length >= slots) {
+            errorMessage = slots > 0
+                ? `Maksimal ${slots} foto baru bisa ditambahkan sekarang. Hapus foto lama dulu jika ingin menambah lebih banyak.`
+                : 'Batas 8 foto sudah penuh. Hapus salah satu foto lama dulu sebelum menambah foto baru.';
+            break;
+        }
+
+        if (!isAllowedPhotoFile(file)) {
+            errorMessage = `File "${file.name}" harus berformat JPG, JPEG, PNG, atau WEBP.`;
+            break;
+        }
+
+        if (Number(file.size || 0) > MAX_PHOTO_SIZE_BYTES) {
+            errorMessage = `File "${file.name}" melebihi batas 4MB.`;
+            break;
+        }
+
+        validFiles.push(file);
+    }
+
+    selectedPhotoFiles.value = validFiles;
+    setSelectedPhotoPreviews();
+
+    if (errorMessage) {
+        setFieldError('photos', errorMessage);
+        return;
+    }
+
+    clearPhotoErrors();
+};
 
 const fetchCreations = async (page = 1) => {
     loading.value = true;
@@ -169,12 +259,7 @@ const editCreation = (creation) => {
 
 const onPhotoInputChange = (event) => {
     const fileList = Array.from(event?.target?.files || []);
-    clearNewPhotoPreviews();
-    selectedPhotoFiles.value = fileList.slice(0, 8);
-    newPhotoPreviews.value = selectedPhotoFiles.value.map((file) => ({
-        key: `${file.name}-${file.size}-${file.lastModified}`,
-        url: URL.createObjectURL(file),
-    }));
+    validateSelectedPhotoFiles(fileList);
 };
 
 const toggleRemoveExistingPhoto = (photoId) => {
@@ -183,10 +268,11 @@ const toggleRemoveExistingPhoto = (photoId) => {
 
     if (current.includes(target)) {
         removedPhotoIds.value = current.filter((id) => id !== target);
-        return;
+    } else {
+        removedPhotoIds.value = [...current, target];
     }
 
-    removedPhotoIds.value = [...current, target];
+    validateSelectedPhotoFiles(selectedPhotoFiles.value);
 };
 
 const isExistingPhotoRemoved = (photoId) => {
@@ -196,6 +282,13 @@ const isExistingPhotoRemoved = (photoId) => {
 const submit = async () => {
     saving.value = true;
     clearFormErrors();
+    validateSelectedPhotoFiles(selectedPhotoFiles.value);
+
+    if (photoErrorMessage.value) {
+        saving.value = false;
+        toast.error('SAVE_FAILED', `Foto: ${photoErrorMessage.value}`);
+        return;
+    }
 
     const formData = new FormData();
     formData.append('title', form.title);
@@ -240,8 +333,11 @@ const submit = async () => {
         if (Object.keys(validationErrors).length > 0) {
             setFormErrors(validationErrors);
 
-            const firstError = creationErrorEntries.value[0]?.message || 'Periksa kembali form creation kamu.';
-            toast.error('SAVE_FAILED', firstError);
+            const firstError = creationErrorEntries.value[0];
+            const firstMessage = firstError
+                ? `${firstError.label}: ${firstError.message}`
+                : 'Periksa kembali form creation kamu.';
+            toast.error('SAVE_FAILED', firstMessage);
         } else {
             toast.error('SAVE_FAILED', 'Creation gagal disimpan. Coba cek lagi input yang dimasukkan.');
         }
@@ -333,6 +429,7 @@ onBeforeUnmount(() => {
                     <label class="field-label md:col-span-2">
                         Title
                         <input v-model="form.title" class="field-input" :class="{ 'field-input--error': formErrors.title }" required type="text" maxlength="255">
+                        <p class="text-[7px] uppercase text-slate-500">{{ titleCharacterCount }}/255 karakter</p>
                         <p v-if="formErrors.title" class="field-error">{{ formErrors.title }}</p>
                     </label>
 
@@ -386,7 +483,7 @@ onBeforeUnmount(() => {
                             multiple
                             @change="onPhotoInputChange"
                         >
-                        <p class="text-[7px] uppercase text-slate-500">Gunakan JPG, PNG, atau WEBP dengan ukuran maksimal 4MB per file.</p>
+                        <p class="text-[7px] uppercase text-slate-500">Gunakan JPG, PNG, atau WEBP dengan ukuran maksimal 4MB per file. Slot tersisa: {{ availablePhotoSlots }}.</p>
                         <p v-if="photoErrorMessage" class="field-error">{{ photoErrorMessage }}</p>
                     </label>
 
