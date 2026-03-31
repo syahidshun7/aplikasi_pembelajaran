@@ -503,7 +503,7 @@ onBeforeUnmount(() => {
                         <span class="text-indigo-600"> Quest-Based</span>
                         <span class="text-emerald-600"> Study</span>
                     </p>
-                    <h1 class="mx-auto mb-5 flex max-w-6xl flex-col items-center gap-2 text-center text-base uppercase leading-none tracking-[0.07em] text-slate-900 md:text-3xl md:tracking-[0.1em]">
+                    <h1 class="mx-auto mb-5 flex max-w-6xl flex-col items-center gap-2 text-center text-lg uppercase leading-none tracking-[0.08em] text-slate-900 md:text-4xl md:tracking-[0.12em]">
                         <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
                             <span>Like Playing</span>
                             <span class="text-indigo-600">A Game,</span>
@@ -514,12 +514,12 @@ onBeforeUnmount(() => {
                             <span class="text-emerald-600">Enjoyable</span>
                             <span class="text-cyan-700">No Matter</span>
                         </span>
-                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[0.88em] md:text-[0.92em]">
+                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[0.9em] md:text-[0.95em]">
                             <span>If We Win Or Lose,</span>
                             <span class="text-indigo-600">We'll Keep</span>
                             <span class="text-emerald-600">Coming Back</span>
                         </span>
-                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[0.88em] md:text-[0.92em]">
+                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[0.9em] md:text-[0.95em]">
                             <span>To It Again</span>
                             <span class="text-cyan-700">And Again</span>
                         </span>
@@ -828,7 +828,7 @@ onBeforeUnmount(() => {
                                 <span
                                     v-for="(skill, sIndex) in (mentor.skills && mentor.skills.length ? mentor.skills : ['Mentoring', 'Code Review', 'Roadmap'])"
                                     :key="`${mentor.id}-skill-${sIndex}`"
-                                    class="px-2 py-1 text-[9px] uppercase tracking-wide border border-white/20 text-white/80 bg-white/10"
+                                    class="px-1 py-0.5 text-[7px] uppercase tracking-[0.08em] border border-white/20 text-white/80 bg-white/10"
                                 >
                                     {{ skill }}
                                 </span>
