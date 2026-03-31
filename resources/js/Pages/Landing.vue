@@ -503,8 +503,26 @@ onBeforeUnmount(() => {
                         <span class="text-indigo-600"> Quest-Based</span>
                         <span class="text-emerald-600"> Study</span>
                     </p>
-                    <h1 class="text-xl md:text-4xl leading-tight uppercase text-slate-900 mb-5">
-                        From <span class="text-indigo-600">Beginner</span> to <span class="text-cyan-700">Pro Player</span> with <span class="text-emerald-600">Quest-Based</span> Learning
+                    <h1 class="mx-auto mb-5 flex max-w-6xl flex-col items-center gap-2 text-center text-base uppercase leading-none tracking-[0.07em] text-slate-900 md:text-3xl md:tracking-[0.1em]">
+                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+                            <span>Like Playing</span>
+                            <span class="text-indigo-600">A Game,</span>
+                            <span>Learning</span>
+                        </span>
+                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+                            <span>Should Be</span>
+                            <span class="text-emerald-600">Enjoyable</span>
+                            <span class="text-cyan-700">No Matter</span>
+                        </span>
+                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[0.88em] md:text-[0.92em]">
+                            <span>If We Win Or Lose,</span>
+                            <span class="text-indigo-600">We'll Keep</span>
+                            <span class="text-emerald-600">Coming Back</span>
+                        </span>
+                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[0.88em] md:text-[0.92em]">
+                            <span>To It Again</span>
+                            <span class="text-cyan-700">And Again</span>
+                        </span>
                     </h1>
                     <p class="text-[10px] md:text-xs text-slate-700 leading-relaxed max-w-3xl mx-auto font-sans">
                         Ini adalah aplikasi pembelajaran berbasis game yang menghubungkan pemula dan profesional dalam satu ekosistem belajar.
@@ -1136,6 +1154,17 @@ onBeforeUnmount(() => {
         width: 260px;
         height: 360px;
     }
+
+    .mentor-card__header {
+        min-height: 44px;
+        font-size: 9px;
+        letter-spacing: 0.85px;
+    }
+
+    .mentor-card__footer {
+        font-size: 9px;
+        letter-spacing: 0.65px;
+    }
 }
 
 .mentor-card__inner {
@@ -1150,18 +1179,20 @@ onBeforeUnmount(() => {
 }
 
 .mentor-card__header {
-    height: 38px;
+    min-height: 42px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    padding: 6px 8px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.55);
     background: rgba(0, 0, 0, 0.18);
     color: #ffffff;
     text-transform: uppercase;
     font-weight: 700;
-    font-size: 10px;
-    letter-spacing: 1px;
+    font-size: 8px;
+    letter-spacing: 0.7px;
+    line-height: 1.25;
 }
 
 .mentor-card__icon {
@@ -1178,11 +1209,14 @@ onBeforeUnmount(() => {
 }
 
 .mentor-card__title {
-    padding: 0 34px;
+    padding: 0 8px 0 34px;
     text-align: center;
-    white-space: nowrap;
+    display: -webkit-box;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
 
 .mentor-card__body {
@@ -1213,18 +1247,18 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 10px;
+    padding: 0 76px 0 10px;
     background: rgba(0, 0, 0, 0.2);
     color: #ffffff;
     text-transform: uppercase;
     font-weight: 700;
-    font-size: 9px;
-    letter-spacing: 0.8px;
+    font-size: 8px;
+    letter-spacing: 0.5px;
     position: relative;
 }
 
 .mentor-card__role {
-    max-width: 60%;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
