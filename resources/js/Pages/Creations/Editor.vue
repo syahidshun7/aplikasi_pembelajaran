@@ -9,6 +9,7 @@ const MAX_CREATION_PHOTOS = 8;
 const MAX_PHOTO_SIZE_BYTES = 4 * 1024 * 1024;
 const ALLOWED_PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/x-png', 'image/webp'];
 const ALLOWED_PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
+const PROJECT_STATUS_OPTIONS = ['crafting', 'refining', 'finished'];
 
 const props = defineProps({
     mode: {
@@ -45,6 +46,7 @@ const selectedPhotoFiles = ref([]);
 const newPhotoPreviews = ref([]);
 const existingPhotos = ref([]);
 const removedPhotoIds = ref([]);
+const canManageCollaboration = ref(true);
 const MIN_WORKSPACE_HEIGHT = 420;
 const MAX_WORKSPACE_HEIGHT = 8000;
 
@@ -54,7 +56,10 @@ const form = reactive({
     category_id: '',
     tags_text: '',
     featured_image: '',
+    status: 'finished',
+    progress: 100,
     publication_status: 'draft',
+    is_open_for_collaboration: true,
 });
 
 const persistKey = computed(() => `creation-editor-${activeCreationId.value || 'new'}`);
@@ -93,13 +98,61 @@ const normalizeTags = (rawValue) => {
         .filter((tag, index, list) => list.indexOf(tag) === index);
 };
 
+const normalizeProjectStatus = (value) => {
+    const normalized = String(value || 'finished').trim().toLowerCase();
+    return PROJECT_STATUS_OPTIONS.includes(normalized) ? normalized : 'finished';
+};
+
+const clampProgress = (value) => {
+    const normalized = Number(value);
+    if (!Number.isFinite(normalized)) {
+        return 0;
+    }
+
+    return Math.min(100, Math.max(0, Math.round(normalized)));
+};
+
+const updateProgress = (value) => {
+    form.progress = clampProgress(value);
+};
+
+const setProjectStatus = (value) => {
+    form.status = normalizeProjectStatus(value);
+    if (form.status === 'finished' && Number(form.progress || 0) < 100) {
+        form.progress = 100;
+    }
+};
+
+const toBooleanFlag = (value, fallback = false) => {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'number') {
+        return value === 1;
+    }
+
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on', 'open'].includes(normalized)) {
+        return true;
+    }
+    if (['0', 'false', 'no', 'off', 'closed'].includes(normalized)) {
+        return false;
+    }
+
+    return Boolean(fallback);
+};
+
 const formSnapshot = () => ({
     title: String(form.title || ''),
     content: String(form.content || '<p></p>'),
     category_id: form.category_id ? Number(form.category_id) : null,
     tags: normalizeTags(form.tags_text),
     featured_image: String(form.featured_image || ''),
+    status: normalizeProjectStatus(form.status),
+    progress: clampProgress(form.progress),
     publication_status: String(form.publication_status || 'draft'),
+    is_open_for_collaboration: Boolean(form.is_open_for_collaboration),
     photos: selectedPhotoFiles.value.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
     removed_photo_ids: [...removedPhotoIds.value].map((id) => Number(id)).sort((left, right) => left - right),
 });
@@ -181,7 +234,7 @@ const startWorkspaceResize = (event) => {
     window.addEventListener('touchend', stopWorkspaceResize);
 
     document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'ns-resize';
+    document.body.style.cursor = 'nwse-resize';
 };
 
 const saveFormStateLocally = () => {
@@ -195,7 +248,10 @@ const saveFormStateLocally = () => {
         category_id: form.category_id ? Number(form.category_id) : null,
         tags: normalizeTags(form.tags_text),
         featured_image: String(form.featured_image || ''),
+        status: normalizeProjectStatus(form.status),
+        progress: clampProgress(form.progress),
         publication_status: String(form.publication_status || 'draft'),
+        is_open_for_collaboration: Boolean(form.is_open_for_collaboration),
         removed_photo_ids: [...removedPhotoIds.value].map((id) => Number(id)),
         sidebar_collapsed: Boolean(sidebarCollapsed.value),
         workspace_height: Number(workspaceHeight.value || 0),
@@ -260,7 +316,10 @@ const applyStateToForm = (payload) => {
         ? payload.tags.join(', ')
         : String(payload.tags_text || '');
     form.featured_image = String(payload.featured_image || '');
+    form.status = normalizeProjectStatus(payload.status);
+    form.progress = clampProgress(payload.progress);
     form.publication_status = String(payload.publication_status || 'draft');
+    form.is_open_for_collaboration = toBooleanFlag(payload.is_open_for_collaboration, true);
     removedPhotoIds.value = Array.isArray(payload.removed_photo_ids)
         ? payload.removed_photo_ids.map((id) => Number(id)).filter((id) => id > 0)
         : [];
@@ -352,6 +411,7 @@ const toggleRemoveExistingPhoto = (photoId) => {
 
 const fetchCreation = async () => {
     if (!activeCreationId.value) {
+        canManageCollaboration.value = true;
         const localState = loadLocalFormState();
         if (localState) {
             applyStateToForm(localState);
@@ -377,8 +437,12 @@ const fetchCreation = async () => {
             category_id: creation.category_id,
             tags: creation.tags || [],
             featured_image: creation.featured_image,
+            status: creation.status,
+            progress: creation.progress,
             publication_status: creation.publication_status || (creation.is_public ? 'publish' : 'draft'),
+            is_open_for_collaboration: creation.is_open_for_collaboration,
         });
+        canManageCollaboration.value = Boolean(creation.can_manage_collaboration ?? creation.can_delete ?? false);
         existingPhotos.value = Array.isArray(creation.photos) ? creation.photos : [];
         removedPhotoIds.value = [];
 
@@ -418,9 +482,9 @@ const persistCreation = async ({ publicationStatus = form.publication_status, no
         featured_image: String(form.featured_image || '').trim() || null,
         publication_status: publicationStatus,
         is_public: publicationStatus === 'publish',
-        status: 'finished',
-        progress: 100,
-        is_open_for_collaboration: true,
+        status: normalizeProjectStatus(form.status),
+        progress: clampProgress(form.progress),
+        is_open_for_collaboration: Boolean(form.is_open_for_collaboration),
     };
 
     const fingerprint = JSON.stringify(payload);
@@ -493,6 +557,12 @@ const persistCreation = async ({ publicationStatus = form.publication_status, no
         }
 
         form.publication_status = String(saved?.publication_status || payload.publication_status);
+        form.status = normalizeProjectStatus(saved?.status || payload.status);
+        form.progress = clampProgress(saved?.progress ?? payload.progress);
+        form.is_open_for_collaboration = toBooleanFlag(
+            saved?.is_open_for_collaboration,
+            payload.is_open_for_collaboration,
+        );
         existingPhotos.value = Array.isArray(saved?.photos) ? saved.photos : [];
         removedPhotoIds.value = [];
         selectedPhotoFiles.value = [];
@@ -815,7 +885,58 @@ onBeforeUnmount(() => {
                     </section>
 
                     <section class="creation-sidebar__section">
-                        <p class="creation-sidebar__label">Status</p>
+                        <p class="creation-sidebar__label">Project</p>
+                        <div class="creation-sidebar__toggle creation-sidebar__toggle--triple">
+                            <button
+                                type="button"
+                                class="creation-sidebar__toggle-btn"
+                                :class="{ 'creation-sidebar__toggle-btn--active': form.status === 'crafting' }"
+                                @click="setProjectStatus('crafting')"
+                            >
+                                Crafting
+                            </button>
+                            <button
+                                type="button"
+                                class="creation-sidebar__toggle-btn"
+                                :class="{ 'creation-sidebar__toggle-btn--active': form.status === 'refining' }"
+                                @click="setProjectStatus('refining')"
+                            >
+                                Refining
+                            </button>
+                            <button
+                                type="button"
+                                class="creation-sidebar__toggle-btn"
+                                :class="{ 'creation-sidebar__toggle-btn--active': form.status === 'finished' }"
+                                @click="setProjectStatus('finished')"
+                            >
+                                Finished
+                            </button>
+                        </div>
+
+                        <div class="creation-sidebar__progress-row">
+                            <input
+                                :value="form.progress"
+                                type="range"
+                                min="0"
+                                max="100"
+                                step="1"
+                                class="creation-sidebar__range"
+                                @input="updateProgress($event.target.value)"
+                            >
+                            <input
+                                :value="form.progress"
+                                type="number"
+                                min="0"
+                                max="100"
+                                class="creation-sidebar__progress-input"
+                                @input="updateProgress($event.target.value)"
+                            >
+                            <span class="creation-sidebar__progress-badge">{{ form.progress }}%</span>
+                        </div>
+                    </section>
+
+                    <section class="creation-sidebar__section">
+                        <p class="creation-sidebar__label">Publication</p>
                         <div class="creation-sidebar__toggle">
                             <button
                                 type="button"
@@ -834,6 +955,35 @@ onBeforeUnmount(() => {
                                 Publish
                             </button>
                         </div>
+                    </section>
+
+                    <section class="creation-sidebar__section">
+                        <p class="creation-sidebar__label">Collaboration</p>
+                        <div class="creation-sidebar__toggle">
+                            <button
+                                type="button"
+                                class="creation-sidebar__toggle-btn"
+                                :class="{ 'creation-sidebar__toggle-btn--active': form.is_open_for_collaboration }"
+                                :disabled="!canManageCollaboration"
+                                @click="form.is_open_for_collaboration = true"
+                            >
+                                Open Collab
+                            </button>
+                            <button
+                                type="button"
+                                class="creation-sidebar__toggle-btn"
+                                :class="{ 'creation-sidebar__toggle-btn--active': !form.is_open_for_collaboration }"
+                                :disabled="!canManageCollaboration"
+                                @click="form.is_open_for_collaboration = false"
+                            >
+                                Private
+                            </button>
+                        </div>
+                        <p class="creation-sidebar__hint">
+                            {{ canManageCollaboration
+                                ? (form.is_open_for_collaboration ? 'Creator lain bisa kirim request kolaborasi.' : 'Kolaborasi ditutup untuk sementara.')
+                                : 'Hanya owner yang bisa mengubah akses kolaborasi.' }}
+                        </p>
                     </section>
 
                     <section class="creation-sidebar__section creation-sidebar__section--actions">
@@ -1161,6 +1311,47 @@ onBeforeUnmount(() => {
     gap: 0.5rem;
 }
 
+.creation-sidebar__toggle--triple {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.creation-sidebar__progress-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 58px auto;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.creation-sidebar__range {
+    width: 100%;
+    accent-color: #22d3ee;
+}
+
+.creation-sidebar__progress-input {
+    width: 100%;
+    height: 2rem;
+    border: 1px solid rgba(71, 85, 105, 0.8);
+    background: rgba(2, 6, 23, 0.7);
+    color: #e2e8f0;
+    font-size: 10px;
+    text-align: center;
+    outline: none;
+}
+
+.creation-sidebar__progress-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3.2rem;
+    height: 2rem;
+    padding: 0 0.45rem;
+    border: 1px solid rgba(71, 85, 105, 0.8);
+    background: rgba(15, 23, 42, 0.88);
+    color: #cbd5e1;
+    font-size: 8px;
+    text-transform: uppercase;
+}
+
 .creation-sidebar__toggle-btn,
 .creation-sidebar__primary,
 .creation-sidebar__accent {
@@ -1171,6 +1362,14 @@ onBeforeUnmount(() => {
     font-size: 8px;
     text-transform: uppercase;
     letter-spacing: 0.12em;
+}
+
+.creation-sidebar__toggle-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    border-color: rgba(71, 85, 105, 0.55);
+    background: rgba(15, 23, 42, 0.5);
+    color: #94a3b8;
 }
 
 .creation-sidebar__primary {
