@@ -32,7 +32,7 @@ const photoInputRef = ref(null);
 const mainWorkspaceRef = ref(null);
 const pageMode = ref(String(props.mode || 'create'));
 const activeCreationId = ref(props.creationId ? Number(props.creationId) : null);
-const sidebarCollapsed = ref(String(props.mode || 'create') === 'create');
+const sidebarCollapsed = ref(false);
 const loading = ref(Boolean(activeCreationId.value));
 const saving = ref(false);
 const autosaving = ref(false);
@@ -53,6 +53,7 @@ const MAX_WORKSPACE_HEIGHT = 8000;
 const form = reactive({
     title: '',
     content: '<p></p>',
+    link: '',
     category_id: '',
     tags_text: '',
     featured_image: '',
@@ -146,6 +147,7 @@ const toBooleanFlag = (value, fallback = false) => {
 const formSnapshot = () => ({
     title: String(form.title || ''),
     content: String(form.content || '<p></p>'),
+    link: String(form.link || ''),
     category_id: form.category_id ? Number(form.category_id) : null,
     tags: normalizeTags(form.tags_text),
     featured_image: String(form.featured_image || ''),
@@ -245,6 +247,7 @@ const saveFormStateLocally = () => {
     const payload = {
         title: String(form.title || ''),
         content: String(form.content || '<p></p>'),
+        link: String(form.link || ''),
         category_id: form.category_id ? Number(form.category_id) : null,
         tags: normalizeTags(form.tags_text),
         featured_image: String(form.featured_image || ''),
@@ -253,7 +256,6 @@ const saveFormStateLocally = () => {
         publication_status: String(form.publication_status || 'draft'),
         is_open_for_collaboration: Boolean(form.is_open_for_collaboration),
         removed_photo_ids: [...removedPhotoIds.value].map((id) => Number(id)),
-        sidebar_collapsed: Boolean(sidebarCollapsed.value),
         workspace_height: Number(workspaceHeight.value || 0),
         workspaceScrollTop: Number(mainWorkspaceRef.value?.scrollTop || 0),
         scrollY: window.scrollY || 0,
@@ -311,6 +313,7 @@ const applyStateToForm = (payload) => {
 
     form.title = String(payload.title || '');
     form.content = String(payload.content || '<p></p>');
+    form.link = String(payload.link || '');
     form.category_id = payload.category_id ? String(payload.category_id) : '';
     form.tags_text = Array.isArray(payload.tags)
         ? payload.tags.join(', ')
@@ -326,7 +329,7 @@ const applyStateToForm = (payload) => {
 };
 
 const applyEditorPreferences = (payload) => {
-    sidebarCollapsed.value = Boolean(payload?.sidebar_collapsed);
+    sidebarCollapsed.value = false;
 
     const preferredWorkspaceHeight = Number(payload?.workspace_height || 0);
     workspaceHeight.value = Number.isFinite(preferredWorkspaceHeight) && preferredWorkspaceHeight >= MIN_WORKSPACE_HEIGHT
@@ -434,6 +437,7 @@ const fetchCreation = async () => {
         applyStateToForm({
             title: creation.title,
             content: creation.content || creation.description || '<p></p>',
+            link: creation.link,
             category_id: creation.category_id,
             tags: creation.tags || [],
             featured_image: creation.featured_image,
@@ -477,6 +481,7 @@ const persistCreation = async ({ publicationStatus = form.publication_status, no
     const payload = {
         title: String(form.title || '').trim() || 'Untitled creation',
         content: String(form.content || '<p></p>'),
+        link: String(form.link || '').trim() || null,
         category_id: form.category_id ? Number(form.category_id) : null,
         tags: normalizeTags(form.tags_text),
         featured_image: String(form.featured_image || '').trim() || null,
@@ -507,6 +512,7 @@ const persistCreation = async ({ publicationStatus = form.publication_status, no
         requestPayload.append('status', String(payload.status));
         requestPayload.append('progress', String(payload.progress));
         requestPayload.append('is_open_for_collaboration', payload.is_open_for_collaboration ? '1' : '0');
+        requestPayload.append('link', String(payload.link || ''));
 
         if (payload.category_id) {
             requestPayload.append('category_id', String(payload.category_id));
@@ -557,6 +563,7 @@ const persistCreation = async ({ publicationStatus = form.publication_status, no
         }
 
         form.publication_status = String(saved?.publication_status || payload.publication_status);
+        form.link = String(saved?.link || payload.link || '');
         form.status = normalizeProjectStatus(saved?.status || payload.status);
         form.progress = clampProgress(saved?.progress ?? payload.progress);
         form.is_open_for_collaboration = toBooleanFlag(
@@ -720,8 +727,17 @@ onBeforeUnmount(() => {
                 <div class="creation-editor-page__actions">
                     <span v-if="autosaving" class="creation-editor-page__meta">Autosaving...</span>
                     <span v-else-if="lastSavedAt" class="creation-editor-page__meta">Saved {{ lastSavedAt }}</span>
-                    <button type="button" class="creation-editor-page__toggle" @click="toggleSidebar">
-                        {{ sidebarCollapsed ? 'Show Panel' : 'Hide Panel' }}
+                    <button
+                        type="button"
+                        class="creation-editor-page__toggle"
+                        :class="{
+                            'creation-editor-page__toggle--show': sidebarCollapsed,
+                            'creation-editor-page__toggle--hide': !sidebarCollapsed,
+                        }"
+                        @click="toggleSidebar"
+                    >
+                        <i class="fi text-[10px]" :class="sidebarCollapsed ? 'fi-rr-layout-fluid' : 'fi-rr-apps'" />
+                        <span>{{ sidebarCollapsed ? 'SHOW PANEL' : 'HIDE PANEL' }}</span>
                     </button>
                     <Link :href="route('profile.creations')" class="creation-editor-page__link">
                         <i class="fi fi-rr-arrow-left text-[12px]" />
@@ -805,6 +821,17 @@ onBeforeUnmount(() => {
                             class="creation-sidebar__input"
                             placeholder="vue, laravel, ui"
                         >
+                    </section>
+
+                    <section class="creation-sidebar__section">
+                        <p class="creation-sidebar__label">Project Link</p>
+                        <input
+                            v-model="form.link"
+                            type="url"
+                            class="creation-sidebar__input"
+                            placeholder="https://example.com/project"
+                        >
+                        <p class="creation-sidebar__hint">Link referensi / demo project (opsional).</p>
                     </section>
 
                     <section class="creation-sidebar__section">
@@ -1041,20 +1068,36 @@ onBeforeUnmount(() => {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 0.45rem;
     min-height: 2rem;
     padding: 0 0.85rem;
     border: 1px solid rgba(71, 85, 105, 0.8);
-    background: rgba(2, 6, 23, 0.82);
+    background: rgba(3, 10, 28, 0.9);
     color: #cbd5e1;
     font-size: 8px;
     text-transform: uppercase;
+    letter-spacing: 0.08em;
     transition: 160ms ease;
 }
 
 .creation-editor-page__toggle:hover {
     border-color: rgba(34, 211, 238, 0.65);
     color: #ecfeff;
-    background: rgba(8, 47, 73, 0.85);
+    background: rgba(8, 47, 73, 0.9);
+}
+
+.creation-editor-page__toggle--show {
+    border-color: rgba(16, 185, 129, 0.72);
+    color: #6ee7b7;
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.22), 0 0 12px rgba(16, 185, 129, 0.28);
+    text-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+}
+
+.creation-editor-page__toggle--hide {
+    border-color: rgba(34, 211, 238, 0.72);
+    color: #67e8f9;
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.2), 0 0 12px rgba(34, 211, 238, 0.25);
+    text-shadow: 0 0 6px rgba(34, 211, 238, 0.45);
 }
 
 .creation-editor-page__meta {
