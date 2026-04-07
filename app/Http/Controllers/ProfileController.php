@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\Creation;
 use App\Models\CreationAppreciation;
+use App\Models\CreationCollaborator;
 use App\Models\CreationPhoto;
 use App\Models\JobRole;
 use App\Models\Quest;
@@ -290,12 +291,16 @@ class ProfileController extends Controller
     {
         $creations = Creation::query()
             ->publicVisible()
-            ->where('user_id', $user->id)
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user->id)
+                    ->orWhereHas('collaborators', fn ($collaborators) => $collaborators->where('user_id', $user->id));
+            })
             ->with([
                 'user:id,name,username,profile_photo',
                 'photos:id,creation_id,path,sort_order',
+                'collaborators.user:id,name,username,profile_photo',
             ])
-            ->withCount(['appreciations', 'insights', 'photos'])
+            ->withCount(['appreciations', 'insights', 'photos', 'collaborators'])
             ->orderByDesc('appreciations_count')
             ->orderByDesc('insights_count')
             ->latest()
@@ -318,15 +323,22 @@ class ProfileController extends Controller
                     'user_id' => (int) $creation->user_id,
                     'title' => (string) $creation->title,
                     'description' => (string) $creation->description,
+                    'content' => (string) ($creation->content ?? ''),
                     'link' => (string) ($creation->link ?? ''),
                     'category' => $creation->category ? (string) $creation->category : null,
+                    'category_id' => $creation->category_id ? (int) $creation->category_id : null,
+                    'tags' => collect($creation->tags ?? [])->map(fn ($tag) => (string) $tag)->values()->all(),
+                    'featured_image' => (string) ($creation->featured_image ?? ''),
+                    'publication_status' => (string) ($creation->publication_status ?? ((bool) $creation->is_public ? 'publish' : 'draft')),
                     'status' => (string) $creation->status,
                     'progress' => (int) ($creation->progress ?? 0),
                     'is_public' => (bool) $creation->is_public,
+                    'is_open_for_collaboration' => (bool) $creation->is_open_for_collaboration,
                     'appreciations_count' => (int) ($creation->appreciations_count ?? 0),
                     'insights_count' => (int) ($creation->insights_count ?? 0),
                     'photos_count' => (int) ($creation->photos_count ?? $creation->photos->count()),
-                    'thumbnail_url' => (string) ($creation->photos->first()?->url ?? ''),
+                    'collaborators_count' => (int) ($creation->collaborators_count ?? $creation->collaborators->count()),
+                    'thumbnail_url' => (string) ($creation->photos->first()?->url ?? ($creation->featured_image ?? '')),
                     'photos' => $creation->photos
                         ->map(fn (CreationPhoto $photo) => [
                             'id' => (int) $photo->id,
@@ -339,8 +351,28 @@ class ProfileController extends Controller
                         'id' => (int) ($creation->user?->id ?? 0),
                         'name' => (string) ($creation->user?->name ?? ''),
                         'username' => (string) ($creation->user?->username ?? ''),
-                        'profile_photo' => (string) ($creation->user?->profile_photo ?? ''),
+                            'profile_photo' => (string) ($creation->user?->profile_photo ?? ''),
+                        ],
+                    'team' => [
+                        [
+                            'id' => (int) ($creation->user?->id ?? 0),
+                            'name' => (string) ($creation->user?->name ?? ''),
+                            'username' => (string) ($creation->user?->username ?? ''),
+                            'profile_photo' => (string) ($creation->user?->profile_photo ?? ''),
+                            'role' => Creation::COLLABORATOR_ROLE_OWNER,
+                            'is_owner' => true,
+                        ],
+                        ...$creation->collaborators->map(fn (CreationCollaborator $member) => [
+                            'id' => (int) ($member->user?->id ?? 0),
+                            'name' => (string) ($member->user?->name ?? ''),
+                            'username' => (string) ($member->user?->username ?? ''),
+                            'profile_photo' => (string) ($member->user?->profile_photo ?? ''),
+                            'role' => (string) $member->role,
+                            'is_owner' => false,
+                        ])->values()->all(),
                     ],
+                    'team_size' => (int) (1 + $creation->collaborators->count()),
+                    'ownership_type' => (int) $creation->user_id === (int) $user->id ? 'owner' : 'collaborator',
                     'created_at' => $creation->created_at?->toISOString(),
                     'updated_at' => $creation->updated_at?->toISOString(),
                     'is_appreciated' => in_array((int) $creation->id, $appreciatedIds, true),
@@ -354,7 +386,10 @@ class ProfileController extends Controller
     {
         return (int) Creation::query()
             ->publicVisible()
-            ->where('user_id', $user->id)
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user->id)
+                    ->orWhereHas('collaborators', fn ($collaborators) => $collaborators->where('user_id', $user->id));
+            })
             ->count();
     }
 
@@ -362,7 +397,8 @@ class ProfileController extends Controller
     {
         return (int) CreationAppreciation::query()
             ->whereHas('creation', function ($query) use ($user) {
-                $query->where('user_id', $user->id);
+                $query->where('user_id', $user->id)
+                    ->orWhereHas('collaborators', fn ($collaborators) => $collaborators->where('user_id', $user->id));
             })
             ->count();
     }

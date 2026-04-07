@@ -2,8 +2,14 @@
 
 use App\Models\Creation;
 use App\Models\CreationAppreciation;
+use App\Models\CreationCategory;
+use App\Models\CreationCollaborationRequest;
+use App\Models\CreationCollaborator;
 use App\Models\User;
 use App\Notifications\CreationAppreciatedNotification;
+use App\Notifications\CreationCollaborationApprovedNotification;
+use App\Notifications\CreationCollaborationRejectedNotification;
+use App\Notifications\CreationCollaborationRequestedNotification;
 use App\Notifications\CreationInsightAddedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -217,4 +223,186 @@ test('creation validation returns a clear photo format message', function () {
     $errors = $response->json('errors');
 
     expect($errors['photos.0'][0] ?? null)->toBe('Foto harus berformat JPG, JPEG, PNG, atau WEBP.');
+});
+
+test('user can request collaboration on an open creation and owner gets notified', function () {
+    Notification::fake();
+
+    $owner = User::factory()->create();
+    $requester = User::factory()->create();
+    $creation = makeCreation($owner, [
+        'is_public' => true,
+        'is_open_for_collaboration' => true,
+    ]);
+
+    $response = $this
+        ->actingAs($requester)
+        ->postJson(route('api.creations.collaboration-requests.store', ['creation' => $creation->id]), [
+            'requested_role' => 'contributor',
+            'message' => 'I can help polish the visual assets.',
+        ]);
+
+    $response->assertCreated();
+    $response->assertJsonPath('data.status', CreationCollaborationRequest::STATUS_PENDING);
+    $response->assertJsonPath('data.requested_role', 'contributor');
+
+    expect(CreationCollaborationRequest::query()
+        ->where('creation_id', $creation->id)
+        ->where('requester_id', $requester->id)
+        ->where('status', CreationCollaborationRequest::STATUS_PENDING)
+        ->count())->toBe(1);
+
+    Notification::assertSentTo($owner, CreationCollaborationRequestedNotification::class);
+    Notification::assertNotSentTo($requester, CreationCollaborationRequestedNotification::class);
+});
+
+test('approved collaborator can view and edit a private creation but cannot change owner-only collaboration settings', function () {
+    Notification::fake();
+
+    $owner = User::factory()->create();
+    $collaborator = User::factory()->create();
+    $creation = makeCreation($owner, [
+        'title' => 'Private Team Build',
+        'is_public' => false,
+        'is_open_for_collaboration' => true,
+    ]);
+
+    $request = CreationCollaborationRequest::query()->create([
+        'creation_id' => $creation->id,
+        'requester_id' => $collaborator->id,
+        'requested_role' => CreationCollaborator::ROLE_EDITOR,
+        'message' => 'Ready to help.',
+        'status' => CreationCollaborationRequest::STATUS_PENDING,
+    ]);
+
+    $approveResponse = $this
+        ->actingAs($owner)
+        ->postJson(route('api.creations.collaboration-requests.approve', [
+            'creation' => $creation->id,
+            'collaborationRequest' => $request->id,
+        ]));
+
+    $approveResponse->assertOk();
+
+    expect(CreationCollaborator::query()
+        ->where('creation_id', $creation->id)
+        ->where('user_id', $collaborator->id)
+        ->value('role'))->toBe(CreationCollaborator::ROLE_EDITOR);
+
+    Notification::assertSentTo($collaborator, CreationCollaborationApprovedNotification::class);
+
+    $this->actingAs($collaborator)
+        ->getJson(route('api.hall.show', ['creation' => $creation->id]))
+        ->assertOk()
+        ->assertJsonPath('data.can_edit', true);
+
+    $updateResponse = $this
+        ->actingAs($collaborator)
+        ->withHeader('Accept', 'application/json')
+        ->post(route('api.creations.update', ['creation' => $creation->id]), [
+            '_method' => 'PUT',
+            'title' => 'Private Team Build Updated',
+            'description' => 'Edited by approved collaborator.',
+            'link' => 'https://example.com/private-team-build',
+            'category' => 'Collaboration',
+            'status' => 'refining',
+            'progress' => 88,
+            'is_public' => true,
+            'is_open_for_collaboration' => false,
+        ]);
+
+    $updateResponse->assertOk();
+    $updateResponse->assertJsonPath('data.title', 'Private Team Build Updated');
+    $updateResponse->assertJsonPath('data.can_edit', true);
+
+    $creation->refresh();
+
+    expect($creation->title)->toBe('Private Team Build Updated');
+    expect((bool) $creation->is_public)->toBeFalse();
+    expect((bool) $creation->is_open_for_collaboration)->toBeTrue();
+});
+
+test('owner can reject collaboration request and requester receives update notification', function () {
+    Notification::fake();
+
+    $owner = User::factory()->create();
+    $requester = User::factory()->create();
+    $creation = makeCreation($owner, [
+        'is_public' => true,
+        'is_open_for_collaboration' => true,
+    ]);
+
+    $request = CreationCollaborationRequest::query()->create([
+        'creation_id' => $creation->id,
+        'requester_id' => $requester->id,
+        'requested_role' => CreationCollaborator::ROLE_CONTRIBUTOR,
+        'message' => 'Would love to help with docs.',
+        'status' => CreationCollaborationRequest::STATUS_PENDING,
+    ]);
+
+    $response = $this
+        ->actingAs($owner)
+        ->postJson(route('api.creations.collaboration-requests.reject', [
+            'creation' => $creation->id,
+            'collaborationRequest' => $request->id,
+        ]));
+
+    $response->assertOk();
+
+    $request->refresh();
+
+    expect($request->status)->toBe(CreationCollaborationRequest::STATUS_REJECTED);
+    expect(CreationCollaborator::query()
+        ->where('creation_id', $creation->id)
+        ->where('user_id', $requester->id)
+        ->exists())->toBeFalse();
+
+    Notification::assertSentTo($requester, CreationCollaborationRejectedNotification::class);
+});
+
+test('documentation fields are stored and featured image becomes thumbnail fallback', function () {
+    $owner = User::factory()->create();
+    $category = CreationCategory::query()->firstOrFail();
+
+    $response = $this
+        ->actingAs($owner)
+        ->postJson(route('api.creations.store'), [
+            'title' => 'Creation Documentation',
+            'content' => '<h2>Overview</h2><p>Build notes for the team.</p>',
+            'category_id' => $category->id,
+            'tags' => ['vue', 'laravel', 'docs'],
+            'featured_image' => 'https://example.com/storage/images/featured-docs.png',
+            'publication_status' => 'draft',
+        ]);
+
+    $response->assertCreated();
+    $response->assertJsonPath('data.category_id', $category->id);
+    $response->assertJsonPath('data.category', $category->name);
+    $response->assertJsonPath('data.featured_image', 'https://example.com/storage/images/featured-docs.png');
+    $response->assertJsonPath('data.thumbnail_url', 'https://example.com/storage/images/featured-docs.png');
+    $response->assertJsonPath('data.tags.0', 'vue');
+    $response->assertJsonPath('data.tags.1', 'laravel');
+    $response->assertJsonPath('data.tags.2', 'docs');
+    $response->assertJsonPath('data.publication_status', 'draft');
+    $response->assertJsonPath('data.is_public', false);
+    $response->assertJsonPath('data.description', 'Overview Build notes for the team.');
+});
+
+test('upload endpoint stores editor image and returns public url', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+
+    $response = $this
+        ->actingAs($user)
+        ->post(route('api.upload.store'), [
+            'image' => UploadedFile::fake()->image('editor-shot.png', 1400, 900),
+        ]);
+
+    $response->assertCreated();
+    $path = (string) $response->json('path');
+
+    expect($path)->toStartWith('images/');
+    expect((string) $response->json('url'))->toContain('/storage/images/');
+    Storage::disk('public')->assertExists($path);
 });

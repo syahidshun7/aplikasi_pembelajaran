@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Creation;
+use App\Models\CreationCollaborationRequest;
 use App\Models\CreationInsight;
 use App\Models\Event;
 use App\Models\Message;
@@ -14,6 +15,9 @@ use App\Notifications\AssignmentReminderNotification;
 use App\Notifications\AssignmentSubmittedNotification;
 use App\Notifications\ChatMessageNotification;
 use App\Notifications\CreationAppreciatedNotification;
+use App\Notifications\CreationCollaborationApprovedNotification;
+use App\Notifications\CreationCollaborationRejectedNotification;
+use App\Notifications\CreationCollaborationRequestedNotification;
 use App\Notifications\CreationInsightAddedNotification;
 use App\Notifications\EventPublishedNotification;
 use App\Notifications\GradeReleasedNotification;
@@ -129,6 +133,40 @@ class LmsNotificationService
         }
 
         $owner->notify(new CreationInsightAddedNotification($insight));
+    }
+
+    public function notifyCreationCollaborationRequested(CreationCollaborationRequest $request): void
+    {
+        $request->loadMissing([
+            'creation.user:id,name,username,email',
+            'requester:id,name,username,email',
+        ]);
+
+        $owner = $request->creation?->user;
+
+        if (! $owner || (int) $owner->id === (int) $request->requester_id) {
+            return;
+        }
+
+        $owner->notify(new CreationCollaborationRequestedNotification($request));
+    }
+
+    public function notifyCreationCollaborationApproved(Creation $creation, User $requester, User $owner, string $role): void
+    {
+        if ((int) $requester->id === (int) $owner->id) {
+            return;
+        }
+
+        $requester->notify(new CreationCollaborationApprovedNotification($creation, $owner, $role));
+    }
+
+    public function notifyCreationCollaborationRejected(Creation $creation, User $requester, User $owner): void
+    {
+        if ((int) $requester->id === (int) $owner->id) {
+            return;
+        }
+
+        $requester->notify(new CreationCollaborationRejectedNotification($creation, $owner));
     }
 
     private function submissionReviewRecipients(Submission $submission): Collection

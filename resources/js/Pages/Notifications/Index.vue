@@ -30,6 +30,7 @@ const categoryLabels = {
     chat: 'Chat',
     event: 'Event',
     study_group: 'Study Group',
+    creation: 'Creation',
     announcement: 'Announcement',
     general: 'General',
 };

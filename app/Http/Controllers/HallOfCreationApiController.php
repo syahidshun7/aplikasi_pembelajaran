@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Creation;
+use App\Models\CreationCollaborationRequest;
+use App\Models\CreationCollaborator;
 use App\Models\CreationAppreciation;
 use App\Models\CreationPhoto;
 use App\Support\Cache\CacheVersion;
@@ -52,8 +54,9 @@ class HallOfCreationApiController extends Controller
                 ->with([
                     'user:id,name,username,profile_photo',
                     'photos:id,creation_id,path,sort_order',
+                    'collaborators.user:id,name,username,profile_photo',
                 ])
-                ->withCount(['appreciations', 'insights', 'photos'])
+                ->withCount(['appreciations', 'insights', 'photos', 'collaborators'])
                 ->when($search !== '', function ($builder) use ($search) {
                     $builder->where(function ($inner) use ($search) {
                         $inner->where('title', 'like', "%{$search}%")
@@ -130,15 +133,16 @@ class HallOfCreationApiController extends Controller
 
     public function show(Request $request, Creation $creation): JsonResponse
     {
-        $this->ensureCanView($creation, (int) ($request->user()?->id ?? 0));
+        $userId = (int) ($request->user()?->id ?? 0);
+        $this->ensureCanView($creation, $userId);
 
         $creation->load('user:id,name,username,profile_photo')
             ->load([
                 'photos:id,creation_id,path,sort_order',
+                'collaborators.user:id,name,username,profile_photo',
             ])
-            ->loadCount(['appreciations', 'insights', 'photos']);
+            ->loadCount(['appreciations', 'insights', 'photos', 'collaborators']);
 
-        $userId = (int) ($request->user()?->id ?? 0);
         $isAppreciated = false;
 
         if ($userId > 0) {
@@ -148,6 +152,26 @@ class HallOfCreationApiController extends Controller
                 ->exists();
         }
 
+        $viewerRequest = $userId > 0
+            ? CreationCollaborationRequest::query()
+                ->where('creation_id', (int) $creation->id)
+                ->where('requester_id', $userId)
+                ->latest('id')
+                ->first()
+            : null;
+
+        $pendingRequests = $creation->canManageCollaboration($userId)
+            ? CreationCollaborationRequest::query()
+                ->where('creation_id', (int) $creation->id)
+                ->where('status', CreationCollaborationRequest::STATUS_PENDING)
+                ->with('requester:id,name,username,profile_photo')
+                ->latest()
+                ->get()
+                ->map(fn (CreationCollaborationRequest $item) => $this->transformRequest($item))
+                ->values()
+                ->all()
+            : [];
+
         return response()->json([
             'data' => [
                 ...$this->transformCard($creation),
@@ -155,32 +179,48 @@ class HallOfCreationApiController extends Controller
                 'description' => (string) $creation->description,
                 'link' => (string) ($creation->link ?? ''),
                 'is_public' => (bool) $creation->is_public,
+                'is_open_for_collaboration' => (bool) $creation->is_open_for_collaboration,
+                'can_edit' => $creation->canEdit($userId),
+                'can_manage_collaboration' => $creation->canManageCollaboration($userId),
+                'viewer_role' => $creation->collaboratorRoleFor($userId),
+                'viewer_collaboration_request_status' => (string) ($viewerRequest?->status ?? ''),
+                'viewer_collaboration_request_id' => $viewerRequest?->id ? (int) $viewerRequest->id : null,
+                'pending_collaboration_requests' => $pendingRequests,
             ],
         ]);
     }
 
     private function ensureCanView(Creation $creation, int $userId): void
     {
-        $canView = (bool) $creation->is_public || ((int) $creation->user_id === $userId && $userId > 0);
-        abort_unless($canView, 404, 'CREATION_NOT_FOUND');
+        abort_unless($creation->canView($userId), 404, 'CREATION_NOT_FOUND');
     }
 
     private function transformCard(Creation $creation): array
     {
+        $team = $this->transformTeam($creation);
+
         return [
             'id' => (int) $creation->id,
             'user_id' => (int) $creation->user_id,
             'title' => (string) $creation->title,
             'description' => (string) $creation->description,
+            'content' => (string) ($creation->content ?? ''),
             'link' => (string) ($creation->link ?? ''),
             'category' => $creation->category ? (string) $creation->category : null,
+            'category_id' => $creation->category_id ? (int) $creation->category_id : null,
+            'tags' => collect($creation->tags ?? [])->map(fn ($tag) => (string) $tag)->values()->all(),
+            'featured_image' => (string) ($creation->featured_image ?? ''),
+            'publication_status' => (string) ($creation->publication_status ?? ((bool) $creation->is_public ? 'publish' : 'draft')),
             'status' => (string) $creation->status,
             'progress' => (int) ($creation->progress ?? 0),
             'is_public' => (bool) $creation->is_public,
+            'is_open_for_collaboration' => (bool) $creation->is_open_for_collaboration,
             'appreciations_count' => (int) ($creation->appreciations_count ?? 0),
             'insights_count' => (int) ($creation->insights_count ?? 0),
             'photos_count' => (int) ($creation->photos_count ?? $creation->photos->count()),
-            'thumbnail_url' => (string) ($creation->photos->first()?->url ?? ''),
+            'collaborators_count' => (int) ($creation->collaborators_count ?? $creation->collaborators->count()),
+            'team_size' => (int) count($team),
+            'thumbnail_url' => (string) ($creation->photos->first()?->url ?? ($creation->featured_image ?? '')),
             'photos' => $creation->photos
                 ->map(fn (CreationPhoto $photo) => [
                     'id' => (int) $photo->id,
@@ -195,8 +235,53 @@ class HallOfCreationApiController extends Controller
                 'username' => (string) ($creation->user?->username ?? ''),
                 'profile_photo' => (string) ($creation->user?->profile_photo ?? ''),
             ],
+            'team' => $team,
             'created_at' => $creation->created_at?->toISOString(),
             'updated_at' => $creation->updated_at?->toISOString(),
+        ];
+    }
+
+    private function transformTeam(Creation $creation): array
+    {
+        $owner = [
+            'id' => (int) ($creation->user?->id ?? 0),
+            'name' => (string) ($creation->user?->name ?? ''),
+            'username' => (string) ($creation->user?->username ?? ''),
+            'profile_photo' => (string) ($creation->user?->profile_photo ?? ''),
+            'role' => Creation::COLLABORATOR_ROLE_OWNER,
+            'is_owner' => true,
+        ];
+
+        $collaborators = $creation->collaborators
+            ->map(fn (CreationCollaborator $member) => [
+                'id' => (int) ($member->user?->id ?? 0),
+                'name' => (string) ($member->user?->name ?? ''),
+                'username' => (string) ($member->user?->username ?? ''),
+                'profile_photo' => (string) ($member->user?->profile_photo ?? ''),
+                'role' => (string) $member->role,
+                'is_owner' => false,
+            ])
+            ->values()
+            ->all();
+
+        return [$owner, ...$collaborators];
+    }
+
+    private function transformRequest(CreationCollaborationRequest $request): array
+    {
+        return [
+            'id' => (int) $request->id,
+            'requester_id' => (int) $request->requester_id,
+            'requested_role' => (string) ($request->requested_role ?: CreationCollaborator::ROLE_EDITOR),
+            'message' => (string) ($request->message ?? ''),
+            'status' => (string) $request->status,
+            'created_at' => $request->created_at?->toISOString(),
+            'requester' => [
+                'id' => (int) ($request->requester?->id ?? 0),
+                'name' => (string) ($request->requester?->name ?? ''),
+                'username' => (string) ($request->requester?->username ?? ''),
+                'profile_photo' => (string) ($request->requester?->profile_photo ?? ''),
+            ],
         ];
     }
 }

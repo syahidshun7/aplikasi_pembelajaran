@@ -17,6 +17,9 @@ const authUser = computed(() => page.props?.auth?.user || null);
 const creation = ref(null);
 const loadingCreation = ref(false);
 const togglingAppreciation = ref(false);
+const collaborationSubmitting = ref(false);
+const collaborationActionId = ref(0);
+const removingCollaboratorId = ref(0);
 
 const insights = ref([]);
 const insightMeta = ref({
@@ -29,6 +32,10 @@ const postingInsight = ref(false);
 const insightForm = reactive({
     content: '',
     parent_id: null,
+});
+const collaborationForm = reactive({
+    requested_role: 'editor',
+    message: '',
 });
 const insightsSection = ref(null);
 const activePhotoUrl = ref('');
@@ -78,6 +85,27 @@ const toDisplayDate = (value) => {
     return date.toLocaleString('id-ID');
 };
 
+const teamMembers = computed(() => Array.isArray(creation.value?.team) ? creation.value.team : []);
+const pendingCollaborationRequests = computed(() => Array.isArray(creation.value?.pending_collaboration_requests) ? creation.value.pending_collaboration_requests : []);
+const creationTags = computed(() => Array.isArray(creation.value?.tags) ? creation.value.tags : []);
+const canRequestCollaboration = computed(() => {
+    if (!creation.value) {
+        return false;
+    }
+
+    if (!creation.value.is_open_for_collaboration) {
+        return false;
+    }
+
+    if (creation.value.can_manage_collaboration || creation.value.can_edit) {
+        return false;
+    }
+
+    return !['pending', 'approved'].includes(String(creation.value.viewer_collaboration_request_status || ''));
+});
+const hasPendingCollaborationRequest = computed(() => String(creation.value?.viewer_collaboration_request_status || '') === 'pending');
+const collaborationRoleLabel = (role) => String(role || 'editor').replaceAll('_', ' ').toUpperCase();
+
 const fetchCreation = async () => {
     loadingCreation.value = true;
     try {
@@ -85,6 +113,7 @@ const fetchCreation = async () => {
         creation.value = response.data?.data || null;
         activePhotoUrl.value = String(
             creation.value?.photos?.[0]?.url
+            || creation.value?.featured_image
             || creation.value?.thumbnail_url
             || ''
         );
@@ -103,6 +132,10 @@ const fetchCreation = async () => {
     } finally {
         loadingCreation.value = false;
     }
+};
+
+const refreshCreation = async () => {
+    await fetchCreation();
 };
 
 const fetchInsights = async (pageNum = 1, append = false) => {
@@ -223,6 +256,117 @@ const selectPhoto = (url) => {
     activePhotoUrl.value = String(url || '');
 };
 
+const submitCollaborationRequest = async () => {
+    if (!canRequestCollaboration.value || collaborationSubmitting.value) {
+        return;
+    }
+
+    collaborationSubmitting.value = true;
+
+    try {
+        await window.axios.post(relativeRoute('api.creations.collaboration-requests.store', { creation: props.creationId }), {
+            requested_role: collaborationForm.requested_role,
+            message: String(collaborationForm.message || '').trim() || null,
+        });
+
+        collaborationForm.message = '';
+        await refreshCreation();
+        toast.success('REQUEST_SENT', 'Collaboration request sent.');
+    } catch (error) {
+        toast.error('REQUEST_FAILED', String(error?.response?.data?.message || 'Unable to send collaboration request.'));
+    } finally {
+        collaborationSubmitting.value = false;
+    }
+};
+
+const withdrawCollaborationRequest = async () => {
+    const requestId = Number(creation.value?.viewer_collaboration_request_id || 0);
+    if (!requestId || collaborationSubmitting.value) {
+        return;
+    }
+
+    collaborationSubmitting.value = true;
+
+    try {
+        await window.axios.delete(relativeRoute('api.creations.collaboration-requests.withdraw', {
+            creation: props.creationId,
+            collaborationRequest: requestId,
+        }));
+        await refreshCreation();
+        toast.success('REQUEST_UPDATED', 'Collaboration request withdrawn.');
+    } catch (error) {
+        toast.error('REQUEST_FAILED', String(error?.response?.data?.message || 'Unable to withdraw collaboration request.'));
+    } finally {
+        collaborationSubmitting.value = false;
+    }
+};
+
+const approveRequest = async (requestItem) => {
+    const requestId = Number(requestItem?.id || 0);
+    if (!requestId || collaborationActionId.value === requestId) {
+        return;
+    }
+
+    collaborationActionId.value = requestId;
+
+    try {
+        await window.axios.post(relativeRoute('api.creations.collaboration-requests.approve', {
+            creation: props.creationId,
+            collaborationRequest: requestId,
+        }));
+        await refreshCreation();
+        toast.success('REQUEST_APPROVED', 'Collaboration request approved.');
+    } catch (error) {
+        toast.error('REQUEST_FAILED', String(error?.response?.data?.message || 'Unable to approve request.'));
+    } finally {
+        collaborationActionId.value = 0;
+    }
+};
+
+const rejectRequest = async (requestItem) => {
+    const requestId = Number(requestItem?.id || 0);
+    if (!requestId || collaborationActionId.value === requestId) {
+        return;
+    }
+
+    collaborationActionId.value = requestId;
+
+    try {
+        await window.axios.post(relativeRoute('api.creations.collaboration-requests.reject', {
+            creation: props.creationId,
+            collaborationRequest: requestId,
+        }));
+        await refreshCreation();
+        toast.success('REQUEST_REJECTED', 'Collaboration request rejected.');
+    } catch (error) {
+        toast.error('REQUEST_FAILED', String(error?.response?.data?.message || 'Unable to reject request.'));
+    } finally {
+        collaborationActionId.value = 0;
+    }
+};
+
+const removeCollaborator = async (member) => {
+    const userId = Number(member?.id || 0);
+    if (!userId || removingCollaboratorId.value === userId || member?.is_owner) {
+        return;
+    }
+
+    removingCollaboratorId.value = userId;
+
+    try {
+        await window.axios.delete(relativeRoute('api.creations.collaborators.destroy', {
+            creation: props.creationId,
+            user: userId,
+        }));
+        await refreshCreation();
+        toast.success('TEAM_UPDATED', 'Collaborator removed from team.');
+    } catch (error) {
+        toast.error('ACTION_FAILED', String(error?.response?.data?.message || 'Unable to remove collaborator.'));
+    } finally {
+        removingCollaboratorId.value = 0;
+    }
+};
+
 onMounted(async () => {
     const loaded = await fetchCreation();
 
@@ -294,9 +438,20 @@ onMounted(async () => {
                 <div class="mb-4 flex flex-wrap items-center gap-2 text-[8px] uppercase">
                     <span class="rounded border border-cyan-500 px-2 py-1 text-cyan-300">{{ creation.status }}</span>
                     <span class="rounded border border-slate-600 px-2 py-1 text-slate-300">{{ creation.progress }}%</span>
+                    <span v-if="creation.team_size > 1" class="rounded border border-emerald-500/50 px-2 py-1 text-emerald-300">TEAM {{ creation.team_size }}</span>
+                    <span v-if="creation.is_open_for_collaboration" class="rounded border border-amber-500/50 px-2 py-1 text-amber-300">OPEN COLLAB</span>
                 </div>
 
-                <p class="mb-5 whitespace-pre-line text-[8px] leading-relaxed text-slate-200">{{ creation.description }}</p>
+                <div v-if="creationTags.length > 0" class="mb-5 flex flex-wrap gap-2 text-[7px] uppercase">
+                    <span v-for="tag in creationTags" :key="tag" class="rounded border border-slate-600 bg-slate-900/60 px-2 py-1 text-slate-300">
+                        {{ tag }}
+                    </span>
+                </div>
+
+                <div class="creation-reading-surface mb-5">
+                    <article v-if="creation.content" class="creation-doc" v-html="creation.content" />
+                    <p v-else class="creation-doc creation-doc--plain whitespace-pre-line text-[8px] leading-relaxed text-slate-200">{{ creation.description }}</p>
+                </div>
 
                 <div class="flex flex-wrap items-center gap-2">
                     <a
@@ -330,8 +485,8 @@ onMounted(async () => {
                         <span class="text-[8px]">{{ creation.insights_count || 0 }}</span>
                     </button>
                     <Link
-                        v-if="Number(authUser?.id || 0) === Number(creation.user_id)"
-                        :href="route('profile.creations')"
+                        v-if="creation.can_edit"
+                        :href="route('profile.creations.edit', { creation: creation.id })"
                         class="icon-btn text-amber-300 hover:text-amber-100"
                         title="Edit"
                     >
@@ -342,6 +497,106 @@ onMounted(async () => {
 
             <section v-else class="rpg-panel border-rose-500/30 bg-[#161b22]/90 text-center text-[8px] uppercase text-slate-300">
                 Creation detail is unavailable.
+            </section>
+
+            <section v-if="creation" class="rpg-panel border-cyan-500/30 bg-[#161b22]/90">
+                <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 pb-3">
+                    <div>
+                        <h2 class="text-[10px] uppercase text-cyan-200">Team Formation</h2>
+                        <p class="mt-2 text-[7px] uppercase text-slate-500">Owner, collaborators, and pending requests live here.</p>
+                    </div>
+                    <span class="text-[7px] uppercase text-slate-500">Team Size {{ creation.team_size || 1 }}</span>
+                </div>
+
+                <div class="grid gap-4 lg:grid-cols-[1.2fr,0.8fr]">
+                    <div class="space-y-3">
+                        <article
+                            v-for="member in teamMembers"
+                            :key="`${member.id}-${member.role}`"
+                            class="flex items-center justify-between gap-3 border border-slate-700 bg-black/20 px-3 py-3"
+                        >
+                            <div class="min-w-0">
+                                <p class="text-[8px] uppercase text-white">{{ member.username || member.name || 'User' }}</p>
+                                <p class="mt-1 text-[7px] uppercase text-slate-500">{{ collaborationRoleLabel(member.role) }}</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span v-if="member.is_owner" class="rounded border border-cyan-500/40 px-2 py-1 text-[7px] uppercase text-cyan-300">Owner</span>
+                                <button
+                                    v-else-if="creation.can_manage_collaboration"
+                                    type="button"
+                                    class="icon-btn text-rose-300 hover:text-rose-100"
+                                    :disabled="removingCollaboratorId === Number(member.id)"
+                                    @click="removeCollaborator(member)"
+                                >
+                                    <i class="fi fi-rr-cross-small text-[12px]" />
+                                </button>
+                            </div>
+                        </article>
+
+                        <div v-if="creation.can_manage_collaboration && pendingCollaborationRequests.length > 0" class="space-y-3 border-t border-slate-700 pt-4">
+                            <h3 class="text-[8px] uppercase text-amber-300">Pending Requests</h3>
+                            <article
+                                v-for="requestItem in pendingCollaborationRequests"
+                                :key="requestItem.id"
+                                class="border border-amber-500/30 bg-amber-500/5 p-3"
+                            >
+                                <div class="flex flex-wrap items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <p class="text-[8px] uppercase text-white">{{ requestItem.requester?.username || requestItem.requester?.name || 'User' }}</p>
+                                        <p class="mt-1 text-[7px] uppercase text-amber-200">{{ collaborationRoleLabel(requestItem.requested_role) }}</p>
+                                        <p v-if="requestItem.message" class="mt-2 text-[8px] leading-relaxed text-slate-300">{{ requestItem.message }}</p>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <button type="button" class="icon-btn text-emerald-300 hover:text-emerald-100" :disabled="collaborationActionId === Number(requestItem.id)" @click="approveRequest(requestItem)">
+                                            <i class="fi fi-rr-check text-[12px]" />
+                                        </button>
+                                        <button type="button" class="icon-btn text-rose-300 hover:text-rose-100" :disabled="collaborationActionId === Number(requestItem.id)" @click="rejectRequest(requestItem)">
+                                            <i class="fi fi-rr-cross text-[12px]" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 border border-slate-700 bg-black/20 p-3">
+                        <h3 class="text-[8px] uppercase text-cyan-300">Collaboration Access</h3>
+                        <p class="text-[8px] leading-relaxed text-slate-300">
+                            <span v-if="creation.can_manage_collaboration">Kamu adalah owner. Review request masuk dan susun tim creation dari panel ini.</span>
+                            <span v-else-if="creation.can_edit">Kamu adalah bagian dari tim. Gunakan halaman My Creations untuk mengerjakan project bersama.</span>
+                            <span v-else-if="hasPendingCollaborationRequest">Permintaan kolaborasimu sedang menunggu review owner.</span>
+                            <span v-else-if="creation.is_open_for_collaboration">Creation ini terbuka untuk kolaborasi. Kirim request jika ingin ikut mengerjakan.</span>
+                            <span v-else>Owner belum membuka slot kolaborasi untuk creation ini.</span>
+                        </p>
+
+                        <form v-if="canRequestCollaboration" class="space-y-3" @submit.prevent="submitCollaborationRequest">
+                            <label class="field-label">
+                                Preferred Role
+                                <select v-model="collaborationForm.requested_role" class="field-input">
+                                    <option value="editor">Editor</option>
+                                    <option value="contributor">Contributor</option>
+                                    <option value="viewer">Viewer</option>
+                                </select>
+                            </label>
+                            <label class="field-label">
+                                Message
+                                <textarea v-model="collaborationForm.message" class="field-input min-h-[90px]" placeholder="Tell the owner how you want to help..." />
+                            </label>
+                            <button type="submit" class="icon-btn text-cyan-300 hover:text-cyan-100" :disabled="collaborationSubmitting">
+                                <i class="fi fi-rr-paper-plane text-[12px]" />
+                            </button>
+                        </form>
+
+                        <div v-else-if="hasPendingCollaborationRequest" class="space-y-3">
+                            <div class="border border-amber-500/40 bg-amber-500/10 p-3 text-[7px] uppercase text-amber-200">
+                                Request status: pending
+                            </div>
+                            <button type="button" class="icon-btn text-rose-300 hover:text-rose-100" :disabled="collaborationSubmitting" @click="withdrawCollaborationRequest">
+                                <i class="fi fi-rr-cross-small text-[12px]" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <section v-if="creation" ref="insightsSection" class="rpg-panel border-amber-500/30 bg-[#161b22]/90">
@@ -417,6 +672,10 @@ onMounted(async () => {
     @apply border-2 border-slate-700 bg-[#0d1117] p-2 text-[8px] text-cyan-300 outline-none transition-colors focus:border-cyan-500;
 }
 
+.field-label {
+    @apply flex flex-col gap-2 text-[8px] uppercase text-slate-400;
+}
+
 .icon-btn {
     @apply inline-flex min-h-8 items-center justify-center border border-slate-700 bg-black/25 px-2 transition-colors disabled:cursor-not-allowed disabled:opacity-50;
 }
@@ -455,6 +714,76 @@ onMounted(async () => {
     object-position: center;
 }
 
+.creation-doc {
+    color: #e2e8f0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 16px;
+    line-height: 1.85;
+}
+
+.creation-doc--plain {
+    margin: 0;
+}
+
+.creation-reading-surface {
+    max-height: min(62vh, 760px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    border: 1px solid rgba(51, 65, 85, 0.9);
+    background:
+        linear-gradient(180deg, rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.88)),
+        radial-gradient(circle at top, rgba(34, 211, 238, 0.06), transparent 45%);
+    padding: 1.1rem 1.15rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(34, 211, 238, 0.45) rgba(15, 23, 42, 0.35);
+}
+
+:deep(.creation-doc h2),
+:deep(.creation-doc h3) {
+    margin: 1.3rem 0 0.8rem;
+    color: #f8fafc;
+    line-height: 1.35;
+}
+
+:deep(.creation-doc h2) {
+    font-size: 1.55rem;
+}
+
+:deep(.creation-doc h3) {
+    font-size: 1.2rem;
+}
+
+:deep(.creation-doc p),
+:deep(.creation-doc ul),
+:deep(.creation-doc ol),
+:deep(.creation-doc blockquote),
+:deep(.creation-doc pre) {
+    margin-bottom: 1rem;
+}
+
+:deep(.creation-doc ul),
+:deep(.creation-doc ol) {
+    padding-left: 1.5rem;
+}
+
+:deep(.creation-doc blockquote) {
+    border-left: 3px solid rgba(34, 211, 238, 0.55);
+    padding-left: 1rem;
+    color: #cbd5e1;
+}
+
+:deep(.creation-doc a) {
+    color: #67e8f9;
+    text-decoration: underline;
+}
+
+:deep(.creation-doc img) {
+    display: block;
+    max-width: 100%;
+    margin: 1rem 0;
+    border: 1px solid rgba(71, 85, 105, 0.8);
+}
+
 @media (min-width: 1024px) {
     .creation-stage {
         min-height: 420px;
@@ -462,6 +791,11 @@ onMounted(async () => {
 
     .creation-stage__frame {
         min-height: 420px;
+    }
+
+    .creation-reading-surface {
+        max-height: min(68vh, 860px);
+        padding: 1.35rem 1.5rem;
     }
 }
 </style>

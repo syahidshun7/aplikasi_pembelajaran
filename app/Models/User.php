@@ -99,6 +99,18 @@ public function creations()
     return $this->hasMany(Creation::class);
 }
 
+public function collaboratedCreations()
+{
+    return $this->belongsToMany(Creation::class, 'creation_collaborators')
+        ->withPivot(['role', 'added_by', 'joined_at'])
+        ->withTimestamps();
+}
+
+public function creationCollaborationRequests()
+{
+    return $this->hasMany(CreationCollaborationRequest::class, 'requester_id');
+}
+
 public function creationAppreciations()
 {
     return $this->hasMany(CreationAppreciation::class);

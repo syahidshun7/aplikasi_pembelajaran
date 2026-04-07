@@ -69,6 +69,21 @@ const previewClass = computed(() => {
                 >
                     +{{ Number(creation.photos_count || 0) - 1 }}
                 </span>
+
+                <div class="absolute left-2 top-2 flex flex-wrap gap-1">
+                    <span
+                        v-if="Number(creation.team_size || 1) > 1"
+                        class="rounded border border-black/70 bg-black/60 px-2 py-[2px] text-[6px] uppercase text-emerald-100"
+                    >
+                        Team {{ creation.team_size }}
+                    </span>
+                    <span
+                        v-if="creation.is_open_for_collaboration"
+                        class="rounded border border-black/70 bg-black/60 px-2 py-[2px] text-[6px] uppercase text-amber-100"
+                    >
+                        Open Collab
+                    </span>
+                </div>
             </div>
 
             <div class="space-y-2.5 p-3">
@@ -89,6 +104,10 @@ const previewClass = computed(() => {
                     <span v-if="creation.category" class="inline-flex items-center gap-1 border border-cyan-500/20 bg-cyan-500/5 px-2 py-1 text-cyan-200/80">
                         <i class="fi fi-rr-apps text-[8px]"></i>
                         {{ creation.category }}
+                    </span>
+                    <span v-if="Number(creation.team_size || 1) > 1" class="inline-flex items-center gap-1 border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 text-emerald-200/80">
+                        <i class="fi fi-rr-users text-[8px]"></i>
+                        Team Project
                     </span>
                 </div>
 

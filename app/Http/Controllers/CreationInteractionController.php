@@ -160,14 +160,12 @@ class CreationInteractionController extends Controller
 
     private function ensureCanInteract(Creation $creation, int $userId): void
     {
-        $canInteract = ((bool) $creation->is_public) || ((int) $creation->user_id === $userId && $userId > 0);
-        abort_unless($canInteract, 403, 'CREATION_ACCESS_DENIED');
+        abort_unless($creation->canView($userId), 403, 'CREATION_ACCESS_DENIED');
     }
 
     private function ensureCanView(Creation $creation, int $userId): void
     {
-        $canView = ((bool) $creation->is_public) || ((int) $creation->user_id === $userId && $userId > 0);
-        abort_unless($canView, 404, 'CREATION_NOT_FOUND');
+        abort_unless($creation->canView($userId), 404, 'CREATION_NOT_FOUND');
     }
 
     private function appreciationCount(Creation $creation): int

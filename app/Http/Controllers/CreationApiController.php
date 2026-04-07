@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Creations\StoreCreationRequest;
 use App\Http\Requests\Creations\UpdateCreationRequest;
 use App\Models\Creation;
+use App\Models\CreationCategory;
+use App\Models\CreationCollaborator;
 use App\Models\CreationPhoto;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,20 +23,33 @@ class CreationApiController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
             'search' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'in:crafting,refining,finished'],
+            'scope' => ['nullable', 'in:owned,collaborating,all'],
         ]);
 
         $perPage = (int) ($validated['per_page'] ?? 12);
         $search = trim((string) ($validated['search'] ?? ''));
         $status = (string) ($validated['status'] ?? '');
+        $scope = (string) ($validated['scope'] ?? 'owned');
         $user = $request->user();
+        $userId = (int) $user->id;
 
         $creations = Creation::query()
-            ->where('user_id', (int) $user->id)
             ->with([
                 'user:id,name,username,profile_photo',
                 'photos:id,creation_id,path,sort_order',
+                'collaborators.user:id,name,username,profile_photo',
             ])
-            ->withCount(['appreciations', 'insights', 'photos'])
+            ->withCount(['appreciations', 'insights', 'photos', 'collaborators'])
+            ->when($scope === 'owned', fn ($query) => $query->where('user_id', $userId))
+            ->when($scope === 'collaborating', function ($query) use ($userId) {
+                $query->whereHas('collaborators', fn ($collaborators) => $collaborators->where('user_id', $userId));
+            })
+            ->when($scope === 'all', function ($query) use ($userId) {
+                $query->where(function ($inner) use ($userId) {
+                    $inner->where('user_id', $userId)
+                        ->orWhereHas('collaborators', fn ($collaborators) => $collaborators->where('user_id', $userId));
+                });
+            })
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($inner) use ($search) {
                     $inner->where('title', 'like', "%{$search}%")
@@ -49,7 +64,7 @@ class CreationApiController extends Controller
 
         $creations->setCollection(
             $creations->getCollection()
-                ->map(fn (Creation $creation) => $this->serializeCreation($creation))
+                ->map(fn (Creation $creation) => $this->serializeCreation($creation, $userId))
         );
 
         return response()->json($creations);
@@ -58,6 +73,8 @@ class CreationApiController extends Controller
     public function store(StoreCreationRequest $request): JsonResponse
     {
         $validated = $request->validated();
+        $content = $this->normalizeContent((string) ($validated['content'] ?? ''));
+        $publicationStatus = (string) ($validated['publication_status'] ?? 'publish');
         $payload = collect($validated)
             ->except(['photos', 'remove_photo_ids'])
             ->all();
@@ -65,6 +82,16 @@ class CreationApiController extends Controller
         $creation = Creation::query()->create([
             ...$payload,
             'user_id' => (int) $request->user()->id,
+            'content' => $content,
+            'description' => $this->resolveExcerpt($content, (string) ($validated['description'] ?? '')),
+            'category' => $this->resolveCategoryLabel($validated['category_id'] ?? null, $validated['category'] ?? null),
+            'status' => (string) ($validated['status'] ?? 'finished'),
+            'progress' => (int) ($validated['progress'] ?? 100),
+            'publication_status' => $publicationStatus,
+            'is_public' => $this->resolvePublicFlag(
+                array_key_exists('is_public', $validated) ? $validated['is_public'] : null,
+                $publicationStatus
+            ),
         ]);
 
         $uploadedPhotos = $this->uploadedPhotos($request);
@@ -74,36 +101,75 @@ class CreationApiController extends Controller
         $creation->load([
             'user:id,name,username,profile_photo',
             'photos:id,creation_id,path,sort_order',
-        ])->loadCount(['appreciations', 'insights', 'photos']);
+            'collaborators.user:id,name,username,profile_photo',
+        ])->loadCount(['appreciations', 'insights', 'photos', 'collaborators']);
 
         return response()->json([
             'message' => 'Creation saved successfully.',
-            'data' => $this->serializeCreation($creation),
+            'data' => $this->serializeCreation($creation, (int) $request->user()->id),
         ], 201);
     }
 
     public function show(Request $request, Creation $creation): JsonResponse
     {
-        $this->ensureOwner($creation, (int) $request->user()->id);
+        $userId = (int) $request->user()->id;
+        $this->ensureCanView($creation, $userId);
 
         $creation->load([
             'user:id,name,username,profile_photo',
             'photos:id,creation_id,path,sort_order',
-        ])->loadCount(['appreciations', 'insights', 'photos']);
+            'collaborators.user:id,name,username,profile_photo',
+        ])->loadCount(['appreciations', 'insights', 'photos', 'collaborators']);
 
         return response()->json([
-            'data' => $this->serializeCreation($creation),
+            'data' => $this->serializeCreation($creation, $userId),
         ]);
     }
 
     public function update(UpdateCreationRequest $request, Creation $creation): JsonResponse
     {
-        $this->ensureOwner($creation, (int) $request->user()->id);
+        $userId = (int) $request->user()->id;
+        $this->ensureCanEdit($creation, $userId);
 
         $validated = $request->validated();
+        $content = array_key_exists('content', $validated)
+            ? $this->normalizeContent((string) ($validated['content'] ?? ''))
+            : null;
         $payload = collect($validated)
             ->except(['photos', 'remove_photo_ids'])
             ->all();
+
+        if (! $creation->isOwnedBy($userId)) {
+            unset($payload['is_public'], $payload['is_open_for_collaboration'], $payload['publication_status']);
+        }
+
+        if (! is_null($content)) {
+            $payload['content'] = $content;
+            $payload['description'] = $this->resolveExcerpt(
+                $content,
+                array_key_exists('description', $validated) ? (string) ($validated['description'] ?? '') : (string) $creation->description
+            );
+        } elseif (array_key_exists('description', $validated)) {
+            $payload['description'] = $this->resolveExcerpt((string) ($creation->content ?? ''), (string) ($validated['description'] ?? ''));
+        }
+
+        if (array_key_exists('category_id', $validated) || array_key_exists('category', $validated)) {
+            $payload['category'] = $this->resolveCategoryLabel($validated['category_id'] ?? null, $validated['category'] ?? null);
+        }
+
+        if ($creation->isOwnedBy($userId)) {
+            if (array_key_exists('publication_status', $validated)) {
+                $publicationStatus = (string) ($validated['publication_status'] ?? 'draft');
+                $payload['publication_status'] = $publicationStatus;
+                $payload['is_public'] = $this->resolvePublicFlag(
+                    array_key_exists('is_public', $validated) ? $validated['is_public'] : null,
+                    $publicationStatus
+                );
+            } elseif (array_key_exists('is_public', $validated)) {
+                $payload['is_public'] = (bool) $validated['is_public'];
+                $payload['publication_status'] = $payload['is_public'] ? 'publish' : 'draft';
+            }
+        }
 
         $removePhotoIds = collect($validated['remove_photo_ids'] ?? [])
             ->map(fn ($id) => (int) $id)
@@ -139,11 +205,12 @@ class CreationApiController extends Controller
         $creation->load([
             'user:id,name,username,profile_photo',
             'photos:id,creation_id,path,sort_order',
-        ])->loadCount(['appreciations', 'insights', 'photos']);
+            'collaborators.user:id,name,username,profile_photo',
+        ])->loadCount(['appreciations', 'insights', 'photos', 'collaborators']);
 
         return response()->json([
             'message' => 'Creation updated successfully.',
-            'data' => $this->serializeCreation($creation),
+            'data' => $this->serializeCreation($creation, $userId),
         ]);
     }
 
@@ -159,7 +226,17 @@ class CreationApiController extends Controller
 
     private function ensureOwner(Creation $creation, int $userId): void
     {
-        abort_unless((int) $creation->user_id === $userId, 403, 'CREATION_ACCESS_DENIED');
+        abort_unless($creation->isOwnedBy($userId), 403, 'CREATION_ACCESS_DENIED');
+    }
+
+    private function ensureCanView(Creation $creation, int $userId): void
+    {
+        abort_unless($creation->canView($userId), 403, 'CREATION_ACCESS_DENIED');
+    }
+
+    private function ensureCanEdit(Creation $creation, int $userId): void
+    {
+        abort_unless($creation->canEdit($userId), 403, 'CREATION_ACCESS_DENIED');
     }
 
     /**
@@ -240,7 +317,7 @@ class CreationApiController extends Controller
         }
     }
 
-    private function serializeCreation(Creation $creation): array
+    private function serializeCreation(Creation $creation, int $viewerId): array
     {
         $photos = $creation->photos
             ->map(fn (CreationPhoto $photo) => [
@@ -250,21 +327,31 @@ class CreationApiController extends Controller
             ])
             ->values()
             ->all();
+        $team = $this->serializeTeam($creation);
+        $viewerRole = $creation->collaboratorRoleFor($viewerId);
 
         return [
             'id' => (int) $creation->id,
             'user_id' => (int) $creation->user_id,
             'title' => (string) $creation->title,
             'description' => (string) $creation->description,
+            'content' => (string) ($creation->content ?? ''),
             'link' => (string) ($creation->link ?? ''),
             'category' => $creation->category ? (string) $creation->category : null,
+            'category_id' => $creation->category_id ? (int) $creation->category_id : null,
+            'tags' => collect($creation->tags ?? [])->map(fn ($tag) => (string) $tag)->values()->all(),
+            'featured_image' => (string) ($creation->featured_image ?? ''),
+            'publication_status' => (string) ($creation->publication_status ?? ((bool) $creation->is_public ? 'publish' : 'draft')),
             'status' => (string) $creation->status,
             'progress' => (int) ($creation->progress ?? 0),
             'is_public' => (bool) $creation->is_public,
+            'is_open_for_collaboration' => (bool) $creation->is_open_for_collaboration,
             'appreciations_count' => (int) ($creation->appreciations_count ?? 0),
             'insights_count' => (int) ($creation->insights_count ?? 0),
             'photos_count' => (int) ($creation->photos_count ?? count($photos)),
-            'thumbnail_url' => (string) ($photos[0]['url'] ?? ''),
+            'collaborators_count' => (int) ($creation->collaborators_count ?? $creation->collaborators->count()),
+            'team_size' => (int) count($team),
+            'thumbnail_url' => (string) ($photos[0]['url'] ?? ($creation->featured_image ?? '')),
             'photos' => $photos,
             'creator' => [
                 'id' => (int) ($creation->user?->id ?? 0),
@@ -272,8 +359,78 @@ class CreationApiController extends Controller
                 'username' => (string) ($creation->user?->username ?? ''),
                 'profile_photo' => (string) ($creation->user?->profile_photo ?? ''),
             ],
+            'team' => $team,
+            'viewer_role' => $viewerRole,
+            'ownership_type' => $creation->isOwnedBy($viewerId) ? 'owner' : ($creation->isCollaborator($viewerId) ? 'collaborator' : 'viewer'),
+            'can_edit' => $creation->canEdit($viewerId),
+            'can_delete' => $creation->isOwnedBy($viewerId),
+            'can_manage_collaboration' => $creation->canManageCollaboration($viewerId),
             'created_at' => $creation->created_at?->toISOString(),
             'updated_at' => $creation->updated_at?->toISOString(),
         ];
+    }
+
+    private function normalizeContent(string $content): string
+    {
+        return trim($content);
+    }
+
+    private function resolveExcerpt(string $content, string $fallbackDescription = ''): string
+    {
+        $normalizedHtml = preg_replace('/<(\/?(p|div|li|ul|ol|blockquote|pre|h[1-6]))\b[^>]*>/iu', ' ', $content);
+        $normalizedHtml = preg_replace('/<br\s*\/?>/iu', ' ', (string) $normalizedHtml);
+        $contentText = trim((string) preg_replace('/\s+/u', ' ', strip_tags((string) $normalizedHtml)));
+
+        if ($contentText !== '') {
+            return mb_strimwidth($contentText, 0, 280, '...');
+        }
+
+        return trim($fallbackDescription);
+    }
+
+    private function resolveCategoryLabel(mixed $categoryId, mixed $category): ?string
+    {
+        $resolvedCategoryId = (int) ($categoryId ?? 0);
+        if ($resolvedCategoryId > 0) {
+            return CreationCategory::query()->whereKey($resolvedCategoryId)->value('name');
+        }
+
+        $categoryName = trim((string) ($category ?? ''));
+        return $categoryName !== '' ? $categoryName : null;
+    }
+
+    private function resolvePublicFlag(mixed $isPublic, string $publicationStatus): bool
+    {
+        if (! is_null($isPublic)) {
+            return (bool) $isPublic;
+        }
+
+        return $publicationStatus === 'publish';
+    }
+
+    private function serializeTeam(Creation $creation): array
+    {
+        $owner = [
+            'id' => (int) ($creation->user?->id ?? 0),
+            'name' => (string) ($creation->user?->name ?? ''),
+            'username' => (string) ($creation->user?->username ?? ''),
+            'profile_photo' => (string) ($creation->user?->profile_photo ?? ''),
+            'role' => Creation::COLLABORATOR_ROLE_OWNER,
+            'is_owner' => true,
+        ];
+
+        $collaborators = $creation->collaborators
+            ->map(fn (CreationCollaborator $member) => [
+                'id' => (int) ($member->user?->id ?? 0),
+                'name' => (string) ($member->user?->name ?? ''),
+                'username' => (string) ($member->user?->username ?? ''),
+                'profile_photo' => (string) ($member->user?->profile_photo ?? ''),
+                'role' => (string) $member->role,
+                'is_owner' => false,
+            ])
+            ->values()
+            ->all();
+
+        return [$owner, ...$collaborators];
     }
 }

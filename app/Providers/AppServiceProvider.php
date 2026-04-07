@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Events\JoinGroupRequested;
 use App\Listeners\SendJoinGroupRequestNotification;
 use App\Models\Creation;
+use App\Models\CreationCollaborationRequest;
+use App\Models\CreationCollaborator;
 use App\Models\CreationAppreciation;
 use App\Models\CreationInsight;
 use App\Models\CreationPhoto;
@@ -48,6 +50,8 @@ class AppServiceProvider extends ServiceProvider
         CreationAppreciation::observe(HallOfCreationsCacheObserver::class);
         CreationInsight::observe(HallOfCreationsCacheObserver::class);
         CreationPhoto::observe(HallOfCreationsCacheObserver::class);
+        CreationCollaborator::observe(HallOfCreationsCacheObserver::class);
+        CreationCollaborationRequest::observe(HallOfCreationsCacheObserver::class);
         EventFacade::listen(JoinGroupRequested::class, SendJoinGroupRequestNotification::class);
 
         // Global IP throttling to reduce automated abuse on auth endpoints.
