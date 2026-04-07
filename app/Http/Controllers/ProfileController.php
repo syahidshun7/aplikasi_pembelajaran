@@ -317,7 +317,7 @@ class ProfileController extends Controller
             : [];
 
         return $creations
-            ->map(function (Creation $creation) use ($appreciatedIds) {
+            ->map(function (Creation $creation) use ($appreciatedIds, $user) {
                 return [
                     'id' => (int) $creation->id,
                     'user_id' => (int) $creation->user_id,
