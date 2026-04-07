@@ -11,6 +11,7 @@ export const resolveNotificationActionUrl = (
     const event = String(notification?.event || 'created');
     const explicitUrl = String(notification?.action_url || '').trim();
     const resource = notification?.resource || {};
+    const meta = notification?.meta || {};
     const notificationIndexUrl = routeFn('notifications.index');
 
     if (category === 'grade' && resource?.uuid) {
@@ -37,8 +38,18 @@ export const resolveNotificationActionUrl = (
             : notificationIndexUrl;
     }
 
-    if (category === 'creation' && resource?.id) {
-        return routeFn('hall.creations.show', { creation: resource.id });
+    if (category === 'creation') {
+        const resourceType = String(resource?.type || '').toLowerCase();
+        const resolvedCreationId = Number(
+            resource?.creation_id
+            || (resourceType === 'creation' ? resource?.id : 0)
+            || meta?.creation_id
+            || 0,
+        );
+
+        if (resolvedCreationId > 0) {
+            return routeFn('hall.creations.show', { creation: resolvedCreationId });
+        }
     }
 
     if (explicitUrl && explicitUrl !== notificationIndexUrl && explicitUrl !== currentUrl) {
