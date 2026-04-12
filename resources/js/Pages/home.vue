@@ -341,7 +341,7 @@ const fetchClassLeaderboard = (groupId) => {
 
     router.reload({
         only: ['leaderboards', 'leaderboardMeta'],
-        data: { leaderboard_class_group_id: targetGroupId },
+        headers: { 'X-Leaderboard-Class-Group-Id': String(targetGroupId) },
         preserveState: true,
         preserveScroll: true,
         replace: true,

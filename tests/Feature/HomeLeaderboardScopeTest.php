@@ -162,4 +162,13 @@ test('home leaderboard keeps global job scope and loads class leaderboard lazily
     expect($classLeaderboard->pluck('id')->map(fn ($id) => (int) $id)->all())->not->toContain($outsider->id);
     expect((int) ($classLeaderboard->first()['id'] ?? 0))->toBe($viewer->id);
     expect((float) data_get($classLeaderboard->first(), 'class_average_grade', 0))->toBe(90.0);
+
+    $headerClassResponse = $this
+        ->actingAs($viewer)
+        ->withHeaders(['X-Leaderboard-Class-Group-Id' => (string) $pplgClass->id])
+        ->get(route('lobby'));
+
+    $headerClassResponse->assertOk();
+    $headerClassProps = $headerClassResponse->inertiaProps();
+    expect((int) data_get($headerClassProps, 'leaderboardMeta.loaded_class_group_id', 0))->toBe($pplgClass->id);
 });

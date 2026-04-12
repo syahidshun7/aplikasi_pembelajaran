@@ -55,7 +55,10 @@ class HomeController extends Controller
     $defaultClassGroup = $userClassGroups->first();
     $defaultClassGroupId = (int) ($defaultClassGroup['id'] ?? 0);
     $defaultClassGroupName = (string) ($defaultClassGroup['name'] ?? '');
-    $requestedClassGroupId = max(0, (int) $request->integer('leaderboard_class_group_id'));
+    $requestedClassGroupIdFromHeader = max(0, (int) $request->header('X-Leaderboard-Class-Group-Id', 0));
+    $requestedClassGroupId = $requestedClassGroupIdFromHeader > 0
+        ? $requestedClassGroupIdFromHeader
+        : max(0, (int) $request->integer('leaderboard_class_group_id'));
     $activeClassGroupId = in_array($requestedClassGroupId, $userClassGroupIds, true) ? $requestedClassGroupId : 0;
     $activeClassGroup = $userClassGroups->firstWhere('id', $activeClassGroupId);
     $activeClassGroupName = (string) ($activeClassGroup['name'] ?? '');
@@ -75,6 +78,43 @@ class HomeController extends Controller
     $jobKey = is_null($userJobId) ? 'none' : (string) (int) $userJobId;
     $groupKey = sha1(json_encode(collect($userGroupIds)->map(fn ($id) => (int) $id)->unique()->sort()->values()->all()));
     $classGroupKey = $activeClassGroupId > 0 ? (string) $activeClassGroupId : 'none';
+    $leaderboardMeta = [
+        'global_scope_label' => trim((string) ($user->job?->name ?? 'Unassigned Job')),
+        'class_scope_label' => $selectedClassGroupName !== '' ? $selectedClassGroupName : 'Belum Join Kelas',
+        'class_groups' => $userClassGroups->all(),
+        'default_class_group_id' => $defaultClassGroupId > 0 ? $defaultClassGroupId : null,
+        'default_class_group_name' => $defaultClassGroupName !== '' ? $defaultClassGroupName : null,
+        'selected_class_group_id' => $selectedClassGroupId > 0 ? $selectedClassGroupId : null,
+        'selected_class_group_name' => $selectedClassGroupName !== '' ? $selectedClassGroupName : null,
+        'loaded_class_group_id' => $activeClassGroupId > 0 ? $activeClassGroupId : null,
+        'loaded_class_group_name' => $activeClassGroupName !== '' ? $activeClassGroupName : null,
+        'active_class_group_id' => $activeClassGroupId > 0 ? $activeClassGroupId : null,
+        'active_class_group_name' => $activeClassGroupName !== '' ? $activeClassGroupName : null,
+    ];
+
+    if ($this->isLeaderboardOnlyPartialRequest($request)) {
+        $leaderboardData = $this->resolveLeaderboardData(
+            $homeCacheVersion,
+            $jobKey,
+            $classGroupKey,
+            $userJobId,
+            $activeClassGroupId
+        );
+        $globalPlayers = $leaderboardData['globalPlayers'];
+        $classPlayers = $leaderboardData['classPlayers'];
+
+        return Inertia::render('home', [
+            'leaderboards' => [
+                'global' => $globalPlayers,
+                'class' => $classPlayers,
+                // Backward compatibility for older clients still reading legacy keys.
+                'job' => $globalPlayers,
+                'overall' => $globalPlayers,
+                'party' => $classPlayers,
+            ],
+            'leaderboardMeta' => $leaderboardMeta,
+        ]);
+    }
 
     $quests = Cache::remember(
         "home.quests.v{$homeCacheVersion}.job.{$jobKey}.groups.{$groupKey}",
@@ -149,6 +189,136 @@ class HomeController extends Controller
     );
 
     // 3. Ambil Data Leaderboard (Global berdasarkan job user + Kelas aktif user)
+    $leaderboardData = $this->resolveLeaderboardData(
+        $homeCacheVersion,
+        $jobKey,
+        $classGroupKey,
+        $userJobId,
+        $activeClassGroupId
+    );
+    $globalPlayers = $leaderboardData['globalPlayers'];
+    $classPlayers = $leaderboardData['classPlayers'];
+
+    // 4. Ambil Data Kelompok Belajar (Study Groups)
+    $studyGroupCacheVersion = CacheVersion::get('study_groups');
+    $studyGroups = Cache::remember(
+        "study_groups.list.v{$studyGroupCacheVersion}.job.{$jobKey}",
+        now()->addMinutes(5),
+        fn () => \App\Models\StudyGroup::query()
+            // select dulu lalu tambahkan hitungan agar kolom users_count tidak ter-overwrite
+            ->select([
+                'id',
+                'uuid',
+                'name',
+                'description',
+                'max_members',
+                'job_id',
+            ])
+            
+            ->withCount('users')
+            ->where('job_id', $userJobId)
+            ->latest()
+            ->take(10)
+            ->get()
+            ->map(fn ($group) => $group->toArray())
+    );
+
+    $groupRequestStatuses = $userId
+        ? StudyGroupJoinRequest::where('user_id', $userId)->pluck('status', 'study_group_id')->toArray()
+        : [];
+
+    $studyGroups = $studyGroups->map(function ($group) use ($userGroupIds, $groupRequestStatuses) {
+        $groupId = (int) ($group['id'] ?? 0);
+        $group['is_member'] = in_array($groupId, $userGroupIds, true);
+        $group['join_request_status'] = $groupRequestStatuses[$groupId] ?? null;
+        return $group;
+    });
+
+    $events = Cache::remember(
+        "home.events.v{$homeCacheVersion}.job.{$jobKey}.groups.{$groupKey}",
+        now()->addMinutes(5),
+        fn () => Event::query()
+            ->with(['studyGroup:id,name', 'job:id,name'])
+            ->withCount(['guides', 'quests'])
+            ->where(function ($query) use ($userGroupIds, $userJobId) {
+                $query->where(function ($publicQuery) use ($userJobId) {
+                    $publicQuery->whereNull('study_group_id')
+                        ->where(function ($audienceQuery) use ($userJobId) {
+                            $audienceQuery->whereNull('job_id');
+
+                            if (! is_null($userJobId)) {
+                                $audienceQuery->orWhere('job_id', $userJobId);
+                            }
+                        });
+                })
+                    ->orWhereIn('study_group_id', $userGroupIds);
+            })
+            ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('starts_at')
+            ->orderBy('sequence_order')
+            ->take(10)
+            ->get()
+            ->map(fn ($event) => $event->toArray())
+    );
+
+    return Inertia::render('home', [
+        'canLogin' => Route::has('login'),
+        'canRegister' => Route::has('register'),
+        'quests' => $quests,
+        'materi' => $materi,
+        'players' => $globalPlayers,
+        'leaderboards' => [
+            'global' => $globalPlayers,
+            'class' => $classPlayers,
+            // Backward compatibility for older clients still reading legacy keys.
+            'job' => $globalPlayers,
+            'overall' => $globalPlayers,
+            'party' => $classPlayers,
+        ],
+        'leaderboardMeta' => $leaderboardMeta,
+        'studyGroups' => $studyGroups,
+        'events' => $events,
+        'laravelVersion' => \Illuminate\Foundation\Application::VERSION,
+        'phpVersion' => PHP_VERSION,
+    ]);
+}
+
+private function isLeaderboardOnlyPartialRequest(Request $request): bool
+{
+    $isInertiaRequest = (string) $request->header('X-Inertia', '') !== '';
+    if (! $isInertiaRequest) {
+        return false;
+    }
+
+    $partialComponent = strtolower(trim((string) $request->header('X-Inertia-Partial-Component', '')));
+    if ($partialComponent !== 'home') {
+        return false;
+    }
+
+    $partialDataRaw = trim((string) $request->header('X-Inertia-Partial-Data', ''));
+    if ($partialDataRaw === '') {
+        return false;
+    }
+
+    $partialKeys = collect(explode(',', $partialDataRaw))
+        ->map(fn ($key) => trim((string) $key))
+        ->filter()
+        ->values();
+
+    if ($partialKeys->isEmpty()) {
+        return false;
+    }
+
+    return $partialKeys->every(fn ($key) => in_array($key, ['leaderboards', 'leaderboardMeta'], true));
+}
+
+private function resolveLeaderboardData(
+    string $homeCacheVersion,
+    string $jobKey,
+    string $classGroupKey,
+    ?int $userJobId,
+    int $activeClassGroupId
+): array {
     $formatLeaderboardPlayers = static function ($players) {
         return $players
             ->map(function ($player) {
@@ -295,100 +465,10 @@ class HomeController extends Controller
         }
     );
 
-    // 4. Ambil Data Kelompok Belajar (Study Groups)
-    $studyGroupCacheVersion = CacheVersion::get('study_groups');
-    $studyGroups = Cache::remember(
-        "study_groups.list.v{$studyGroupCacheVersion}.job.{$jobKey}",
-        now()->addMinutes(5),
-        fn () => \App\Models\StudyGroup::query()
-            // select dulu lalu tambahkan hitungan agar kolom users_count tidak ter-overwrite
-            ->select([
-                'id',
-                'uuid',
-                'name',
-                'description',
-                'max_members',
-                'job_id',
-            ])
-            
-            ->withCount('users')
-            ->where('job_id', $userJobId)
-            ->latest()
-            ->take(10)
-            ->get()
-            ->map(fn ($group) => $group->toArray())
-    );
-
-    $groupRequestStatuses = $userId
-        ? StudyGroupJoinRequest::where('user_id', $userId)->pluck('status', 'study_group_id')->toArray()
-        : [];
-
-    $studyGroups = $studyGroups->map(function ($group) use ($userGroupIds, $groupRequestStatuses) {
-        $groupId = (int) ($group['id'] ?? 0);
-        $group['is_member'] = in_array($groupId, $userGroupIds, true);
-        $group['join_request_status'] = $groupRequestStatuses[$groupId] ?? null;
-        return $group;
-    });
-
-    $events = Cache::remember(
-        "home.events.v{$homeCacheVersion}.job.{$jobKey}.groups.{$groupKey}",
-        now()->addMinutes(5),
-        fn () => Event::query()
-            ->with(['studyGroup:id,name', 'job:id,name'])
-            ->withCount(['guides', 'quests'])
-            ->where(function ($query) use ($userGroupIds, $userJobId) {
-                $query->where(function ($publicQuery) use ($userJobId) {
-                    $publicQuery->whereNull('study_group_id')
-                        ->where(function ($audienceQuery) use ($userJobId) {
-                            $audienceQuery->whereNull('job_id');
-
-                            if (! is_null($userJobId)) {
-                                $audienceQuery->orWhere('job_id', $userJobId);
-                            }
-                        });
-                })
-                    ->orWhereIn('study_group_id', $userGroupIds);
-            })
-            ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
-            ->orderBy('starts_at')
-            ->orderBy('sequence_order')
-            ->take(10)
-            ->get()
-            ->map(fn ($event) => $event->toArray())
-    );
-
-    return Inertia::render('home', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'quests' => $quests,
-        'materi' => $materi,
-        'players' => $globalPlayers,
-        'leaderboards' => [
-            'global' => $globalPlayers,
-            'class' => $classPlayers,
-            // Backward compatibility for older clients still reading legacy keys.
-            'job' => $globalPlayers,
-            'overall' => $globalPlayers,
-            'party' => $classPlayers,
-        ],
-        'leaderboardMeta' => [
-            'global_scope_label' => trim((string) ($user->job?->name ?? 'Unassigned Job')),
-            'class_scope_label' => $selectedClassGroupName !== '' ? $selectedClassGroupName : 'Belum Join Kelas',
-            'class_groups' => $userClassGroups->all(),
-            'default_class_group_id' => $defaultClassGroupId > 0 ? $defaultClassGroupId : null,
-            'default_class_group_name' => $defaultClassGroupName !== '' ? $defaultClassGroupName : null,
-            'selected_class_group_id' => $selectedClassGroupId > 0 ? $selectedClassGroupId : null,
-            'selected_class_group_name' => $selectedClassGroupName !== '' ? $selectedClassGroupName : null,
-            'loaded_class_group_id' => $activeClassGroupId > 0 ? $activeClassGroupId : null,
-            'loaded_class_group_name' => $activeClassGroupName !== '' ? $activeClassGroupName : null,
-            'active_class_group_id' => $activeClassGroupId > 0 ? $activeClassGroupId : null,
-            'active_class_group_name' => $activeClassGroupName !== '' ? $activeClassGroupName : null,
-        ],
-        'studyGroups' => $studyGroups,
-        'events' => $events,
-        'laravelVersion' => \Illuminate\Foundation\Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
+    return [
+        'globalPlayers' => $globalPlayers,
+        'classPlayers' => $classPlayers,
+    ];
 }
 
 public function landing()
