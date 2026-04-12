@@ -44,6 +44,31 @@ const userSkills = computed(() => {
 const questItems = computed(() => Array.isArray(props.userQuests) ? props.userQuests : (props.userQuests?.data || []));
 const questPaginationLinks = computed(() => Array.isArray(props.userQuests) ? [] : (props.userQuests?.links || []));
 const classAverageItems = computed(() => Array.isArray(props.classAverages) ? props.classAverages : []);
+const isAverageGradeOpen = ref(false);
+const averageGradePercent = computed(() => {
+    const rawValue = Number(props.averageGrade ?? 0);
+    if (!Number.isFinite(rawValue)) {
+        return 0;
+    }
+
+    return Math.max(0, Math.min(100, rawValue));
+});
+const classAverageRows = computed(() => {
+    return classAverageItems.value.map((classItem, index) => {
+        const className = String(classItem?.class_name || `CLASS_${index + 1}`);
+        const average = Number(classItem?.average_grade ?? 0);
+        const totalQuests = Number(classItem?.total_quests ?? 0);
+        const completedQuests = Number(classItem?.completed_quests ?? 0);
+
+        return {
+            key: `${classItem?.study_group_id ?? 'general'}-${className}-${index}`,
+            class_name: className,
+            average_grade: Number.isFinite(average) ? average : 0,
+            total_quests: Number.isFinite(totalQuests) ? totalQuests : 0,
+            completed_quests: Number.isFinite(completedQuests) ? completedQuests : 0,
+        };
+    });
+});
 
 const allowedTabs = ['profile', 'password', 'danger'];
 
@@ -86,6 +111,16 @@ watch(
         activeTab.value = resolveActiveTabFromLocation();
     },
 );
+
+watch(classAverageRows, (rows) => {
+    if (rows.length === 0) {
+        isAverageGradeOpen.value = false;
+    }
+}, { immediate: true });
+
+const toggleAverageGradeDropdown = () => {
+    isAverageGradeOpen.value = !isAverageGradeOpen.value;
+};
 </script>
 
 <template>
@@ -147,17 +182,58 @@ watch(
 
             <template v-if="isDashboardView">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
-                        <p class="text-[7px] text-slate-500 uppercase italic mb-2">Overall_Grade_AVG</p>
+                    <button
+                        type="button"
+                        class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none w-full text-left transition-colors hover:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                        @click="toggleAverageGradeDropdown"
+                    >
+                        <div class="mb-2 flex items-center justify-between gap-3">
+                            <p class="text-[7px] text-slate-500 uppercase italic">Overall_Grade_AVG</p>
+                            <svg
+                                class="h-4 w-4 text-cyan-300 transition-transform duration-300"
+                                :class="isAverageGradeOpen ? 'rotate-180' : 'rotate-0'"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                                aria-hidden="true"
+                            >
+                                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.94a.75.75 0 011.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+
                         <div class="flex items-baseline gap-2">
-                            <span class="text-xl font-bold font-mono" :class="getGradeColor(averageGrade)">
+                            <span class="text-xl font-bold font-mono" :class="getGradeColor(averageGradePercent)">
                                 {{ averageGrade || 0 }}%
                             </span>
                             <div class="flex-1 h-1 bg-slate-800 ml-2 relative overflow-hidden">
-                                <div class="h-full bg-current transition-all duration-1000" :class="getGradeColor(averageGrade)" :style="{ width: (averageGrade || 0) + '%' }" />
+                                <div
+                                    class="h-full bg-current transition-all duration-1000"
+                                    :class="getGradeColor(averageGradePercent)"
+                                    :style="{ width: averageGradePercent + '%' }"
+                                />
                             </div>
                         </div>
-                    </div>
+
+                        <Transition name="avg-dropdown">
+                            <div
+                                v-if="isAverageGradeOpen"
+                                class="mt-3 border border-slate-700 bg-black/35 max-h-52 overflow-y-auto"
+                            >
+                                <div v-if="classAverageRows.length > 0">
+                                    <div
+                                        v-for="classItem in classAverageRows"
+                                        :key="classItem.key"
+                                        class="flex items-center justify-between gap-3 border-b border-slate-800 px-3 py-2 text-[7px] uppercase last:border-b-0"
+                                    >
+                                        <span class="truncate text-slate-200">{{ classItem.class_name }}</span>
+                                        <span class="shrink-0 text-emerald-300">{{ classItem.average_grade }}%</span>
+                                    </div>
+                                </div>
+                                <p v-else class="px-3 py-2 text-[7px] uppercase text-slate-500">
+                                    Belum ada data quest per kelas untuk user ini.
+                                </p>
+                            </div>
+                        </Transition>
+                    </button>
 
                     <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
                         <p class="text-[7px] text-slate-500 uppercase italic mb-2">Quests_Completed</p>
@@ -179,37 +255,6 @@ watch(
                         </div>
                     </div>
                 </div>
-
-                <div class="rpg-panel border-cyan-500/40 bg-[#0f172a]/70">
-                    <div class="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-cyan-500/30 pb-3">
-                        <p class="text-[7px] uppercase tracking-[0.24em] text-cyan-300">Average_Grade_Per_Class</p>
-                        <span class="text-[6px] uppercase text-slate-500">Fair view for multi-class members</span>
-                    </div>
-
-                    <div v-if="classAverageItems.length > 0" class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <article
-                            v-for="classItem in classAverageItems"
-                            :key="`${classItem.study_group_id ?? 'general'}-${classItem.class_name}`"
-                            class="border border-slate-700 bg-black/35 p-3"
-                        >
-                            <p class="text-[7px] uppercase text-white">{{ classItem.class_name }}</p>
-                            <div class="mt-2 flex items-end justify-between gap-2">
-                                <span class="text-[12px] font-bold text-emerald-300">{{ classItem.average_grade ?? 0 }}%</span>
-                                <span class="text-[6px] uppercase text-slate-500">
-                                    {{ classItem.total_quests ?? 0 }} Quest
-                                </span>
-                            </div>
-                            <p class="mt-2 text-[6px] uppercase text-slate-500">
-                                Completed {{ classItem.completed_quests ?? 0 }} / {{ classItem.total_quests ?? 0 }}
-                            </p>
-                        </article>
-                    </div>
-
-                    <p v-else class="text-[7px] uppercase text-slate-500">
-                        Belum ada data quest per kelas untuk user ini.
-                    </p>
-                </div>
-
                 <div class="grid grid-cols-12 gap-6">
                     <div class="col-span-12 lg:col-span-9 min-h-[400px]">
                         <div class="rpg-panel h-full animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -533,4 +578,25 @@ button {
 .form-container :deep(label) {
     @apply text-slate-400 text-[8px] uppercase;
 }
+
+.avg-dropdown-enter-active,
+.avg-dropdown-leave-active {
+    transition: opacity 0.25s ease, max-height 0.25s ease, transform 0.25s ease;
+    overflow: hidden;
+}
+
+.avg-dropdown-enter-from,
+.avg-dropdown-leave-to {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-4px);
+}
+
+.avg-dropdown-enter-to,
+.avg-dropdown-leave-from {
+    opacity: 1;
+    max-height: 220px;
+    transform: translateY(0);
+}
 </style>
+

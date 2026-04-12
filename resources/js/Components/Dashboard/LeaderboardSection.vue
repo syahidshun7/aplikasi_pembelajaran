@@ -11,48 +11,74 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    metadata: {
+        type: Object,
+        default: () => ({}),
+    },
+    classOptions: {
+        type: Array,
+        default: () => [],
+    },
+    selectedClassGroupId: {
+        type: [Number, String],
+        default: null,
+    },
+    classLoading: {
+        type: Boolean,
+        default: false,
+    },
     mode: {
         type: String,
-        default: 'job',
+        default: 'global',
     },
 });
 
-const emit = defineEmits(['update:mode']);
+const emit = defineEmits(['update:mode', 'update:selectedClassGroupId']);
 
-const validModes = ['job', 'overall', 'party'];
+const validModes = ['global', 'class'];
+const modeAliases = {
+    job: 'global',
+    overall: 'global',
+    party: 'class',
+};
 const modeMetaMap = {
-    job: {
-        label: 'Job',
-        title: 'Top Adventurers - Job',
-        rankTitle: 'Rank #1 Job',
-        emptyCopy: 'Belum ada data rank berdasarkan job saat ini.',
+    global: {
+        label: 'Global',
+        title: 'Top Adventurers - Global',
+        rankTitle: 'Rank #1 Global',
+        emptyCopy: 'Belum ada data rank global pada jurusan kamu.',
     },
-    overall: {
-        label: 'Overall EXP',
-        title: 'Top Adventurers - Overall EXP',
-        rankTitle: 'Rank #1 Overall',
-        emptyCopy: 'Belum ada data rank overall berdasarkan EXP.',
-    },
-    party: {
-        label: 'Party',
-        title: 'Top Adventurers - Party',
-        rankTitle: 'Rank #1 Party',
-        emptyCopy: 'Belum ada rank party. Join study group terlebih dahulu agar rank party muncul.',
+    class: {
+        label: 'Kelas Saya',
+        title: 'Top Adventurers - Kelas Saya',
+        rankTitle: 'Rank #1 Kelas',
+        emptyCopy: 'Pilih kelas untuk melihat rank, atau join study group jika belum punya kelas.',
     },
 };
 
 const normalizeMode = (value) => {
     if (typeof value !== 'string') {
-        return 'job';
+        return 'global';
     }
 
     const normalized = value.trim().toLowerCase();
-    return validModes.includes(normalized) ? normalized : 'job';
+    const resolved = modeAliases[normalized] ?? normalized;
+    return validModes.includes(resolved) ? resolved : 'global';
 };
 
 const selectedMode = computed({
     get: () => normalizeMode(props.mode),
     set: (nextMode) => emit('update:mode', normalizeMode(nextMode)),
+});
+const normalizedSelectedClassGroupId = computed({
+    get: () => {
+        const parsed = Number.parseInt(props.selectedClassGroupId, 10);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    },
+    set: (nextValue) => {
+        const parsed = Number.parseInt(nextValue, 10);
+        emit('update:selectedClassGroupId', Number.isFinite(parsed) && parsed > 0 ? parsed : null);
+    },
 });
 
 const modeOptions = computed(() => validModes.map((key) => ({
@@ -60,7 +86,14 @@ const modeOptions = computed(() => validModes.map((key) => ({
     label: modeMetaMap[key].label,
 })));
 
-const activeModeMeta = computed(() => modeMetaMap[selectedMode.value] ?? modeMetaMap.job);
+const activeModeMeta = computed(() => modeMetaMap[selectedMode.value] ?? modeMetaMap.global);
+const activeScopeLabel = computed(() => {
+    if (selectedMode.value === 'class') {
+        return String(props.metadata?.class_scope_label || 'Belum Join Kelas');
+    }
+
+    return String(props.metadata?.global_scope_label || 'Unassigned Job');
+});
 
 const activeItems = computed(() => {
     const source = props.leaderboards && typeof props.leaderboards === 'object'
@@ -83,6 +116,7 @@ const hasProfileRoute = (player) => Boolean(player?.username);
             <div>
                 <p class="dashboard-section-header__eyebrow text-cyan-300/80">Leaderboard</p>
                 <h2 class="dashboard-section-header__title text-cyan-300">{{ activeModeMeta.title }}</h2>
+                <p class="mt-2 text-[7px] uppercase tracking-[0.18em] text-slate-400">{{ activeScopeLabel }}</p>
             </div>
             <span class="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-[8px] uppercase text-cyan-100">
                 Ranking Live
@@ -104,9 +138,39 @@ const hasProfileRoute = (player) => Boolean(player?.username);
             </button>
         </div>
 
+        <div v-if="selectedMode === 'class'" class="mb-4 flex flex-wrap items-center gap-2 border border-slate-800 bg-[#0d1117] p-2">
+            <label class="text-[8px] uppercase tracking-[0.16em] text-slate-400">
+                Pilih Kelas
+            </label>
+
+            <select
+                v-model.number="normalizedSelectedClassGroupId"
+                class="min-w-[180px] border border-slate-700 bg-slate-900 px-3 py-2 text-[8px] uppercase text-cyan-100 outline-none transition-all focus:border-cyan-400"
+                :disabled="props.classOptions.length === 0 || classLoading"
+            >
+                <option
+                    v-if="props.classOptions.length === 0"
+                    :value="null"
+                >
+                    Belum Join Kelas
+                </option>
+                <option
+                    v-for="group in props.classOptions"
+                    :key="group.id"
+                    :value="group.id"
+                >
+                    {{ group.name }}
+                </option>
+            </select>
+
+            <span v-if="classLoading" class="text-[7px] uppercase tracking-[0.14em] text-cyan-300/80">
+                Memuat leaderboard...
+            </span>
+        </div>
+
         <div v-if="activeItems.length > 0" class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
             <article class="border border-cyan-400/20 bg-[#0d1117] p-5 shadow-[0_0_30px_rgba(34,211,238,0.1)]">
-                <p class="text-[7px] uppercase tracking-[0.24em] text-cyan-300/70">{{ activeModeMeta.rankTitle }}</p>
+                <p class="text-[7px] uppercase tracking-[0.24em] text-cyan-300/70">{{ activeModeMeta.rankTitle }} {{ selectedMode === 'class' ? activeScopeLabel : '' }}</p>
                 <div class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
                     <div class="relative">
                         <div class="absolute -left-2 -top-2 rounded-full border border-yellow-500/40 bg-yellow-500/10 px-2 py-1 text-[7px] uppercase text-yellow-300">

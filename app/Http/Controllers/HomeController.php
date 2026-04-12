@@ -12,6 +12,7 @@ use App\Models\JobRole;
 use App\Models\Event;
 use App\Models\UserQuestUnlock;
 use App\Support\Cache\CacheVersion;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
@@ -20,7 +21,7 @@ use Illuminate\Foundation\Application;
 
 class HomeController extends Controller
 {
-   public function index()
+   public function index(Request $request)
 {
     if (!Auth::check()) {
         return $this->renderLanding();
@@ -29,6 +30,37 @@ class HomeController extends Controller
     $userId = Auth::id();
     $user = Auth::user();
     $userJobId = $user?->job_id;
+    if ($user) {
+        $user->loadMissing('job:id,name');
+    }
+
+    $userClassGroups = $userId
+        ? $user->studyGroups()
+            ->select('study_groups.id', 'study_groups.name')
+            ->orderBy('study_groups.name')
+            ->get()
+            ->map(fn ($group) => [
+                'id' => (int) $group->id,
+                'name' => (string) $group->name,
+            ])
+            ->values()
+        : collect();
+
+    $userClassGroupIds = $userClassGroups
+        ->pluck('id')
+        ->map(fn ($id) => (int) $id)
+        ->all();
+
+    $defaultClassGroup = $userClassGroups->first();
+    $defaultClassGroupId = (int) ($defaultClassGroup['id'] ?? 0);
+    $defaultClassGroupName = (string) ($defaultClassGroup['name'] ?? '');
+    $requestedClassGroupId = max(0, (int) $request->integer('leaderboard_class_group_id'));
+    $activeClassGroupId = in_array($requestedClassGroupId, $userClassGroupIds, true) ? $requestedClassGroupId : 0;
+    $activeClassGroup = $userClassGroups->firstWhere('id', $activeClassGroupId);
+    $activeClassGroupName = (string) ($activeClassGroup['name'] ?? '');
+    $selectedClassGroupId = $activeClassGroupId > 0 ? $activeClassGroupId : $defaultClassGroupId;
+    $selectedClassGroup = $userClassGroups->firstWhere('id', $selectedClassGroupId);
+    $selectedClassGroupName = (string) ($selectedClassGroup['name'] ?? '');
 
     // 1. Ambil Quest dengan status submission (Logika Kelompok Party)
     $userGroupIds = $userId
@@ -41,6 +73,7 @@ class HomeController extends Controller
     $homeCacheVersion = CacheVersion::get('home');
     $jobKey = is_null($userJobId) ? 'none' : (string) (int) $userJobId;
     $groupKey = sha1(json_encode(collect($userGroupIds)->map(fn ($id) => (int) $id)->unique()->sort()->values()->all()));
+    $classGroupKey = $activeClassGroupId > 0 ? (string) $activeClassGroupId : 'none';
 
     $quests = Cache::remember(
         "home.quests.v{$homeCacheVersion}.job.{$jobKey}.groups.{$groupKey}",
@@ -114,7 +147,7 @@ class HomeController extends Controller
             ->map(fn ($guide) => $guide->toArray())
     );
 
-    // 3. Ambil Data Leaderboard (Job, Overall, dan Party/Study Group)
+    // 3. Ambil Data Leaderboard (Global berdasarkan job user + Kelas aktif user)
     $formatLeaderboardPlayers = static function ($players) {
         return $players
             ->map(function ($player) {
@@ -135,8 +168,8 @@ class HomeController extends Controller
             ->orderBy('name');
     };
 
-    $players = Cache::remember(
-        "home.players.v{$homeCacheVersion}.job.{$jobKey}",
+    $globalPlayers = Cache::remember(
+        "home.players.v{$homeCacheVersion}.global.job.{$jobKey}",
         now()->addMinutes(5),
         function () use ($leaderboardBaseQuery, $formatLeaderboardPlayers, $userJobId) {
             $query = $leaderboardBaseQuery();
@@ -153,25 +186,17 @@ class HomeController extends Controller
         }
     );
 
-    $overallPlayers = Cache::remember(
-        "home.players.v{$homeCacheVersion}.overall",
+    $classPlayers = Cache::remember(
+        "home.players.v{$homeCacheVersion}.class.group.{$classGroupKey}",
         now()->addMinutes(5),
-        fn () => $formatLeaderboardPlayers(
-            $leaderboardBaseQuery()->take(10)->get()
-        )
-    );
-
-    $partyPlayers = Cache::remember(
-        "home.players.v{$homeCacheVersion}.party.groups.{$groupKey}",
-        now()->addMinutes(5),
-        function () use ($leaderboardBaseQuery, $formatLeaderboardPlayers, $userGroupIds) {
-            if (empty($userGroupIds)) {
+        function () use ($leaderboardBaseQuery, $formatLeaderboardPlayers, $activeClassGroupId) {
+            if ($activeClassGroupId <= 0) {
                 return collect();
             }
 
             return $formatLeaderboardPlayers(
                 $leaderboardBaseQuery()
-                    ->whereHas('studyGroups', fn ($groups) => $groups->whereIn('study_groups.id', $userGroupIds))
+                    ->whereHas('studyGroups', fn ($groups) => $groups->where('study_groups.id', $activeClassGroupId))
                     ->take(10)
                     ->get()
             );
@@ -245,11 +270,27 @@ class HomeController extends Controller
         'canRegister' => Route::has('register'),
         'quests' => $quests,
         'materi' => $materi,
-        'players' => $players,
+        'players' => $globalPlayers,
         'leaderboards' => [
-            'job' => $players,
-            'overall' => $overallPlayers,
-            'party' => $partyPlayers,
+            'global' => $globalPlayers,
+            'class' => $classPlayers,
+            // Backward compatibility for older clients still reading legacy keys.
+            'job' => $globalPlayers,
+            'overall' => $globalPlayers,
+            'party' => $classPlayers,
+        ],
+        'leaderboardMeta' => [
+            'global_scope_label' => trim((string) ($user->job?->name ?? 'Unassigned Job')),
+            'class_scope_label' => $selectedClassGroupName !== '' ? $selectedClassGroupName : 'Belum Join Kelas',
+            'class_groups' => $userClassGroups->all(),
+            'default_class_group_id' => $defaultClassGroupId > 0 ? $defaultClassGroupId : null,
+            'default_class_group_name' => $defaultClassGroupName !== '' ? $defaultClassGroupName : null,
+            'selected_class_group_id' => $selectedClassGroupId > 0 ? $selectedClassGroupId : null,
+            'selected_class_group_name' => $selectedClassGroupName !== '' ? $selectedClassGroupName : null,
+            'loaded_class_group_id' => $activeClassGroupId > 0 ? $activeClassGroupId : null,
+            'loaded_class_group_name' => $activeClassGroupName !== '' ? $activeClassGroupName : null,
+            'active_class_group_id' => $activeClassGroupId > 0 ? $activeClassGroupId : null,
+            'active_class_group_name' => $activeClassGroupName !== '' ? $activeClassGroupName : null,
         ],
         'studyGroups' => $studyGroups,
         'events' => $events,

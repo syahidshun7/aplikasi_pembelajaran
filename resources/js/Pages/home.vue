@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, defineAsyncComponent, ref, watch } from 'vue';
 import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
 import { useLobby } from '@/Composables/useLobby';
@@ -17,16 +17,25 @@ const ACTIVE_MENU_DEFAULT_KEY = 'townhall';
 const ACTIVE_MENU_INVALID_FALLBACK = 'quest';
 const validActiveMenuKeys = ['quest', 'library', 'townhall', 'party', 'leaderboard'];
 const LEADERBOARD_MODE_STORAGE_KEY = 'home-leaderboard-mode';
-const LEADERBOARD_MODE_DEFAULT = 'job';
-const LEADERBOARD_MODE_FALLBACK = 'job';
-const validLeaderboardModes = ['job', 'overall', 'party'];
+const LEADERBOARD_MODE_DEFAULT = 'global';
+const LEADERBOARD_MODE_FALLBACK = 'global';
+const validLeaderboardModes = ['global', 'class'];
+const leaderboardModeAliases = {
+    job: 'global',
+    overall: 'global',
+    party: 'class',
+};
 const leaderboardModeLabelMap = {
-    job: 'Job',
-    overall: 'Overall EXP',
-    party: 'Party',
+    global: 'Global',
+    class: 'Kelas Saya',
 };
 const activeMenuAliases = {
     event: 'townhall',
+};
+
+const toPositiveInteger = (value) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 };
 
 const normalizeActiveMenu = (value, fallback = ACTIVE_MENU_INVALID_FALLBACK) => {
@@ -64,7 +73,8 @@ const normalizeLeaderboardMode = (value, fallback = LEADERBOARD_MODE_FALLBACK) =
     }
 
     const normalizedValue = value.trim().toLowerCase();
-    return validLeaderboardModes.includes(normalizedValue) ? normalizedValue : fallback;
+    const resolvedValue = leaderboardModeAliases[normalizedValue] ?? normalizedValue;
+    return validLeaderboardModes.includes(resolvedValue) ? resolvedValue : fallback;
 };
 
 const resolveInitialLeaderboardMode = () => {
@@ -88,12 +98,24 @@ const resolveInitialLeaderboardMode = () => {
 const props = defineProps({
     players: Array,
     leaderboards: Object,
+    leaderboardMeta: Object,
     quests: Array,
     studyGroups: Array,
     materi: Array,
     events: Array,
     auth: Object,
 });
+
+const resolveClassGroupIdFromMeta = (meta) => {
+    const safeMeta = meta && typeof meta === 'object' ? meta : {};
+    const selectedId = toPositiveInteger(safeMeta.selected_class_group_id);
+    if (selectedId > 0) {
+        return selectedId;
+    }
+
+    const defaultId = toPositiveInteger(safeMeta.default_class_group_id);
+    return defaultId > 0 ? defaultId : null;
+};
 
 const {
     joinForm,
@@ -109,6 +131,8 @@ const {
 
 const activeMenu = ref(resolveInitialActiveMenu());
 const leaderboardMode = ref(resolveInitialLeaderboardMode());
+const selectedClassGroupId = ref(resolveClassGroupIdFromMeta(props.leaderboardMeta));
+const isClassLeaderboardLoading = ref(false);
 const page = usePage();
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
@@ -143,10 +167,26 @@ const leaderboardCollections = computed(() => {
     const payload = leaderboardSourcePayload.value;
 
     return {
-        job: decorateLeaderboardPlayers(payload.job ?? players.value ?? []),
-        overall: decorateLeaderboardPlayers(payload.overall ?? []),
-        party: decorateLeaderboardPlayers(payload.party ?? []),
+        global: decorateLeaderboardPlayers(payload.global ?? payload.overall ?? []),
+        class: decorateLeaderboardPlayers(payload.class ?? payload.party ?? []),
     };
+});
+const classLeaderboardOptions = computed(() => {
+    const groups = props.leaderboardMeta?.class_groups;
+
+    if (!Array.isArray(groups)) {
+        return [];
+    }
+
+    return groups
+        .map((group) => ({
+            id: toPositiveInteger(group?.id),
+            name: String(group?.name ?? '').trim(),
+        }))
+        .filter((group) => group.id > 0 && group.name !== '');
+});
+const loadedClassLeaderboardGroupId = computed(() => {
+    return toPositiveInteger(props.leaderboardMeta?.loaded_class_group_id);
 });
 
 const leaderboardModeLabel = computed(() => {
@@ -266,6 +306,58 @@ const latestModuleMeta = computed(() => {
     return moduleMap[activeMenu.value] ?? { helper: 'Showing preview data only.' };
 });
 
+const syncSelectedClassGroupId = () => {
+    const optionIds = classLeaderboardOptions.value.map((group) => group.id);
+
+    if (optionIds.length === 0) {
+        selectedClassGroupId.value = null;
+        return;
+    }
+
+    const currentId = toPositiveInteger(selectedClassGroupId.value);
+    if (currentId > 0 && optionIds.includes(currentId)) {
+        return;
+    }
+
+    const metaGroupId = resolveClassGroupIdFromMeta(props.leaderboardMeta);
+    if (metaGroupId && optionIds.includes(metaGroupId)) {
+        selectedClassGroupId.value = metaGroupId;
+        return;
+    }
+
+    selectedClassGroupId.value = optionIds[0];
+};
+
+const fetchClassLeaderboard = (groupId) => {
+    const targetGroupId = toPositiveInteger(groupId);
+
+    if (targetGroupId <= 0) {
+        return;
+    }
+
+    if (loadedClassLeaderboardGroupId.value === targetGroupId || isClassLeaderboardLoading.value) {
+        return;
+    }
+
+    router.reload({
+        only: ['leaderboards', 'leaderboardMeta'],
+        data: { leaderboard_class_group_id: targetGroupId },
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        onStart: () => {
+            isClassLeaderboardLoading.value = true;
+        },
+        onFinish: () => {
+            isClassLeaderboardLoading.value = false;
+        },
+    });
+};
+
+watch(() => props.leaderboardMeta, () => {
+    syncSelectedClassGroupId();
+}, { immediate: true, deep: true });
+
 watch(activeMenu, (nextValue) => {
     const normalizedValue = normalizeActiveMenu(nextValue);
 
@@ -302,7 +394,26 @@ watch(leaderboardMode, (nextValue) => {
     } catch {
         // Ignore storage write failures so the page stays interactive.
     }
+
+    if (normalizedValue === 'class') {
+        fetchClassLeaderboard(selectedClassGroupId.value);
+    }
 }, { immediate: true });
+
+watch(selectedClassGroupId, (nextValue, previousValue) => {
+    const nextGroupId = toPositiveInteger(nextValue);
+    const previousGroupId = toPositiveInteger(previousValue);
+
+    if (nextGroupId <= 0 || nextGroupId === previousGroupId) {
+        return;
+    }
+
+    if (leaderboardMode.value !== 'class') {
+        return;
+    }
+
+    fetchClassLeaderboard(nextGroupId);
+});
 </script>
 
 <template>
@@ -398,7 +509,12 @@ watch(leaderboardMode, (nextValue) => {
                                     v-else
                                     :items="leaderboardPreview"
                                     :leaderboards="leaderboardCollections"
+                                    :metadata="props.leaderboardMeta"
+                                    :class-options="classLeaderboardOptions"
+                                    :selected-class-group-id="selectedClassGroupId"
+                                    :class-loading="isClassLeaderboardLoading"
                                     :mode="leaderboardMode"
+                                    @update:selected-class-group-id="selectedClassGroupId = $event"
                                     @update:mode="leaderboardMode = $event"
                                 />
                             </Transition>
