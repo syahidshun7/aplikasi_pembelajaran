@@ -10,7 +10,7 @@ const HALL_CACHE_STORAGE_KEY = 'hall.creations.cache';
 const HALL_DEFAULT_SORT = 'popular';
 const HALL_CACHE_TTL = 5 * 60 * 1000;
 const allowedHallSorts = ['popular', 'latest'];
-const allowedHallStatuses = ['crafting', 'refining', 'finished'];
+const allowedHallStatuses = ['crafting', 'refining', 'finished', 'collaboration'];
 const readHallStateFromUrl = () => {
     if (typeof window === 'undefined') {
         return {
@@ -414,6 +414,7 @@ onMounted(() => {
                                     <option value="crafting">Crafting</option>
                                     <option value="refining">Refining</option>
                                     <option value="finished">Finished</option>
+                                    <option value="collaboration">Collaboration</option>
                                 </select>
                             </label>
 

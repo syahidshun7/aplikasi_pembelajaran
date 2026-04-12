@@ -16,6 +16,15 @@ const ACTIVE_MENU_STORAGE_KEY = 'home-active-menu';
 const ACTIVE_MENU_DEFAULT_KEY = 'townhall';
 const ACTIVE_MENU_INVALID_FALLBACK = 'quest';
 const validActiveMenuKeys = ['quest', 'library', 'townhall', 'party', 'leaderboard'];
+const LEADERBOARD_MODE_STORAGE_KEY = 'home-leaderboard-mode';
+const LEADERBOARD_MODE_DEFAULT = 'job';
+const LEADERBOARD_MODE_FALLBACK = 'job';
+const validLeaderboardModes = ['job', 'overall', 'party'];
+const leaderboardModeLabelMap = {
+    job: 'Job',
+    overall: 'Overall EXP',
+    party: 'Party',
+};
 const activeMenuAliases = {
     event: 'townhall',
 };
@@ -49,8 +58,36 @@ const resolveInitialActiveMenu = () => {
     }
 };
 
+const normalizeLeaderboardMode = (value, fallback = LEADERBOARD_MODE_FALLBACK) => {
+    if (typeof value !== 'string') {
+        return fallback;
+    }
+
+    const normalizedValue = value.trim().toLowerCase();
+    return validLeaderboardModes.includes(normalizedValue) ? normalizedValue : fallback;
+};
+
+const resolveInitialLeaderboardMode = () => {
+    if (typeof window === 'undefined') {
+        return LEADERBOARD_MODE_DEFAULT;
+    }
+
+    try {
+        const storedValue = window.localStorage.getItem(LEADERBOARD_MODE_STORAGE_KEY);
+
+        if (!storedValue) {
+            return LEADERBOARD_MODE_DEFAULT;
+        }
+
+        return normalizeLeaderboardMode(storedValue, LEADERBOARD_MODE_FALLBACK);
+    } catch {
+        return LEADERBOARD_MODE_DEFAULT;
+    }
+};
+
 const props = defineProps({
     players: Array,
+    leaderboards: Object,
     quests: Array,
     studyGroups: Array,
     materi: Array,
@@ -71,6 +108,7 @@ const {
 } = useLobby(props);
 
 const activeMenu = ref(resolveInitialActiveMenu());
+const leaderboardMode = ref(resolveInitialLeaderboardMode());
 const page = usePage();
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
@@ -84,8 +122,8 @@ const toSafeDate = (dateLike) => {
     return date;
 };
 
-const playerItems = computed(() => {
-    return (players.value || []).map((player) => {
+const decorateLeaderboardPlayers = (rawItems) => {
+    return (rawItems || []).map((player) => {
         const seed = player?.username || player?.name || 'guild-member';
 
         return {
@@ -94,9 +132,31 @@ const playerItems = computed(() => {
             __score: Number(player?.exp ?? player?.points ?? ((player?.level || 1) * 100)),
         };
     });
+};
+
+const leaderboardSourcePayload = computed(() => {
+    const payload = props.leaderboards;
+    return payload && typeof payload === 'object' ? payload : {};
 });
 
-const leaderboardPreview = computed(() => playerItems.value.slice(0, 10));
+const leaderboardCollections = computed(() => {
+    const payload = leaderboardSourcePayload.value;
+
+    return {
+        job: decorateLeaderboardPlayers(payload.job ?? players.value ?? []),
+        overall: decorateLeaderboardPlayers(payload.overall ?? []),
+        party: decorateLeaderboardPlayers(payload.party ?? []),
+    };
+});
+
+const leaderboardModeLabel = computed(() => {
+    return leaderboardModeLabelMap[leaderboardMode.value] ?? leaderboardModeLabelMap[LEADERBOARD_MODE_FALLBACK];
+});
+
+const leaderboardPreview = computed(() => {
+    const selectedItems = leaderboardCollections.value[leaderboardMode.value] ?? leaderboardCollections.value[LEADERBOARD_MODE_FALLBACK] ?? [];
+    return selectedItems.slice(0, 10);
+});
 const isLeaderboardEmpty = computed(() => leaderboardPreview.value.length === 0);
 
 const eventItems = computed(() => {
@@ -170,7 +230,9 @@ const carouselItems = computed(() => ([
     {
         key: 'leaderboard',
         title: 'Leaderboard',
-        subtitle: isLeaderboardEmpty.value ? 'No rank data yet' : `${leaderboardPreview.value.length} top rankers`,
+        subtitle: isLeaderboardEmpty.value
+            ? `No ${leaderboardModeLabel.value} rank data yet`
+            : `${leaderboardPreview.value.length} top ${leaderboardModeLabel.value.toLowerCase()} rankers`,
         accent: 'from-cyan-node',
         icon: 'fi fi-rr-trophy',
     },
@@ -196,8 +258,8 @@ const latestModuleMeta = computed(() => {
         },
         leaderboard: {
             helper: isLeaderboardEmpty.value
-                ? 'Leaderboard masih kosong. Rank akan tampil setelah player mulai mengumpulkan progres.'
-                : `Showing current top ${leaderboardPreview.value.length} ranks.`,
+                ? `Leaderboard ${leaderboardModeLabel.value} masih kosong. Rank akan tampil setelah progres player tercatat.`
+                : `Showing current top ${leaderboardPreview.value.length} ${leaderboardModeLabel.value.toLowerCase()} ranks.`,
         },
     };
 
@@ -218,6 +280,25 @@ watch(activeMenu, (nextValue) => {
 
     try {
         window.localStorage.setItem(ACTIVE_MENU_STORAGE_KEY, normalizedValue);
+    } catch {
+        // Ignore storage write failures so the page stays interactive.
+    }
+}, { immediate: true });
+
+watch(leaderboardMode, (nextValue) => {
+    const normalizedValue = normalizeLeaderboardMode(nextValue);
+
+    if (normalizedValue !== nextValue) {
+        leaderboardMode.value = normalizedValue;
+        return;
+    }
+
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        window.localStorage.setItem(LEADERBOARD_MODE_STORAGE_KEY, normalizedValue);
     } catch {
         // Ignore storage write failures so the page stays interactive.
     }
@@ -316,6 +397,9 @@ watch(activeMenu, (nextValue) => {
                                 <LeaderboardSection
                                     v-else
                                     :items="leaderboardPreview"
+                                    :leaderboards="leaderboardCollections"
+                                    :mode="leaderboardMode"
+                                    @update:mode="leaderboardMode = $event"
                                 />
                             </Transition>
                         </section>

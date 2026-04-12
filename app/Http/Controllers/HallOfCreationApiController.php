@@ -22,7 +22,7 @@ class HallOfCreationApiController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
             'search' => ['nullable', 'string', 'max:255'],
             'category' => ['nullable', 'string', 'max:120'],
-            'status' => ['nullable', 'in:crafting,refining,finished'],
+            'status' => ['nullable', 'in:crafting,refining,finished,collaboration'],
             'sort' => ['nullable', 'in:latest,popular'],
         ]);
 
@@ -69,7 +69,17 @@ class HallOfCreationApiController extends Controller
                     });
                 })
                 ->when($category !== '', fn ($builder) => $builder->where('category', $category))
-                ->when($status !== '', fn ($builder) => $builder->where('status', $status));
+                ->when(
+                    $status !== '',
+                    function ($builder) use ($status) {
+                        if ($status === 'collaboration') {
+                            $builder->where('is_open_for_collaboration', true);
+                            return;
+                        }
+
+                        $builder->where('status', $status);
+                    }
+                );
 
             if ($sort === 'popular') {
                 $query->orderByDesc('appreciations_count')

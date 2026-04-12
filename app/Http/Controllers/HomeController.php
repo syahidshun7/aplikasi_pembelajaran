@@ -114,21 +114,68 @@ class HomeController extends Controller
             ->map(fn ($guide) => $guide->toArray())
     );
 
-    // 3. UPDATE: Ambil Data Player Berdasarkan EXP Tertinggi (Leaderboard)
+    // 3. Ambil Data Leaderboard (Job, Overall, dan Party/Study Group)
+    $formatLeaderboardPlayers = static function ($players) {
+        return $players
+            ->map(function ($player) {
+                $payload = $player->toArray();
+                $payload['level'] = (int) ($payload['level'] ?? ($payload['lvl'] ?? 1));
+                $payload['exp'] = (int) ($payload['exp'] ?? 0);
+                $payload['role'] = (string) ($payload['role'] ?? 'Adventurer');
+                return $payload;
+            })
+            ->values();
+    };
+
+    $leaderboardBaseQuery = static function () {
+        return User::query()
+            ->select('id', 'name', 'username', 'profile_photo', 'level', 'exp', 'role')
+            ->orderByDesc('exp')
+            ->orderByDesc('level')
+            ->orderBy('name');
+    };
+
     $players = Cache::remember(
         "home.players.v{$homeCacheVersion}.job.{$jobKey}",
         now()->addMinutes(5),
-        fn () => User::select('id', 'name', 'username', 'profile_photo', 'level', 'exp', 'role')
-            ->where('job_id', $userJobId)
-            ->orderBy('exp', 'desc') // Mengurutkan dari EXP paling tinggi ke rendah
-            ->take(10)               // Ambil Top 10 Player
-            ->get()
-            ->map(function ($player) {
-                $payload = $player->toArray();
-                $payload['lvl'] = $payload['lvl'] ?? 1;
-                $payload['role'] = $payload['role'] ?? 'Adventurer';
-                return $payload;
-            })
+        function () use ($leaderboardBaseQuery, $formatLeaderboardPlayers, $userJobId) {
+            $query = $leaderboardBaseQuery();
+
+            if (is_null($userJobId)) {
+                $query->whereNull('job_id');
+            } else {
+                $query->where('job_id', $userJobId);
+            }
+
+            return $formatLeaderboardPlayers(
+                $query->take(10)->get()
+            );
+        }
+    );
+
+    $overallPlayers = Cache::remember(
+        "home.players.v{$homeCacheVersion}.overall",
+        now()->addMinutes(5),
+        fn () => $formatLeaderboardPlayers(
+            $leaderboardBaseQuery()->take(10)->get()
+        )
+    );
+
+    $partyPlayers = Cache::remember(
+        "home.players.v{$homeCacheVersion}.party.groups.{$groupKey}",
+        now()->addMinutes(5),
+        function () use ($leaderboardBaseQuery, $formatLeaderboardPlayers, $userGroupIds) {
+            if (empty($userGroupIds)) {
+                return collect();
+            }
+
+            return $formatLeaderboardPlayers(
+                $leaderboardBaseQuery()
+                    ->whereHas('studyGroups', fn ($groups) => $groups->whereIn('study_groups.id', $userGroupIds))
+                    ->take(10)
+                    ->get()
+            );
+        }
     );
 
     // 4. Ambil Data Kelompok Belajar (Study Groups)
@@ -199,6 +246,11 @@ class HomeController extends Controller
         'quests' => $quests,
         'materi' => $materi,
         'players' => $players,
+        'leaderboards' => [
+            'job' => $players,
+            'overall' => $overallPlayers,
+            'party' => $partyPlayers,
+        ],
         'studyGroups' => $studyGroups,
         'events' => $events,
         'laravelVersion' => \Illuminate\Foundation\Application::VERSION,

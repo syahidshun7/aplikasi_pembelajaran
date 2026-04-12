@@ -50,6 +50,33 @@ test('hall endpoint only returns public creations', function () {
     ]);
 });
 
+test('hall endpoint supports collaboration status filter', function () {
+    $owner = User::factory()->create();
+
+    $openCollabCreation = makeCreation($owner, [
+        'title' => 'Open Collaboration Build',
+        'is_open_for_collaboration' => true,
+    ]);
+
+    makeCreation($owner, [
+        'title' => 'Closed Collaboration Build',
+        'is_open_for_collaboration' => false,
+    ]);
+
+    $response = $this->getJson(route('api.hall.index', [
+        'status' => 'collaboration',
+    ]));
+
+    $response->assertOk();
+    $response->assertJsonFragment([
+        'id' => $openCollabCreation->id,
+        'title' => 'Open Collaboration Build',
+    ]);
+    $response->assertJsonMissing([
+        'title' => 'Closed Collaboration Build',
+    ]);
+});
+
 test('appreciation is unique per user and notifies owner once', function () {
     Notification::fake();
 

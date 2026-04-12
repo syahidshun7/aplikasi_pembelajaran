@@ -163,6 +163,7 @@ const getRiskColor = (grade) => {
                                             <th class="py-3 px-2">LVL</th>
                                             <th class="py-3 px-2">QUESTS_DONE</th>
                                             <th class="py-3 px-2 text-right">AVG_GRADE</th>
+                                            <th class="py-3 px-2">AVG_PER_CLASS</th>
                                         </tr>
                                     </thead>
                                     <tbody class="text-[10px]">
@@ -176,9 +177,23 @@ const getRiskColor = (grade) => {
                                             <td class="py-4 px-2 text-right font-bold" :class="getGradeColor(user.avg_grade)">
                                                 {{ user.avg_grade }}%
                                             </td>
+                                            <td class="py-4 px-2 align-top">
+                                                <div v-if="Array.isArray(user.class_averages) && user.class_averages.length > 0" class="space-y-1">
+                                                    <p
+                                                        v-for="classItem in user.class_averages"
+                                                        :key="`${user.id}-${classItem.study_group_id ?? 'general'}-${classItem.class_name}`"
+                                                        class="text-[7px] uppercase text-slate-300"
+                                                    >
+                                                        <span class="text-cyan-300">{{ classItem.class_name }}</span>:
+                                                        {{ classItem.average_grade ?? 0 }}%
+                                                        <span class="text-slate-500">/ {{ classItem.total_quests ?? 0 }} Quest</span>
+                                                    </p>
+                                                </div>
+                                                <span v-else class="text-[7px] uppercase text-slate-600">No class data</span>
+                                            </td>
                                         </tr>
                                         <tr v-if="!studentItems || studentItems.length === 0">
-                                            <td colspan="4" class="py-10 text-center text-slate-600 italic">
+                                            <td colspan="5" class="py-10 text-center text-slate-600 italic">
                                                 No students found...
                                             </td>
                                         </tr>

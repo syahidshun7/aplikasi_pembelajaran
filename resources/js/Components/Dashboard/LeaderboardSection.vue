@@ -1,11 +1,77 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
-defineProps({
+const props = defineProps({
     items: {
         type: Array,
         default: () => [],
     },
+    leaderboards: {
+        type: Object,
+        default: () => ({}),
+    },
+    mode: {
+        type: String,
+        default: 'job',
+    },
+});
+
+const emit = defineEmits(['update:mode']);
+
+const validModes = ['job', 'overall', 'party'];
+const modeMetaMap = {
+    job: {
+        label: 'Job',
+        title: 'Top Adventurers - Job',
+        rankTitle: 'Rank #1 Job',
+        emptyCopy: 'Belum ada data rank berdasarkan job saat ini.',
+    },
+    overall: {
+        label: 'Overall EXP',
+        title: 'Top Adventurers - Overall EXP',
+        rankTitle: 'Rank #1 Overall',
+        emptyCopy: 'Belum ada data rank overall berdasarkan EXP.',
+    },
+    party: {
+        label: 'Party',
+        title: 'Top Adventurers - Party',
+        rankTitle: 'Rank #1 Party',
+        emptyCopy: 'Belum ada rank party. Join study group terlebih dahulu agar rank party muncul.',
+    },
+};
+
+const normalizeMode = (value) => {
+    if (typeof value !== 'string') {
+        return 'job';
+    }
+
+    const normalized = value.trim().toLowerCase();
+    return validModes.includes(normalized) ? normalized : 'job';
+};
+
+const selectedMode = computed({
+    get: () => normalizeMode(props.mode),
+    set: (nextMode) => emit('update:mode', normalizeMode(nextMode)),
+});
+
+const modeOptions = computed(() => validModes.map((key) => ({
+    key,
+    label: modeMetaMap[key].label,
+})));
+
+const activeModeMeta = computed(() => modeMetaMap[selectedMode.value] ?? modeMetaMap.job);
+
+const activeItems = computed(() => {
+    const source = props.leaderboards && typeof props.leaderboards === 'object'
+        ? props.leaderboards[selectedMode.value]
+        : null;
+
+    if (Array.isArray(source)) {
+        return source;
+    }
+
+    return Array.isArray(props.items) ? props.items : [];
 });
 
 const hasProfileRoute = (player) => Boolean(player?.username);
@@ -16,32 +82,47 @@ const hasProfileRoute = (player) => Boolean(player?.username);
         <div class="dashboard-section-header">
             <div>
                 <p class="dashboard-section-header__eyebrow text-cyan-300/80">Leaderboard</p>
-                <h2 class="dashboard-section-header__title text-cyan-300">Top Adventurers</h2>
+                <h2 class="dashboard-section-header__title text-cyan-300">{{ activeModeMeta.title }}</h2>
             </div>
             <span class="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-[8px] uppercase text-cyan-100">
                 Ranking Live
             </span>
         </div>
 
-        <div v-if="items.length > 0" class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <div class="mb-4 flex flex-wrap gap-2 border border-slate-800 bg-[#0d1117] p-2">
+            <button
+                v-for="option in modeOptions"
+                :key="option.key"
+                type="button"
+                class="rounded border px-3 py-2 text-[8px] uppercase transition-all"
+                :class="selectedMode === option.key
+                    ? 'border-cyan-300 bg-cyan-500/20 text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.35)]'
+                    : 'border-slate-700 bg-slate-900/60 text-slate-300 hover:border-cyan-500/50 hover:text-cyan-200'"
+                @click="selectedMode = option.key"
+            >
+                {{ option.label }}
+            </button>
+        </div>
+
+        <div v-if="activeItems.length > 0" class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
             <article class="border border-cyan-400/20 bg-[#0d1117] p-5 shadow-[0_0_30px_rgba(34,211,238,0.1)]">
-                <p class="text-[7px] uppercase tracking-[0.24em] text-cyan-300/70">Rank #1</p>
+                <p class="text-[7px] uppercase tracking-[0.24em] text-cyan-300/70">{{ activeModeMeta.rankTitle }}</p>
                 <div class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
                     <div class="relative">
                         <div class="absolute -left-2 -top-2 rounded-full border border-yellow-500/40 bg-yellow-500/10 px-2 py-1 text-[7px] uppercase text-yellow-300">
                             Champion
                         </div>
                         <div class="h-20 w-20 overflow-hidden rounded-[20px] border-2 border-cyan-300/40 bg-slate-800">
-                            <img v-if="items[0]?.profile_photo" :src="'/storage/' + items[0].profile_photo" loading="lazy" decoding="async" class="h-full w-full object-cover">
-                            <img v-else :src="items[0].__dicebear_src" loading="lazy" decoding="async" class="h-full w-full">
+                            <img v-if="activeItems[0]?.profile_photo" :src="'/storage/' + activeItems[0].profile_photo" loading="lazy" decoding="async" class="h-full w-full object-cover">
+                            <img v-else :src="activeItems[0].__dicebear_src" loading="lazy" decoding="async" class="h-full w-full">
                         </div>
                     </div>
                     <div class="min-w-0 flex-1">
-                        <h3 class="truncate text-[12px] uppercase text-white">{{ items[0].username || items[0].name }}</h3>
-                        <p class="mt-2 text-[8px] uppercase text-slate-400">{{ items[0].role || 'Adventurer' }}</p>
+                        <h3 class="truncate text-[12px] uppercase text-white">{{ activeItems[0].username || activeItems[0].name }}</h3>
+                        <p class="mt-2 text-[8px] uppercase text-slate-400">{{ activeItems[0].role || 'Adventurer' }}</p>
                         <div class="mt-4 flex flex-wrap items-center gap-2 text-[8px] uppercase">
-                            <span class="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-1 text-cyan-100">Level {{ items[0].level || 1 }}</span>
-                            <span class="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-emerald-100">{{ items[0].__score }} PTS</span>
+                            <span class="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-1 text-cyan-100">Level {{ activeItems[0].level || 1 }}</span>
+                            <span class="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-emerald-100">{{ activeItems[0].__score }} PTS</span>
                         </div>
                     </div>
                 </div>
@@ -49,7 +130,7 @@ const hasProfileRoute = (player) => Boolean(player?.username);
 
             <div class="space-y-3">
                 <component
-                    v-for="(player, index) in items"
+                    v-for="(player, index) in activeItems"
                     :key="player.id"
                     :is="hasProfileRoute(player) ? Link : 'div'"
                     :href="hasProfileRoute(player) ? route('profiles.show', { user: player.username }) : undefined"
@@ -82,7 +163,7 @@ const hasProfileRoute = (player) => Boolean(player?.username);
         <div v-else class="dashboard-empty-state">
             <div class="dashboard-empty-state__icon">#</div>
             <h3 class="dashboard-empty-state__title text-cyan-300">No Players Found</h3>
-            <p class="dashboard-empty-state__copy">Leaderboard data will appear once players start progressing.</p>
+            <p class="dashboard-empty-state__copy">{{ activeModeMeta.emptyCopy }}</p>
         </div>
     </section>
 </template>

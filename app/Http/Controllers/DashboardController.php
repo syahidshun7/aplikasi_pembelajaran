@@ -123,6 +123,12 @@ class DashboardController extends Controller
                     ->map(fn ($v) => (int) $v)
                     ->all();
 
+                $groupNamesByGroupId = DB::table('study_groups')
+                    ->whereIn('id', array_keys($groupQuestCountByGroupId))
+                    ->pluck('name', 'id')
+                    ->map(fn ($name) => (string) $name)
+                    ->all();
+
                 $userGroupIdsMap = DB::table('group_user')
                     ->whereIn('user_id', $userIds)
                     ->whereNull('deleted_at')
@@ -153,17 +159,18 @@ class DashboardController extends Controller
                         fn ($join) => $join->on('submissions.id', '=', 'latest.id')
                     )
                     ->leftJoin('quests', 'quests.id', '=', 'submissions.quest_id')
-                    ->get(['submissions.user_id', 'submissions.grade', 'quests.study_group_id']);
+                    ->get(['submissions.user_id', 'submissions.grade', 'submissions.status', 'quests.study_group_id']);
 
                 foreach ($latestSubmissions as $submission) {
                     $uid = (int) $submission->user_id;
                     $latestGradesByUser[$uid][] = [
                         'study_group_id' => is_null($submission->study_group_id) ? null : (int) $submission->study_group_id,
                         'grade' => (int) ($submission->grade ?? 0),
+                        'status' => (string) ($submission->status ?? ''),
                     ];
                 }
 
-                $allStudents->transform(function ($user) use ($levelColumn, $publicQuestCount, $groupQuestCountByGroupId, $userGroupIdsMap, $totalCompletedByUser, $latestGradesByUser) {
+                $allStudents->transform(function ($user) use ($levelColumn, $publicQuestCount, $groupQuestCountByGroupId, $groupNamesByGroupId, $userGroupIdsMap, $totalCompletedByUser, $latestGradesByUser) {
                     $uid = (int) $user->id;
 
                     $groupIds = $userGroupIdsMap[$uid] ?? [];
@@ -179,10 +186,20 @@ class DashboardController extends Controller
 
                     $gradeSum = 0;
                     $userLatestGrades = $latestGradesByUser[$uid] ?? [];
+                    $gradeSumByGroup = [];
+                    $completedByGroup = [];
                     foreach ($userLatestGrades as $row) {
                         $groupId = $row['study_group_id'] ?? null;
-                        if (is_null($groupId) || isset($groupIdSet[(int) $groupId])) {
-                            $gradeSum += (int) ($row['grade'] ?? 0);
+                        $groupKey = is_null($groupId) ? 0 : (int) $groupId;
+                        $isAccessible = is_null($groupId) || isset($groupIdSet[(int) $groupId]);
+                        if ($isAccessible) {
+                            $grade = (int) ($row['grade'] ?? 0);
+                            $gradeSum += $grade;
+                            $gradeSumByGroup[$groupKey] = (int) ($gradeSumByGroup[$groupKey] ?? 0) + $grade;
+
+                            if (in_array((string) ($row['status'] ?? ''), ['Approved', 'Rejected'], true)) {
+                                $completedByGroup[$groupKey] = (int) ($completedByGroup[$groupKey] ?? 0) + 1;
+                            }
                         }
                     }
 
@@ -193,6 +210,46 @@ class DashboardController extends Controller
                     $user->total_completed = (int) ($totalCompletedByUser[$uid] ?? 0);
                     // Dashboard.vue reads `user.lvl`
                     $user->lvl = (int) ($user->{$levelColumn} ?? 1);
+
+                    $classAverages = [];
+
+                    if ($publicQuestCount > 0) {
+                        $classAverages[] = [
+                            'study_group_id' => null,
+                            'class_name' => 'General',
+                            'average_grade' => round(((int) ($gradeSumByGroup[0] ?? 0)) / $publicQuestCount, 1),
+                            'total_quests' => (int) $publicQuestCount,
+                            'completed_quests' => (int) ($completedByGroup[0] ?? 0),
+                        ];
+                    }
+
+                    foreach ($groupIdSet as $groupId => $_) {
+                        $totalGroupQuests = (int) ($groupQuestCountByGroupId[(int) $groupId] ?? 0);
+                        if ($totalGroupQuests <= 0) {
+                            continue;
+                        }
+
+                        $classAverages[] = [
+                            'study_group_id' => (int) $groupId,
+                            'class_name' => (string) ($groupNamesByGroupId[(int) $groupId] ?? "Class {$groupId}"),
+                            'average_grade' => round(((int) ($gradeSumByGroup[(int) $groupId] ?? 0)) / $totalGroupQuests, 1),
+                            'total_quests' => $totalGroupQuests,
+                            'completed_quests' => (int) ($completedByGroup[(int) $groupId] ?? 0),
+                        ];
+                    }
+
+                    usort($classAverages, function (array $a, array $b): int {
+                        $aIsGeneral = is_null($a['study_group_id']);
+                        $bIsGeneral = is_null($b['study_group_id']);
+
+                        if ($aIsGeneral !== $bIsGeneral) {
+                            return $aIsGeneral ? -1 : 1;
+                        }
+
+                        return strcmp((string) ($a['class_name'] ?? ''), (string) ($b['class_name'] ?? ''));
+                    });
+
+                    $user->class_averages = $classAverages;
 
                     return $user;
                 });
@@ -218,7 +275,15 @@ class DashboardController extends Controller
                 $items = $sortedStudents->slice(($page - 1) * $perPage, $perPage)->values();
 
                 return [
-                    'items' => $items->map(fn ($u) => $u->toArray())->all(),
+                    'items' => $items->map(fn ($u) => [
+                        'id' => (int) ($u->id ?? 0),
+                        'name' => (string) ($u->name ?? ''),
+                        'username' => (string) ($u->username ?? ''),
+                        'lvl' => (int) ($u->lvl ?? 1),
+                        'avg_grade' => (float) ($u->avg_grade ?? 0),
+                        'total_completed' => (int) ($u->total_completed ?? 0),
+                        'class_averages' => is_array($u->class_averages ?? null) ? $u->class_averages : [],
+                    ])->all(),
                     'total' => (int) $total,
                     'per_page' => (int) $perPage,
                 ];

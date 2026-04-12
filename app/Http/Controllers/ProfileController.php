@@ -16,6 +16,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -30,13 +31,14 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
-        [$averageGrade, $totalCompleted] = $this->resolveQuestStats($user);
+        $questStats = $this->resolveQuestStats($user);
 
         return Inertia::render('Profile/Edit', [
             'user'            => $this->buildUserPayload($user),
             'userQuests'      => $this->resolveUserQuests($user),
-            'averageGrade'    => $averageGrade,
-            'totalCompleted'  => $totalCompleted,
+            'averageGrade'    => (float) ($questStats['average_grade'] ?? 0),
+            'totalCompleted'  => (int) ($questStats['total_completed'] ?? 0),
+            'classAverages'   => $questStats['class_averages'] ?? [],
             'profileView'     => 'dashboard',
         ]);
     }
@@ -62,12 +64,13 @@ class ProfileController extends Controller
      */
     public function show(Request $request, User $user): Response
     {
-        [$averageGrade, $totalCompleted] = $this->resolveQuestStats($user);
+        $questStats = $this->resolveQuestStats($user);
 
         return Inertia::render('Profile/Show', [
             'user' => $this->buildUserPayload($user),
-            'averageGrade' => $averageGrade,
-            'totalCompleted' => $totalCompleted,
+            'averageGrade' => (float) ($questStats['average_grade'] ?? 0),
+            'totalCompleted' => (int) ($questStats['total_completed'] ?? 0),
+            'classAverages' => $questStats['class_averages'] ?? [],
             'creations' => $this->resolvePublicCreations($user, (int) ($request->user()?->id ?? 0)),
             'creationStats' => [
                 'total_public' => $this->resolveTotalPublicCreations($user),
@@ -223,39 +226,126 @@ class ProfileController extends Controller
 
     private function resolveQuestStats($user): array
     {
-        $userGroupIds = $user->studyGroups()->pluck('study_groups.id')->toArray();
+        $groupRows = DB::table('group_user')
+            ->join('study_groups', 'study_groups.id', '=', 'group_user.study_group_id')
+            ->where('group_user.user_id', (int) $user->id)
+            ->whereNull('group_user.deleted_at')
+            ->whereNull('study_groups.deleted_at')
+            ->select('study_groups.id', 'study_groups.name')
+            ->distinct()
+            ->get();
 
-        $availableQuestsQuery = Quest::query()
+        $userGroupIds = $groupRows
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        $groupNamesById = $groupRows
+            ->mapWithKeys(fn ($row) => [(int) $row->id => (string) $row->name])
+            ->all();
+
+        $availableQuests = Quest::query()
             ->where(function ($query) use ($userGroupIds) {
-                $query->whereNull('study_group_id')
-                    ->orWhereIn('study_group_id', $userGroupIds);
+                $query->whereNull('study_group_id');
+
+                if (!empty($userGroupIds)) {
+                    $query->orWhereIn('study_group_id', $userGroupIds);
+                }
             })
-            ->select('id');
+            ->get(['id', 'study_group_id']);
 
-        $totalAvailableQuests = (int) (clone $availableQuestsQuery)->count();
+        $totalAvailableQuests = (int) $availableQuests->count();
+        $availableQuestIds = $availableQuests
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
 
-        $latestSubmissions = Submission::query()
-            ->joinSub(
-                Submission::query()
-                    ->where('user_id', $user->id)
-                    ->whereIn('quest_id', $availableQuestsQuery)
-                    ->selectRaw('MAX(id) as id')
-                    ->groupBy('quest_id'),
-                'latest',
-                fn ($join) => $join->on('submissions.id', '=', 'latest.id')
-            )
-            ->get(['submissions.quest_id', 'submissions.grade', 'submissions.status']);
+        $questCountByGroup = [];
+        foreach ($availableQuests as $quest) {
+            $groupKey = is_null($quest->study_group_id) ? 0 : (int) $quest->study_group_id;
+            $questCountByGroup[$groupKey] = (int) ($questCountByGroup[$groupKey] ?? 0) + 1;
+        }
 
-        $gradeSum = (int) $latestSubmissions->sum(fn ($submission) => (int) ($submission->grade ?? 0));
+        $latestSubmissions = empty($availableQuestIds)
+            ? collect()
+            : Submission::query()
+                ->joinSub(
+                    Submission::query()
+                        ->where('user_id', (int) $user->id)
+                        ->whereIn('quest_id', $availableQuestIds)
+                        ->selectRaw('MAX(id) as id')
+                        ->groupBy('quest_id'),
+                    'latest',
+                    fn ($join) => $join->on('submissions.id', '=', 'latest.id')
+                )
+                ->leftJoin('quests', 'quests.id', '=', 'submissions.quest_id')
+                ->get(['submissions.grade', 'submissions.status', 'quests.study_group_id']);
+
+        $gradeSum = 0;
+        $gradeSumByGroup = [];
+        $completedCountByGroup = [];
+
+        foreach ($latestSubmissions as $submission) {
+            $grade = (int) ($submission->grade ?? 0);
+            $status = (string) ($submission->status ?? '');
+            $groupKey = is_null($submission->study_group_id) ? 0 : (int) $submission->study_group_id;
+
+            $gradeSum += $grade;
+            $gradeSumByGroup[$groupKey] = (int) ($gradeSumByGroup[$groupKey] ?? 0) + $grade;
+
+            if (in_array($status, ['Approved', 'Rejected'], true)) {
+                $completedCountByGroup[$groupKey] = (int) ($completedCountByGroup[$groupKey] ?? 0) + 1;
+            }
+        }
+
         $averageGrade = $totalAvailableQuests > 0
             ? round($gradeSum / $totalAvailableQuests, 1)
             : 0;
 
-        $totalCompleted = (int) $latestSubmissions
-            ->filter(fn ($submission) => in_array((string) ($submission->status ?? ''), ['Approved', 'Rejected'], true))
-            ->count();
+        $totalCompleted = (int) array_sum($completedCountByGroup);
 
-        return [$averageGrade, $totalCompleted];
+        $classAverages = collect($questCountByGroup)
+            ->map(function (int $totalQuests, int $groupKey) use ($groupNamesById, $gradeSumByGroup, $completedCountByGroup) {
+                if ($totalQuests <= 0) {
+                    return null;
+                }
+
+                $isGeneralClass = $groupKey === 0;
+                $className = $isGeneralClass
+                    ? 'General'
+                    : (string) ($groupNamesById[$groupKey] ?? "Class {$groupKey}");
+
+                return [
+                    'study_group_id' => $isGeneralClass ? null : $groupKey,
+                    'class_name' => $className,
+                    'average_grade' => round(((int) ($gradeSumByGroup[$groupKey] ?? 0)) / $totalQuests, 1),
+                    'total_quests' => $totalQuests,
+                    'completed_quests' => (int) ($completedCountByGroup[$groupKey] ?? 0),
+                    'is_general' => $isGeneralClass,
+                ];
+            })
+            ->filter()
+            ->sortBy([
+                ['is_general', 'asc'],
+                ['class_name', 'asc'],
+            ])
+            ->values()
+            ->map(fn (array $item) => [
+                'study_group_id' => $item['study_group_id'],
+                'class_name' => $item['class_name'],
+                'average_grade' => $item['average_grade'],
+                'total_quests' => $item['total_quests'],
+                'completed_quests' => $item['completed_quests'],
+            ])
+            ->all();
+
+        return [
+            'average_grade' => $averageGrade,
+            'total_completed' => $totalCompleted,
+            'class_averages' => $classAverages,
+        ];
     }
 
     private function resolveUserQuests($user)

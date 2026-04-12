@@ -11,6 +11,10 @@ const props = defineProps({
     userQuests: [Array, Object],
     averageGrade: Number,
     totalCompleted: Number,
+    classAverages: {
+        type: Array,
+        default: () => [],
+    },
     profileView: {
         type: String,
         default: 'settings',
@@ -39,6 +43,7 @@ const userSkills = computed(() => {
 });
 const questItems = computed(() => Array.isArray(props.userQuests) ? props.userQuests : (props.userQuests?.data || []));
 const questPaginationLinks = computed(() => Array.isArray(props.userQuests) ? [] : (props.userQuests?.links || []));
+const classAverageItems = computed(() => Array.isArray(props.classAverages) ? props.classAverages : []);
 
 const allowedTabs = ['profile', 'password', 'danger'];
 
@@ -173,6 +178,36 @@ watch(
                             </Link>
                         </div>
                     </div>
+                </div>
+
+                <div class="rpg-panel border-cyan-500/40 bg-[#0f172a]/70">
+                    <div class="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-cyan-500/30 pb-3">
+                        <p class="text-[7px] uppercase tracking-[0.24em] text-cyan-300">Average_Grade_Per_Class</p>
+                        <span class="text-[6px] uppercase text-slate-500">Fair view for multi-class members</span>
+                    </div>
+
+                    <div v-if="classAverageItems.length > 0" class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <article
+                            v-for="classItem in classAverageItems"
+                            :key="`${classItem.study_group_id ?? 'general'}-${classItem.class_name}`"
+                            class="border border-slate-700 bg-black/35 p-3"
+                        >
+                            <p class="text-[7px] uppercase text-white">{{ classItem.class_name }}</p>
+                            <div class="mt-2 flex items-end justify-between gap-2">
+                                <span class="text-[12px] font-bold text-emerald-300">{{ classItem.average_grade ?? 0 }}%</span>
+                                <span class="text-[6px] uppercase text-slate-500">
+                                    {{ classItem.total_quests ?? 0 }} Quest
+                                </span>
+                            </div>
+                            <p class="mt-2 text-[6px] uppercase text-slate-500">
+                                Completed {{ classItem.completed_quests ?? 0 }} / {{ classItem.total_quests ?? 0 }}
+                            </p>
+                        </article>
+                    </div>
+
+                    <p v-else class="text-[7px] uppercase text-slate-500">
+                        Belum ada data quest per kelas untuk user ini.
+                    </p>
                 </div>
 
                 <div class="grid grid-cols-12 gap-6">

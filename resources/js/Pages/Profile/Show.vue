@@ -18,6 +18,10 @@ const props = defineProps({
         type: Number,
         default: 0,
     },
+    classAverages: {
+        type: Array,
+        default: () => [],
+    },
     creations: {
         type: Array,
         default: () => [],
@@ -42,6 +46,7 @@ const userLvl = computed(() => Number(props.user?.lvl ?? 1));
 const userExpProgress = computed(() => (userExp.value % 1000) / 10);
 const creationCount = computed(() => Number(props.creationStats?.total_public ?? creationItems.value.length ?? 0));
 const appreciationCount = computed(() => Number(props.creationStats?.total_appreciations_received ?? 0));
+const classAverageItems = computed(() => Array.isArray(props.classAverages) ? props.classAverages : []);
 const userSkills = computed(() => {
     if (Array.isArray(props.user?.skills)) {
         return props.user.skills.filter(Boolean);
@@ -247,6 +252,34 @@ const toggleAppreciation = async (creation) => {
                         <span class="stat-hint">FROM HALL</span>
                     </div>
                 </article>
+            </section>
+
+            <section class="rpg-panel border-cyan-500/30 bg-[#0f172a]/70">
+                <div class="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-cyan-500/30 pb-3">
+                    <h2 class="text-[8px] uppercase tracking-[0.2em] text-cyan-300">Average Grade Per Class</h2>
+                    <span class="text-[6px] uppercase text-slate-500">Per-class breakdown</span>
+                </div>
+
+                <div v-if="classAverageItems.length > 0" class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <article
+                        v-for="classItem in classAverageItems"
+                        :key="`${classItem.study_group_id ?? 'general'}-${classItem.class_name}`"
+                        class="border border-slate-700 bg-black/30 p-3"
+                    >
+                        <p class="text-[7px] uppercase text-white">{{ classItem.class_name }}</p>
+                        <div class="mt-2 flex items-end justify-between gap-2">
+                            <span class="text-[11px] font-bold text-emerald-300">{{ classItem.average_grade ?? 0 }}%</span>
+                            <span class="text-[6px] uppercase text-slate-500">{{ classItem.total_quests ?? 0 }} Quest</span>
+                        </div>
+                        <p class="mt-2 text-[6px] uppercase text-slate-500">
+                            Completed {{ classItem.completed_quests ?? 0 }} / {{ classItem.total_quests ?? 0 }}
+                        </p>
+                    </article>
+                </div>
+
+                <p v-else class="text-[7px] uppercase text-slate-500">
+                    Belum ada data quest per kelas.
+                </p>
             </section>
 
             <section class="grid grid-cols-12 gap-6">
