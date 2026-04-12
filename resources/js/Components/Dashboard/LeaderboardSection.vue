@@ -108,6 +108,20 @@ const activeItems = computed(() => {
 });
 
 const hasProfileRoute = (player) => Boolean(player?.username);
+
+const formatClassAverage = (value) => {
+    const parsed = Number(value);
+    const normalized = Number.isFinite(parsed) ? parsed : 0;
+    return `${normalized.toFixed(1)}% AVG`;
+};
+
+const resolvePlayerScoreLabel = (player) => {
+    if (selectedMode.value === 'class') {
+        return formatClassAverage(player?.class_average_grade);
+    }
+
+    return `${Number(player?.__score ?? 0)} PTS`;
+};
 </script>
 
 <template>
@@ -186,7 +200,7 @@ const hasProfileRoute = (player) => Boolean(player?.username);
                         <p class="mt-2 text-[8px] uppercase text-slate-400">{{ activeItems[0].role || 'Adventurer' }}</p>
                         <div class="mt-4 flex flex-wrap items-center gap-2 text-[8px] uppercase">
                             <span class="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-1 text-cyan-100">Level {{ activeItems[0].level || 1 }}</span>
-                            <span class="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-emerald-100">{{ activeItems[0].__score }} PTS</span>
+                            <span class="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-emerald-100">{{ resolvePlayerScoreLabel(activeItems[0]) }}</span>
                         </div>
                     </div>
                 </div>
@@ -216,7 +230,7 @@ const hasProfileRoute = (player) => Boolean(player?.username);
                             <span class="text-[8px] uppercase text-cyan-300">LVL {{ player.level || 1 }}</span>
                         </div>
                         <div class="mt-2 flex items-center justify-between gap-2 text-[7px] uppercase text-slate-500">
-                            <span>{{ player.__score }} PTS</span>
+                            <span>{{ resolvePlayerScoreLabel(player) }}</span>
                             <span>{{ hasProfileRoute(player) ? 'Visit >' : 'Profile unavailable' }}</span>
                         </div>
                     </div>

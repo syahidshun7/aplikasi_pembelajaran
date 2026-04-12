@@ -15,6 +15,7 @@ use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Illuminate\Foundation\Application;
@@ -189,17 +190,108 @@ class HomeController extends Controller
     $classPlayers = Cache::remember(
         "home.players.v{$homeCacheVersion}.class.group.{$classGroupKey}",
         now()->addMinutes(5),
-        function () use ($leaderboardBaseQuery, $formatLeaderboardPlayers, $activeClassGroupId) {
+        function () use ($activeClassGroupId) {
             if ($activeClassGroupId <= 0) {
                 return collect();
             }
 
-            return $formatLeaderboardPlayers(
-                $leaderboardBaseQuery()
-                    ->whereHas('studyGroups', fn ($groups) => $groups->where('study_groups.id', $activeClassGroupId))
-                    ->take(10)
-                    ->get()
-            );
+            $classMemberIds = DB::table('group_user')
+                ->where('study_group_id', $activeClassGroupId)
+                ->whereNull('deleted_at')
+                ->select('user_id')
+                ->distinct()
+                ->pluck('user_id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+
+            if (empty($classMemberIds)) {
+                return collect();
+            }
+
+            $classQuestIds = Quest::query()
+                ->where('study_group_id', $activeClassGroupId)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+
+            $classTotalQuests = count($classQuestIds);
+            $gradeSumByUser = [];
+            $completedCountByUser = [];
+
+            if ($classTotalQuests > 0) {
+                $latestSubmissions = Submission::query()
+                    ->joinSub(
+                        Submission::query()
+                            ->whereIn('user_id', $classMemberIds)
+                            ->whereIn('quest_id', $classQuestIds)
+                            ->selectRaw('MAX(id) as id')
+                            ->groupBy('user_id', 'quest_id'),
+                        'latest',
+                        fn ($join) => $join->on('submissions.id', '=', 'latest.id')
+                    )
+                    ->get(['submissions.user_id', 'submissions.grade', 'submissions.status']);
+
+                foreach ($latestSubmissions as $submission) {
+                    $userIdKey = (int) $submission->user_id;
+                    $grade = (int) ($submission->grade ?? 0);
+                    $status = (string) ($submission->status ?? '');
+
+                    $gradeSumByUser[$userIdKey] = (int) ($gradeSumByUser[$userIdKey] ?? 0) + $grade;
+
+                    if (in_array($status, ['Approved', 'Rejected'], true)) {
+                        $completedCountByUser[$userIdKey] = (int) ($completedCountByUser[$userIdKey] ?? 0) + 1;
+                    }
+                }
+            }
+
+            return User::query()
+                ->select('id', 'name', 'username', 'profile_photo', 'level', 'exp', 'role')
+                ->whereIn('id', $classMemberIds)
+                ->get()
+                ->map(function ($player) use ($classTotalQuests, $gradeSumByUser, $completedCountByUser) {
+                    $payload = $player->toArray();
+                    $payload['level'] = (int) ($payload['level'] ?? ($payload['lvl'] ?? 1));
+                    $payload['exp'] = (int) ($payload['exp'] ?? 0);
+                    $payload['role'] = (string) ($payload['role'] ?? 'Adventurer');
+
+                    $playerId = (int) ($payload['id'] ?? 0);
+                    $gradeSum = (int) ($gradeSumByUser[$playerId] ?? 0);
+
+                    $payload['class_average_grade'] = $classTotalQuests > 0
+                        ? round($gradeSum / $classTotalQuests, 1)
+                        : 0.0;
+                    $payload['class_completed_quests'] = (int) ($completedCountByUser[$playerId] ?? 0);
+                    $payload['class_total_quests'] = $classTotalQuests;
+
+                    return $payload;
+                })
+                ->sort(function (array $a, array $b): int {
+                    $cmp = ((float) ($b['class_average_grade'] ?? 0)) <=> ((float) ($a['class_average_grade'] ?? 0));
+                    if ($cmp !== 0) {
+                        return $cmp;
+                    }
+
+                    $cmp = ((int) ($b['class_completed_quests'] ?? 0)) <=> ((int) ($a['class_completed_quests'] ?? 0));
+                    if ($cmp !== 0) {
+                        return $cmp;
+                    }
+
+                    $cmp = ((int) ($b['exp'] ?? 0)) <=> ((int) ($a['exp'] ?? 0));
+                    if ($cmp !== 0) {
+                        return $cmp;
+                    }
+
+                    $cmp = ((int) ($b['level'] ?? 1)) <=> ((int) ($a['level'] ?? 1));
+                    if ($cmp !== 0) {
+                        return $cmp;
+                    }
+
+                    return strcmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
+                })
+                ->take(10)
+                ->values();
         }
     );
 

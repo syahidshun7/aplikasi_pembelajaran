@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\JobRole;
+use App\Models\Quest;
 use App\Models\StudyGroup;
+use App\Models\Submission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -74,6 +76,58 @@ test('home leaderboard keeps global job scope and loads class leaderboard lazily
     $pplgMate->studyGroups()->attach($pplgClass->id, ['role' => 'member']);
     $outsider->studyGroups()->attach($otherJobClass->id, ['role' => 'member']);
 
+    $pplgQuestOne = Quest::query()->create([
+        'title' => 'PPLG Quest 1',
+        'description' => 'First pplg quest',
+        'study_group_id' => $pplgClass->id,
+        'status' => 'Available',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 0,
+        'reward_exp' => 0,
+    ]);
+
+    $pplgQuestTwo = Quest::query()->create([
+        'title' => 'PPLG Quest 2',
+        'description' => 'Second pplg quest',
+        'study_group_id' => $pplgClass->id,
+        'status' => 'Available',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 0,
+        'reward_exp' => 0,
+    ]);
+
+    Submission::query()->create([
+        'quest_id' => $pplgQuestOne->id,
+        'user_id' => $viewer->id,
+        'content' => 'viewer pplg q1',
+        'status' => 'Approved',
+        'grade' => 95,
+    ]);
+
+    Submission::query()->create([
+        'quest_id' => $pplgQuestTwo->id,
+        'user_id' => $viewer->id,
+        'content' => 'viewer pplg q2',
+        'status' => 'Approved',
+        'grade' => 85,
+    ]);
+
+    Submission::query()->create([
+        'quest_id' => $pplgQuestOne->id,
+        'user_id' => $pplgMate->id,
+        'content' => 'pplg mate q1',
+        'status' => 'Approved',
+        'grade' => 75,
+    ]);
+
+    Submission::query()->create([
+        'quest_id' => $pplgQuestTwo->id,
+        'user_id' => $pplgMate->id,
+        'content' => 'pplg mate q2',
+        'status' => 'Approved',
+        'grade' => 65,
+    ]);
+
     $initialResponse = $this
         ->actingAs($viewer)
         ->get(route('lobby'));
@@ -106,4 +160,6 @@ test('home leaderboard keeps global job scope and loads class leaderboard lazily
     expect($classLeaderboard->pluck('id')->map(fn ($id) => (int) $id)->all())->toContain($pplgMate->id);
     expect($classLeaderboard->pluck('id')->map(fn ($id) => (int) $id)->all())->not->toContain($iotMate->id);
     expect($classLeaderboard->pluck('id')->map(fn ($id) => (int) $id)->all())->not->toContain($outsider->id);
+    expect((int) ($classLeaderboard->first()['id'] ?? 0))->toBe($viewer->id);
+    expect((float) data_get($classLeaderboard->first(), 'class_average_grade', 0))->toBe(90.0);
 });
