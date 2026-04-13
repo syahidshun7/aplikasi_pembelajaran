@@ -10,6 +10,7 @@ const MAX_PHOTO_SIZE_BYTES = 4 * 1024 * 1024;
 const ALLOWED_PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/x-png', 'image/webp'];
 const ALLOWED_PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 const PROJECT_STATUS_OPTIONS = ['crafting', 'refining', 'finished'];
+const HALL_CACHE_STORAGE_KEY = 'hall.creations.cache';
 
 const props = defineProps({
     mode: {
@@ -47,6 +48,7 @@ const newPhotoPreviews = ref([]);
 const existingPhotos = ref([]);
 const removedPhotoIds = ref([]);
 const canManageCollaboration = ref(true);
+const editorRestoreAfter = ref(0);
 const MIN_WORKSPACE_HEIGHT = 420;
 const MAX_WORKSPACE_HEIGHT = 8000;
 
@@ -113,6 +115,11 @@ const clampProgress = (value) => {
     return Math.min(100, Math.max(0, Math.round(normalized)));
 };
 
+const parseTimestamp = (value) => {
+    const timestamp = Date.parse(String(value || ''));
+    return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
 const updateProgress = (value) => {
     form.progress = clampProgress(value);
 };
@@ -157,6 +164,20 @@ const formSnapshot = () => ({
     is_open_for_collaboration: Boolean(form.is_open_for_collaboration),
     photos: selectedPhotoFiles.value.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
     removed_photo_ids: [...removedPhotoIds.value].map((id) => Number(id)).sort((left, right) => left - right),
+});
+
+const buildPersistPayload = (publicationStatus = form.publication_status) => ({
+    title: String(form.title || '').trim() || 'Untitled creation',
+    content: String(form.content || '<p></p>'),
+    link: String(form.link || '').trim() || null,
+    category_id: form.category_id ? Number(form.category_id) : null,
+    tags: normalizeTags(form.tags_text),
+    featured_image: String(form.featured_image || '').trim() || null,
+    publication_status: publicationStatus,
+    is_public: publicationStatus === 'publish',
+    status: normalizeProjectStatus(form.status),
+    progress: clampProgress(form.progress),
+    is_open_for_collaboration: Boolean(form.is_open_for_collaboration),
 });
 
 const hasMeaningfulContent = () => {
@@ -287,6 +308,27 @@ const loadLocalFormState = () => {
     }
 };
 
+const shouldRestoreLocalDraft = (payload, serverUpdatedAt = 0) => {
+    if (!payload || typeof payload !== 'object') {
+        return false;
+    }
+
+    const savedAt = Number(payload.savedAt || 0);
+    if (serverUpdatedAt <= 0) {
+        return savedAt > 0;
+    }
+
+    return savedAt > serverUpdatedAt;
+};
+
+const clearHallCache = () => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    window.sessionStorage.removeItem(HALL_CACHE_STORAGE_KEY);
+};
+
 const migrateLocalStateKey = (nextId) => {
     if (typeof window === 'undefined' || !nextId) {
         return;
@@ -415,11 +457,13 @@ const toggleRemoveExistingPhoto = (photoId) => {
 const fetchCreation = async () => {
     if (!activeCreationId.value) {
         canManageCollaboration.value = true;
+        editorRestoreAfter.value = 0;
         const localState = loadLocalFormState();
         if (localState) {
             applyStateToForm(localState);
             applyEditorPreferences(localState);
         }
+        lastSavedFingerprint = JSON.stringify(buildPersistPayload(form.publication_status || 'draft'));
         loading.value = false;
         return;
     }
@@ -433,6 +477,9 @@ const fetchCreation = async () => {
         if (!creation) {
             throw new Error('CREATION_NOT_FOUND');
         }
+
+        const serverUpdatedAt = parseTimestamp(creation.updated_at);
+        editorRestoreAfter.value = serverUpdatedAt;
 
         applyStateToForm({
             title: creation.title,
@@ -449,16 +496,14 @@ const fetchCreation = async () => {
         canManageCollaboration.value = Boolean(creation.can_manage_collaboration ?? creation.can_delete ?? false);
         existingPhotos.value = Array.isArray(creation.photos) ? creation.photos : [];
         removedPhotoIds.value = [];
-
-        const serverFingerprint = JSON.stringify(formSnapshot());
         const localState = loadLocalFormState();
-        if (localState) {
+        if (shouldRestoreLocalDraft(localState, serverUpdatedAt)) {
             applyStateToForm(localState);
             applyEditorPreferences(localState);
-            lastSavedFingerprint = serverFingerprint;
-        } else {
-            lastSavedFingerprint = JSON.stringify(formSnapshot());
+            editorRestoreAfter.value = Math.max(serverUpdatedAt, Number(localState?.savedAt || 0));
         }
+
+        lastSavedFingerprint = JSON.stringify(buildPersistPayload(form.publication_status || 'draft'));
     } catch (error) {
         toast.error('LOAD_FAILED', 'Unable to load creation editor.');
     } finally {
@@ -478,19 +523,7 @@ const persistCreation = async ({ publicationStatus = form.publication_status, no
         return null;
     }
 
-    const payload = {
-        title: String(form.title || '').trim() || 'Untitled creation',
-        content: String(form.content || '<p></p>'),
-        link: String(form.link || '').trim() || null,
-        category_id: form.category_id ? Number(form.category_id) : null,
-        tags: normalizeTags(form.tags_text),
-        featured_image: String(form.featured_image || '').trim() || null,
-        publication_status: publicationStatus,
-        is_public: publicationStatus === 'publish',
-        status: normalizeProjectStatus(form.status),
-        progress: clampProgress(form.progress),
-        is_open_for_collaboration: Boolean(form.is_open_for_collaboration),
-    };
+    const payload = buildPersistPayload(publicationStatus);
 
     const fingerprint = JSON.stringify(payload);
     if (autosave && fingerprint === lastSavedFingerprint) {
@@ -578,8 +611,10 @@ const persistCreation = async ({ publicationStatus = form.publication_status, no
         if (photoInputRef.value) {
             photoInputRef.value.value = '';
         }
-        lastSavedFingerprint = JSON.stringify(formSnapshot());
+        editorRestoreAfter.value = parseTimestamp(saved?.updated_at);
+        lastSavedFingerprint = JSON.stringify(buildPersistPayload(form.publication_status || payload.publication_status));
         lastSavedAt.value = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        clearHallCache();
         saveFormStateLocally();
 
         if (notify) {
@@ -784,6 +819,7 @@ onBeforeUnmount(() => {
                             v-model="form.content"
                             :upload-url="uploadUrl"
                             :persist-key="persistKey"
+                            :restore-after="editorRestoreAfter"
                             placeholder="Write your documentation, paste screenshots, or drop images directly here..."
                             @uploading="editorUploading = $event"
                         />

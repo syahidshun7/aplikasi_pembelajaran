@@ -94,6 +94,33 @@ createInertiaApp({
                     { immediate: true },
                 );
 
+                watch(
+                    () => page.props?.flash?.dailyQuest,
+                    (payload) => {
+                        if (!payload || typeof payload !== 'object') return;
+
+                        const kind = String(payload.kind || 'progress');
+                        const icon = kind === 'completed' || kind === 'claimed' ? 'success' : 'info';
+
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon,
+                            title: String(payload.title || 'DAILY QUEST'),
+                            text: String(payload.text || ''),
+                            showConfirmButton: false,
+                            timer: kind === 'completed' ? 5200 : 4200,
+                            background: '#101826',
+                            color: '#d9f8ff',
+                            iconColor: kind === 'completed' ? '#34d399' : '#22d3ee',
+                            customClass: {
+                                popup: 'border-2 border-cyan-900 font-mono text-[10px]',
+                            },
+                        });
+                    },
+                    { immediate: true, deep: true },
+                );
+
                 onUnmounted(() => {
                     removeStart?.();
                     removeFinish?.();

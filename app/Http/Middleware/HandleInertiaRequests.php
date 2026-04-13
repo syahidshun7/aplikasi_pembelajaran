@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\DailyQuestService;
 use App\Support\Notifications\NotificationPresenter;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -45,8 +46,12 @@ class HandleInertiaRequests extends Middleware
             'notificationCenter' => $request->user()
                 ? fn () => NotificationPresenter::summary($request->user())
                 : null,
+            'dailyQuestCenter' => $request->user()
+                ? fn () => app(DailyQuestService::class)->quickStatusForUser($request->user())
+                : null,
             'flash' => [
                 'message' => fn () => $request->session()->get('message'),
+                'dailyQuest' => fn () => $request->session()->get('daily_quest_feedback'),
             ],
         ];
     }

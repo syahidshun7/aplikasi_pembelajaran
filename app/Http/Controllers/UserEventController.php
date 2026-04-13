@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\DailyQuestActivityTriggered;
+use App\Models\DailyQuestDefinition;
 use App\Models\Event;
 use App\Models\EventAttendance;
 use Illuminate\Http\Request;
@@ -125,6 +127,16 @@ class UserEventController extends Controller
         $attendance->status = 'present';
         $attendance->checked_at = now();
         $attendance->save();
+
+        event(new DailyQuestActivityTriggered(
+            (int) $user->id,
+            DailyQuestDefinition::ACTIVITY_EVENT_ATTENDANCE,
+            1,
+            [
+                'event_uuid' => (string) $event->uuid,
+                'attendance_status' => 'present',
+            ],
+        ));
 
         return back()->with('message', 'EVENT_SELF_ATTENDANCE_RECORDED');
     }

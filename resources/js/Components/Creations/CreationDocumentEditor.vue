@@ -79,6 +79,10 @@ const props = defineProps({
         type: String,
         default: '',
     },
+    restoreAfter: {
+        type: Number,
+        default: 0,
+    },
 });
 
 const emit = defineEmits(['update:modelValue', 'uploading', 'ready']);
@@ -130,6 +134,13 @@ const restoreEditorState = () => {
 
         const parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== 'object') {
+            return null;
+        }
+
+        const savedAt = Number(parsed.savedAt || 0);
+        const restoreAfter = Number(props.restoreAfter || 0);
+
+        if (restoreAfter > 0 && (!savedAt || savedAt < restoreAfter)) {
             return null;
         }
 

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\DailyQuest;
+use App\Models\DailyQuestDefinition;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -47,6 +49,37 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = $request->user();
+        $loginDailyQuest = DailyQuest::query()
+            ->where('user_id', (int) ($user?->id ?? 0))
+            ->whereDate('quest_date', now(config('app.timezone'))->toDateString())
+            ->where('activity_type', DailyQuestDefinition::ACTIVITY_LOGIN)
+            ->where('status', DailyQuest::STATUS_COMPLETED)
+            ->whereNull('claimed_at')
+            ->first();
+
+        if ($loginDailyQuest) {
+            $request->session()->flash('daily_quest_feedback', [
+                'kind' => 'completed',
+                'title' => 'DAILY QUEST COMPLETED!',
+                'text' => sprintf(
+                    '%s selesai. Reward +%d EXP / +%d GOLD siap diklaim.',
+                    (string) $loginDailyQuest->title,
+                    (int) ($loginDailyQuest->reward_exp ?? 0),
+                    (int) ($loginDailyQuest->reward_gold ?? 0),
+                ),
+                'claimable_count' => 1,
+                'quests' => [[
+                    'id' => (int) $loginDailyQuest->id,
+                    'uuid' => (string) $loginDailyQuest->uuid,
+                    'title' => (string) $loginDailyQuest->title,
+                    'status' => (string) $loginDailyQuest->status,
+                    'progress' => (int) ($loginDailyQuest->progress_value ?? 0),
+                    'target' => (int) ($loginDailyQuest->target_value ?? 1),
+                    'reward_exp' => (int) ($loginDailyQuest->reward_exp ?? 0),
+                    'reward_gold' => (int) ($loginDailyQuest->reward_gold ?? 0),
+                ]],
+            ]);
+        }
 
         $defaultRoute = $user?->isStaff() ? 'dashboard' : 'lobby';
 

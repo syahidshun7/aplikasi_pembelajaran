@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Creation;
+use App\Services\DailyQuestService;
 use App\Models\Quest;
 use App\Models\Submission;
 use App\Models\StudyGroupJoinRequest;
@@ -22,7 +23,7 @@ use Illuminate\Foundation\Application;
 
 class HomeController extends Controller
 {
-   public function index(Request $request)
+   public function index(Request $request, DailyQuestService $dailyQuestService)
 {
     if (!Auth::check()) {
         return $this->renderLanding();
@@ -264,6 +265,7 @@ class HomeController extends Controller
     return Inertia::render('home', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
+        'dailyQuestBoard' => $dailyQuestService->buildBoardForUser($user),
         'quests' => $quests,
         'materi' => $materi,
         'players' => $globalPlayers,

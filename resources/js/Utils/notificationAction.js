@@ -32,6 +32,10 @@ export const resolveNotificationActionUrl = (
         return routeFn('events.show', { event: resource.uuid });
     }
 
+    if (category === 'daily_quest') {
+        return `${routeFn('lobby')}#daily-quests`;
+    }
+
     if (category === 'study_group' && resource?.study_group_uuid) {
         return isAdmin
             ? routeFn('groups.detail', { uuid: resource.study_group_uuid })

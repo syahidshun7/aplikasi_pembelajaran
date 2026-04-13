@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\DailyQuestActivityTriggered;
+use App\Models\DailyQuestDefinition;
 use App\Models\Submission;
 use App\Models\Quest;
 use App\Models\User;
@@ -79,6 +81,18 @@ class SubmissionController extends Controller
         }
 
         $notifications->notifySubmissionReceived($submission);
+
+        if (! $isUpdate) {
+            event(new DailyQuestActivityTriggered(
+                (int) $submission->user_id,
+                DailyQuestDefinition::ACTIVITY_QUEST_SUBMISSION,
+                1,
+                [
+                    'submission_uuid' => (string) $submission->uuid,
+                    'quest_uuid' => (string) $quest->uuid,
+                ],
+            ));
+        }
 
         CacheVersion::bump('dashboard');
         CacheVersion::bump('quests');

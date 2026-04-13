@@ -29,6 +29,7 @@ const categoryLabels = {
     grade: 'Grade',
     chat: 'Chat',
     event: 'Event',
+    daily_quest: 'Daily Quest',
     study_group: 'Study Group',
     creation: 'Creation',
     announcement: 'Announcement',

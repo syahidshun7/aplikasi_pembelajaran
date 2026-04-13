@@ -61,10 +61,15 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
 
-    public function submissions()
+public function submissions()
     {
         return $this->hasMany(Submission::class);
     }
+
+public function dailyQuests()
+{
+    return $this->hasMany(DailyQuest::class);
+}
 
 public function studyGroups()
 {

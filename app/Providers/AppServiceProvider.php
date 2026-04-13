@@ -2,8 +2,11 @@
 
 namespace App\Providers;
 
+use App\Events\DailyQuestActivityTriggered;
 use App\Events\JoinGroupRequested;
 use App\Listeners\SendJoinGroupRequestNotification;
+use App\Listeners\RecordDailyQuestProgress;
+use App\Listeners\TrackLoginDailyQuestProgress;
 use App\Models\Creation;
 use App\Models\CreationCollaborationRequest;
 use App\Models\CreationCollaborator;
@@ -18,6 +21,7 @@ use App\Observers\HallOfCreationsCacheObserver;
 use App\Observers\HomeFeedObserver;
 use App\Observers\StudyGroupCacheObserver;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event as EventFacade;
 use Illuminate\Support\Facades\RateLimiter;
@@ -53,6 +57,8 @@ class AppServiceProvider extends ServiceProvider
         CreationCollaborator::observe(HallOfCreationsCacheObserver::class);
         CreationCollaborationRequest::observe(HallOfCreationsCacheObserver::class);
         EventFacade::listen(JoinGroupRequested::class, SendJoinGroupRequestNotification::class);
+        EventFacade::listen(Login::class, TrackLoginDailyQuestProgress::class);
+        EventFacade::listen(DailyQuestActivityTriggered::class, RecordDailyQuestProgress::class);
 
         // Global IP throttling to reduce automated abuse on auth endpoints.
         RateLimiter::for('register', function (Request $request) {

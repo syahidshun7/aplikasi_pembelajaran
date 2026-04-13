@@ -1,7 +1,8 @@
 <script setup>
-import { Link } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
 
-defineProps({
+const props = defineProps({
     items: {
         type: Array,
         default: () => [],
@@ -10,7 +11,35 @@ defineProps({
         type: Boolean,
         default: false,
     },
+    dailyQuestBoard: {
+        type: Object,
+        default: null,
+    },
 });
+
+const claimProcessingUuid = ref(null);
+
+const dailyQuestSummary = computed(() => props.dailyQuestBoard?.summary ?? {});
+const claimableDailyQuests = computed(() => {
+    const items = Array.isArray(props.dailyQuestBoard?.items) ? props.dailyQuestBoard.items : [];
+
+    return items.filter((quest) => Boolean(quest?.is_claimable));
+});
+
+const claimDailyQuest = (quest) => {
+    if (!quest?.uuid || claimProcessingUuid.value) {
+        return;
+    }
+
+    claimProcessingUuid.value = quest.uuid;
+
+    router.post(route('daily-quests.claim', quest.uuid), {}, {
+        preserveScroll: true,
+        onFinish: () => {
+            claimProcessingUuid.value = null;
+        },
+    });
+};
 </script>
 
 <template>
@@ -28,6 +57,75 @@ defineProps({
                 <span>View All Quests</span>
             </Link>
         </div>
+
+        <article
+            v-if="dailyQuestBoard"
+            class="daily-claim-card"
+        >
+            <div class="daily-claim-card__header">
+                <div>
+                    <p class="daily-claim-card__eyebrow">Daily Quest</p>
+                    <h3 class="daily-claim-card__title">Reward Claim Board</h3>
+                    <p class="daily-claim-card__copy">
+                        {{ claimableDailyQuests.length > 0
+                            ? `${claimableDailyQuests.length} reward siap di-claim hari ini.`
+                            : 'Belum ada reward yang siap di-claim. Selesaikan aktivitas harian dulu.' }}
+                    </p>
+                </div>
+
+                <div class="daily-claim-card__count-shell">
+                    <span class="daily-claim-card__count-label">Claimable</span>
+                    <strong class="daily-claim-card__count">{{ claimableDailyQuests.length }}</strong>
+                </div>
+            </div>
+
+            <div class="daily-claim-card__meta-grid">
+                <div class="daily-claim-card__meta">
+                    <span class="daily-claim-card__meta-label">Completed</span>
+                    <strong class="daily-claim-card__meta-value text-cyan-200">
+                        {{ dailyQuestSummary.completed || 0 }}/{{ dailyQuestSummary.total || 0 }}
+                    </strong>
+                </div>
+                <div class="daily-claim-card__meta">
+                    <span class="daily-claim-card__meta-label">Claimed Today</span>
+                    <strong class="daily-claim-card__meta-value text-emerald-200">
+                        +{{ dailyQuestSummary.today_claimed_exp || 0 }} EXP / +{{ dailyQuestSummary.today_claimed_gold || 0 }} GOLD
+                    </strong>
+                </div>
+            </div>
+
+            <div v-if="claimableDailyQuests.length > 0" class="daily-claim-card__list">
+                <article
+                    v-for="quest in claimableDailyQuests"
+                    :key="quest.uuid"
+                    class="daily-claim-card__item"
+                >
+                    <div class="daily-claim-card__item-copy">
+                        <h4 class="daily-claim-card__item-title">{{ quest.title }}</h4>
+                        <p class="daily-claim-card__item-description">{{ quest.description }}</p>
+                        <p class="daily-claim-card__item-reward">
+                            Reward +{{ quest.reward_exp }} EXP / +{{ quest.reward_gold }} GOLD
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="daily-claim-card__action"
+                        :disabled="claimProcessingUuid === quest.uuid"
+                        @click="claimDailyQuest(quest)"
+                    >
+                        {{ claimProcessingUuid === quest.uuid ? 'Claiming...' : 'Claim' }}
+                    </button>
+                </article>
+            </div>
+
+            <div v-else class="daily-claim-card__empty">
+                <span class="daily-claim-card__empty-title">No reward ready</span>
+                <span class="daily-claim-card__empty-copy">
+                    Kalau quest sudah complete, reward akan muncul di card ini.
+                </span>
+            </div>
+        </article>
 
         <div v-if="items.length > 0" class="grid gap-4 xl:grid-cols-2">
             <article
@@ -169,5 +267,93 @@ defineProps({
 
 .dashboard-empty-state__copy {
     @apply max-w-[280px] text-[9px] uppercase leading-relaxed text-slate-500;
+}
+
+.daily-claim-card {
+    @apply mb-6 border border-cyan-900/70 bg-[linear-gradient(135deg,rgba(8,18,28,0.92),rgba(12,24,40,0.92))] p-4 shadow-[0_12px_32px_rgba(2,8,16,0.36)];
+}
+
+.daily-claim-card__header {
+    @apply flex flex-col gap-4 border-b border-cyan-950/80 pb-4 md:flex-row md:items-start md:justify-between;
+}
+
+.daily-claim-card__eyebrow {
+    @apply text-[7px] uppercase tracking-[0.24em] text-cyan-300/80;
+}
+
+.daily-claim-card__title {
+    @apply mt-2 text-[10px] uppercase tracking-[0.18em] text-white;
+}
+
+.daily-claim-card__copy {
+    @apply mt-2 max-w-[520px] text-[7px] uppercase leading-relaxed tracking-[0.12em] text-slate-300;
+}
+
+.daily-claim-card__count-shell {
+    @apply flex min-w-[112px] flex-col border border-emerald-500/40 bg-emerald-500/10 px-3 py-3 text-left md:items-end md:text-right;
+}
+
+.daily-claim-card__count-label {
+    @apply text-[7px] uppercase tracking-[0.2em] text-emerald-200/70;
+}
+
+.daily-claim-card__count {
+    @apply mt-2 text-[18px] uppercase tracking-[0.14em] text-emerald-100;
+}
+
+.daily-claim-card__meta-grid {
+    @apply mt-4 grid gap-3 md:grid-cols-2;
+}
+
+.daily-claim-card__meta {
+    @apply border border-slate-700/80 bg-slate-950/40 px-3 py-3;
+}
+
+.daily-claim-card__meta-label {
+    @apply block text-[7px] uppercase tracking-[0.2em] text-slate-400;
+}
+
+.daily-claim-card__meta-value {
+    @apply mt-2 block text-[9px] uppercase tracking-[0.14em];
+}
+
+.daily-claim-card__list {
+    @apply mt-4 space-y-3;
+}
+
+.daily-claim-card__item {
+    @apply flex flex-col gap-3 border border-slate-700/80 bg-slate-950/40 px-3 py-3 md:flex-row md:items-center md:justify-between;
+}
+
+.daily-claim-card__item-copy {
+    @apply min-w-0;
+}
+
+.daily-claim-card__item-title {
+    @apply text-[8px] uppercase tracking-[0.16em] text-white;
+}
+
+.daily-claim-card__item-description {
+    @apply mt-2 text-[7px] uppercase leading-relaxed tracking-[0.1em] text-slate-400;
+}
+
+.daily-claim-card__item-reward {
+    @apply mt-3 text-[7px] uppercase tracking-[0.16em] text-amber-200;
+}
+
+.daily-claim-card__action {
+    @apply min-w-[108px] self-start border-b-4 border-r-4 border-emerald-800 bg-emerald-400 px-3 py-2 text-[8px] font-bold uppercase text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,0.45)] transition-colors hover:bg-emerald-300 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-700 disabled:text-slate-300 md:self-auto;
+}
+
+.daily-claim-card__empty {
+    @apply mt-4 flex flex-col items-center justify-center gap-2 border border-dashed border-slate-700 px-3 py-5 text-center;
+}
+
+.daily-claim-card__empty-title {
+    @apply text-[8px] uppercase tracking-[0.18em] text-slate-200;
+}
+
+.daily-claim-card__empty-copy {
+    @apply max-w-[360px] text-[7px] uppercase leading-relaxed tracking-[0.12em] text-slate-500;
 }
 </style>

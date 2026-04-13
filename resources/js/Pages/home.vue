@@ -99,6 +99,7 @@ const props = defineProps({
     players: Array,
     leaderboards: Object,
     leaderboardMeta: Object,
+    dailyQuestBoard: Object,
     quests: Array,
     studyGroups: Array,
     materi: Array,
@@ -483,6 +484,7 @@ watch(selectedClassGroupId, (nextValue, previousValue) => {
                                     v-if="activeMenu === 'quest'"
                                     :items="questPreview"
                                     :auth-user="isLoggedIn"
+                                    :daily-quest-board="isLoggedIn ? props.dailyQuestBoard : null"
                                 />
 
                                 <LibrarySection

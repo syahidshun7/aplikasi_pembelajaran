@@ -14,6 +14,7 @@ use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\CreationApiController;
 use App\Http\Controllers\CreationInteractionController;
 use App\Http\Controllers\CreationCollaborationController;
+use App\Http\Controllers\DailyQuestController;
 use App\Http\Controllers\UploadController;
 use App\Http\Controllers\CreationPageController;
 use App\Http\Controllers\DashboardController;
@@ -168,6 +169,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/{notificationId}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::post('/notifications/chat', [NotificationDispatchController::class, 'chat'])->name('notifications.chat');
+    Route::post('/daily-quests/{dailyQuest}/claim', [DailyQuestController::class, 'claim'])->name('daily-quests.claim');
 });
 
 Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () {
