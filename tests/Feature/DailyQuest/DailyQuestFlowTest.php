@@ -37,20 +37,23 @@ test('login completes daily login quest, claim works, and bonus remains isolated
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->has('dailyQuestBoard.items')
             ->where('dailyQuestBoard.summary.completed', 1)
+            ->has('dailyQuestBoard.items.0.activity_steps', 3)
+            ->where('dailyQuestBoard.items.0.activity_steps.0', 'Login ke akunmu hari ini.')
         );
 
     $this->actingAs($user)
         ->post(route('daily-quests.claim', $dailyQuest->uuid))
-        ->assertSessionHas('daily_quest_feedback')
-        ->assertSessionHas('message', 'DAILY_QUEST_REWARD_CLAIMED');
+        ->assertSessionHasNoErrors()
+        ->assertSessionMissing('daily_quest_feedback')
+        ->assertSessionMissing('message');
 
     $dailyQuest->refresh();
     $user->refresh();
 
     expect((string) $dailyQuest->status)->toBe(DailyQuest::STATUS_CLAIMED);
     expect($dailyQuest->claimed_at)->not->toBeNull();
-    expect((int) $user->gold)->toBe(0);
-    expect((int) $user->exp)->toBe(0);
+    expect((int) $user->gold)->toBe((int) ($dailyQuest->reward_gold ?? 0));
+    expect((int) $user->exp)->toBe((int) ($dailyQuest->reward_exp ?? 0));
 });
 
 test('daily quest submission progress only increments on first submission creation', function () {

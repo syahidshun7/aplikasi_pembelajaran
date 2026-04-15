@@ -57,6 +57,7 @@ class DailyQuestService
                         'reward_exp' => (int) ($dailyQuest->reward_exp ?? 0),
                         'reward_gold' => (int) ($dailyQuest->reward_gold ?? 0),
                         'status' => $status,
+                        'activity_steps' => $this->activityStepsForQuest($dailyQuest),
                         'is_claimable' => $status === DailyQuest::STATUS_COMPLETED,
                         'completed_at' => $dailyQuest->completed_at?->toIso8601String(),
                         'claimed_at' => $dailyQuest->claimed_at?->toIso8601String(),
@@ -334,11 +335,27 @@ class DailyQuestService
                 ]);
             }
 
+            $lockedUser = User::query()
+                ->whereKey($user->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $rewardExp = max(0, (int) ($lockedQuest->reward_exp ?? 0));
+            $rewardGold = max(0, (int) ($lockedQuest->reward_gold ?? 0));
+
             $lockedQuest->update([
                 'status' => DailyQuest::STATUS_CLAIMED,
                 'completed_at' => $lockedQuest->completed_at ?? $resolvedNow,
                 'claimed_at' => $resolvedNow,
             ]);
+
+            if ($rewardExp > 0) {
+                $lockedUser->increment('exp', $rewardExp);
+            }
+
+            if ($rewardGold > 0) {
+                $lockedUser->increment('gold', $rewardGold);
+            }
 
             return $lockedQuest->fresh();
         });
@@ -448,6 +465,44 @@ class DailyQuestService
             'reward_exp' => (int) ($dailyQuest->reward_exp ?? 0),
             'reward_gold' => (int) ($dailyQuest->reward_gold ?? 0),
         ];
+    }
+
+    private function activityStepsForQuest(DailyQuest $dailyQuest): array
+    {
+        $meta = is_array($dailyQuest->meta) ? $dailyQuest->meta : [];
+        $definitionMeta = is_array($meta['definition_meta'] ?? null) ? $meta['definition_meta'] : [];
+        $configuredSteps = collect($definitionMeta['activity_steps'] ?? [])
+            ->filter(fn ($step) => is_string($step) && trim($step) !== '')
+            ->map(fn (string $step) => trim($step))
+            ->values()
+            ->all();
+
+        if ($configuredSteps !== []) {
+            return $configuredSteps;
+        }
+
+        return match ((string) $dailyQuest->activity_type) {
+            DailyQuestDefinition::ACTIVITY_LOGIN => [
+                'Login ke akunmu hari ini.',
+                'Buka dashboard sampai progress daily quest tercatat.',
+                'Kalau status sudah complete, claim reward dari card ini.',
+            ],
+            DailyQuestDefinition::ACTIVITY_QUEST_SUBMISSION => [
+                'Buka quest atau task yang tersedia untukmu.',
+                'Kirim submission baru dari halaman quest.',
+                'Setelah submit pertama hari ini berhasil, reward bisa langsung di-claim.',
+            ],
+            DailyQuestDefinition::ACTIVITY_EVENT_ATTENDANCE => [
+                'Cari event hari ini yang membuka self attendance.',
+                'Masuk ke detail event lalu lakukan check-in attendance.',
+                'Saat attendance tercatat, reward akan siap di-claim.',
+            ],
+            default => [
+                'Selesaikan aktivitas yang tertulis pada quest ini.',
+                'Pastikan progress mencapai target hari ini.',
+                'Claim reward setelah status quest complete.',
+            ],
+        };
     }
 
     private function emptyActivityFeedback(): array
