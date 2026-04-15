@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Models\DailyQuest;
+use App\Models\ShopTransaction;
 use App\Models\Submission;
 use App\Models\User;
 use Illuminate\Console\Command;
@@ -21,7 +23,7 @@ class SyncUserRewardsFromSubmissions extends Command
      *
      * @var string
      */
-    protected $description = 'Sinkronisasi users.exp dan users.gold berdasarkan total submissions Approved.';
+    protected $description = 'Sinkronisasi users.exp dan users.gold berdasarkan total submission, daily quest claim, dan transaksi shop yang masih valid.';
 
     /**
      * Execute the console command.
@@ -32,8 +34,25 @@ class SyncUserRewardsFromSubmissions extends Command
         $levelColumn = Schema::hasColumn('users', 'lvl') ? 'lvl' : (Schema::hasColumn('users', 'level') ? 'level' : null);
 
         $approvedSums = Submission::query()
-            ->where('status', 'Approved')
+            ->whereIn('status', ['Approved', 'Rejected'])
             ->selectRaw('user_id, COALESCE(SUM(earned_exp), 0) AS exp_sum, COALESCE(SUM(earned_gold), 0) AS gold_sum')
+            ->groupBy('user_id')
+            ->get()
+            ->keyBy('user_id');
+
+        $dailyClaimedSums = DailyQuest::query()
+            ->where('status', DailyQuest::STATUS_CLAIMED)
+            ->selectRaw('user_id, COALESCE(SUM(reward_exp), 0) AS exp_sum, COALESCE(SUM(reward_gold), 0) AS gold_sum')
+            ->groupBy('user_id')
+            ->get()
+            ->keyBy('user_id');
+
+        $shopGoldSums = ShopTransaction::query()
+            ->where(function ($query) {
+                $query->whereNull('meta')
+                    ->orWhereRaw("JSON_EXTRACT(meta, '$.admin_cancelled_at') IS NULL");
+            })
+            ->selectRaw('user_id, COALESCE(SUM(gold_change), 0) AS gold_sum')
             ->groupBy('user_id')
             ->get()
             ->keyBy('user_id');
@@ -41,11 +60,15 @@ class SyncUserRewardsFromSubmissions extends Command
         $rows = [];
         $changedCount = 0;
 
-        User::query()->orderBy('id')->chunkById(200, function ($users) use ($approvedSums, $isDryRun, $levelColumn, &$rows, &$changedCount): void {
+        User::query()->orderBy('id')->chunkById(200, function ($users) use ($approvedSums, $dailyClaimedSums, $shopGoldSums, $isDryRun, $levelColumn, &$rows, &$changedCount): void {
             foreach ($users as $user) {
-                $sum = $approvedSums->get($user->id);
-                $newExp = (int) ($sum->exp_sum ?? 0);
-                $newGold = (int) ($sum->gold_sum ?? 0);
+                $submissionSum = $approvedSums->get($user->id);
+                $dailySum = $dailyClaimedSums->get($user->id);
+                $shopSum = $shopGoldSums->get($user->id);
+                $newExp = (int) ($submissionSum->exp_sum ?? 0) + (int) ($dailySum->exp_sum ?? 0);
+                $newGold = (int) ($submissionSum->gold_sum ?? 0)
+                    + (int) ($dailySum->gold_sum ?? 0)
+                    + (int) ($shopSum->gold_sum ?? 0);
 
                 $oldExp = (int) ($user->exp ?? 0);
                 $oldGold = (int) ($user->gold ?? 0);

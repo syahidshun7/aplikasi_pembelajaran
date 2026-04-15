@@ -30,6 +30,12 @@ const statusClass = (status) => {
     if (status === 'In-Progress') return 'text-yellow-400 border-yellow-900 bg-yellow-900/20';
     return 'text-cyan-400 border-cyan-900 bg-cyan-900/20';
 };
+
+const questTypeClass = (questType) => {
+    return String(questType || 'main') === 'optional'
+        ? 'text-lime-300 border-lime-900 bg-lime-900/20'
+        : 'text-sky-300 border-sky-900 bg-sky-900/20';
+};
 </script>
 
 <template>
@@ -80,6 +86,9 @@ const statusClass = (status) => {
                                     :class="item.study_group_id ? 'text-emerald-400 border-emerald-900 bg-emerald-900/20' : 'text-cyan-400 border-cyan-900 bg-cyan-900/20'">
                                     {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
                                 </span>
+                                <span class="px-2 py-1 border text-[8px] uppercase" :class="questTypeClass(item.quest_type)">
+                                    {{ String(item.quest_type || 'main') === 'optional' ? 'Optional Bonus' : 'Main Quest' }}
+                                </span>
                                 <span class="px-2 py-1 border text-[8px] uppercase border-slate-700 text-slate-300">{{ item.difficulty }}</span>
                                 <span class="px-2 py-1 border text-[8px] uppercase" :class="statusClass(item.status)">{{ item.status }}</span>
                             </div>
@@ -122,6 +131,9 @@ const statusClass = (status) => {
                                         <span class="px-2 py-1 border text-[8px] uppercase"
                                             :class="item.study_group_id ? 'text-emerald-400 border-emerald-900 bg-emerald-900/20' : 'text-cyan-400 border-cyan-900 bg-cyan-900/20'">
                                             {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
+                                        </span>
+                                        <span class="ml-2 px-2 py-1 border text-[8px] uppercase" :class="questTypeClass(item.quest_type)">
+                                            {{ String(item.quest_type || 'main') === 'optional' ? 'Optional Bonus' : 'Main Quest' }}
                                         </span>
                                     </td>
                                     <td class="py-3 px-2 text-slate-200 uppercase">{{ item.difficulty }}</td>

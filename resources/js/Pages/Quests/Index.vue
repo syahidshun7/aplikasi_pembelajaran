@@ -75,11 +75,15 @@ const form = useForm({
     reward_gold: 500,
     reward_exp: 500,
     description: '',
+    quest_type: 'main',
     is_active: true,
     study_group_id: null,
     task_bank_id: null,
     rubric_id: null,
-    deadline: '', // NEW_FIELD
+    deadline: '',
+    schedule_type: 'manual',
+    available_from: '',
+    available_until: '',
 });
 const mentorCannotSubmitQuest = computed(() => isMentor.value && !form.study_group_id && !form.task_bank_id);
 
@@ -104,6 +108,16 @@ watch(() => form.task_bank_id, (newTaskBankId) => {
     if (newTaskBankId) {
         form.rubric_id = null;
     }
+});
+
+watch(() => form.schedule_type, (scheduleType) => {
+    if (scheduleType === 'once') {
+        form.is_active = true;
+        return;
+    }
+
+    form.available_from = '';
+    form.available_until = '';
 });
 
 watch(() => usePage().props.flash, (flash) => {
@@ -145,6 +159,17 @@ const formatDeadline = (date) => {
     }).toUpperCase();
 };
 
+const formatSchedule = (date) => {
+    if (!date) return 'NO_LIMIT';
+    return new Date(date).toLocaleString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    }).toUpperCase();
+};
+
 // HELPER: Check if expired
 const isExpired = (date) => {
     if (!date) return false;
@@ -168,6 +193,7 @@ const startEdit = (quest) => {
     form.reward_gold = quest.reward_gold;
     form.reward_exp = quest.reward_exp ?? quest.reward_gold ?? 0;
     form.description = quest.description || '';
+    form.quest_type = quest.quest_type || 'main';
     form.is_active = String(quest.status || 'Available') === 'Available';
     form.study_group_id = quest.study_group_id;
     form.task_bank_id = quest.task_bank_id;
@@ -175,6 +201,9 @@ const startEdit = (quest) => {
     selectedJobScope.value = String(quest.study_group?.job_id ?? quest.task_bank?.job_role_id ?? '');
     
     form.deadline = quest.deadline ? formatDateTimeLocal(quest.deadline) : '';
+    form.schedule_type = quest.schedule_type || 'manual';
+    form.available_from = quest.available_from ? formatDateTimeLocal(quest.available_from) : '';
+    form.available_until = quest.available_until ? formatDateTimeLocal(quest.available_until) : '';
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
     Toast.fire({ icon: 'info', title: 'MODIFYING_CONTRACT' });
@@ -204,9 +233,13 @@ const submit = () => {
                 form.difficulty = 'C-Rank';
                 form.reward_gold = 500;
                 form.reward_exp = 500;
+                form.quest_type = 'main';
                 form.task_bank_id = null;
                 form.rubric_id = null;
                 form.is_active = true;
+                form.schedule_type = 'manual';
+                form.available_from = '';
+                form.available_until = '';
                 selectedJobScope.value = '';
                 applyMentorDefaults();
             },
@@ -331,6 +364,18 @@ const goToPage = (url) => {
                                 </div>
 
                                 <div>
+                                    <label class="block mb-2 text-white">QUEST_TYPE:</label>
+                                    <select v-model="form.quest_type"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 focus:border-lime-400 outline-none text-lime-300 uppercase">
+                                        <option value="main">MAIN_QUEST</option>
+                                        <option value="optional">OPTIONAL_BONUS</option>
+                                    </select>
+                                    <p class="mt-2 text-[7px] text-slate-500 uppercase italic">
+                                        *Optional quest hanya memberi exp dan gold, tidak masuk average akademik.
+                                    </p>
+                                </div>
+
+                                <div>
                                     <label class="block mb-2 text-white">REWARDS:</label>
                                     <div class="grid grid-cols-2 gap-2">
                                         <input v-model="form.reward_gold" type="number" readonly
@@ -358,7 +403,7 @@ const goToPage = (url) => {
                                         </span>
                                     </label>
                                     <p class="mt-2 text-[7px] text-slate-500 uppercase italic">
-                                        *Jika quest tidak aktif, status akan disimpan sebagai IN-PROGRESS.
+                                        *Mode manual memakai toggle ini. Mode scheduled akan aktif/nonaktif otomatis.
                                     </p>
                                 </div>
                                 <div>
@@ -367,6 +412,32 @@ const goToPage = (url) => {
                                         class="w-full bg-black border-2 border-slate-700 p-2 focus:border-orange-500 outline-none text-orange-400 uppercase text-[8px]">
                                 </div>
                             </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block mb-2 text-white">SCHEDULE_MODE:</label>
+                                    <select v-model="form.schedule_type"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 focus:border-fuchsia-400 outline-none text-fuchsia-300 uppercase">
+                                        <option value="manual">MANUAL</option>
+                                        <option value="once">SCHEDULED_ONCE</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block mb-2 text-white text-fuchsia-400">SHOW_FROM:</label>
+                                    <input v-model="form.available_from" type="datetime-local"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 focus:border-fuchsia-500 outline-none text-fuchsia-300 uppercase text-[8px]"
+                                        :disabled="form.schedule_type !== 'once'">
+                                </div>
+                                <div>
+                                    <label class="block mb-2 text-white text-fuchsia-400">HIDE_AT:</label>
+                                    <input v-model="form.available_until" type="datetime-local"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 focus:border-fuchsia-500 outline-none text-fuchsia-300 uppercase text-[8px]"
+                                        :disabled="form.schedule_type !== 'once'">
+                                </div>
+                            </div>
+                            <p class="text-[7px] text-slate-500 uppercase italic">
+                                *Scheduled quest cocok untuk event/limited window. Daily reward quest tetap memakai sistem daily quest terpisah agar tidak mengganggu average.
+                            </p>
 
                             <div v-if="isAdminScope">
                                 <label class="block mb-2 text-white">JOB_SCOPE_FILTER:</label>
@@ -491,8 +562,16 @@ const goToPage = (url) => {
                                             TASK_BANK: {{ q.task_bank?.name || 'MANUAL' }}
                                             <span v-if="q.task_bank?.assessment_type" class="text-yellow-300 ml-1">[{{ q.task_bank.assessment_type }}]</span>
                                         </div>
+                                        <div class="text-[7px] uppercase mt-1" :class="(q.quest_type || 'main') === 'optional' ? 'text-lime-300' : 'text-sky-300'">
+                                            TYPE: {{ (q.quest_type || 'main') === 'optional' ? 'OPTIONAL_BONUS' : 'MAIN_QUEST' }}
+                                        </div>
                                         <div class="text-[7px] text-cyan-300 uppercase mt-1">
                                             SCORING: {{ q.task_bank ? 'QUESTION_BANK (AUTO/MANUAL_BY_WEIGHT)' : (q.rubric?.title ? `RUBRIC: ${q.rubric.title}` : 'MANUAL_SCORE_1-100') }}
+                                        </div>
+                                        <div class="text-[7px] text-fuchsia-300 uppercase mt-1">
+                                            SCHEDULE: {{ (q.schedule_type || 'manual') === 'once' ? 'SCHEDULED_ONCE' : 'MANUAL' }}
+                                            <span v-if="q.available_from"> // FROM {{ formatSchedule(q.available_from) }}</span>
+                                            <span v-if="q.available_until"> // UNTIL {{ formatSchedule(q.available_until) }}</span>
                                         </div>
                                     </div>
                                     <div class="text-yellow-500 text-[8px] tracking-widest">+{{ q.reward_gold }} GOLD</div>

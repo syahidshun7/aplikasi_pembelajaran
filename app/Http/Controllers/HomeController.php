@@ -124,6 +124,7 @@ class HomeController extends Controller
             $query->whereNull('study_group_id')
                 ->orWhereIn('study_group_id', $userGroupIds);
         })
+            ->visibleForUsers()
             ->latest()
             ->take(10)
             ->get()
@@ -383,6 +384,7 @@ private function resolveLeaderboardData(
 
             $classQuestIds = Quest::query()
                 ->where('study_group_id', $activeClassGroupId)
+                ->publishedForAverage()
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
                 ->values()

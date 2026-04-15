@@ -206,6 +206,7 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
 
         Route::get('/{taskBank:uuid}/tasks', [AdminTaskBankController::class, 'show'])->name('show');
         Route::post('/{taskBank:uuid}/tasks', [AdminTaskBankController::class, 'storeQuestion'])->name('tasks.store');
+        Route::post('/{taskBank:uuid}/tasks/import-json', [AdminTaskBankController::class, 'importQuestionsJson'])->name('tasks.import-json');
         Route::put('/{taskBank:uuid}/tasks/{question:uuid}', [AdminTaskBankController::class, 'updateQuestion'])->name('tasks.update');
         Route::delete('/{taskBank:uuid}/tasks/{question:uuid}', [AdminTaskBankController::class, 'destroyQuestion'])->name('tasks.destroy');
     });

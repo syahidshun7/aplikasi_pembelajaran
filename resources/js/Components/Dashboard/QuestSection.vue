@@ -241,6 +241,17 @@ const progressText = (quest) => {
                     {{ quest.title }}
                 </h3>
 
+                <div class="mb-2">
+                    <span
+                        class="inline-flex border px-2 py-1 text-[6px] uppercase tracking-[0.16em]"
+                        :class="String(quest.quest_type || 'main') === 'optional'
+                            ? 'border-lime-500/30 bg-lime-500/10 text-lime-200'
+                            : 'border-sky-500/30 bg-sky-500/10 text-sky-200'"
+                    >
+                        {{ String(quest.quest_type || 'main') === 'optional' ? 'Optional Bonus Quest' : 'Main Quest' }}
+                    </span>
+                </div>
+
                 <div class="mb-2 flex items-center gap-1">
                     <span class="text-[6px] uppercase tracking-tighter text-orange-500">Deadline:</span>
                     <span

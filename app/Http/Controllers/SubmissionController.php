@@ -8,22 +8,28 @@ use App\Models\Submission;
 use App\Models\Quest;
 use App\Models\User;
 use App\Services\LmsNotificationService;
+use App\Services\UserRewardSyncService;
 use App\Models\UserQuestUnlock;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class SubmissionController extends Controller
 {
-    public function store(Request $request, Quest $quest, LmsNotificationService $notifications)
+    public function store(Request $request, Quest $quest, LmsNotificationService $notifications, UserRewardSyncService $rewardSync)
     {
         $quest->load(['taskBank.questions' => function ($query) {
             $query->where('is_active', true)->orderBy('sort_order');
         }]);
         $this->authorizeQuestAccessForCurrentUser($quest);
+
+        if (! $quest->isCurrentlyVisible()) {
+            throw ValidationException::withMessages([
+                'content' => $this->questAvailabilityErrorMessage($quest),
+            ]);
+        }
 
         $existingSubmission = Submission::where('quest_id', $quest->id)
             ->where('user_id', auth()->id())
@@ -45,13 +51,7 @@ class SubmissionController extends Controller
         $submission = null;
 
         if ($existingSubmission) {
-            if ($quest->taskBank) {
-                throw ValidationException::withMessages([
-                    'submission' => 'Submission sudah terkirim dan tidak bisa diulang.',
-                ]);
-            }
-
-            if ((string) $existingSubmission->status !== 'Pending') {
+            if (! $this->canResubmitSubmission($existingSubmission, $quest)) {
                 throw ValidationException::withMessages([
                     'submission' => 'Submission sudah diproses dan tidak bisa diubah.',
                 ]);
@@ -77,7 +77,7 @@ class SubmissionController extends Controller
         $submission->save();
 
         if ($wasEvaluated || $this->isSubmissionEvaluated($submission)) {
-            $this->syncUserRewardTotals((int) $submission->user_id);
+            $rewardSync->sync((int) $submission->user_id);
         }
 
         $notifications->notifySubmissionReceived($submission);
@@ -137,7 +137,7 @@ class SubmissionController extends Controller
             abort(403, 'TASK_BANK_SUBMISSION_LOCKED');
         }
 
-        if ((string) $submission->status !== 'Pending') {
+        if (! $this->canResubmitSubmission($submission, $quest)) {
             abort(403, 'SUBMISSION_ALREADY_PROCESSED');
         }
 
@@ -148,7 +148,7 @@ class SubmissionController extends Controller
         $submission->save();
 
         if ($wasEvaluated || $this->isSubmissionEvaluated($submission)) {
-            $this->syncUserRewardTotals((int) $submission->user_id);
+            app(UserRewardSyncService::class)->sync((int) $submission->user_id);
         }
 
         return back()->with('message', 'MISSION_REPORT_UPDATED');
@@ -316,31 +316,6 @@ class SubmissionController extends Controller
         }
     }
 
-    private function syncUserRewardTotals(int $userId): void
-    {
-        $totals = Submission::query()
-            ->where('user_id', $userId)
-            ->whereIn('status', ['Approved', 'Rejected'])
-            ->selectRaw('COALESCE(SUM(earned_exp),0) as exp_total, COALESCE(SUM(earned_gold),0) as gold_total')
-            ->first();
-
-        $newExp = (int) ($totals->exp_total ?? 0);
-        $newGold = (int) ($totals->gold_total ?? 0);
-
-        $updateData = [
-            'exp' => $newExp,
-            'gold' => $newGold,
-        ];
-
-        if (Schema::hasColumn('users', 'lvl')) {
-            $updateData['lvl'] = (int) floor($newExp / 1000) + 1;
-        } elseif (Schema::hasColumn('users', 'level')) {
-            $updateData['level'] = (int) floor($newExp / 1000) + 1;
-        }
-
-        User::query()->whereKey($userId)->update($updateData);
-    }
-
     private function isQuestLate(Quest $quest): bool
     {
         $deadlinePassed = $quest->deadline !== null && $quest->deadline->isPast();
@@ -381,6 +356,15 @@ class SubmissionController extends Controller
     private function isSubmissionEvaluated(Submission $submission): bool
     {
         return in_array((string) $submission->status, ['Approved', 'Rejected'], true);
+    }
+
+    private function canResubmitSubmission(Submission $submission, Quest $quest): bool
+    {
+        if (! $this->isDeadlineActive($quest)) {
+            return false;
+        }
+
+        return in_array((string) $submission->status, ['Pending', 'Rejected'], true);
     }
 
     private function evaluateTaskBankAnswers(Quest $quest, array $answers): array
@@ -520,5 +504,20 @@ class SubmissionController extends Controller
             403,
             'QUEST_ACCESS_DENIED'
         );
+    }
+
+    private function questAvailabilityErrorMessage(Quest $quest): string
+    {
+        $now = now();
+
+        if ($quest->available_from && $now->lt($quest->available_from)) {
+            return 'Quest ini belum masuk jadwal tayang.';
+        }
+
+        if ($quest->available_until && $now->gte($quest->available_until)) {
+            return 'Jadwal quest ini sudah berakhir.';
+        }
+
+        return 'Quest ini sedang tidak aktif.';
     }
 }

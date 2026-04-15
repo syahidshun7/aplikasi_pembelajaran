@@ -1,0 +1,40 @@
+[
+  {
+    "pertanyaan": "Ibukota Indonesia adalah?",
+    "tipe_soal": "multiple_choice",
+    "opsi": {
+      "A": "Jakarta",
+      "B": "Bandung",
+      "C": "Surabaya",
+      "D": "Medan"
+    },
+    "jawaban": "A",
+    "kategori": "Geografi",
+    "bobot": 1,
+    "urutan": 1,
+    "is_active": true
+  },
+  {
+    "pertanyaan": "Planet terbesar di tata surya adalah?",
+    "tipe_soal": "multiple_choice",
+    "opsi": {
+      "A": "Mars",
+      "B": "Jupiter",
+      "C": "Venus",
+      "D": "Saturnus"
+    },
+    "jawaban": "B",
+    "kategori": "Sains",
+    "bobot": 1,
+    "urutan": 2,
+    "is_active": true
+  },
+  {
+    "pertanyaan": "Jelaskan perbedaan utama antara CPU dan GPU.",
+    "tipe_soal": "essay",
+    "kategori": "Komputer",
+    "bobot": 2,
+    "urutan": 3,
+    "is_active": true
+  }
+]

@@ -397,3 +397,51 @@ test('manual quest submission cannot be re-attempted after it is approved', func
     $submission->refresh();
     expect((string) $submission->content)->toBe('initial');
 });
+
+test('rejected submission can be retaken before deadline and resets reward to pending review', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create([
+        'email_verified_at' => now(),
+        'exp' => 400,
+        'gold' => 400,
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => 'Rejected Retake Quest',
+        'description' => 'Can retry after rejection',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+    ]);
+
+    $submission = Submission::query()->create([
+        'quest_id' => $quest->id,
+        'user_id' => $user->id,
+        'content' => 'old answer',
+        'status' => 'Rejected',
+        'grade' => 80,
+        'earned_exp' => 400,
+        'earned_gold' => 400,
+        'file_path' => UploadedFile::fake()->create('old.pdf', 10, 'application/pdf')->store('submissions', 'public'),
+    ]);
+
+    $response = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'content' => 'new answer',
+        'file' => UploadedFile::fake()->create('new.pdf', 10, 'application/pdf'),
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    $submission->refresh();
+    $user->refresh();
+
+    expect((string) $submission->status)->toBe('Pending');
+    expect((string) $submission->content)->toBe('new answer');
+    expect((int) $submission->earned_exp)->toBe(0);
+    expect((int) $submission->earned_gold)->toBe(0);
+    expect((int) $user->exp)->toBe(0);
+    expect((int) $user->gold)->toBe(0);
+});

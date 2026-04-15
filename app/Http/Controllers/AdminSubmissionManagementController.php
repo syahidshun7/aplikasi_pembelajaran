@@ -3,17 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Models\Submission;
-use App\Models\User;
 use App\Support\Cache\CacheVersion;
+use App\Services\UserRewardSyncService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class AdminSubmissionManagementController extends Controller
 {
+    public function __construct(
+        private readonly UserRewardSyncService $rewardSync,
+    ) {
+    }
+
     public function index(Request $request): Response
     {
         $validated = $request->validate([
@@ -110,7 +114,7 @@ class AdminSubmissionManagementController extends Controller
             'earned_gold' => $earnedGold,
         ]);
 
-        $this->syncUserRewardTotals((int) $submission->user_id);
+        $this->rewardSync->sync((int) $submission->user_id);
 
         CacheVersion::bump('dashboard');
 
@@ -122,7 +126,7 @@ class AdminSubmissionManagementController extends Controller
         $userId = (int) $submission->user_id;
 
         $submission->delete();
-        $this->syncUserRewardTotals($userId);
+        $this->rewardSync->sync($userId);
 
         CacheVersion::bump('dashboard');
 
@@ -136,7 +140,7 @@ class AdminSubmissionManagementController extends Controller
             ->firstOrFail();
 
         $submission->restore();
-        $this->syncUserRewardTotals((int) $submission->user_id);
+        $this->rewardSync->sync((int) $submission->user_id);
 
         CacheVersion::bump('dashboard');
 
@@ -156,35 +160,11 @@ class AdminSubmissionManagementController extends Controller
         }
 
         $submission->forceDelete();
-        $this->syncUserRewardTotals($userId);
+        $this->rewardSync->sync($userId);
 
         CacheVersion::bump('dashboard');
 
         return back()->with('message', 'SUBMISSION_PERMANENTLY_DELETED');
     }
 
-    private function syncUserRewardTotals(int $userId): void
-    {
-        $totals = Submission::query()
-            ->where('user_id', $userId)
-            ->whereIn('status', ['Approved', 'Rejected'])
-            ->selectRaw('COALESCE(SUM(earned_exp),0) as exp_total, COALESCE(SUM(earned_gold),0) as gold_total')
-            ->first();
-
-        $newExp = (int) ($totals->exp_total ?? 0);
-        $newGold = (int) ($totals->gold_total ?? 0);
-
-        $updateData = [
-            'exp' => $newExp,
-            'gold' => $newGold,
-        ];
-
-        if (Schema::hasColumn('users', 'lvl')) {
-            $updateData['lvl'] = (int) floor($newExp / 1000) + 1;
-        } elseif (Schema::hasColumn('users', 'level')) {
-            $updateData['level'] = (int) floor($newExp / 1000) + 1;
-        }
-
-        User::query()->whereKey($userId)->update($updateData);
-    }
 }

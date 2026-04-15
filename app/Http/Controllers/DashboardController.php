@@ -113,10 +113,12 @@ class DashboardController extends Controller
 
                 $publicQuestCount = (int) Quest::query()
                     ->whereNull('study_group_id')
+                    ->publishedForAverage()
                     ->count();
 
                 $groupQuestCountByGroupId = Quest::query()
                     ->whereNotNull('study_group_id')
+                    ->publishedForAverage()
                     ->selectRaw('study_group_id, COUNT(*) as cnt')
                     ->groupBy('study_group_id')
                     ->pluck('cnt', 'study_group_id')

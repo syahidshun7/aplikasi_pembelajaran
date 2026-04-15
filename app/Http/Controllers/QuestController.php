@@ -50,6 +50,7 @@ class QuestController extends Controller
                         $query->whereNull('study_group_id')
                             ->orWhereIn('study_group_id', $userGroupIds);
                     })
+                    ->visibleForUsers()
                     ->when($search !== '', function ($query) use ($search) {
                         $query->where(function ($q) use ($search) {
                             $q->where('title', 'like', "%{$search}%")
@@ -234,11 +235,15 @@ class QuestController extends Controller
             'reward_gold' => 'nullable|integer|min:0',
             'reward_exp' => 'nullable|integer|min:0',
             'description' => 'nullable|string',
+            'quest_type' => 'nullable|in:main,optional',
             'is_active' => 'nullable|boolean',
             'study_group_id' => 'nullable|exists:study_groups,id',
             'task_bank_id' => 'nullable|exists:task_banks,id',
             'rubric_id' => 'nullable|exists:rubrics,id',
-            'deadline' => 'nullable|date', // Tambahkan validasi date
+            'deadline' => 'nullable|date',
+            'schedule_type' => 'nullable|in:manual,once',
+            'available_from' => 'nullable|date|required_if:schedule_type,once',
+            'available_until' => 'nullable|date|after:available_from',
         ]);
 
         $goldTable = [
@@ -251,7 +256,9 @@ class QuestController extends Controller
         $validated['reward_gold'] = $goldTable[$request->difficulty] ?? 0;
         $validated['reward_exp'] = $goldTable[$request->difficulty] ?? 0;
         $validated['uuid'] = (string) \Illuminate\Support\Str::uuid();
-        $validated['status'] = $this->resolveQuestStatusFromActiveFlag($validated['is_active'] ?? null);
+        $validated['quest_type'] = (string) ($validated['quest_type'] ?? Quest::TYPE_MAIN);
+        $validated['schedule_type'] = (string) ($validated['schedule_type'] ?? Quest::SCHEDULE_MANUAL);
+        $validated['status'] = $this->resolveQuestStatusFromPayload($validated);
 
         $validated['rubric_id'] = $this->resolveQuestRubricId(
             $validated['rubric_id'] ?? null,
@@ -277,11 +284,15 @@ class QuestController extends Controller
             'description' => 'nullable|string',
             'reward_gold' => 'required|integer|min:0',
             'reward_exp' => 'nullable|integer|min:0',
+            'quest_type' => 'nullable|in:main,optional',
             'is_active' => 'nullable|boolean',
             'study_group_id' => 'nullable|exists:study_groups,id',
             'task_bank_id' => 'nullable|exists:task_banks,id',
             'rubric_id' => 'nullable|exists:rubrics,id',
-            'deadline' => 'nullable|date', // Tambahkan validasi date
+            'deadline' => 'nullable|date',
+            'schedule_type' => 'nullable|in:manual,once',
+            'available_from' => 'nullable|date|required_if:schedule_type,once',
+            'available_until' => 'nullable|date|after:available_from',
         ]);
 
         $goldTable = [
@@ -294,7 +305,9 @@ class QuestController extends Controller
         // Logika update gold jika difficulty berubah
         $validated['reward_gold'] = $goldTable[$request->difficulty] ?? $validated['reward_gold'];
         $validated['reward_exp'] = $goldTable[$request->difficulty] ?? ($validated['reward_exp'] ?? 0);
-        $validated['status'] = $this->resolveQuestStatusFromActiveFlag($validated['is_active'] ?? null);
+        $validated['quest_type'] = (string) ($validated['quest_type'] ?? Quest::TYPE_MAIN);
+        $validated['schedule_type'] = (string) ($validated['schedule_type'] ?? Quest::SCHEDULE_MANUAL);
+        $validated['status'] = $this->resolveQuestStatusFromPayload($validated);
 
         $validated['rubric_id'] = $this->resolveQuestRubricId(
             $validated['rubric_id'] ?? null,
@@ -375,10 +388,12 @@ class QuestController extends Controller
 
         $isInactive = (string) ($quest->status ?? '') === 'In-Progress';
         $isStaff = (bool) auth()->user()?->isStaff();
-        if ($isInactive && ! $isStaff && ! $submission) {
+        $isScheduledHidden = ! $quest->isCurrentlyVisible();
+
+        if (($isInactive || $isScheduledHidden) && ! $isStaff && ! $submission) {
             return redirect()
                 ->route('quests.user.index')
-                ->withErrors(['quest' => 'QUEST_INACTIVE']);
+                ->withErrors(['quest' => $this->questAvailabilityErrorMessage($quest)]);
         }
 
         $isLate = $this->isQuestLate($quest);
@@ -402,12 +417,11 @@ class QuestController extends Controller
 
         $deadlineActive = $quest->deadline === null || $quest->deadline->isFuture();
         $canFirstSubmit = ! $submission && (! $isLate || $hasQuestUnlock);
-        $canResubmitManualPending = (bool) $submission
-            && ! $quest->taskBank
-            && (string) $submission->status === 'Pending'
+        $canResubmitSubmission = (bool) $submission
+            && in_array((string) $submission->status, ['Pending', 'Rejected'], true)
             && $deadlineActive;
 
-        $canSubmit = $canFirstSubmit || $canResubmitManualPending;
+        $canSubmit = $canFirstSubmit || $canResubmitSubmission;
 
         return Inertia::render('Quests/Show', [
             'quest' => $quest,
@@ -603,10 +617,25 @@ class QuestController extends Controller
         return null;
     }
 
-    private function resolveQuestStatusFromActiveFlag($isActive): string
+    private function resolveQuestStatusFromPayload(array $payload): string
     {
-        $active = filter_var($isActive, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
-        return $active === false ? 'In-Progress' : 'Available';
+        $scheduleType = (string) ($payload['schedule_type'] ?? Quest::SCHEDULE_MANUAL);
+
+        if ($scheduleType === Quest::SCHEDULE_ONCE) {
+            $quest = new Quest([
+                'schedule_type' => $scheduleType,
+                'available_from' => $payload['available_from'] ?? null,
+                'available_until' => $payload['available_until'] ?? null,
+            ]);
+
+            return $quest->resolveAutomatedStatus(now());
+        }
+
+        $active = filter_var($payload['is_active'] ?? null, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+
+        return $active === false
+            ? Quest::STATUS_IN_PROGRESS
+            : Quest::STATUS_AVAILABLE;
     }
 
     private function assertMentorCanUseRubricId($rubricId): void
@@ -646,5 +675,20 @@ class QuestController extends Controller
             403,
             'QUEST_ACCESS_DENIED'
         );
+    }
+
+    private function questAvailabilityErrorMessage(Quest $quest): string
+    {
+        $now = now();
+
+        if ($quest->available_from && $now->lt($quest->available_from)) {
+            return 'QUEST_NOT_YET_AVAILABLE';
+        }
+
+        if ($quest->available_until && $now->gte($quest->available_until)) {
+            return 'QUEST_SCHEDULE_WINDOW_CLOSED';
+        }
+
+        return 'QUEST_INACTIVE';
     }
 }

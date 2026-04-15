@@ -253,6 +253,7 @@ class ProfileController extends Controller
                     $query->orWhereIn('study_group_id', $userGroupIds);
                 }
             })
+            ->publishedForAverage()
             ->get(['id', 'study_group_id']);
 
         $totalAvailableQuests = (int) $availableQuests->count();

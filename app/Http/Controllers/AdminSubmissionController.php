@@ -9,9 +9,9 @@ use App\Models\User;
 use App\Support\Cache\CacheVersion;
 use App\Services\RubricScoringService;
 use App\Services\LmsNotificationService;
+use App\Services\UserRewardSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
@@ -82,7 +82,7 @@ class AdminSubmissionController extends Controller
     /**
      * Memproses penilaian (Verdict) dan memberikan reward Gold/EXP.
      */
- public function verdict(Request $request, Submission $submission, RubricScoringService $scoring, LmsNotificationService $notifications)
+ public function verdict(Request $request, Submission $submission, RubricScoringService $scoring, LmsNotificationService $notifications, UserRewardSyncService $rewardSync)
 {
     $this->assertMentorCanAccessSubmission($submission);
 
@@ -311,7 +311,7 @@ class AdminSubmissionController extends Controller
         'scores_detail' => $scoresDetail,
     ]);
 
-    $this->syncUserRewardTotals((int) $submission->user_id);
+    $rewardSync->sync((int) $submission->user_id);
     $notifications->notifyGradeReleased($submission->fresh(['user', 'quest']));
 
     CacheVersion::bump('dashboard');
@@ -377,31 +377,6 @@ class AdminSubmissionController extends Controller
             'clean'  => $scoreClean,
             'feedback' => $aiFeedback,
         ]);
-    }
-
-    private function syncUserRewardTotals(int $userId): void
-    {
-        $totals = Submission::query()
-            ->where('user_id', $userId)
-            ->whereIn('status', ['Approved', 'Rejected'])
-            ->selectRaw('COALESCE(SUM(earned_exp),0) as exp_total, COALESCE(SUM(earned_gold),0) as gold_total')
-            ->first();
-
-        $newExp = (int) ($totals->exp_total ?? 0);
-        $newGold = (int) ($totals->gold_total ?? 0);
-
-        $updateData = [
-            'exp' => $newExp,
-            'gold' => $newGold,
-        ];
-
-        if (Schema::hasColumn('users', 'lvl')) {
-            $updateData['lvl'] = (int) floor($newExp / 1000) + 1;
-        } elseif (Schema::hasColumn('users', 'level')) {
-            $updateData['level'] = (int) floor($newExp / 1000) + 1;
-        }
-
-        User::query()->whereKey($userId)->update($updateData);
     }
 
     private function isMentorUser(): bool

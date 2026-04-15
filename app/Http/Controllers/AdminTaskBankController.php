@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\JobRole;
 use App\Models\TaskBank;
 use App\Models\TaskQuestion;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -135,6 +137,21 @@ class AdminTaskBankController extends Controller
         return Inertia::render('Tasks/Admin/Show', [
             'taskBank' => $taskBank->load('jobRole:id,name'),
             'questions' => $questions,
+            'importResult' => $request->session()->get('task_bank_import_result'),
+            'importTemplate' => [
+                'download_url' => asset('examples/task-bank-import-template.json'),
+                'fields' => [
+                    ['name' => 'pertanyaan', 'required' => true, 'description' => 'Teks soal / pertanyaan utama.'],
+                    ['name' => 'tipe_soal', 'required' => false, 'description' => 'Isi `multiple_choice` atau `essay`. Jika kosong akan mengikuti tipe task bank.'],
+                    ['name' => 'opsi', 'required' => false, 'description' => 'Wajib untuk soal pilihan ganda. Bisa object berkey `A/B/C/D` atau array string.'],
+                    ['name' => 'jawaban', 'required' => false, 'description' => 'Untuk pilihan ganda isi huruf opsi benar seperti `A`, atau isi teks opsi yang benar.'],
+                    ['name' => 'bobot', 'required' => false, 'description' => 'Bobot nilai, default `1`.'],
+                    ['name' => 'urutan', 'required' => false, 'description' => 'Nomor urut soal, default mengikuti urutan data JSON.'],
+                    ['name' => 'is_active', 'required' => false, 'description' => 'Status aktif soal, default `true`.'],
+                    ['name' => 'kategori', 'required' => false, 'description' => 'Opsional untuk membantu penyusunan file JSON. Saat ini tidak disimpan karena schema bank soal belum punya kolom kategori.'],
+                ],
+                'sample' => $this->taskBankImportJsonTemplate(),
+            ],
             'filters' => [
                 'search' => $search,
             ],
@@ -161,6 +178,116 @@ class AdminTaskBankController extends Controller
         $taskBank->questions()->create($payload);
 
         return back()->with('message', 'TASK_CREATED');
+    }
+
+    public function importQuestionsJson(Request $request, TaskBank $taskBank): RedirectResponse
+    {
+        $this->assertMentorCanAccessTaskBank($taskBank);
+
+        $validated = $request->validate([
+            'import_file' => ['required', 'file', 'max:2048', 'mimes:json,txt'],
+            'skip_invalid' => ['nullable', 'boolean'],
+        ]);
+
+        $skipInvalid = (bool) ($validated['skip_invalid'] ?? false);
+        $rawContents = (string) file_get_contents($validated['import_file']->getRealPath());
+
+        try {
+            $decoded = json_decode($rawContents, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw ValidationException::withMessages([
+                'import_file' => 'File JSON tidak valid: ' . $exception->getMessage(),
+            ]);
+        }
+
+        $rows = $this->extractImportRows($decoded);
+        if (count($rows) === 0) {
+            throw ValidationException::withMessages([
+                'import_file' => 'File JSON tidak berisi soal untuk diimport.',
+            ]);
+        }
+
+        $existingFingerprints = TaskQuestion::query()
+            ->where('task_bank_id', $taskBank->id)
+            ->pluck('question_text')
+            ->map(fn ($text) => $this->questionFingerprint((string) $text))
+            ->filter()
+            ->values()
+            ->all();
+
+        $seenFingerprints = array_fill_keys($existingFingerprints, true);
+        $validRows = [];
+        $errors = [];
+
+        foreach ($rows as $rowIndex => $row) {
+            $humanIndex = $rowIndex + 1;
+
+            if (! is_array($row)) {
+                $errors[] = "Soal #{$humanIndex}: format item harus berupa object JSON.";
+                continue;
+            }
+
+            try {
+                $validRows[] = $this->normalizeImportedQuestionRow($row, $humanIndex, $taskBank, $seenFingerprints);
+            } catch (ValidationException $exception) {
+                foreach ($exception->errors() as $messages) {
+                    foreach ($messages as $message) {
+                        $errors[] = $message;
+                    }
+                }
+            }
+        }
+
+        $successCount = 0;
+        if (! empty($errors) && ! $skipInvalid) {
+            return back()
+                ->withErrors(['import_file' => 'Import dibatalkan karena ada data yang tidak valid.'])
+                ->with('task_bank_import_result', [
+                    'success_count' => 0,
+                    'failed_count' => count($errors),
+                    'skipped_invalid' => false,
+                    'errors' => $errors,
+                ]);
+        }
+
+        if (! empty($validRows)) {
+            $now = Carbon::now();
+            $payloads = array_map(function (array $row) use ($taskBank, $now) {
+                return [
+                    'uuid' => (string) Str::uuid(),
+                    'task_bank_id' => (int) $taskBank->id,
+                    'question_text' => $row['question_text'],
+                    'question_type' => $row['question_type'],
+                    'options_json' => $row['options_json'] !== null ? json_encode($row['options_json'], JSON_UNESCAPED_UNICODE) : null,
+                    'answer_key' => $row['answer_key'],
+                    'weight' => (int) $row['weight'],
+                    'sort_order' => (int) $row['sort_order'],
+                    'is_active' => (bool) $row['is_active'],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }, $validRows);
+
+            foreach (array_chunk($payloads, 200) as $chunk) {
+                TaskQuestion::query()->insert($chunk);
+            }
+
+            $successCount = count($payloads);
+        }
+
+        $failedCount = count($errors);
+        $message = $successCount > 0
+            ? ($failedCount > 0 ? 'TASK_IMPORT_PARTIAL_SUCCESS' : 'TASK_IMPORT_SUCCESS')
+            : 'TASK_IMPORT_NO_VALID_DATA';
+
+        return back()
+            ->with('message', $message)
+            ->with('task_bank_import_result', [
+                'success_count' => $successCount,
+                'failed_count' => $failedCount,
+                'skipped_invalid' => $skipInvalid,
+                'errors' => $errors,
+            ]);
     }
 
     public function updateQuestion(Request $request, TaskBank $taskBank, TaskQuestion $question): RedirectResponse
@@ -236,6 +363,231 @@ class AdminTaskBankController extends Controller
             'weight' => (int) $validated['weight'],
             'sort_order' => (int) ($validated['sort_order'] ?? 1),
             'is_active' => (bool) $validated['is_active'],
+        ];
+    }
+
+    private function extractImportRows(mixed $decoded): array
+    {
+        if (is_array($decoded) && array_is_list($decoded)) {
+            return $decoded;
+        }
+
+        if (is_array($decoded) && isset($decoded['questions']) && is_array($decoded['questions']) && array_is_list($decoded['questions'])) {
+            return $decoded['questions'];
+        }
+
+        throw ValidationException::withMessages([
+            'import_file' => 'Struktur JSON harus berupa array soal atau object dengan key `questions`.',
+        ]);
+    }
+
+    private function normalizeImportedQuestionRow(array $row, int $humanIndex, TaskBank $taskBank, array &$seenFingerprints): array
+    {
+        $questionText = trim((string) ($row['pertanyaan'] ?? $row['question_text'] ?? $row['question'] ?? ''));
+        if ($questionText === '') {
+            throw ValidationException::withMessages([
+                "import_file" => "Soal #{$humanIndex}: field `pertanyaan` wajib diisi.",
+            ]);
+        }
+
+        $questionType = $this->resolveImportedQuestionType($row, $taskBank);
+        $taskBankType = (string) ($taskBank->assessment_type ?? 'essay');
+
+        if ($taskBankType === 'essay' && $questionType !== 'essay') {
+            throw ValidationException::withMessages([
+                'import_file' => "Soal #{$humanIndex}: task bank ini hanya menerima soal essay.",
+            ]);
+        }
+
+        if ($taskBankType === 'multiple_choice' && $questionType !== 'multiple_choice') {
+            throw ValidationException::withMessages([
+                'import_file' => "Soal #{$humanIndex}: task bank ini hanya menerima soal multiple choice.",
+            ]);
+        }
+
+        $fingerprint = $this->questionFingerprint($questionText);
+        if (isset($seenFingerprints[$fingerprint])) {
+            throw ValidationException::withMessages([
+                'import_file' => "Soal #{$humanIndex}: pertanyaan duplikat terdeteksi untuk `{$questionText}`.",
+            ]);
+        }
+
+        $weight = $this->normalizePositiveInt($row['bobot'] ?? $row['weight'] ?? 1, 1, 100, "Soal #{$humanIndex}: field `bobot` harus angka 1-100.");
+        $sortOrder = $this->normalizePositiveInt($row['urutan'] ?? $row['sort_order'] ?? $humanIndex, 1, 1000000, "Soal #{$humanIndex}: field `urutan` harus angka minimal 1.");
+        $isActive = $this->normalizeImportBoolean($row['is_active'] ?? true, "Soal #{$humanIndex}: field `is_active` harus boolean true/false.");
+
+        $options = null;
+        $answerKey = null;
+
+        if ($questionType === 'multiple_choice') {
+            [$options, $answerKey] = $this->normalizeImportedMultipleChoiceData($row, $humanIndex);
+        }
+
+        $seenFingerprints[$fingerprint] = true;
+
+        return [
+            'question_text' => $questionText,
+            'question_type' => $questionType,
+            'options_json' => $options,
+            'answer_key' => $answerKey,
+            'weight' => $weight,
+            'sort_order' => $sortOrder,
+            'is_active' => $isActive,
+        ];
+    }
+
+    private function resolveImportedQuestionType(array $row, TaskBank $taskBank): string
+    {
+        $rawType = trim((string) ($row['tipe_soal'] ?? $row['question_type'] ?? ''));
+        if ($rawType !== '') {
+            $normalized = str_replace(['-', ' '], '_', strtolower($rawType));
+            if (in_array($normalized, ['essay', 'multiple_choice'], true)) {
+                return $normalized;
+            }
+        }
+
+        $taskBankType = (string) ($taskBank->assessment_type ?? 'essay');
+        if (in_array($taskBankType, ['essay', 'multiple_choice'], true)) {
+            return $taskBankType;
+        }
+
+        $hasOptions = array_key_exists('opsi', $row) || array_key_exists('options', $row);
+        return $hasOptions ? 'multiple_choice' : 'essay';
+    }
+
+    private function normalizeImportedMultipleChoiceData(array $row, int $humanIndex): array
+    {
+        $rawOptions = $row['opsi'] ?? $row['options'] ?? null;
+        if (! is_array($rawOptions) || count($rawOptions) < 2) {
+            throw ValidationException::withMessages([
+                'import_file' => "Soal #{$humanIndex}: field `opsi` wajib berupa object/array dengan minimal 2 opsi.",
+            ]);
+        }
+
+        $optionMap = [];
+        if (array_is_list($rawOptions)) {
+            foreach ($rawOptions as $index => $value) {
+                $label = chr(65 + $index);
+                $text = trim((string) $value);
+                if ($text === '') {
+                    throw ValidationException::withMessages([
+                        'import_file' => "Soal #{$humanIndex}: semua nilai opsi harus terisi.",
+                    ]);
+                }
+
+                $optionMap[$label] = $text;
+            }
+        } else {
+            foreach ($rawOptions as $label => $value) {
+                $normalizedLabel = strtoupper(trim((string) $label));
+                $text = trim((string) $value);
+
+                if ($normalizedLabel === '' || $text === '') {
+                    throw ValidationException::withMessages([
+                        'import_file' => "Soal #{$humanIndex}: key dan nilai opsi tidak boleh kosong.",
+                    ]);
+                }
+
+                $optionMap[$normalizedLabel] = $text;
+            }
+        }
+
+        $answerInput = trim((string) ($row['jawaban'] ?? $row['answer'] ?? $row['answer_key'] ?? ''));
+        if ($answerInput === '') {
+            throw ValidationException::withMessages([
+                'import_file' => "Soal #{$humanIndex}: field `jawaban` wajib diisi untuk soal multiple choice.",
+            ]);
+        }
+
+        $normalizedAnswerLabel = strtoupper($answerInput);
+        if (isset($optionMap[$normalizedAnswerLabel])) {
+            return [array_values($optionMap), $optionMap[$normalizedAnswerLabel]];
+        }
+
+        $matchedOption = collect($optionMap)->first(fn ($text) => trim((string) $text) === $answerInput);
+        if ($matchedOption !== null) {
+            return [array_values($optionMap), $matchedOption];
+        }
+
+        throw ValidationException::withMessages([
+            'import_file' => "Soal #{$humanIndex}: field `jawaban` harus sesuai label opsi (mis. A/B/C/D) atau isi opsi yang valid.",
+        ]);
+    }
+
+    private function normalizePositiveInt(mixed $value, int $min, int $max, string $errorMessage): int
+    {
+        if (! is_numeric($value)) {
+            throw ValidationException::withMessages(['import_file' => $errorMessage]);
+        }
+
+        $intValue = (int) $value;
+        if ($intValue < $min || $intValue > $max) {
+            throw ValidationException::withMessages(['import_file' => $errorMessage]);
+        }
+
+        return $intValue;
+    }
+
+    private function normalizeImportBoolean(mixed $value, string $errorMessage): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        $normalized = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($normalized === null) {
+            throw ValidationException::withMessages(['import_file' => $errorMessage]);
+        }
+
+        return $normalized;
+    }
+
+    private function questionFingerprint(string $text): string
+    {
+        return Str::lower(preg_replace('/\s+/', ' ', trim($text)));
+    }
+
+    private function taskBankImportJsonTemplate(): array
+    {
+        return [
+            [
+                'pertanyaan' => 'Ibukota Indonesia adalah?',
+                'tipe_soal' => 'multiple_choice',
+                'opsi' => [
+                    'A' => 'Jakarta',
+                    'B' => 'Bandung',
+                    'C' => 'Surabaya',
+                    'D' => 'Medan',
+                ],
+                'jawaban' => 'A',
+                'kategori' => 'Geografi',
+                'bobot' => 1,
+                'urutan' => 1,
+                'is_active' => true,
+            ],
+            [
+                'pertanyaan' => 'Planet terbesar di tata surya adalah?',
+                'tipe_soal' => 'multiple_choice',
+                'opsi' => [
+                    'A' => 'Mars',
+                    'B' => 'Jupiter',
+                    'C' => 'Venus',
+                    'D' => 'Saturnus',
+                ],
+                'jawaban' => 'B',
+                'kategori' => 'Sains',
+                'bobot' => 1,
+                'urutan' => 2,
+                'is_active' => true,
+            ],
+            [
+                'pertanyaan' => 'Jelaskan perbedaan utama antara CPU dan GPU.',
+                'tipe_soal' => 'essay',
+                'kategori' => 'Komputer',
+                'bobot' => 2,
+                'urutan' => 3,
+                'is_active' => true,
+            ],
         ];
     }
 

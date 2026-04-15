@@ -102,7 +102,9 @@ class AdminUserController extends Controller
         $userIds = $pageUsers->pluck('id')->all();
 
         if (!empty($userIds)) {
-            $allQuests = Quest::query()->get(['id', 'study_group_id']);
+            $allQuests = Quest::query()
+                ->publishedForAverage()
+                ->get(['id', 'study_group_id']);
 
             $publicQuestIds = [];
             $groupQuestIdsByGroup = [];
