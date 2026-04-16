@@ -116,13 +116,23 @@ public function events()
 
         return $query
             ->where('status', self::STATUS_AVAILABLE)
-            ->where(function (Builder $timeQuery) use ($resolvedAt) {
-                $timeQuery->whereNull('available_from')
-                    ->orWhere('available_from', '<=', $resolvedAt);
-            })
-            ->where(function (Builder $timeQuery) use ($resolvedAt) {
-                $timeQuery->whereNull('available_until')
-                    ->orWhere('available_until', '>', $resolvedAt);
+            ->where(function (Builder $scheduleQuery) use ($resolvedAt) {
+                $scheduleQuery
+                    ->where(function (Builder $manualQuery) {
+                        $manualQuery->whereNull('schedule_type')
+                            ->orWhere('schedule_type', self::SCHEDULE_MANUAL);
+                    })
+                    ->orWhere(function (Builder $onceQuery) use ($resolvedAt) {
+                        $onceQuery->where('schedule_type', self::SCHEDULE_ONCE)
+                            ->where(function (Builder $timeQuery) use ($resolvedAt) {
+                                $timeQuery->whereNull('available_from')
+                                    ->orWhere('available_from', '<=', $resolvedAt);
+                            })
+                            ->where(function (Builder $timeQuery) use ($resolvedAt) {
+                                $timeQuery->whereNull('available_until')
+                                    ->orWhere('available_until', '>', $resolvedAt);
+                            });
+                    });
             });
     }
 
@@ -132,27 +142,40 @@ public function events()
 
         return $query
             ->where(function (Builder $statusQuery) use ($resolvedAt) {
-                $statusQuery->where(function (Builder $visibleQuery) use ($resolvedAt) {
-                    $visibleQuery
-                        ->where('status', self::STATUS_AVAILABLE)
-                        ->where(function (Builder $timeQuery) use ($resolvedAt) {
-                            $timeQuery->whereNull('available_until')
-                                ->orWhere('available_until', '>', $resolvedAt);
-                        });
-                })->orWhere(function (Builder $lateDeadlineQuery) use ($resolvedAt) {
-                    $lateDeadlineQuery
+                $statusQuery
+                    // Manual quest wajib tampil di list apa pun statusnya.
+                    ->where(function (Builder $manualQuery) {
+                        $manualQuery->whereNull('schedule_type')
+                            ->orWhere('schedule_type', self::SCHEDULE_MANUAL);
+                    })
+                    ->orWhere(function (Builder $availableOnceQuery) use ($resolvedAt) {
+                        $availableOnceQuery
+                            ->where('schedule_type', self::SCHEDULE_ONCE)
+                            ->where('status', self::STATUS_AVAILABLE)
+                            ->where(function (Builder $timeQuery) use ($resolvedAt) {
+                                $timeQuery->whereNull('available_from')
+                                    ->orWhere('available_from', '<=', $resolvedAt);
+                            })
+                            ->where(function (Builder $timeQuery) use ($resolvedAt) {
+                                $timeQuery->whereNull('available_until')
+                                    ->orWhere('available_until', '>', $resolvedAt);
+                            });
+                    })
+                    ->orWhere(function (Builder $lateDeadlineQuery) use ($resolvedAt) {
+                        $lateDeadlineQuery
+                        ->where('schedule_type', self::SCHEDULE_ONCE)
                         ->whereIn('status', [self::STATUS_DONE, 'Completed'])
                         ->whereNotNull('deadline')
                         ->where('deadline', '<=', $resolvedAt)
                         ->where(function (Builder $timeQuery) use ($resolvedAt) {
+                            $timeQuery->whereNull('available_from')
+                                ->orWhere('available_from', '<=', $resolvedAt);
+                        })
+                        ->where(function (Builder $timeQuery) use ($resolvedAt) {
                             $timeQuery->whereNull('available_until')
                                 ->orWhere('available_until', '>', $resolvedAt);
                         });
-                });
-            })
-            ->where(function (Builder $timeQuery) use ($resolvedAt) {
-                $timeQuery->whereNull('available_from')
-                    ->orWhere('available_from', '<=', $resolvedAt);
+                    });
             });
     }
 
@@ -160,10 +183,26 @@ public function events()
     {
         $resolvedAt = $at ?? now();
 
-        return $query->where(function (Builder $timeQuery) use ($resolvedAt) {
-            $timeQuery->whereNull('available_from')
-                ->orWhere('available_from', '<=', $resolvedAt);
-        })->where('quest_type', self::TYPE_MAIN);
+        return $query
+            ->where(function (Builder $scheduleQuery) use ($resolvedAt) {
+                $scheduleQuery
+                    ->where(function (Builder $manualQuery) {
+                        $manualQuery->whereNull('schedule_type')
+                            ->orWhere('schedule_type', self::SCHEDULE_MANUAL);
+                    })
+                    ->orWhere(function (Builder $onceQuery) use ($resolvedAt) {
+                        $onceQuery->where('schedule_type', self::SCHEDULE_ONCE)
+                            ->where(function (Builder $timeQuery) use ($resolvedAt) {
+                                $timeQuery->whereNull('available_from')
+                                    ->orWhere('available_from', '<=', $resolvedAt);
+                            })
+                            ->where(function (Builder $timeQuery) use ($resolvedAt) {
+                                $timeQuery->whereNull('available_until')
+                                    ->orWhere('available_until', '>', $resolvedAt);
+                            });
+                    });
+            })
+            ->where('quest_type', self::TYPE_MAIN);
     }
 
     public function isCurrentlyVisible(?CarbonInterface $at = null): bool
@@ -174,12 +213,14 @@ public function events()
             return false;
         }
 
-        if ($this->available_from && $this->available_from->isFuture()) {
-            return false;
-        }
+        if ((string) ($this->schedule_type ?? self::SCHEDULE_MANUAL) === self::SCHEDULE_ONCE) {
+            if ($this->available_from && $this->available_from->isFuture()) {
+                return false;
+            }
 
-        if ($this->available_until && $this->available_until->lessThanOrEqualTo($resolvedAt)) {
-            return false;
+            if ($this->available_until && $this->available_until->lessThanOrEqualTo($resolvedAt)) {
+                return false;
+            }
         }
 
         return true;

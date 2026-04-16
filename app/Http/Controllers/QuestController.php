@@ -246,6 +246,8 @@ class QuestController extends Controller
             'available_until' => 'nullable|date|after:available_from',
         ]);
 
+        $validated = $this->normalizeQuestSchedulePayload($validated);
+
         $goldTable = [
             'S-Rank' => 5000,
             'A-Rank' => 2500,
@@ -269,6 +271,7 @@ class QuestController extends Controller
         $this->assertMentorCanUseRubricId($validated['rubric_id'] ?? null);
 
         Quest::create($validated);
+        $this->bumpQuestCaches();
 
         return redirect()->back()->with('message', 'NEW_QUEST_DEPLOYED_SUCCESSFULLY');
     }
@@ -295,6 +298,8 @@ class QuestController extends Controller
             'available_until' => 'nullable|date|after:available_from',
         ]);
 
+        $validated = $this->normalizeQuestSchedulePayload($validated);
+
         $goldTable = [
             'S-Rank' => 5000,
             'A-Rank' => 2500,
@@ -318,6 +323,7 @@ class QuestController extends Controller
         $this->assertMentorCanUseRubricId($validated['rubric_id'] ?? null);
 
         $quest->update($validated);
+        $this->bumpQuestCaches();
 
         return redirect()->back()->with('message', 'QUEST_CONTRACT_SYNCHRONIZED');
     }
@@ -326,6 +332,7 @@ class QuestController extends Controller
     {
         $this->assertMentorCanManageQuest($quest);
         $quest->delete();
+        $this->bumpQuestCaches();
 
         return redirect()->back()->with('message', 'Mission aborted and removed from board.');
     }
@@ -338,6 +345,7 @@ class QuestController extends Controller
         $this->assertMentorCanManageQuest($quest);
 
         $quest->restore();
+        $this->bumpQuestCaches();
 
         return redirect()->back()->with('message', 'QUEST_RESTORED');
     }
@@ -362,6 +370,7 @@ class QuestController extends Controller
         }
 
         $quest->forceDelete();
+        $this->bumpQuestCaches();
 
         return redirect()->back()->with('message', 'QUEST_PERMANENTLY_DELETED');
     }
@@ -390,10 +399,13 @@ class QuestController extends Controller
         $isInactive = (string) ($quest->status ?? '') === 'In-Progress';
         $isStaff = (bool) auth()->user()?->isStaff();
         $now = now();
-        $isScheduledHidden = ($quest->available_from && $now->lt($quest->available_from))
-            || ($quest->available_until && $now->gte($quest->available_until));
+        $isScheduledOnce = (string) ($quest->schedule_type ?? Quest::SCHEDULE_MANUAL) === Quest::SCHEDULE_ONCE;
+        $isScheduledHidden = $isScheduledOnce && (
+            ($quest->available_from && $now->lt($quest->available_from))
+            || ($quest->available_until && $now->gte($quest->available_until))
+        );
 
-        $scheduleWindowEnded = $quest->available_until && $now->gte($quest->available_until);
+        $scheduleWindowEnded = $isScheduledOnce && $quest->available_until && $now->gte($quest->available_until);
 
         if (($isInactive || $isScheduledHidden) && ! $isStaff && ! $submission && (! $isLate || $scheduleWindowEnded)) {
             return redirect()
@@ -642,6 +654,24 @@ class QuestController extends Controller
             : Quest::STATUS_AVAILABLE;
     }
 
+    private function normalizeQuestSchedulePayload(array $payload): array
+    {
+        $payload['schedule_type'] = (string) ($payload['schedule_type'] ?? Quest::SCHEDULE_MANUAL);
+
+        if ($payload['schedule_type'] !== Quest::SCHEDULE_ONCE) {
+            $payload['available_from'] = null;
+            $payload['available_until'] = null;
+        }
+
+        return $payload;
+    }
+
+    private function bumpQuestCaches(): void
+    {
+        CacheVersion::bump('quests');
+        CacheVersion::bump('home');
+    }
+
     private function assertMentorCanUseRubricId($rubricId): void
     {
         if (! $this->isMentorUser()) {
@@ -684,12 +714,13 @@ class QuestController extends Controller
     private function questAvailabilityErrorMessage(Quest $quest): string
     {
         $now = now();
+        $isScheduledOnce = (string) ($quest->schedule_type ?? Quest::SCHEDULE_MANUAL) === Quest::SCHEDULE_ONCE;
 
-        if ($quest->available_from && $now->lt($quest->available_from)) {
+        if ($isScheduledOnce && $quest->available_from && $now->lt($quest->available_from)) {
             return 'QUEST_NOT_YET_AVAILABLE';
         }
 
-        if ($quest->available_until && $now->gte($quest->available_until)) {
+        if ($isScheduledOnce && $quest->available_until && $now->gte($quest->available_until)) {
             return 'QUEST_SCHEDULE_WINDOW_CLOSED';
         }
 
