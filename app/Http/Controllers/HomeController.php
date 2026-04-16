@@ -124,7 +124,7 @@ class HomeController extends Controller
             $query->whereNull('study_group_id')
                 ->orWhereIn('study_group_id', $userGroupIds);
         })
-            ->visibleForUsers()
+            ->listedForUsers()
             ->latest()
             ->take(10)
             ->get()

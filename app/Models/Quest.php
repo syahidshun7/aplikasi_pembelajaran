@@ -126,6 +126,36 @@ public function events()
             });
     }
 
+    public function scopeListedForUsers(Builder $query, ?CarbonInterface $at = null): Builder
+    {
+        $resolvedAt = $at ?? now();
+
+        return $query
+            ->where(function (Builder $statusQuery) use ($resolvedAt) {
+                $statusQuery->where(function (Builder $visibleQuery) use ($resolvedAt) {
+                    $visibleQuery
+                        ->where('status', self::STATUS_AVAILABLE)
+                        ->where(function (Builder $timeQuery) use ($resolvedAt) {
+                            $timeQuery->whereNull('available_until')
+                                ->orWhere('available_until', '>', $resolvedAt);
+                        });
+                })->orWhere(function (Builder $lateDeadlineQuery) use ($resolvedAt) {
+                    $lateDeadlineQuery
+                        ->whereIn('status', [self::STATUS_DONE, 'Completed'])
+                        ->whereNotNull('deadline')
+                        ->where('deadline', '<=', $resolvedAt)
+                        ->where(function (Builder $timeQuery) use ($resolvedAt) {
+                            $timeQuery->whereNull('available_until')
+                                ->orWhere('available_until', '>', $resolvedAt);
+                        });
+                });
+            })
+            ->where(function (Builder $timeQuery) use ($resolvedAt) {
+                $timeQuery->whereNull('available_from')
+                    ->orWhere('available_from', '<=', $resolvedAt);
+            });
+    }
+
     public function scopePublishedForAverage(Builder $query, ?CarbonInterface $at = null): Builder
     {
         $resolvedAt = $at ?? now();

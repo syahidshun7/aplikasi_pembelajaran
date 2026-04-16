@@ -160,5 +160,5 @@ it('deleting submission does not refund gold previously spent for time key purch
     $student->refresh();
 
     expect((int) $student->exp)->toBe(0);
-    expect((int) $student->gold)->toBe(-250);
+    expect((int) $student->gold)->toBe(0);
 });

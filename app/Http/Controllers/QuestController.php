@@ -50,7 +50,7 @@ class QuestController extends Controller
                         $query->whereNull('study_group_id')
                             ->orWhereIn('study_group_id', $userGroupIds);
                     })
-                    ->visibleForUsers()
+                    ->listedForUsers()
                     ->when($search !== '', function ($query) use ($search) {
                         $query->where(function ($q) use ($search) {
                             $q->where('title', 'like', "%{$search}%")
@@ -386,17 +386,21 @@ class QuestController extends Controller
             ->latest('id')
             ->first();
 
+        $isLate = $this->isQuestLate($quest);
         $isInactive = (string) ($quest->status ?? '') === 'In-Progress';
         $isStaff = (bool) auth()->user()?->isStaff();
-        $isScheduledHidden = ! $quest->isCurrentlyVisible();
+        $now = now();
+        $isScheduledHidden = ($quest->available_from && $now->lt($quest->available_from))
+            || ($quest->available_until && $now->gte($quest->available_until));
 
-        if (($isInactive || $isScheduledHidden) && ! $isStaff && ! $submission) {
+        $scheduleWindowEnded = $quest->available_until && $now->gte($quest->available_until);
+
+        if (($isInactive || $isScheduledHidden) && ! $isStaff && ! $submission && (! $isLate || $scheduleWindowEnded)) {
             return redirect()
                 ->route('quests.user.index')
                 ->withErrors(['quest' => $this->questAvailabilityErrorMessage($quest)]);
         }
 
-        $isLate = $this->isQuestLate($quest);
         $hasQuestUnlock = UserQuestUnlock::query()
             ->where('user_id', $userId)
             ->where('quest_id', $quest->id)

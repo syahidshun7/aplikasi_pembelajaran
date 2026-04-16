@@ -37,6 +37,7 @@ class UserRewardSyncService
         $newGold = (int) ($submissionTotals->gold_total ?? 0)
             + (int) ($dailyTotals->gold_total ?? 0)
             + (int) ($shopTotals->gold_total ?? 0);
+        $newGold = max(0, $newGold);
 
         $updateData = [
             'exp' => $newExp,

@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { computed, defineAsyncComponent, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
 import { useLobby } from '@/Composables/useLobby';
 import FloatingChat from '@/Components/FloatingChat.vue';
@@ -139,12 +139,32 @@ const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
 const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
 const isLoggedIn = computed(() => Boolean(auth.value?.user));
+const currentTimestamp = ref(Date.now());
+let questClockInterval = null;
 
 const toSafeDate = (dateLike) => {
     if (!dateLike) return null;
     const date = new Date(dateLike);
     if (Number.isNaN(date.getTime())) return null;
     return date;
+};
+
+const formatCountdown = (remainingMs) => {
+    if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
+        return '00:00:00';
+    }
+
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (days > 0) {
+        return `${String(days).padStart(2, '0')}:${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
 const decorateLeaderboardPlayers = (rawItems) => {
@@ -214,16 +234,30 @@ const eventItems = computed(() => {
 const upcomingEventPreview = computed(() => eventItems.value.slice(0, 10));
 
 const questItems = computed(() => {
-    const now = Date.now();
+    const now = currentTimestamp.value;
 
-    return (quests.value || []).map((quest) => {
+    return (quests.value || [])
+        .filter((quest) => {
+            const isScheduledOnce = String(quest?.schedule_type || '') === 'once';
+            const availableUntilDate = toSafeDate(quest?.available_until);
+
+            if (!isScheduledOnce || !availableUntilDate) {
+                return true;
+            }
+
+            return availableUntilDate.getTime() > now;
+        })
+        .map((quest) => {
         const deadlineDate = toSafeDate(quest?.deadline);
+        const availableUntilDate = toSafeDate(quest?.available_until);
+        const isScheduledOnce = String(quest?.schedule_type || '') === 'once';
         const deadlineOverdue = Boolean(
             deadlineDate
                 && deadlineDate.getTime() < now
                 && !quest?.user_has_submitted
                 && !quest?.user_has_unlock
         );
+        const remainingWindowMs = availableUntilDate ? (availableUntilDate.getTime() - now) : null;
 
         return {
             ...quest,
@@ -231,6 +265,13 @@ const questItems = computed(() => {
             __deadline_label: deadlineDate
                 ? deadlineDate.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).toUpperCase()
                 : 'NO_LIMIT',
+            __schedule_once: isScheduledOnce,
+            __schedule_until_label: availableUntilDate
+                ? availableUntilDate.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).toUpperCase()
+                : null,
+            __schedule_countdown_label: isScheduledOnce && availableUntilDate
+                ? formatCountdown(remainingWindowMs)
+                : null,
         };
     });
 });
@@ -414,6 +455,19 @@ watch(selectedClassGroupId, (nextValue, previousValue) => {
     }
 
     fetchClassLeaderboard(nextGroupId);
+});
+
+onMounted(() => {
+    questClockInterval = window.setInterval(() => {
+        currentTimestamp.value = Date.now();
+    }, 1000);
+});
+
+onBeforeUnmount(() => {
+    if (questClockInterval) {
+        window.clearInterval(questClockInterval);
+        questClockInterval = null;
+    }
 });
 </script>
 

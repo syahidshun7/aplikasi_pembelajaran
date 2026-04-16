@@ -69,6 +69,7 @@ class SyncUserRewardsFromSubmissions extends Command
                 $newGold = (int) ($submissionSum->gold_sum ?? 0)
                     + (int) ($dailySum->gold_sum ?? 0)
                     + (int) ($shopSum->gold_sum ?? 0);
+                $newGold = max(0, $newGold);
 
                 $oldExp = (int) ($user->exp ?? 0);
                 $oldGold = (int) ($user->gold ?? 0);

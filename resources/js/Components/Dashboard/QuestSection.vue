@@ -264,6 +264,19 @@ const progressText = (quest) => {
                     </span>
                 </div>
 
+                <div
+                    v-if="quest.__schedule_once && quest.__schedule_until_label"
+                    class="mb-2 flex flex-wrap items-center gap-1.5"
+                >
+                    <span class="text-[6px] uppercase tracking-tighter text-cyan-500">Ends:</span>
+                    <span class="text-[7px] font-bold uppercase tracking-tighter text-cyan-200">
+                        {{ quest.__schedule_until_label }}
+                    </span>
+                    <span class="rounded border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 text-[6px] font-bold uppercase tracking-[0.18em] text-cyan-100">
+                        {{ quest.__schedule_countdown_label }}
+                    </span>
+                </div>
+
                 <div class="flex-grow">
                     <p v-if="quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock" class="text-[6px] uppercase text-red-500">
                         Mission_Expired
