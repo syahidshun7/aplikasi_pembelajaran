@@ -35,8 +35,8 @@ const dailyQuestSummary = computed(() => props.dailyQuestBoard?.summary ?? {});
 const dailyQuestItems = computed(() => {
     return Array.isArray(props.dailyQuestBoard?.items) ? props.dailyQuestBoard.items : [];
 });
-const claimableDailyQuests = computed(() => {
-    return dailyQuestItems.value.filter((quest) => Boolean(quest?.is_claimable));
+const claimableDailyQuestCount = computed(() => {
+    return dailyQuestItems.value.filter((quest) => Boolean(quest?.is_claimable)).length;
 });
 
 const claimDailyQuest = (quest) => {
@@ -95,15 +95,15 @@ const progressText = (quest) => {
                     <p class="daily-claim-card__eyebrow">Daily Quest</p>
                     <h3 class="daily-claim-card__title">Reward Claim Board</h3>
                     <p class="daily-claim-card__copy">
-                        {{ claimableDailyQuests.length > 0
-                            ? `${claimableDailyQuests.length} reward siap di-claim hari ini.`
+                        {{ claimableDailyQuestCount > 0
+                            ? `${claimableDailyQuestCount} reward siap di-claim hari ini.`
                             : 'Belum ada reward yang siap di-claim. Selesaikan aktivitas harian dulu.' }}
                     </p>
                 </div>
 
                 <div class="daily-claim-card__count-shell">
                     <span class="daily-claim-card__count-label">Claimable</span>
-                    <strong class="daily-claim-card__count">{{ claimableDailyQuests.length }}</strong>
+                    <strong class="daily-claim-card__count">{{ claimableDailyQuestCount }}</strong>
                 </div>
             </div>
 
@@ -122,45 +122,11 @@ const progressText = (quest) => {
                 </div>
             </div>
 
-            <div v-if="claimableDailyQuests.length > 0" class="daily-claim-card__list">
-                <article
-                    v-for="quest in claimableDailyQuests"
-                    :key="quest.uuid"
-                    class="daily-claim-card__item"
-                >
-                    <div class="daily-claim-card__item-copy">
-                        <div class="daily-claim-card__item-title-row">
-                            <span class="daily-claim-card__objective-box">[ ]</span>
-                            <h4 class="daily-claim-card__item-title">{{ quest.title }}</h4>
-                        </div>
-                        <p class="daily-claim-card__item-reward">
-                            +{{ quest.reward_exp }} EXP / +{{ quest.reward_gold }} GOLD
-                        </p>
-                    </div>
-
-                    <button
-                        type="button"
-                        class="daily-claim-card__action"
-                        :disabled="claimProcessingUuid === quest.uuid"
-                        @click="claimDailyQuest(quest)"
-                    >
-                        {{ claimProcessingUuid === quest.uuid ? 'Claiming...' : 'Claim' }}
-                    </button>
-                </article>
-            </div>
-
-            <div v-else class="daily-claim-card__empty">
-                <span class="daily-claim-card__empty-title">No reward ready</span>
-                <span class="daily-claim-card__empty-copy">
-                    Kalau quest sudah complete, reward akan muncul di card ini.
-                </span>
-            </div>
-
             <div v-if="dailyQuestItems.length > 0" class="daily-claim-card__activities">
                 <div class="daily-claim-card__activities-header">
                     <div>
                         <p class="daily-claim-card__activities-eyebrow">Aktivitas Hari Ini</p>
-                        <h4 class="daily-claim-card__activities-title">Objective List</h4>
+                        <h4 class="daily-claim-card__activities-title">Objective & Claim List</h4>
                     </div>
                     <span class="daily-claim-card__activities-count">
                         {{ dailyQuestItems.length }} activity
@@ -180,13 +146,19 @@ const progressText = (quest) => {
                             </div>
 
                             <div class="daily-claim-card__activity-side">
+                                <span
+                                    v-if="quest.is_claimable"
+                                    class="daily-claim-card__activity-reward"
+                                >
+                                    +{{ quest.reward_exp }} EXP / +{{ quest.reward_gold }} GOLD
+                                </span>
                                 <span class="daily-claim-card__activity-progress-inline">
                                     {{ progressText(quest) }}
                                 </span>
                                 <button
                                     v-if="quest.is_claimable"
                                     type="button"
-                                    class="daily-claim-card__action daily-claim-card__action--inline"
+                                    class="daily-claim-card__action daily-claim-card__activity-action"
                                     :disabled="claimProcessingUuid === quest.uuid"
                                     @click="claimDailyQuest(quest)"
                                 >
@@ -203,6 +175,13 @@ const progressText = (quest) => {
                         </div>
                     </article>
                 </div>
+            </div>
+
+            <div v-else class="daily-claim-card__empty">
+                <span class="daily-claim-card__empty-title">No activity yet</span>
+                <span class="daily-claim-card__empty-copy">
+                    Daily quest akan muncul di sini saat objective hari ini sudah tersedia.
+                </span>
             </div>
         </article>
 
@@ -420,30 +399,6 @@ const progressText = (quest) => {
     @apply mt-2 block text-[9px] uppercase tracking-[0.14em];
 }
 
-.daily-claim-card__list {
-    @apply mt-4 space-y-3;
-}
-
-.daily-claim-card__item {
-    @apply flex flex-col gap-3 border border-slate-700/80 bg-slate-950/40 px-3 py-3 md:flex-row md:items-center md:justify-between;
-}
-
-.daily-claim-card__item-copy {
-    @apply min-w-0;
-}
-
-.daily-claim-card__item-title-row {
-    @apply flex items-center gap-2;
-}
-
-.daily-claim-card__item-title {
-    @apply text-[8px] uppercase tracking-[0.16em] text-white;
-}
-
-.daily-claim-card__item-reward {
-    @apply mt-2 text-[7px] uppercase tracking-[0.16em] text-amber-200;
-}
-
 .daily-claim-card__action {
     @apply min-w-[108px] self-start border-b-4 border-r-4 border-emerald-800 bg-emerald-400 px-3 py-2 text-[8px] font-bold uppercase text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,0.45)] transition-colors hover:bg-emerald-300 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-700 disabled:text-slate-300 md:self-auto;
 }
@@ -501,11 +456,15 @@ const progressText = (quest) => {
 }
 
 .daily-claim-card__activity-side {
-    @apply flex items-center gap-3 md:justify-end;
+    @apply flex flex-wrap items-center gap-3 md:justify-end;
 }
 
 .daily-claim-card__activity-title {
     @apply text-[8px] uppercase tracking-[0.16em] text-white;
+}
+
+.daily-claim-card__activity-reward {
+    @apply text-[7px] uppercase tracking-[0.16em] text-amber-200;
 }
 
 .daily-claim-card__activity-progress-inline {
@@ -532,7 +491,8 @@ const progressText = (quest) => {
     @apply border-rose-500/40 bg-rose-500/10 text-rose-100;
 }
 
-.daily-claim-card__action--inline {
+.daily-claim-card__activity-action {
     @apply min-w-[90px] px-3 py-2;
 }
+
 </style>
