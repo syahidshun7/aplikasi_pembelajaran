@@ -538,7 +538,8 @@ class QuestController extends Controller
     private function isQuestLate(Quest $quest): bool
     {
         $deadlinePassed = $quest->deadline !== null && $quest->deadline->isPast();
-        $statusDone = in_array($quest->status, ['Done', 'Completed'], true);
+        $isScheduledOnce = (string) ($quest->schedule_type ?? Quest::SCHEDULE_MANUAL) === Quest::SCHEDULE_ONCE;
+        $statusDone = $isScheduledOnce && in_array((string) $quest->status, ['Done', 'Completed'], true);
 
         return $deadlinePassed || $statusDone;
     }

@@ -68,6 +68,14 @@ const progressText = (quest) => {
 
     return `${progress}/${target}`;
 };
+
+const isLateUnsubmitted = (quest) => {
+    return Boolean(
+        quest?.__deadline_overdue
+        && !quest?.user_has_submitted
+        && !quest?.user_has_unlock
+    );
+};
 </script>
 
 <template>
@@ -194,7 +202,7 @@ const progressText = (quest) => {
                     (quest.user_submission_status === 'Approved') ? 'border-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.35)] bg-emerald-950/20' :
                     (quest.user_submission_status === 'Pending') ? 'border-yellow-500 shadow-[0_0_12px_rgba(234,179,8,0.35)] bg-yellow-950/20' :
                     (quest.user_has_unlock && !quest.user_has_submitted) ? 'border-cyan-500 shadow-[0_0_12px_rgba(34,211,238,0.3)] bg-cyan-950/20' :
-                    (quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock) ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.2)]' :
+                    (isLateUnsubmitted(quest)) ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.2)]' :
                     (quest.status === 'In-Progress') ? 'border-slate-500 bg-slate-900/50' :
                     quest.user_has_submitted ? 'border-yellow-600 shadow-[0_0_10px_rgba(202,138,4,0.2)]' : 'border-slate-700 hover:border-[#009999]'
                 ]"
@@ -257,7 +265,7 @@ const progressText = (quest) => {
                 </div>
 
                 <div class="flex-grow">
-                    <p v-if="quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock" class="text-[6px] uppercase text-red-500">
+                    <p v-if="isLateUnsubmitted(quest)" class="text-[6px] uppercase text-red-500">
                         Mission_Expired
                     </p>
                     <p v-if="quest.user_has_unlock && !quest.user_has_submitted" class="text-[6px] uppercase italic tracking-widest text-cyan-300">
@@ -288,7 +296,7 @@ const progressText = (quest) => {
                                 (quest.user_submission_status === 'Approved') ? 'border-emerald-800 bg-emerald-600 text-black hover:bg-emerald-400' :
                                 (quest.user_submission_status === 'Pending') ? 'border-yellow-800 bg-yellow-600 text-black hover:bg-yellow-400' :
                                 (quest.user_has_unlock && !quest.user_has_submitted) ? 'border-cyan-800 bg-cyan-600 text-black hover:bg-cyan-400' :
-                                (quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock) ? 'border-red-950 bg-red-700 text-white hover:bg-red-600' :
+                                (isLateUnsubmitted(quest)) ? 'border-red-950 bg-red-700 text-white hover:bg-red-600' :
                                 quest.user_has_submitted ? 'border-slate-900 bg-slate-700 text-white hover:bg-slate-600' :
                                 'border-[#006666] bg-[#009999] text-black hover:bg-[#4ed4d4]'
                             ]"
@@ -296,7 +304,7 @@ const progressText = (quest) => {
                             <template v-if="quest.user_submission_status === 'Approved'">View</template>
                             <template v-else-if="quest.user_submission_status === 'Pending'">Preview</template>
                             <template v-else-if="quest.user_has_unlock && !quest.user_has_submitted">Continue</template>
-                            <template v-else-if="quest.status === 'Done' && !quest.user_has_submitted && !quest.user_has_unlock">Late</template>
+                            <template v-else-if="isLateUnsubmitted(quest)">Late</template>
                             <template v-else>{{ quest.user_has_submitted ? 'View' : 'Take_Quest' }}</template>
                         </Link>
                     </template>

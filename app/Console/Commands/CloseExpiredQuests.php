@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Quest;
+use App\Support\Cache\CacheVersion;
 use Illuminate\Console\Command;
 
 class CloseExpiredQuests extends Command
@@ -48,16 +49,22 @@ class CloseExpiredQuests extends Command
             }
         });
 
-    $deadlineCount = Quest::query()
-        ->where('status', Quest::STATUS_AVAILABLE)
-        ->whereNotNull('deadline')
-        ->where('deadline', '<', $now)
-        ->update(['status' => Quest::STATUS_DONE]);
+    // Data recovery: legacy manual quest yang pernah ditandai Done/Completed
+    // harus kembali Available agar tidak bentrok dengan mode manual + Time Key.
+    $normalizedManualCount = Quest::query()
+        ->where(function ($query) {
+            $query->whereNull('schedule_type')
+                ->orWhere('schedule_type', Quest::SCHEDULE_MANUAL);
+        })
+        ->whereIn('status', [Quest::STATUS_DONE, 'Completed'])
+        ->update(['status' => Quest::STATUS_AVAILABLE]);
 
-    $updatedCount += $deadlineCount;
+    $updatedCount += (int) $normalizedManualCount;
 
     if ($updatedCount > 0) {
-        $this->info("MISSION_UPDATE: {$updatedCount} quests synchronized with deadline/schedule.");
+        CacheVersion::bump('quests');
+        CacheVersion::bump('home');
+        $this->info("MISSION_UPDATE: {$updatedCount} quests synchronized with schedule.");
     }
 }
 }

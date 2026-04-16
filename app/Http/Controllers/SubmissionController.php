@@ -319,7 +319,8 @@ class SubmissionController extends Controller
     private function isQuestLate(Quest $quest): bool
     {
         $deadlinePassed = $quest->deadline !== null && $quest->deadline->isPast();
-        $statusDone = in_array($quest->status, ['Done', 'Completed'], true);
+        $isScheduledOnce = (string) ($quest->schedule_type ?? Quest::SCHEDULE_MANUAL) === Quest::SCHEDULE_ONCE;
+        $statusDone = $isScheduledOnce && in_array((string) $quest->status, ['Done', 'Completed'], true);
 
         return $deadlinePassed || $statusDone;
     }
@@ -509,12 +510,13 @@ class SubmissionController extends Controller
     private function questAvailabilityErrorMessage(Quest $quest): string
     {
         $now = now();
+        $isScheduledOnce = (string) ($quest->schedule_type ?? Quest::SCHEDULE_MANUAL) === Quest::SCHEDULE_ONCE;
 
-        if ($quest->available_from && $now->lt($quest->available_from)) {
+        if ($isScheduledOnce && $quest->available_from && $now->lt($quest->available_from)) {
             return 'Quest ini belum masuk jadwal tayang.';
         }
 
-        if ($quest->available_until && $now->gte($quest->available_until)) {
+        if ($isScheduledOnce && $quest->available_until && $now->gte($quest->available_until)) {
             return 'Jadwal quest ini sudah berakhir.';
         }
 

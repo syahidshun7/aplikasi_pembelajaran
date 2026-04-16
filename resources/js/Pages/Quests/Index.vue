@@ -194,7 +194,11 @@ const startEdit = (quest) => {
     form.reward_exp = quest.reward_exp ?? quest.reward_gold ?? 0;
     form.description = quest.description || '';
     form.quest_type = quest.quest_type || 'main';
-    form.is_active = String(quest.status || 'Available') === 'Available';
+    const isScheduledOnceQuest = String(quest.schedule_type || 'manual') === 'once';
+    // Manual quest legacy bisa pernah berstatus Done; anggap tetap aktif selama bukan In-Progress.
+    form.is_active = isScheduledOnceQuest
+        ? true
+        : String(quest.status || 'Available') !== 'In-Progress';
     form.study_group_id = quest.study_group_id;
     form.task_bank_id = quest.task_bank_id;
     form.rubric_id = quest.rubric_id ?? null;

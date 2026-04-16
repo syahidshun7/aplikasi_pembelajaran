@@ -208,19 +208,22 @@ public function events()
     public function isCurrentlyVisible(?CarbonInterface $at = null): bool
     {
         $resolvedAt = $at ?? now();
+        $scheduleType = (string) ($this->schedule_type ?? self::SCHEDULE_MANUAL);
+
+        if ($scheduleType !== self::SCHEDULE_ONCE) {
+            return (string) $this->status !== self::STATUS_IN_PROGRESS;
+        }
 
         if ((string) $this->status !== self::STATUS_AVAILABLE) {
             return false;
         }
 
-        if ((string) ($this->schedule_type ?? self::SCHEDULE_MANUAL) === self::SCHEDULE_ONCE) {
-            if ($this->available_from && $this->available_from->isFuture()) {
-                return false;
-            }
+        if ($this->available_from && $this->available_from->isFuture()) {
+            return false;
+        }
 
-            if ($this->available_until && $this->available_until->lessThanOrEqualTo($resolvedAt)) {
-                return false;
-            }
+        if ($this->available_until && $this->available_until->lessThanOrEqualTo($resolvedAt)) {
+            return false;
         }
 
         return true;
