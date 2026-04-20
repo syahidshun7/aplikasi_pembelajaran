@@ -131,6 +131,11 @@ public function shopTransactions()
     return $this->hasMany(ShopTransaction::class);
 }
 
+public function goldAdjustments()
+{
+    return $this->hasMany(UserGoldAdjustment::class);
+}
+
 public function sendEmailVerificationNotification(): void
 {
     $this->notify(new CustomVerifyEmail());

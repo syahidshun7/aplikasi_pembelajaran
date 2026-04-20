@@ -6,9 +6,15 @@ use App\Models\Quest;
 use App\Models\Submission;
 use App\Models\User;
 use App\Models\JobRole;
+use App\Models\DailyQuest;
+use App\Models\ShopTransaction;
+use App\Models\UserGoldAdjustment;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -188,6 +194,145 @@ class AdminUserController extends Controller
         ]);
     }
 
+    public function ledger(Request $request, User $user): Response
+    {
+        $sourceOptions = $this->ledgerSourceOptions();
+        $sourceKeys = array_keys($sourceOptions);
+
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'source' => ['nullable', Rule::in(array_merge(['all'], $sourceKeys))],
+            'direction' => ['nullable', Rule::in(['all', 'income', 'expense', 'neutral'])],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+            'per_page' => ['nullable', 'integer', 'min:10', 'max:100'],
+        ]);
+
+        $search = trim((string) ($validated['search'] ?? ''));
+        $source = (string) ($validated['source'] ?? 'all');
+        $direction = (string) ($validated['direction'] ?? 'all');
+        $dateFrom = $validated['date_from'] ?? null;
+        $dateTo = $validated['date_to'] ?? null;
+        $perPage = (int) ($validated['per_page'] ?? 25);
+
+        $records = $this->buildUserGoldLedgerRecords($user);
+
+        if ($source !== 'all') {
+            $records = $records->where('source_key', $source)->values();
+        }
+
+        if ($direction !== 'all') {
+            $records = $records->where('direction', $direction)->values();
+        }
+
+        if ($search !== '') {
+            $needle = mb_strtolower($search);
+            $records = $records->filter(function (array $row) use ($needle) {
+                $haystacks = [
+                    (string) ($row['source_label'] ?? ''),
+                    (string) ($row['note'] ?? ''),
+                    (string) ($row['reference'] ?? ''),
+                    (string) ($row['item_name'] ?? ''),
+                    (string) ($row['item_code'] ?? ''),
+                ];
+
+                foreach ($haystacks as $haystack) {
+                    if ($haystack !== '' && str_contains(mb_strtolower($haystack), $needle)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })->values();
+        }
+
+        $fromTs = $dateFrom ? Carbon::parse($dateFrom)->startOfDay()->timestamp : null;
+        $toTs = $dateTo ? Carbon::parse($dateTo)->endOfDay()->timestamp : null;
+
+        if ($fromTs !== null) {
+            $records = $records->filter(fn (array $row) => (int) ($row['occurred_at_ts'] ?? 0) >= $fromTs)->values();
+        }
+
+        if ($toTs !== null) {
+            $records = $records->filter(fn (array $row) => (int) ($row['occurred_at_ts'] ?? 0) <= $toTs)->values();
+        }
+
+        $records = $records
+            ->sortByDesc('occurred_at_ts')
+            ->values();
+
+        $summary = [
+            'income_total' => (int) $records->sum(fn (array $row) => max(0, (int) ($row['gold_change'] ?? 0))),
+            'expense_total' => (int) $records->sum(fn (array $row) => abs(min(0, (int) ($row['gold_change'] ?? 0)))),
+            'net_total' => (int) $records->sum(fn (array $row) => (int) ($row['gold_change'] ?? 0)),
+            'transaction_count' => (int) $records->count(),
+            'current_gold' => (int) ($user->gold ?? 0),
+        ];
+
+        $sourceBreakdown = collect($sourceOptions)
+            ->map(function (string $label, string $key) use ($records) {
+                $rows = $records->where('source_key', $key);
+
+                return [
+                    'key' => $key,
+                    'label' => $label,
+                    'count' => (int) $rows->count(),
+                    'net_total' => (int) $rows->sum(fn (array $row) => (int) ($row['gold_change'] ?? 0)),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $page = max(1, (int) $request->query('page', 1));
+        $total = (int) $records->count();
+        $items = $records
+            ->forPage($page, $perPage)
+            ->values()
+            ->map(function (array $row) {
+                unset($row['occurred_at_ts']);
+                return $row;
+            })
+            ->all();
+
+        $ledger = new LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            [
+                'path' => LengthAwarePaginator::resolveCurrentPath(),
+                'query' => $request->query(),
+            ]
+        );
+
+        return Inertia::render('Users/Admin/Ledger', [
+            'user' => [
+                'id' => (int) $user->id,
+                'name' => (string) ($user->name ?? ''),
+                'username' => (string) ($user->username ?? ''),
+                'email' => (string) ($user->email ?? ''),
+                'role' => (string) ($user->role ?? ''),
+                'gold' => (int) ($user->gold ?? 0),
+                'exp' => (int) ($user->exp ?? 0),
+            ],
+            'ledger' => $ledger,
+            'summary' => $summary,
+            'sourceBreakdown' => $sourceBreakdown,
+            'sourceOptions' => collect($sourceOptions)
+                ->map(fn (string $label, string $key) => ['key' => $key, 'label' => $label])
+                ->values()
+                ->all(),
+            'filters' => [
+                'search' => $search,
+                'source' => $source,
+                'direction' => $direction,
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'per_page' => $perPage,
+            ],
+        ]);
+    }
+
     public function updateRole(Request $request, User $user): RedirectResponse
     {
         $validated = $request->validate([
@@ -224,6 +369,7 @@ class AdminUserController extends Controller
     public function update(Request $request, User $user): RedirectResponse
     {
         $previousJobId = $user->job_id;
+        $beforeGold = (int) ($user->gold ?? 0);
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'username' => [
@@ -280,6 +426,22 @@ class AdminUserController extends Controller
         }
 
         $user->forceFill($payload)->save();
+        $afterGold = (int) ($user->gold ?? 0);
+
+        if ($afterGold !== $beforeGold && Schema::hasTable('user_gold_adjustments')) {
+            UserGoldAdjustment::query()->create([
+                'user_id' => (int) $user->id,
+                'admin_user_id' => (int) $request->user()->id,
+                'gold_before' => $beforeGold,
+                'gold_after' => $afterGold,
+                'gold_change' => $afterGold - $beforeGold,
+                'reason' => 'Admin user profile update',
+                'meta' => [
+                    'context' => 'admin.users.update',
+                    'admin_role' => (string) ($request->user()->role ?? ''),
+                ],
+            ]);
+        }
 
         $avatarUpdated = false;
         if ($request->hasFile('profile_photo')) {
@@ -347,6 +509,217 @@ class AdminUserController extends Controller
         }
 
         return back()->with('message', 'USER_DATA_UPDATED');
+    }
+
+    private function ledgerSourceOptions(): array
+    {
+        return [
+            'submission_reward' => 'Submission Reward',
+            'daily_quest_claim' => 'Daily Quest Claim',
+            'shop_purchase' => 'Shop Purchase',
+            'shop_consume_unlock' => 'Use Time Key',
+            'shop_refund' => 'Shop Refund',
+            'admin_adjustment' => 'Admin Gold Adjustment',
+        ];
+    }
+
+    private function buildUserGoldLedgerRecords(User $user): Collection
+    {
+        return collect()
+            ->concat($this->buildSubmissionLedgerRecords($user))
+            ->concat($this->buildDailyQuestLedgerRecords($user))
+            ->concat($this->buildShopLedgerRecords($user))
+            ->concat($this->buildAdminAdjustmentLedgerRecords($user))
+            ->values();
+    }
+
+    private function buildSubmissionLedgerRecords(User $user): Collection
+    {
+        return Submission::query()
+            ->where('user_id', (int) $user->id)
+            ->whereIn('status', ['Approved', 'Rejected'])
+            ->where('earned_gold', '!=', 0)
+            ->with('quest:id,uuid,title')
+            ->get(['id', 'uuid', 'quest_id', 'status', 'earned_gold', 'created_at'])
+            ->map(function (Submission $submission) {
+                $goldChange = (int) ($submission->earned_gold ?? 0);
+                $occurredAt = $submission->created_at ?? now();
+
+                return [
+                    'id' => 'submission:' . (int) $submission->id,
+                    'source_key' => 'submission_reward',
+                    'source_label' => 'Submission Reward',
+                    'direction' => $this->directionFromGoldChange($goldChange),
+                    'gold_change' => $goldChange,
+                    'amount' => abs($goldChange),
+                    'note' => trim(sprintf(
+                        'Quest: %s | Status: %s',
+                        (string) ($submission->quest?->title ?? 'Unknown Quest'),
+                        (string) ($submission->status ?? '-')
+                    )),
+                    'reference' => (string) ($submission->uuid ?? ''),
+                    'item_name' => (string) ($submission->quest?->title ?? ''),
+                    'item_code' => (string) ($submission->quest?->uuid ?? ''),
+                    'occurred_at' => $occurredAt->toIso8601String(),
+                    'occurred_at_ts' => (int) $occurredAt->timestamp,
+                ];
+            })
+            ->values();
+    }
+
+    private function buildDailyQuestLedgerRecords(User $user): Collection
+    {
+        return DailyQuest::query()
+            ->where('user_id', (int) $user->id)
+            ->where('status', DailyQuest::STATUS_CLAIMED)
+            ->where('reward_gold', '!=', 0)
+            ->get(['id', 'uuid', 'title', 'activity_type', 'reward_gold', 'claimed_at', 'created_at'])
+            ->map(function (DailyQuest $dailyQuest) {
+                $goldChange = (int) ($dailyQuest->reward_gold ?? 0);
+                $occurredAt = $dailyQuest->claimed_at ?? $dailyQuest->created_at ?? now();
+
+                return [
+                    'id' => 'daily_quest:' . (int) $dailyQuest->id,
+                    'source_key' => 'daily_quest_claim',
+                    'source_label' => 'Daily Quest Claim',
+                    'direction' => $this->directionFromGoldChange($goldChange),
+                    'gold_change' => $goldChange,
+                    'amount' => abs($goldChange),
+                    'note' => trim(sprintf(
+                        '%s | Activity: %s',
+                        (string) ($dailyQuest->title ?? 'Daily Quest'),
+                        (string) ($dailyQuest->activity_type ?? '-')
+                    )),
+                    'reference' => (string) ($dailyQuest->uuid ?? ''),
+                    'item_name' => (string) ($dailyQuest->title ?? ''),
+                    'item_code' => (string) ($dailyQuest->activity_type ?? ''),
+                    'occurred_at' => $occurredAt->toIso8601String(),
+                    'occurred_at_ts' => (int) $occurredAt->timestamp,
+                ];
+            })
+            ->values();
+    }
+
+    private function buildShopLedgerRecords(User $user): Collection
+    {
+        $rows = collect();
+
+        $transactions = ShopTransaction::query()
+            ->where('user_id', (int) $user->id)
+            ->with('item:id,name,code')
+            ->get(['id', 'shop_item_id', 'type', 'quantity', 'gold_change', 'note', 'meta', 'created_at']);
+
+        foreach ($transactions as $transaction) {
+            $type = (string) ($transaction->type ?? '');
+            $meta = is_array($transaction->meta) ? $transaction->meta : [];
+
+            $normalizedGoldChange = match ($type) {
+                'purchase' => -abs((int) ($transaction->gold_change ?? 0)),
+                'consume_unlock' => 0,
+                default => (int) ($transaction->gold_change ?? 0),
+            };
+
+            $sourceKey = match ($type) {
+                'purchase' => 'shop_purchase',
+                'consume_unlock' => 'shop_consume_unlock',
+                default => 'shop_purchase',
+            };
+
+            $sourceLabel = match ($type) {
+                'purchase' => 'Shop Purchase',
+                'consume_unlock' => 'Use Time Key',
+                default => 'Shop Transaction',
+            };
+
+            $occurredAt = $transaction->created_at ?? now();
+
+            $rows->push([
+                'id' => 'shop:' . (int) $transaction->id,
+                'source_key' => $sourceKey,
+                'source_label' => $sourceLabel,
+                'direction' => $this->directionFromGoldChange($normalizedGoldChange),
+                'gold_change' => $normalizedGoldChange,
+                'amount' => abs($normalizedGoldChange),
+                'note' => (string) ($transaction->note ?? ''),
+                'reference' => (string) ((int) $transaction->id),
+                'item_name' => (string) ($transaction->item?->name ?? ''),
+                'item_code' => (string) ($transaction->item?->code ?? ''),
+                'occurred_at' => $occurredAt->toIso8601String(),
+                'occurred_at_ts' => (int) $occurredAt->timestamp,
+            ]);
+
+            $refundGold = max(0, (int) ($meta['refund_gold'] ?? 0));
+            $cancelledAtRaw = $meta['admin_cancelled_at'] ?? null;
+
+            if ($refundGold > 0 && is_string($cancelledAtRaw) && trim($cancelledAtRaw) !== '') {
+                $cancelledAt = Carbon::parse($cancelledAtRaw);
+                $rows->push([
+                    'id' => 'shop_refund:' . (int) $transaction->id,
+                    'source_key' => 'shop_refund',
+                    'source_label' => 'Shop Refund',
+                    'direction' => 'income',
+                    'gold_change' => $refundGold,
+                    'amount' => $refundGold,
+                    'note' => 'Admin cancelled purchase and refunded gold',
+                    'reference' => (string) ((int) $transaction->id),
+                    'item_name' => (string) ($transaction->item?->name ?? ''),
+                    'item_code' => (string) ($transaction->item?->code ?? ''),
+                    'occurred_at' => $cancelledAt->toIso8601String(),
+                    'occurred_at_ts' => (int) $cancelledAt->timestamp,
+                ]);
+            }
+        }
+
+        return $rows->values();
+    }
+
+    private function buildAdminAdjustmentLedgerRecords(User $user): Collection
+    {
+        if (! Schema::hasTable('user_gold_adjustments')) {
+            return collect();
+        }
+
+        return UserGoldAdjustment::query()
+            ->where('user_id', (int) $user->id)
+            ->with('admin:id,name,username')
+            ->get(['id', 'admin_user_id', 'gold_before', 'gold_after', 'gold_change', 'reason', 'meta', 'created_at'])
+            ->map(function (UserGoldAdjustment $adjustment) {
+                $goldChange = (int) ($adjustment->gold_change ?? 0);
+                $occurredAt = $adjustment->created_at ?? now();
+
+                return [
+                    'id' => 'admin_adjustment:' . (int) $adjustment->id,
+                    'source_key' => 'admin_adjustment',
+                    'source_label' => 'Admin Gold Adjustment',
+                    'direction' => $this->directionFromGoldChange($goldChange),
+                    'gold_change' => $goldChange,
+                    'amount' => abs($goldChange),
+                    'note' => trim(sprintf(
+                        '%s | by: %s',
+                        (string) ($adjustment->reason ?? 'Manual adjustment'),
+                        (string) ($adjustment->admin?->username ?? $adjustment->admin?->name ?? 'unknown')
+                    )),
+                    'reference' => (string) ((int) $adjustment->id),
+                    'item_name' => '',
+                    'item_code' => '',
+                    'occurred_at' => $occurredAt->toIso8601String(),
+                    'occurred_at_ts' => (int) $occurredAt->timestamp,
+                ];
+            })
+            ->values();
+    }
+
+    private function directionFromGoldChange(int $goldChange): string
+    {
+        if ($goldChange > 0) {
+            return 'income';
+        }
+
+        if ($goldChange < 0) {
+            return 'expense';
+        }
+
+        return 'neutral';
     }
 
     public function destroy(Request $request, User $user): RedirectResponse

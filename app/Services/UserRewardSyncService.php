@@ -30,7 +30,15 @@ class UserRewardSyncService
                 $query->whereNull('meta')
                     ->orWhereRaw("JSON_EXTRACT(meta, '$.admin_cancelled_at') IS NULL");
             })
-            ->selectRaw('COALESCE(SUM(gold_change),0) as gold_total')
+            ->selectRaw("
+                COALESCE(SUM(
+                    CASE
+                        WHEN type = 'purchase' THEN -ABS(gold_change)
+                        WHEN type = 'consume_unlock' THEN 0
+                        ELSE gold_change
+                    END
+                ),0) as gold_total
+            ")
             ->first();
 
         $newExp = (int) ($submissionTotals->exp_total ?? 0) + (int) ($dailyTotals->exp_total ?? 0);

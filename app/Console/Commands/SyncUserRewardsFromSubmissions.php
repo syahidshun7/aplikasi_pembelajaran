@@ -52,7 +52,16 @@ class SyncUserRewardsFromSubmissions extends Command
                 $query->whereNull('meta')
                     ->orWhereRaw("JSON_EXTRACT(meta, '$.admin_cancelled_at') IS NULL");
             })
-            ->selectRaw('user_id, COALESCE(SUM(gold_change), 0) AS gold_sum')
+            ->selectRaw("
+                user_id,
+                COALESCE(SUM(
+                    CASE
+                        WHEN type = 'purchase' THEN -ABS(gold_change)
+                        WHEN type = 'consume_unlock' THEN 0
+                        ELSE gold_change
+                    END
+                ), 0) AS gold_sum
+            ")
             ->groupBy('user_id')
             ->get()
             ->keyBy('user_id');

@@ -73,12 +73,24 @@ class ShopController extends Controller
         $qty = (int) $validated['quantity'];
 
         DB::transaction(function () use ($item, $qty) {
+            $lockedItem = ShopItem::query()
+                ->whereKey($item->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $unitPrice = (int) ($lockedItem->price_gold ?? 0);
+            if ($unitPrice < 0) {
+                throw ValidationException::withMessages([
+                    'quantity' => 'Harga item tidak valid. Silakan hubungi admin.',
+                ]);
+            }
+
             $user = User::query()
                 ->whereKey(auth()->id())
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $totalPrice = (int) $item->price_gold * $qty;
+            $totalPrice = $unitPrice * $qty;
 
             if ((int) ($user->gold ?? 0) < $totalPrice) {
                 throw ValidationException::withMessages([
@@ -88,14 +100,14 @@ class ShopController extends Controller
 
             $inventory = UserInventory::query()
                 ->where('user_id', $user->id)
-                ->where('shop_item_id', $item->id)
+                ->where('shop_item_id', $lockedItem->id)
                 ->lockForUpdate()
                 ->first();
 
             if (! $inventory) {
                 $inventory = UserInventory::create([
                     'user_id' => $user->id,
-                    'shop_item_id' => $item->id,
+                    'shop_item_id' => $lockedItem->id,
                     'quantity' => 0,
                 ]);
             }
@@ -105,14 +117,14 @@ class ShopController extends Controller
 
             ShopTransaction::create([
                 'user_id' => $user->id,
-                'shop_item_id' => $item->id,
+                'shop_item_id' => $lockedItem->id,
                 'type' => 'purchase',
                 'quantity' => $qty,
                 'gold_change' => -$totalPrice,
                 'note' => 'Purchase from user shop',
                 'meta' => [
-                    'item_code' => $item->code,
-                    'unit_price_gold' => (int) $item->price_gold,
+                    'item_code' => $lockedItem->code,
+                    'unit_price_gold' => $unitPrice,
                 ],
             ]);
         });

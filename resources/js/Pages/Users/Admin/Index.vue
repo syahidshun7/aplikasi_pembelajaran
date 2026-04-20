@@ -489,6 +489,13 @@ const formatDate = (date) => {
                                 {{ isTrashView ? formatDate(user.deleted_at) : formatDate(user.created_at) }}
                             </td>
                             <td class="py-4 px-2 text-right space-x-2">
+                                <Link
+                                    v-if="!isTrashView"
+                                    :href="route('admin.users.ledger', user.id)"
+                                    class="inline-block px-2 py-1 border border-cyan-700 text-cyan-300 hover:bg-cyan-700 hover:text-black uppercase text-[8px]"
+                                >
+                                    Ledger
+                                </Link>
                                 <button
                                     v-if="!isTrashView"
                                     @click="openEditModal(user)"

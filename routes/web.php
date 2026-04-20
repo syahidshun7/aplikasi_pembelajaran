@@ -257,6 +257,7 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
 Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::prefix('admin/users')->name('admin.users.')->group(function () {
         Route::get('/', [AdminUserController::class, 'index'])->name('index');
+        Route::get('/{user}/ledger', [AdminUserController::class, 'ledger'])->name('ledger');
         Route::patch('/{userId}/restore', [AdminUserController::class, 'restore'])->name('restore');
         Route::delete('/{userId}/force', [AdminUserController::class, 'forceDestroy'])->name('force-destroy');
         Route::patch('/{user}', [AdminUserController::class, 'update'])->name('update');
