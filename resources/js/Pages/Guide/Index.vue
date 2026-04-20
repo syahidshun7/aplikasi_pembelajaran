@@ -16,6 +16,7 @@ const firstStudyGroupId = computed(() => props.studyGroups?.[0]?.id ?? null);
 // State untuk UI
 const isEditing = ref(false);
 const editId = ref(null);
+const showFormModal = ref(false);
 const showDeleteModal = ref(false);
 const materiIdToDelete = ref(null);
 
@@ -108,7 +109,7 @@ const startEdit = (item) => {
     form.description = item.description || '';
     form.study_group_id = item.study_group_id ?? null;
     form.file = null;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showFormModal.value = true;
     
     Toast.fire({
         icon: 'info',
@@ -121,6 +122,12 @@ const cancelEdit = () => {
     editId.value = null;
     form.reset();
     form.study_group_id = isMentor.value ? firstStudyGroupId.value : null;
+    showFormModal.value = false;
+};
+
+const openCreateModal = () => {
+    cancelEdit();
+    showFormModal.value = true;
 };
 
 const submit = () => {
@@ -154,8 +161,7 @@ const submit = () => {
         form.post(route('materi.store'), {
             forceFormData: true,
             onSuccess: () => {
-                form.reset();
-                form.study_group_id = isMentor.value ? firstStudyGroupId.value : null;
+                cancelEdit();
                 Toast.fire({
                     icon: 'success',
                     title: 'KNOWLEDGE_INSCRIBED'
@@ -267,12 +273,25 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
 
             <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b-4 border-indigo-900 pb-4">
                 <h1 class="text-base sm:text-xl uppercase tracking-widest animate-pulse">Guide_Library_System</h1>
-                <Link href="/dashboard" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white transition-colors uppercase text-[9px] sm:text-[10px]">[Back_to_HQ]
-                </Link>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="openCreateModal"
+                        class="inline-flex items-center justify-center px-3 py-2 border border-indigo-500 bg-indigo-900/20 text-indigo-300 hover:bg-indigo-500 hover:text-black transition-colors uppercase text-[9px] sm:text-[10px]"
+                    >
+                        [New_Guide]
+                    </button>
+                    <Link href="/dashboard" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white transition-colors uppercase text-[9px] sm:text-[10px]">[Back_to_HQ]
+                    </Link>
+                </div>
             </div>
 
             <div class="grid grid-cols-12 gap-8">
-                <div class="col-span-12 lg:col-span-5">
+                <div
+                    v-if="showFormModal"
+                    class="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
+                >
+                    <div class="w-full max-w-4xl max-h-[90vh] overflow-y-auto modal-scroll">
                     <div class="rpg-panel" :class="isEditing ? 'border-green-500/50' : 'border-indigo-500/50'">
                         <h2 class="mb-6 uppercase tracking-tighter"
                             :class="isEditing ? 'text-green-500' : 'text-indigo-400'">
@@ -332,7 +351,7 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                                     :class="isEditing ? 'border-green-600 text-green-500 hover:bg-green-600 hover:text-black' : 'border-indigo-500 text-indigo-400 hover:bg-indigo-500 hover:text-black'">
                                     {{ form.processing ? 'SYNCING...' : (isEditing ? 'UPDATE_SCROLL' : 'ISSUE_GUIDE') }}
                                 </button>
-                                <button v-if="isEditing" @click="cancelEdit" type="button"
+                                <button @click="cancelEdit" type="button"
                                     class="px-4 py-3 border-2 border-slate-500 text-slate-500 hover:bg-slate-500 hover:text-white uppercase">
                                     X
                                 </button>
@@ -340,8 +359,9 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                         </form>
                     </div>
                 </div>
+                </div>
 
-                <div class="col-span-12 lg:col-span-7">
+                <div class="col-span-12 lg:col-span-12">
                     <div class="rpg-panel border-slate-700 h-full">
                         <h2 class="text-white mb-6 uppercase tracking-tighter">
                             >> {{ isTrashView ? 'TRASH_ARCHIVE_BOARD' : 'ARCHIVE_REGISTRY_BOARD' }}

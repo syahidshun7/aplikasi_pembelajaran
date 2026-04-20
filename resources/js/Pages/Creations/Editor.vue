@@ -189,6 +189,10 @@ const canResizeWorkspace = () => (
     typeof window !== 'undefined' && window.matchMedia('(min-width: 1100px)').matches
 );
 
+const isCompactViewport = () => (
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 1099px)').matches
+);
+
 const clampWorkspaceHeight = (height) => (
     Math.min(MAX_WORKSPACE_HEIGHT, Math.max(MIN_WORKSPACE_HEIGHT, Number(height || 0)))
 );
@@ -278,6 +282,7 @@ const saveFormStateLocally = () => {
         is_open_for_collaboration: Boolean(form.is_open_for_collaboration),
         removed_photo_ids: [...removedPhotoIds.value].map((id) => Number(id)),
         workspace_height: Number(workspaceHeight.value || 0),
+        sidebar_collapsed: Boolean(sidebarCollapsed.value),
         workspaceScrollTop: Number(mainWorkspaceRef.value?.scrollTop || 0),
         scrollY: window.scrollY || 0,
         savedAt: Date.now(),
@@ -371,10 +376,15 @@ const applyStateToForm = (payload) => {
 };
 
 const applyEditorPreferences = (payload) => {
-    sidebarCollapsed.value = false;
+    const savedSidebarState = payload?.sidebar_collapsed;
+    if (typeof savedSidebarState === 'boolean') {
+        sidebarCollapsed.value = savedSidebarState;
+    } else {
+        sidebarCollapsed.value = isCompactViewport();
+    }
 
     const preferredWorkspaceHeight = Number(payload?.workspace_height || 0);
-    workspaceHeight.value = Number.isFinite(preferredWorkspaceHeight) && preferredWorkspaceHeight >= MIN_WORKSPACE_HEIGHT
+    workspaceHeight.value = Number.isFinite(preferredWorkspaceHeight) && preferredWorkspaceHeight >= MIN_WORKSPACE_HEIGHT && !isCompactViewport()
         ? clampWorkspaceHeight(preferredWorkspaceHeight)
         : 0;
 };
@@ -461,8 +471,8 @@ const fetchCreation = async () => {
         const localState = loadLocalFormState();
         if (localState) {
             applyStateToForm(localState);
-            applyEditorPreferences(localState);
         }
+        applyEditorPreferences(localState);
         lastSavedFingerprint = JSON.stringify(buildPersistPayload(form.publication_status || 'draft'));
         loading.value = false;
         return;
@@ -497,11 +507,12 @@ const fetchCreation = async () => {
         existingPhotos.value = Array.isArray(creation.photos) ? creation.photos : [];
         removedPhotoIds.value = [];
         const localState = loadLocalFormState();
-        if (shouldRestoreLocalDraft(localState, serverUpdatedAt)) {
+        const shouldRestoreDraft = shouldRestoreLocalDraft(localState, serverUpdatedAt);
+        if (shouldRestoreDraft) {
             applyStateToForm(localState);
-            applyEditorPreferences(localState);
             editorRestoreAfter.value = Math.max(serverUpdatedAt, Number(localState?.savedAt || 0));
         }
+        applyEditorPreferences(localState);
 
         lastSavedFingerprint = JSON.stringify(buildPersistPayload(form.publication_status || 'draft'));
     } catch (error) {
@@ -1168,13 +1179,9 @@ onBeforeUnmount(() => {
     grid-template-columns: minmax(0, 1fr);
 }
 
-.creation-editor-page__main,
-.creation-sidebar {
-    border: 1px solid rgba(71, 85, 105, 0.8);
-    background: rgba(15, 23, 42, 0.72);
-}
-
 .creation-editor-page__main {
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    background: rgba(255, 255, 255, 0.97);
     padding: 0 0.75rem 0.75rem;
     display: flex;
     flex-direction: column;
@@ -1190,6 +1197,7 @@ onBeforeUnmount(() => {
 .creation-editor-page__main-header {
     padding-top: 0.65rem;
     margin-bottom: 0.55rem;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.95);
 }
 
 .creation-editor-page__editor-shell {
@@ -1206,7 +1214,7 @@ onBeforeUnmount(() => {
     width: 100%;
     border: none;
     background: transparent;
-    color: #f8fafc;
+    color: #0f172a;
     font-family: Georgia, "Times New Roman", serif;
     font-size: clamp(20px, 2.6vw, 32px);
     line-height: 1.05;
@@ -1215,7 +1223,7 @@ onBeforeUnmount(() => {
 }
 
 .creation-title-input::placeholder {
-    color: #64748b;
+    color: #94a3b8;
 }
 
 .creation-title-meta {
@@ -1225,10 +1233,12 @@ onBeforeUnmount(() => {
     margin-bottom: 0;
     font-size: 7px;
     text-transform: uppercase;
-    color: #64748b;
+    color: #94a3b8;
 }
 
 .creation-sidebar {
+    border: 1px solid rgba(71, 85, 105, 0.8);
+    background: rgba(15, 23, 42, 0.72);
     padding: 1rem;
     display: flex;
     flex-direction: column;
@@ -1463,6 +1473,107 @@ onBeforeUnmount(() => {
     padding: 0 0.9rem;
     font-size: 8px;
     text-transform: uppercase;
+}
+
+@media (max-width: 1099px) {
+    .creation-editor-page {
+        gap: 0.75rem;
+    }
+
+    .creation-editor-page__header {
+        gap: 0.7rem;
+        align-items: stretch;
+    }
+
+    .creation-editor-page__actions {
+        width: 100%;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 0.55rem;
+    }
+
+    .creation-editor-page__meta {
+        width: 100%;
+        order: 3;
+        text-align: right;
+    }
+
+    .creation-editor-page__toggle {
+        flex: 1 1 auto;
+        min-height: 2.2rem;
+        padding: 0 0.65rem;
+    }
+
+    .creation-editor-page__main {
+        padding: 0 0.55rem 0.55rem;
+    }
+
+    .creation-editor-page__main-header {
+        padding-top: 0.55rem;
+    }
+
+    .creation-editor-page__editor-shell {
+        min-height: max(52vh, 380px);
+    }
+
+    .creation-title-meta {
+        flex-wrap: wrap;
+        row-gap: 0.25rem;
+    }
+
+    .creation-sidebar {
+        padding: 0.8rem;
+        gap: 0.85rem;
+    }
+
+    .creation-sidebar__gallery {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .creation-sidebar__section--actions {
+        justify-content: stretch;
+    }
+
+    .creation-sidebar__primary,
+    .creation-sidebar__accent {
+        flex: 1 1 0;
+        min-height: 2.5rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .creation-editor-page__title {
+        font-size: 11px;
+    }
+
+    .creation-editor-page__toggle {
+        font-size: 7px;
+        letter-spacing: 0.06em;
+    }
+
+    .creation-title-input {
+        font-size: clamp(20px, 8.2vw, 30px);
+        line-height: 1.08;
+    }
+
+    .creation-editor-page__editor-shell {
+        min-height: max(56vh, 420px);
+    }
+
+    .creation-sidebar__gallery {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .creation-sidebar__progress-row {
+        grid-template-columns: minmax(0, 1fr) 54px auto;
+        gap: 0.35rem;
+    }
+
+    .creation-sidebar__toggle-btn,
+    .creation-sidebar__primary,
+    .creation-sidebar__accent {
+        min-height: 2.3rem;
+    }
 }
 
 @media (min-width: 1100px) {

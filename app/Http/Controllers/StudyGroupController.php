@@ -4,50 +4,83 @@ namespace App\Http\Controllers;
 use App\Events\JoinGroupRequested;
 use App\Models\StudyGroup;
 use App\Models\StudyGroupJoinRequest;
-use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 
 class StudyGroupController extends Controller
 {
     // Lihat daftar semua party
-    public function index()
+    public function index(Request $request)
     {
-         $userId = Auth::id();
-         $user = Auth::user();
-         $userJobId = $user?->job_id;
+        $user = Auth::user();
+        $userId = (int) Auth::id();
+        $userJobId = $user?->job_id;
+        $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
+        $search = trim((string) $request->input('search', ''));
 
-        $studyGroupCacheVersion = CacheVersion::get('study_groups');
-        $jobKey = is_null($userJobId) ? 'none' : (string) (int) $userJobId;
+        $userGroupIds = $user && ! $isStaffPlayMode
+            ? $user->studyGroups()
+                ->where('study_groups.job_id', $userJobId)
+                ->pluck('study_groups.id')
+                ->map(fn ($id) => (int) $id)
+                ->all()
+            : [];
+
+        $groupRequestStatuses = $userId > 0 && ! $isStaffPlayMode
+            ? StudyGroupJoinRequest::query()
+                ->where('user_id', $userId)
+                ->pluck('status', 'study_group_id')
+                ->toArray()
+            : [];
+
+        $query = StudyGroup::query()
+            ->with('job:id,name')
+            ->withCount('users')
+            ->withCount([
+                'joinRequests as pending_requests_count' => fn ($joinRequestQuery) => $joinRequestQuery->where('status', 'pending'),
+            ])
+            ->where('job_id', $userJobId);
+
+        if ($search !== '') {
+            $query->where(function ($searchQuery) use ($search) {
+                $searchQuery
+                    ->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('uuid', 'like', "%{$search}%");
+            });
+        }
+
+        $groups = $query
+            ->latest()
+            ->paginate(12)
+            ->withQueryString();
+
+        $groups->getCollection()->transform(function (StudyGroup $group) use ($userGroupIds, $groupRequestStatuses) {
+            $payload = $group->toArray();
+            $groupId = (int) $group->id;
+            $payload['is_member'] = in_array($groupId, $userGroupIds, true);
+            $payload['join_request_status'] = $groupRequestStatuses[$groupId] ?? null;
+            return $payload;
+        });
 
         return Inertia::render('StudyGroups/Index', [
-            'groups' => Cache::remember(
-                "study_groups.list.v{$studyGroupCacheVersion}.job.{$jobKey}",
-                now()->addMinutes(5),
-                fn () => StudyGroup::query()
-                    ->withCount('users')
-                    ->where('job_id', $userJobId)
-                    ->latest()
-                    ->get()
-                    ->map(fn ($group) => $group->toArray())
-            ),
-
-            // Mengambil grup milik user melalui query langsung ke Model StudyGroup
-            // Ini jauh lebih aman dari error "undefined method"
-            'myGroups' => Auth::check()
-                ? StudyGroup::where('job_id', $userJobId)
-                    ->whereHas('users', function ($q) use ($userId) {
-                        $q->where('user_id', $userId);
-                    })->withCount('users')->get()
-                : []
+            'groups' => $groups,
+            'filters' => [
+                'search' => $search,
+            ],
         ]);
     }
 
     // Logic JOIN Party
     public function join(Request $request)
     {
+        if ((bool) $request->user()?->isStaffPlayMode()) {
+            return back()->withErrors([
+                'study_group_uuid' => 'Staff play mode tidak bisa join kelas student.',
+            ]);
+        }
+
         $validated = $request->validate([
             'study_group_uuid' => ['required', 'uuid'],
         ]);
@@ -96,6 +129,12 @@ class StudyGroupController extends Controller
     // Logic LEAVE Party
     public function leave($uuid)
     {
+        if ((bool) Auth::user()?->isStaffPlayMode()) {
+            return back()->withErrors([
+                'study_group_uuid' => 'Staff play mode tidak memakai membership kelas student.',
+            ]);
+        }
+
         $group = StudyGroup::where('uuid', $uuid)->firstOrFail();
         $group->softRemoveMember((int) Auth::id());
 

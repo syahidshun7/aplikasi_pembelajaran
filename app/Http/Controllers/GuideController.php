@@ -13,12 +13,15 @@ class GuideController extends Controller
     public function userIndex(Request $request): Response
     {
         $user = Auth::user();
+        $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
-        $userGroupIds = $user->studyGroups()->pluck('study_groups.id')->toArray();
+        $userGroupIds = $isStaffPlayMode
+            ? []
+            : $user->studyGroups()->pluck('study_groups.id')->toArray();
 
         $guides = Guide::query()
             ->where(function ($query) use ($userGroupIds) {
@@ -62,6 +65,8 @@ class GuideController extends Controller
         if (! $guide->study_group_id) {
             return;
         }
+
+        abort_if((bool) Auth::user()?->isStaffPlayMode(), 403, 'STAFF_PLAY_MODE_GUIDE_ACCESS_DENIED');
 
         $userGroupIds = Auth::user()
             ->studyGroups()

@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { toast } from '@/Utils/Alert';
 import { computed } from 'vue';
 
@@ -22,6 +22,8 @@ const props = defineProps({
 const purchaseForm = useForm({
     quantity: 1,
 });
+const page = usePage();
+const isStaffPlayMode = computed(() => Boolean(page.props?.auth?.user?.staff_play_mode));
 
 const formatTxTime = (iso) => {
     if (!iso) return '-';
@@ -40,6 +42,11 @@ const transactionItems = computed(() => {
 const buyItem = async (item) => {
     if (!item?.id) {
         toast.error('INVALID_ITEM', 'Item tidak valid.');
+        return;
+    }
+
+    if (isStaffPlayMode.value) {
+        toast.error('STAFF_PLAY_MODE', 'Pembelian shop dimatikan untuk mentor/admin pada mode preview.');
         return;
     }
 
@@ -87,6 +94,14 @@ const buyItem = async (item) => {
                     <p class="text-[8px] text-slate-500 uppercase mb-1">Your_Gold</p>
                     <p class="text-yellow-300 text-sm uppercase">{{ gold }} G</p>
                 </div>
+            </div>
+            <div
+                v-if="isStaffPlayMode"
+                class="rpg-panel mb-6 border-cyan-500/50 bg-cyan-500/10 text-cyan-100"
+            >
+                <p class="text-[9px] uppercase leading-relaxed">
+                    Staff play mode aktif. Shop hanya bisa dipreview. Pembelian item tidak masuk economy utama.
+                </p>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -138,10 +153,10 @@ const buyItem = async (item) => {
                                     <button
                                         type="button"
                                         class="w-full text-[8px] px-2 py-2 btn-pixel uppercase font-bold bg-[#009999] text-black border-[#006666] hover:bg-[#4ed4d4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                        :disabled="purchaseForm.processing || gold < item.price_gold"
+                                        :disabled="purchaseForm.processing || gold < item.price_gold || isStaffPlayMode"
                                         @click="buyItem(item)"
                                     >
-                                        {{ purchaseForm.processing ? 'Processing...' : 'Buy' }}
+                                        {{ isStaffPlayMode ? 'Preview Only' : (purchaseForm.processing ? 'Processing...' : 'Buy') }}
                                     </button>
                                 </div>
                             </article>

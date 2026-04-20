@@ -41,6 +41,7 @@ const Toast = Swal.mixin({
 
 const isEditing = ref(false);
 const editId = ref(null);
+const showFormModal = ref(false);
 const showDeleteModal = ref(false);
 const questIdToDelete = ref(null);
 const filterForm = useForm({
@@ -209,7 +210,7 @@ const startEdit = (quest) => {
     form.available_from = quest.available_from ? formatDateTimeLocal(quest.available_from) : '';
     form.available_until = quest.available_until ? formatDateTimeLocal(quest.available_until) : '';
 
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showFormModal.value = true;
     Toast.fire({ icon: 'info', title: 'MODIFYING_CONTRACT' });
 };
 
@@ -220,6 +221,12 @@ const cancelEdit = () => {
     form.rubric_id = null;
     selectedJobScope.value = '';
     applyMentorDefaults();
+    showFormModal.value = false;
+};
+
+const openCreateModal = () => {
+    cancelEdit();
+    showFormModal.value = true;
 };
 
 const submit = () => {
@@ -233,19 +240,7 @@ const submit = () => {
     } else {
         form.post(route('quests.store'), {
             onSuccess: () => {
-                form.reset();
-                form.difficulty = 'C-Rank';
-                form.reward_gold = 500;
-                form.reward_exp = 500;
-                form.quest_type = 'main';
-                form.task_bank_id = null;
-                form.rubric_id = null;
-                form.is_active = true;
-                form.schedule_type = 'manual';
-                form.available_from = '';
-                form.available_until = '';
-                selectedJobScope.value = '';
-                applyMentorDefaults();
+                cancelEdit();
             },
         });
     }
@@ -330,11 +325,24 @@ const goToPage = (url) => {
 
             <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b-4 border-cyan-900 pb-4">
                 <h1 class="text-base sm:text-xl uppercase tracking-widest animate-pulse">Quest_Management_System</h1>
-                <Link href="/dashboard" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white transition-colors uppercase text-[9px] sm:text-[10px]">[Back_to_HQ]</Link>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="openCreateModal"
+                        class="inline-flex items-center justify-center px-3 py-2 border border-cyan-500 bg-cyan-900/20 text-cyan-300 hover:bg-cyan-500 hover:text-black transition-colors uppercase text-[9px] sm:text-[10px]"
+                    >
+                        [New_Quest]
+                    </button>
+                    <Link href="/dashboard" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white transition-colors uppercase text-[9px] sm:text-[10px]">[Back_to_HQ]</Link>
+                </div>
             </div>
 
             <div class="grid grid-cols-12 gap-8">
-                <div class="col-span-12 lg:col-span-5">
+                <div
+                    v-if="showFormModal"
+                    class="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
+                >
+                    <div class="w-full max-w-5xl max-h-[90vh] overflow-y-auto modal-scroll">
                     <div class="rpg-panel" :class="isEditing ? 'border-green-500/50' : 'border-yellow-500/50'">
                         <h2 class="mb-6 uppercase tracking-tighter" :class="isEditing ? 'text-green-500' : 'text-yellow-500'">
                             >> {{ isEditing ? 'UPDATE_CONTRACT_ID_' + editId.substring(0,8) : 'ISSUE_NEW_QUEST' }}
@@ -503,7 +511,7 @@ const goToPage = (url) => {
                                     :class="isEditing ? 'border-green-500 text-green-500 hover:bg-green-600 hover:text-black' : 'border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-black'">
                                     {{ form.processing ? 'PROCESSING...' : (isEditing ? 'UPDATE_CONTRACT' : 'CONFIRM_MISSION') }}
                                 </button>
-                                <button v-if="isEditing" @click="cancelEdit" type="button"
+                                <button @click="cancelEdit" type="button"
                                     class="px-4 py-3 border-2 border-slate-500 text-slate-500 hover:bg-slate-500 hover:text-white uppercase">
                                     X
                                 </button>
@@ -511,8 +519,9 @@ const goToPage = (url) => {
                         </form>
                     </div>
                 </div>
+                </div>
 
-                <div class="col-span-12 lg:col-span-7">
+                <div class="col-span-12 lg:col-span-12">
                     <div class="rpg-panel border-slate-700 h-full">
                         <h2 class="text-white mb-6 uppercase tracking-tighter">
                             >> {{ isTrashView ? 'TRASH_MISSIONS_BOARD' : 'ACTIVE_MISSIONS_BOARD' }}

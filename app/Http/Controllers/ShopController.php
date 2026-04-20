@@ -66,6 +66,12 @@ class ShopController extends Controller
             abort(404);
         }
 
+        if ((bool) $request->user()?->isStaffPlayMode()) {
+            throw ValidationException::withMessages([
+                'quantity' => 'Staff play mode tidak memakai economy utama. Pembelian shop dinonaktifkan untuk mentor/admin.',
+            ]);
+        }
+
         $validated = $request->validate([
             'quantity' => ['required', 'integer', 'min:1', 'max:99'],
         ]);

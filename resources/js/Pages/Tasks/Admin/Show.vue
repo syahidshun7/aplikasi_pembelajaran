@@ -13,6 +13,7 @@ const props = defineProps({
 
 const isEditing = ref(false);
 const editUuid = ref(null);
+const showFormModal = ref(false);
 
 const filterForm = useForm({
     search: props.filters?.search || '',
@@ -57,7 +58,7 @@ const startEdit = (row) => {
     form.weight = row.weight || 1;
     form.sort_order = row.sort_order || 1;
     form.is_active = !!row.is_active;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showFormModal.value = true;
 };
 
 const cancelEdit = () => {
@@ -70,6 +71,12 @@ const cancelEdit = () => {
     form.weight = 1;
     form.sort_order = 1;
     form.is_active = true;
+    showFormModal.value = false;
+};
+
+const openCreateModal = () => {
+    cancelEdit();
+    showFormModal.value = true;
 };
 
 const addOption = () => {
@@ -114,14 +121,8 @@ const submit = () => {
 
     router.post(route('admin.task-banks.tasks.store', props.taskBank.uuid), payload, {
         preserveScroll: true,
-            onSuccess: () => {
-                form.reset();
-                form.question_type = 'essay';
-                form.options = ['', ''];
-                form.correct_option_index = null;
-                form.weight = 1;
-                form.sort_order = 1;
-                form.is_active = true;
+        onSuccess: () => {
+            cancelEdit();
         },
     });
 };
@@ -189,7 +190,16 @@ const submitImport = () => {
                             | TYPE: <span class="text-yellow-300">{{ taskBank.assessment_type }}</span>
                         </p>
                     </div>
-                    <Link :href="route('admin.task-banks.index')" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white uppercase text-[8px]">[Back_to_Task_Banks]</Link>
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="button"
+                            @click="openCreateModal"
+                            class="inline-flex items-center justify-center px-3 py-2 border border-teal-500 bg-teal-900/20 text-teal-300 hover:bg-teal-500 hover:text-black uppercase text-[8px]"
+                        >
+                            [New_Task]
+                        </button>
+                        <Link :href="route('admin.task-banks.index')" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white uppercase text-[8px]">[Back_to_Task_Banks]</Link>
+                    </div>
                 </div>
             </div>
 
@@ -274,6 +284,14 @@ const submitImport = () => {
                             </div>
                         </div>
 
+                    </div>
+                </div>
+
+                <div
+                    v-if="showFormModal"
+                    class="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
+                >
+                    <div class="w-full max-w-4xl max-h-[90vh] overflow-y-auto modal-scroll">
                         <div class="rpg-panel" :class="isEditing ? 'border-emerald-500/50' : 'border-teal-500/50'">
                             <h2 class="mb-5 uppercase tracking-tighter" :class="isEditing ? 'text-emerald-400' : 'text-teal-300'">
                                 >> {{ isEditing ? 'UPDATE_TASK' : 'CREATE_TASK' }}
@@ -351,7 +369,7 @@ const submitImport = () => {
 
                                 <div class="flex gap-2">
                                     <button type="submit" class="flex-1 py-3 border-2 border-teal-400 text-teal-300 hover:bg-teal-400 hover:text-black uppercase font-bold transition-all">{{ isEditing ? 'UPDATE' : 'CREATE' }}</button>
-                                    <button v-if="isEditing" type="button" @click="cancelEdit" class="px-4 py-3 border-2 border-slate-500 text-slate-500 hover:bg-slate-500 hover:text-white uppercase">X</button>
+                                    <button type="button" @click="cancelEdit" class="px-4 py-3 border-2 border-slate-500 text-slate-500 hover:bg-slate-500 hover:text-white uppercase">X</button>
                                 </div>
                             </form>
                         </div>

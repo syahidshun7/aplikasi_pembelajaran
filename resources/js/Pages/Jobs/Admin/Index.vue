@@ -11,6 +11,7 @@ const props = defineProps({
 
 const isEditing = ref(false);
 const editId = ref(null);
+const showFormModal = ref(false);
 const showDeleteModal = ref(false);
 const deleteId = ref(null);
 
@@ -35,7 +36,7 @@ const startEdit = (job) => {
     form.description = job.description || '';
     form.emblem = null;
     form._method = 'PUT';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showFormModal.value = true;
 };
 
 const cancelEdit = () => {
@@ -43,6 +44,15 @@ const cancelEdit = () => {
     editId.value = null;
     form.reset();
     form._method = 'POST';
+    showFormModal.value = false;
+};
+
+const openCreateModal = () => {
+    isEditing.value = false;
+    editId.value = null;
+    form.reset();
+    form._method = 'POST';
+    showFormModal.value = true;
 };
 
 const submit = () => {
@@ -66,8 +76,7 @@ const submit = () => {
 
     form.post(route('admin.jobs.store'), {
         onSuccess: () => {
-            form.reset();
-            form._method = 'POST';
+            cancelEdit();
         },
         onError: (errors) => {
             Swal.fire({
@@ -130,12 +139,25 @@ const goToPage = (url) => {
 
             <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b-4 border-cyan-900 pb-4">
                 <h1 class="text-base sm:text-xl uppercase tracking-widest animate-pulse">Jobs_Registry_System</h1>
-                <Link href="/dashboard" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white transition-colors uppercase text-[9px] sm:text-[10px]">[Back_to_HQ]</Link>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="openCreateModal"
+                        class="inline-flex items-center justify-center px-3 py-2 border border-cyan-500 bg-cyan-900/20 text-cyan-300 hover:bg-cyan-500 hover:text-black transition-colors uppercase text-[9px] sm:text-[10px]"
+                    >
+                        [New_Job]
+                    </button>
+                    <Link href="/dashboard" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white transition-colors uppercase text-[9px] sm:text-[10px]">[Back_to_HQ]</Link>
+                </div>
             </div>
 
             <div class="grid grid-cols-12 gap-8">
-                <div class="col-span-12 lg:col-span-5">
-                    <div class="rpg-panel" :class="isEditing ? 'border-green-500/50' : 'border-cyan-500/50'">
+                <div
+                    v-if="showFormModal"
+                    class="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
+                >
+                    <div class="w-full max-w-4xl max-h-[90vh] overflow-y-auto modal-scroll">
+                        <div class="rpg-panel" :class="isEditing ? 'border-green-500/50' : 'border-cyan-500/50'">
                         <h2 class="mb-6 uppercase tracking-tighter" :class="isEditing ? 'text-green-500' : 'text-cyan-400'">
                             >> {{ isEditing ? 'UPDATE_JOB_ID_' + editId : 'ISSUE_NEW_JOB' }}
                         </h2>
@@ -180,20 +202,16 @@ const goToPage = (url) => {
                                 >
                                     {{ form.processing ? 'PROCESSING...' : (isEditing ? 'UPDATE_JOB' : 'CREATE_JOB') }}
                                 </button>
-                                <button
-                                    v-if="isEditing"
-                                    @click="cancelEdit"
-                                    type="button"
-                                    class="px-4 py-3 border-2 border-slate-500 text-slate-500 hover:bg-slate-500 hover:text-white uppercase"
-                                >
+                                <button type="button" @click="cancelEdit" class="px-4 py-3 border-2 border-slate-500 text-slate-500 hover:bg-slate-500 hover:text-white uppercase">
                                     X
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
+                </div>
 
-                <div class="col-span-12 lg:col-span-7">
+                <div class="col-span-12 lg:col-span-12">
                     <div class="rpg-panel border-slate-700 h-full">
                         <h2 class="text-white mb-6 uppercase tracking-tighter">>> ACTIVE_JOBS_BOARD</h2>
 

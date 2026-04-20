@@ -17,12 +17,15 @@ class UserEventController extends Controller
     public function index(Request $request): Response
     {
         $user = Auth::user();
+        $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
-        $userGroupIds = $user->studyGroups()->pluck('study_groups.id')->toArray();
+        $userGroupIds = $isStaffPlayMode
+            ? []
+            : $user->studyGroups()->pluck('study_groups.id')->toArray();
         $userJobId = (int) ($user->job_id ?? 0);
 
         $events = Event::query()
@@ -105,6 +108,12 @@ class UserEventController extends Controller
     public function selfAttend(Request $request, Event $event): RedirectResponse
     {
         $user = Auth::user();
+        if ((bool) $user?->isStaffPlayMode()) {
+            return back()->withErrors([
+                'event' => 'Staff play mode tidak bisa mencatat attendance pemain.',
+            ]);
+        }
+
         $this->ensureUserCanAccessEvent($event, $user);
 
         abort_unless((bool) $event->self_attendance_enabled, 403, 'EVENT_SELF_ATTENDANCE_DISABLED');
@@ -143,7 +152,9 @@ class UserEventController extends Controller
 
     private function ensureUserCanAccessEvent(Event $event, $user): void
     {
-        $userGroupIds = $user->studyGroups()->pluck('study_groups.id')->toArray();
+        $userGroupIds = (bool) $user?->isStaffPlayMode()
+            ? []
+            : $user->studyGroups()->pluck('study_groups.id')->toArray();
         $userJobId = (int) ($user->job_id ?? 0);
 
         $isAccessible = (

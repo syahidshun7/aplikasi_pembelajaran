@@ -1,5 +1,6 @@
 <script setup>
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 defineProps({
     items: {
@@ -19,6 +20,9 @@ defineProps({
         default: null,
     },
 });
+
+const page = usePage();
+const isStaffPlayMode = computed(() => Boolean(page.props?.auth?.user?.staff_play_mode));
 </script>
 
 <template>
@@ -38,6 +42,12 @@ defineProps({
         </div>
 
         <div v-if="items.length > 0" class="grid gap-4 lg:grid-cols-2">
+            <div
+                v-if="isStaffPlayMode"
+                class="lg:col-span-2 border border-cyan-500/40 bg-cyan-500/10 p-3 text-[8px] uppercase leading-relaxed text-cyan-100"
+            >
+                Staff play mode aktif. Daftar party tetap bisa dilihat, tetapi join dan leave dimatikan untuk mencegah mentor/admin mengambil slot kelas student.
+            </div>
             <article
                 v-for="group in items"
                 :key="group.uuid"
@@ -62,6 +72,7 @@ defineProps({
                         v-if="group.is_member"
                         type="button"
                         class="border border-red-700 bg-red-900/50 px-3 py-1 text-[8px] uppercase text-red-400 transition-all hover:bg-red-600 hover:text-white"
+                        :disabled="isStaffPlayMode"
                         @click="onLeave?.(group.uuid)"
                     >
                         Leave
@@ -79,11 +90,11 @@ defineProps({
                     <button
                         v-else
                         type="button"
-                        :disabled="joinProcessing"
+                        :disabled="joinProcessing || isStaffPlayMode"
                         class="border border-emerald-700 bg-emerald-900/50 px-3 py-1 text-[8px] uppercase text-emerald-400 transition-all hover:bg-emerald-500 hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
                         @click="onJoin?.(group.uuid)"
                     >
-                        {{ joinProcessing ? 'Sending...' : 'Join' }}
+                        {{ isStaffPlayMode ? 'Preview Only' : (joinProcessing ? 'Sending...' : 'Join') }}
                     </button>
                 </div>
             </article>

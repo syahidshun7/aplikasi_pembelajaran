@@ -33,7 +33,9 @@ class QuestController extends Controller
 
         $search = trim((string) ($validated['search'] ?? ''));
         $userId = auth()->id();
-        $userGroupIds = auth()->user()->studyGroups()->pluck('study_groups.id')->toArray();
+        $userGroupIds = (bool) auth()->user()?->isStaffPlayMode()
+            ? []
+            : auth()->user()->studyGroups()->pluck('study_groups.id')->toArray();
 
         $questsCacheVersion = CacheVersion::get('quests');
         $groupKey = sha1(json_encode(collect($userGroupIds)->map(fn ($id) => (int) $id)->unique()->sort()->values()->all()));
@@ -398,6 +400,7 @@ class QuestController extends Controller
         $isLate = $this->isQuestLate($quest);
         $isInactive = (string) ($quest->status ?? '') === 'In-Progress';
         $isStaff = (bool) auth()->user()?->isStaff();
+        $isStaffPlayMode = (bool) auth()->user()?->isStaffPlayMode();
         $now = now();
         $isScheduledOnce = (string) ($quest->schedule_type ?? Quest::SCHEDULE_MANUAL) === Quest::SCHEDULE_ONCE;
         $isScheduledHidden = $isScheduledOnce && (
@@ -424,7 +427,7 @@ class QuestController extends Controller
             ->first();
 
         $timeKeyQty = 0;
-        if ($timeKeyItem) {
+        if ($timeKeyItem && ! $isStaffPlayMode) {
             $timeKeyQty = (int) UserInventory::query()
                 ->where('user_id', $userId)
                 ->where('shop_item_id', $timeKeyItem->id)
@@ -447,12 +450,19 @@ class QuestController extends Controller
             'hasQuestUnlock' => $hasQuestUnlock,
             'canSubmit' => $canSubmit,
             'timeKeyQty' => $timeKeyQty,
+            'isStaffPlayMode' => $isStaffPlayMode,
         ]);
     }
 
     public function unlockLate(Quest $quest)
     {
         $this->authorizeQuestAccessForCurrentUser($quest);
+
+        if ((bool) auth()->user()?->isStaffPlayMode()) {
+            throw ValidationException::withMessages([
+                'unlock' => 'Staff play mode tidak bisa memakai Time Key atau membuka ulang quest.',
+            ]);
+        }
 
         $userId = (int) auth()->id();
 
@@ -698,6 +708,8 @@ class QuestController extends Controller
         if (! $quest->study_group_id) {
             return;
         }
+
+        abort_if((bool) auth()->user()?->isStaffPlayMode(), 403, 'STAFF_PLAY_MODE_QUEST_ACCESS_DENIED');
 
         $userGroupIds = auth()->user()
             ->studyGroups()

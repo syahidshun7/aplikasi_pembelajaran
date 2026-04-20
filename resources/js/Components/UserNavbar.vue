@@ -17,6 +17,7 @@ const mobileMenuOpen = ref(false);
 
 const normalizedUserRole = computed(() => String(auth.value?.user?.role || '').trim().toLowerCase());
 const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(normalizedUserRole.value));
+const isStaffPlayMode = computed(() => Boolean(auth.value?.user?.staff_play_mode));
 const staffNavLabel = computed(() => {
     if (normalizedUserRole.value === 'super_admin') return 'Super Admin';
     if (normalizedUserRole.value === 'mentor') return 'Mentor';
@@ -77,6 +78,13 @@ const handleLogout = () => {
                     </Link>
 
                     <NotificationBell />
+
+                    <span
+                        v-if="isStaffPlayMode"
+                        class="nav-action border-cyan-500/60 bg-cyan-500/10 text-cyan-200"
+                    >
+                        Staff Play Mode
+                    </span>
 
                     <button @click="handleLogout" class="nav-action nav-action--logout" type="button">
                         <span class="sr-only">Logout</span>
@@ -162,6 +170,13 @@ const handleLogout = () => {
                         {{ Number(page.props?.notificationCenter?.unread_count || 0) }}
                     </span>
                 </Link>
+
+                <span
+                    v-if="isStaffPlayMode"
+                    class="nav-action w-full justify-center border-cyan-500/60 bg-cyan-500/10 text-cyan-200"
+                >
+                    Staff Play Mode
+                </span>
 
                 <button
                     class="nav-action nav-action--logout w-full justify-center"

@@ -14,6 +14,7 @@ const firstJobId = computed(() => props.jobs?.[0]?.id ?? '');
 
 const isEditing = ref(false);
 const editUuid = ref(null);
+const showFormModal = ref(false);
 const showDeleteModal = ref(false);
 const deleteUuid = ref(null);
 
@@ -48,7 +49,7 @@ const startEdit = (bank) => {
     form.assessment_type = bank.assessment_type || 'essay';
     form.is_active = !!bank.is_active;
     applyMentorDefaultJob();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showFormModal.value = true;
 };
 
 const cancelEdit = () => {
@@ -58,6 +59,12 @@ const cancelEdit = () => {
     form.assessment_type = 'essay';
     form.is_active = true;
     applyMentorDefaultJob();
+    showFormModal.value = false;
+};
+
+const openCreateModal = () => {
+    cancelEdit();
+    showFormModal.value = true;
 };
 
 const submit = () => {
@@ -74,10 +81,7 @@ const submit = () => {
     form.post(route('admin.task-banks.store'), {
         preserveScroll: true,
         onSuccess: () => {
-            form.reset();
-            form.assessment_type = 'essay';
-            form.is_active = true;
-            applyMentorDefaultJob();
+            cancelEdit();
         },
     });
 };
@@ -139,11 +143,24 @@ watch([isMentor, firstJobId], () => {
 
             <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b-4 border-teal-900 pb-4">
                 <h1 class="text-base sm:text-xl uppercase tracking-widest">Task_Bank_Management</h1>
-                <Link :href="route('dashboard')" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white uppercase text-[9px] sm:text-[10px]">[Back_to_HQ]</Link>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="openCreateModal"
+                        class="inline-flex items-center justify-center px-3 py-2 border border-teal-500 bg-teal-900/20 text-teal-300 hover:bg-teal-500 hover:text-black uppercase text-[9px] sm:text-[10px]"
+                    >
+                        [New_Bank]
+                    </button>
+                    <Link :href="route('dashboard')" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white uppercase text-[9px] sm:text-[10px]">[Back_to_HQ]</Link>
+                </div>
             </div>
 
             <div class="grid grid-cols-12 gap-8">
-                <div class="col-span-12 lg:col-span-5">
+                <div
+                    v-if="showFormModal"
+                    class="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
+                >
+                    <div class="w-full max-w-4xl max-h-[90vh] overflow-y-auto modal-scroll">
                     <div class="rpg-panel" :class="isEditing ? 'border-emerald-500/50' : 'border-teal-500/50'">
                         <h2 class="mb-6 uppercase tracking-tighter" :class="isEditing ? 'text-emerald-400' : 'text-teal-300'">
                             >> {{ isEditing ? 'UPDATE_TASK_BANK' : 'CREATE_TASK_BANK' }}
@@ -192,15 +209,16 @@ watch([isMentor, firstJobId], () => {
                                 <button type="submit" :disabled="form.processing || mentorCannotSubmitTaskBank" class="flex-1 py-3 border-2 border-teal-400 text-teal-300 hover:bg-teal-400 hover:text-black uppercase font-bold transition-all">
                                     {{ form.processing ? 'PROCESSING...' : (isEditing ? 'UPDATE' : 'CREATE') }}
                                 </button>
-                                <button v-if="isEditing" @click="cancelEdit" type="button" class="px-4 py-3 border-2 border-slate-500 text-slate-500 hover:bg-slate-500 hover:text-white uppercase">
+                                <button @click="cancelEdit" type="button" class="px-4 py-3 border-2 border-slate-500 text-slate-500 hover:bg-slate-500 hover:text-white uppercase">
                                     X
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
+                </div>
 
-                <div class="col-span-12 lg:col-span-7">
+                <div class="col-span-12 lg:col-span-12">
                     <div class="rpg-panel border-slate-700 h-full">
                         <h2 class="text-white mb-6 uppercase tracking-tighter">>> TASK_BANKS_BOARD</h2>
 

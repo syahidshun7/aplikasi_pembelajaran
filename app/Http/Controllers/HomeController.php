@@ -32,11 +32,12 @@ class HomeController extends Controller
     $userId = Auth::id();
     $user = Auth::user();
     $userJobId = $user?->job_id;
+    $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
     if ($user) {
         $user->loadMissing('job:id,name');
     }
 
-    $userClassGroups = $userId
+    $userClassGroups = $userId && ! $isStaffPlayMode
         ? $user->studyGroups()
             ->select('study_groups.id', 'study_groups.name')
             ->orderBy('study_groups.name')
@@ -68,7 +69,7 @@ class HomeController extends Controller
     $selectedClassGroupName = (string) ($selectedClassGroup['name'] ?? '');
 
     // 1. Ambil Quest dengan status submission (Logika Kelompok Party)
-    $userGroupIds = $userId
+    $userGroupIds = $userId && ! $isStaffPlayMode
         ? $user->studyGroups()
             ->where('study_groups.job_id', $userJobId)
             ->pluck('study_groups.id')
@@ -337,6 +338,7 @@ private function resolveLeaderboardData(
     $leaderboardBaseQuery = static function () {
         return User::query()
             ->select('id', 'name', 'username', 'profile_photo', 'level', 'exp', 'role')
+            ->whereNotIn('role', User::staffRoles())
             ->orderByDesc('exp')
             ->orderByDesc('level')
             ->orderBy('name');
@@ -423,6 +425,7 @@ private function resolveLeaderboardData(
             return User::query()
                 ->select('id', 'name', 'username', 'profile_photo', 'level', 'exp', 'role')
                 ->whereIn('id', $classMemberIds)
+                ->whereNotIn('role', User::staffRoles())
                 ->get()
                 ->map(function ($player) use ($classTotalQuests, $gradeSumByUser, $completedCountByUser) {
                     $payload = $player->toArray();

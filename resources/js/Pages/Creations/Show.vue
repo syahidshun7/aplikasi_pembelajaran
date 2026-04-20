@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { toast } from '@/Utils/Alert';
 
@@ -39,6 +39,8 @@ const collaborationForm = reactive({
 });
 const insightsSection = ref(null);
 const activePhotoUrl = ref('');
+const lightboxImageUrl = ref('');
+const lightboxImageAlt = ref('Preview image');
 const relativeRoute = (name, params = {}) => route(name, params, false);
 const backToHallHref = computed(() => {
     const fallbackHref = route('hall.creations.index');
@@ -256,6 +258,48 @@ const selectPhoto = (url) => {
     activePhotoUrl.value = String(url || '');
 };
 
+const openLightbox = (url, alt = 'Preview image') => {
+    const normalizedUrl = String(url || '').trim();
+    if (!normalizedUrl) {
+        return;
+    }
+
+    lightboxImageUrl.value = normalizedUrl;
+    lightboxImageAlt.value = String(alt || 'Preview image');
+    if (typeof document !== 'undefined') {
+        document.body.style.overflow = 'hidden';
+    }
+};
+
+const closeLightbox = () => {
+    lightboxImageUrl.value = '';
+    lightboxImageAlt.value = 'Preview image';
+    if (typeof document !== 'undefined') {
+        document.body.style.overflow = '';
+    }
+};
+
+const handleDocImageClick = (event) => {
+    const target = event?.target;
+    if (!(target instanceof HTMLImageElement)) {
+        return;
+    }
+
+    const imageUrl = String(target.getAttribute('src') || '').trim();
+    if (!imageUrl) {
+        return;
+    }
+
+    event.preventDefault();
+    openLightbox(imageUrl, target.getAttribute('alt') || 'Creation image');
+};
+
+const handleLightboxEscape = (event) => {
+    if (String(event?.key || '').toLowerCase() === 'escape' && lightboxImageUrl.value) {
+        closeLightbox();
+    }
+};
+
 const submitCollaborationRequest = async () => {
     if (!canRequestCollaboration.value || collaborationSubmitting.value) {
         return;
@@ -373,6 +417,17 @@ onMounted(async () => {
     if (loaded) {
         await fetchInsights();
     }
+
+    if (typeof window !== 'undefined') {
+        window.addEventListener('keydown', handleLightboxEscape);
+    }
+});
+
+onBeforeUnmount(() => {
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('keydown', handleLightboxEscape);
+    }
+    closeLightbox();
 });
 </script>
 
@@ -407,6 +462,7 @@ onMounted(async () => {
                             :src="activePhotoUrl"
                             alt="Creation photo"
                             class="creation-stage__image"
+                            @click="openLightbox(activePhotoUrl, 'Creation photo')"
                         >
                     </div>
                     <div v-else class="creation-stage__frame flex items-center justify-center p-4">
@@ -448,9 +504,9 @@ onMounted(async () => {
                     </span>
                 </div>
 
-                <div class="creation-reading-surface mb-5">
+                <div class="creation-reading-surface mb-5" @click="handleDocImageClick">
                     <article v-if="creation.content" class="creation-doc" v-html="creation.content" />
-                    <p v-else class="creation-doc creation-doc--plain whitespace-pre-line text-[8px] leading-relaxed text-slate-200">{{ creation.description }}</p>
+                    <p v-else class="creation-doc creation-doc--plain whitespace-pre-line text-[8px] leading-relaxed text-slate-700">{{ creation.description }}</p>
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
@@ -659,6 +715,20 @@ onMounted(async () => {
                 </div>
             </section>
         </div>
+
+        <div
+            v-if="lightboxImageUrl"
+            class="creation-lightbox"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Image preview"
+            @click.self="closeLightbox"
+        >
+            <button type="button" class="creation-lightbox__close" @click="closeLightbox">
+                <i class="fi fi-rr-cross-small text-[14px]" />
+            </button>
+            <img :src="lightboxImageUrl" :alt="lightboxImageAlt" class="creation-lightbox__image">
+        </div>
     </AuthenticatedLayout>
 </template>
 
@@ -701,6 +771,7 @@ onMounted(async () => {
     width: 100%;
     object-fit: contain;
     object-position: center;
+    cursor: zoom-in;
 }
 
 .creation-thumb {
@@ -715,10 +786,10 @@ onMounted(async () => {
 }
 
 .creation-doc {
-    color: #e2e8f0;
+    color: #0f172a;
     font-family: Georgia, "Times New Roman", serif;
     font-size: 16px;
-    line-height: 1.85;
+    line-height: 1.78;
 }
 
 .creation-doc--plain {
@@ -729,19 +800,17 @@ onMounted(async () => {
     max-height: min(62vh, 760px);
     overflow-y: auto;
     overflow-x: hidden;
-    border: 1px solid rgba(51, 65, 85, 0.9);
-    background:
-        linear-gradient(180deg, rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.88)),
-        radial-gradient(circle at top, rgba(34, 211, 238, 0.06), transparent 45%);
+    border: 1px solid rgba(203, 213, 225, 0.95);
+    background: #ffffff;
     padding: 1.1rem 1.15rem;
     scrollbar-width: thin;
-    scrollbar-color: rgba(34, 211, 238, 0.45) rgba(15, 23, 42, 0.35);
+    scrollbar-color: rgba(148, 163, 184, 0.95) rgba(241, 245, 249, 0.9);
 }
 
 :deep(.creation-doc h2),
 :deep(.creation-doc h3) {
     margin: 1.3rem 0 0.8rem;
-    color: #f8fafc;
+    color: #0f172a;
     line-height: 1.35;
 }
 
@@ -766,22 +835,173 @@ onMounted(async () => {
     padding-left: 1.5rem;
 }
 
+:deep(.creation-doc ul) {
+    list-style: disc;
+}
+
+:deep(.creation-doc ol) {
+    list-style: decimal;
+}
+
 :deep(.creation-doc blockquote) {
-    border-left: 3px solid rgba(34, 211, 238, 0.55);
-    padding-left: 1rem;
-    color: #cbd5e1;
+    border-left: 3px solid rgba(37, 99, 235, 0.62);
+    padding: 0.7rem 0.95rem;
+    color: #334155;
+    background: rgba(248, 250, 252, 0.92);
 }
 
 :deep(.creation-doc a) {
-    color: #67e8f9;
+    color: #1d4ed8;
     text-decoration: underline;
 }
 
-:deep(.creation-doc img) {
+:deep(.creation-doc img.creation-image) {
     display: block;
     max-width: 100%;
     margin: 1rem 0;
-    border: 1px solid rgba(71, 85, 105, 0.8);
+    border: 1px solid rgba(203, 213, 225, 1);
+    cursor: zoom-in;
+}
+
+:deep(.creation-doc img.creation-image--left) {
+    margin-left: 0;
+    margin-right: auto;
+}
+
+:deep(.creation-doc img.creation-image--center) {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+:deep(.creation-doc img.creation-image--right) {
+    margin-left: auto;
+    margin-right: 0;
+}
+
+:deep(.creation-doc .tableWrapper) {
+    margin: 1.2rem 0;
+    overflow-x: auto;
+}
+
+:deep(.creation-doc table),
+:deep(.creation-doc table.doc-table) {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    border: 1px solid rgba(100, 116, 139, 0.85);
+}
+
+:deep(.creation-doc table th),
+:deep(.creation-doc table td),
+:deep(.creation-doc table.doc-table th),
+:deep(.creation-doc table.doc-table td) {
+    border: 1px solid rgba(100, 116, 139, 0.85);
+    padding: 0.45rem 0.55rem;
+    vertical-align: top;
+}
+
+:deep(.creation-doc table th),
+:deep(.creation-doc table.doc-table th) {
+    background: rgba(241, 245, 249, 0.96);
+    color: #0f172a;
+    font-weight: 700;
+}
+
+:deep(.creation-doc pre) {
+    margin: 1rem 0;
+    padding: 0.8rem;
+    border: 1px solid rgba(203, 213, 225, 1);
+    background: rgba(248, 250, 252, 0.92);
+    overflow-x: auto;
+}
+
+.creation-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(2, 6, 23, 0.88);
+    backdrop-filter: blur(2px);
+}
+
+.creation-lightbox__close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border: 1px solid rgba(148, 163, 184, 0.75);
+    background: rgba(15, 23, 42, 0.9);
+    color: #e2e8f0;
+}
+
+.creation-lightbox__close:hover {
+    border-color: rgba(56, 189, 248, 0.8);
+    color: #67e8f9;
+}
+
+.creation-lightbox__image {
+    max-height: calc(100vh - 3rem);
+    max-width: calc(100vw - 2rem);
+    object-fit: contain;
+    border: 1px solid rgba(148, 163, 184, 0.65);
+    background: #fff;
+}
+
+@media (max-width: 768px) {
+    .creation-lightbox {
+        padding: 0.7rem;
+    }
+
+    .creation-lightbox__close {
+        top: 0.55rem;
+        right: 0.55rem;
+        width: 2rem;
+        height: 2rem;
+    }
+
+    .creation-lightbox__image {
+        max-height: calc(100vh - 2.1rem);
+        max-width: calc(100vw - 1.1rem);
+    }
+}
+
+@media (max-width: 768px) {
+    .creation-reading-surface {
+        max-height: none;
+        padding: 0.9rem;
+    }
+
+    .creation-doc {
+        font-size: 15px;
+        line-height: 1.72;
+    }
+
+    :deep(.creation-doc h2) {
+        font-size: 1.25rem;
+    }
+
+    :deep(.creation-doc h3) {
+        font-size: 1.08rem;
+    }
+
+    :deep(.creation-doc .tableWrapper) {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    :deep(.creation-doc table),
+    :deep(.creation-doc table.doc-table) {
+        width: max-content;
+        min-width: 500px;
+        table-layout: auto;
+    }
 }
 
 @media (min-width: 1024px) {

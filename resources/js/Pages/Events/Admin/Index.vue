@@ -17,6 +17,7 @@ const studyGroupJobMap = computed(() => Object.fromEntries((props.studyGroups ||
 
 const isEditing = ref(false);
 const editUuid = ref(null);
+const showFormModal = ref(false);
 const showDeleteModal = ref(false);
 const deleteUuid = ref(null);
 const imageInputRef = ref(null);
@@ -91,7 +92,7 @@ const startEdit = (event) => {
     if (imageInputRef.value) {
         imageInputRef.value.value = '';
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showFormModal.value = true;
 };
 
 const cancelEdit = () => {
@@ -102,6 +103,12 @@ const cancelEdit = () => {
     form.self_attendance_enabled = false;
     resetImageState();
     applyMentorDefaultStudyGroup();
+    showFormModal.value = false;
+};
+
+const openCreateModal = () => {
+    cancelEdit();
+    showFormModal.value = true;
 };
 
 const syncAudienceTarget = () => {
@@ -277,11 +284,24 @@ onBeforeUnmount(() => {
 
             <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b-4 border-blue-900 pb-4">
                 <h1 class="text-base sm:text-xl uppercase tracking-widest animate-pulse">Events_Registry_System</h1>
-                <Link href="/dashboard" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white transition-colors uppercase text-[9px] sm:text-[10px]">[Back_to_HQ]</Link>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="openCreateModal"
+                        class="inline-flex items-center justify-center px-3 py-2 border border-blue-500 bg-blue-900/20 text-blue-300 hover:bg-blue-500 hover:text-black transition-colors uppercase text-[9px] sm:text-[10px]"
+                    >
+                        [New_Event]
+                    </button>
+                    <Link href="/dashboard" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white transition-colors uppercase text-[9px] sm:text-[10px]">[Back_to_HQ]</Link>
+                </div>
             </div>
 
             <div class="grid grid-cols-12 gap-8">
-                <div class="col-span-12 lg:col-span-5">
+                <div
+                    v-if="showFormModal"
+                    class="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4"
+                >
+                    <div class="w-full max-w-5xl max-h-[90vh] overflow-y-auto modal-scroll">
                     <div class="rpg-panel border-blue-500/50">
                         <h2 class="mb-6 uppercase tracking-tighter text-blue-400">
                             >> {{ isEditing ? 'UPDATE_EVENT_' + editUuid?.substring(0, 8) : 'ISSUE_NEW_EVENT' }}
@@ -430,7 +450,6 @@ onBeforeUnmount(() => {
                                     {{ form.processing ? 'PROCESSING...' : (isEditing ? 'UPDATE_EVENT' : 'CREATE_EVENT') }}
                                 </button>
                                 <button
-                                    v-if="isEditing"
                                     @click="cancelEdit"
                                     type="button"
                                     class="px-4 py-3 border-2 border-slate-500 text-slate-500 hover:bg-slate-500 hover:text-white uppercase"
@@ -441,8 +460,9 @@ onBeforeUnmount(() => {
                         </form>
                     </div>
                 </div>
+                </div>
 
-                <div class="col-span-12 lg:col-span-7">
+                <div class="col-span-12 lg:col-span-12">
                     <div class="rpg-panel border-slate-700 h-full">
                         <h2 class="text-white mb-6 uppercase tracking-tighter">
                             >> {{ isTrashView ? 'TRASH_EVENTS_BOARD' : 'ACTIVE_EVENTS_BOARD' }}

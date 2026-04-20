@@ -12,6 +12,15 @@ class UserRewardSyncService
 {
     public function sync(int $userId): void
     {
+        $user = User::query()->find($userId);
+        if (! $user) {
+            return;
+        }
+
+        if ($user->isStaffPlayMode()) {
+            return;
+        }
+
         $submissionTotals = Submission::query()
             ->where('user_id', $userId)
             ->whereIn('status', ['Approved', 'Rejected'])

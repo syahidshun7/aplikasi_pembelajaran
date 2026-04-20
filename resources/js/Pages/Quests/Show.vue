@@ -12,6 +12,7 @@ const props = defineProps({
     hasQuestUnlock: Boolean,
     canSubmit: Boolean,
     timeKeyQty: Number,
+    isStaffPlayMode: Boolean,
 });
 const existingStatus = computed(() => props.existingSubmission?.status || null);
 const canResubmitPending = computed(() => props.hasSubmitted && props.canSubmit && existingStatus.value === 'Pending');
@@ -207,6 +208,13 @@ const unlockLateQuest = () => {
                         </div>
                     </div>
 
+                    <div
+                        v-if="isStaffPlayMode"
+                        class="border border-cyan-500/50 bg-cyan-500/10 p-4 text-[10px] uppercase leading-relaxed text-cyan-100"
+                    >
+                        Staff play mode aktif. Kamu tetap bisa mengirim submission untuk preview flow, tetapi reward, leaderboard, dan penggunaan Time Key tidak dihitung ke mode pemain utama.
+                    </div>
+
                     <div class="space-y-4">
                         <h3 class="text-[12px] text-cyan-400 uppercase tracking-widest underline italic">Quest_Objectives:</h3>
                         <div
@@ -220,7 +228,7 @@ const unlockLateQuest = () => {
                         v-if="isLate && !canSubmit && !hasSubmitted"
                         class="mt-8 p-4 md:p-6 border-2 border-dashed border-yellow-700 bg-yellow-950/20"
                     >
-                        <h3 class="text-[12px] mb-4 uppercase tracking-widest text-yellow-400">
+                        <h3 class="mb-4 uppercase text-yellow-400 text-[10px] leading-relaxed tracking-normal break-all sm:text-[12px] sm:tracking-widest sm:break-normal">
                             Quest_Locked_By_Deadline
                         </h3>
                         <p class="text-[12px] text-slate-300 font-sans mb-4">
@@ -239,10 +247,10 @@ const unlockLateQuest = () => {
                                 <button
                                     type="button"
                                     class="px-3 py-2 text-[10px] uppercase border-2 border-yellow-700 bg-yellow-700/20 text-yellow-300 hover:bg-yellow-600/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                    :disabled="unlockForm.processing || (timeKeyQty || 0) < 1"
+                                    :disabled="unlockForm.processing || (timeKeyQty || 0) < 1 || isStaffPlayMode"
                                     @click="unlockLateQuest"
                                 >
-                                    {{ unlockForm.processing ? 'PROCESSING...' : 'Use_Time_Key' }}
+                                    {{ isStaffPlayMode ? 'Preview Only' : (unlockForm.processing ? 'PROCESSING...' : 'Use_Time_Key') }}
                                 </button>
                             </div>
                         </div>

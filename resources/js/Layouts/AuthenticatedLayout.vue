@@ -11,6 +11,8 @@ const showFloatingChat = computed(() => Boolean(auth.value?.user));
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
 const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
+const isStaffPlayMode = computed(() => Boolean(auth.value?.user?.staff_play_mode));
+const playerModeNotice = computed(() => String(auth.value?.user?.player_mode_notice || '').trim());
 </script>
 
 <template>
@@ -46,6 +48,19 @@ const profileVerificationHref = computed(() => `${route('profile.edit')}#email-v
                     class="text-[8px] bg-emerald-300 text-black px-3 py-2 btn-pixel border-emerald-700 uppercase font-bold hover:bg-emerald-200 transition-colors text-center"
                 >
                     Ke Home User
+                </Link>
+            </div>
+        </div>
+        <div v-if="isStaffPlayMode" class="relative z-20 px-4 md:px-8 pt-4">
+            <div class="border-2 border-cyan-400/60 bg-cyan-500/10 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div class="text-[9px] leading-relaxed text-cyan-100 uppercase tracking-wide">
+                    {{ playerModeNotice || 'Mode preview aktif. Reward, leaderboard, dan akses kelas student tidak dihitung.' }}
+                </div>
+                <Link
+                    :href="route('admin.dashboard')"
+                    class="text-[8px] bg-cyan-300 text-black px-3 py-2 btn-pixel border-cyan-700 uppercase font-bold hover:bg-cyan-200 transition-colors text-center"
+                >
+                    Kembali ke Admin
                 </Link>
             </div>
         </div>

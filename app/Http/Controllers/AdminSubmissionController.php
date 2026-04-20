@@ -88,6 +88,8 @@ class AdminSubmissionController extends Controller
 
     $quest = $submission->quest;
     abort_if(! $quest, 404);
+    $submission->loadMissing('user:id,role');
+    $isStaffPlayModeTarget = (bool) $submission->user?->isStaffPlayMode();
 
     $newScore = 0;
     $verdictDetail = [];
@@ -295,6 +297,15 @@ class AdminSubmissionController extends Controller
     // Reward murni proporsional dari nilai akhir (tanpa nilai minimum).
     $finalGold = (int) floor($quest->reward_gold * $newPortion);
     $finalExp  = (int) floor($questExp * $newPortion);
+
+    if ($isStaffPlayModeTarget) {
+        $finalGold = 0;
+        $finalExp = 0;
+        $verdictDetail['staff_play_mode'] = [
+            'active' => true,
+            'reward_counted' => false,
+        ];
+    }
 
     $scoresDetail = $submission->scores_detail;
     if (! is_array($scoresDetail)) {

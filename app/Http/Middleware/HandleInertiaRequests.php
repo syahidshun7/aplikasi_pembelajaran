@@ -41,6 +41,11 @@ class HandleInertiaRequests extends Middleware
                     'email' => $request->user()->email,
                     'email_verified_at' => $request->user()->email_verified_at,
                     'role' => $request->user()->role,
+                    'staff_play_mode' => (bool) $request->user()->isStaffPlayMode(),
+                    'player_mode_label' => $request->user()->isStaffPlayMode() ? 'STAFF_PLAY_MODE' : 'PLAYER_MODE',
+                    'player_mode_notice' => $request->user()->isStaffPlayMode()
+                        ? 'Mode preview aktif: reward, leaderboard, dan akses kelas student tidak dihitung.'
+                        : null,
                 ] : null,
             ],
             'notificationCenter' => $request->user()

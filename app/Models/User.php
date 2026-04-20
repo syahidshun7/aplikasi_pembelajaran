@@ -207,4 +207,9 @@ public function isStaff(): bool
 {
     return $this->hasRole(self::staffRoles());
 }
+
+public function isStaffPlayMode(): bool
+{
+    return $this->isStaff();
+}
 }

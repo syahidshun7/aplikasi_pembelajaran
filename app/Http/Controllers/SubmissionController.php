@@ -82,7 +82,7 @@ class SubmissionController extends Controller
 
         $notifications->notifySubmissionReceived($submission);
 
-        if (! $isUpdate) {
+        if (! $isUpdate && ! $this->isStaffPlayModeUser()) {
             event(new DailyQuestActivityTriggered(
                 (int) $submission->user_id,
                 DailyQuestDefinition::ACTIVITY_QUEST_SUBMISSION,
@@ -206,6 +206,13 @@ class SubmissionController extends Controller
         if ($this->isMultipleChoiceTaskBankQuest($quest)) {
             $this->deleteSubmissionFileIfExists($submission->file_path);
             $evaluation = $this->evaluateTaskBankAnswers($quest, $answers);
+
+            if ($this->isStaffPlayModeUser()) {
+                $evaluation['earned_exp'] = 0;
+                $evaluation['earned_gold'] = 0;
+                $evaluation['scores_detail']['staff_play_mode'] = true;
+                $evaluation['feedback'] .= ' STAFF_PLAY_MODE: reward tidak dihitung ke economy utama.';
+            }
 
             $submission->content = $request->input('content') ?: '[AUTO_CHECK_TASK_BANK_SUBMISSION]';
             $submission->file_path = null;
@@ -368,6 +375,11 @@ class SubmissionController extends Controller
         return in_array((string) $submission->status, ['Pending', 'Rejected'], true);
     }
 
+    private function isStaffPlayModeUser(): bool
+    {
+        return (bool) auth()->user()?->isStaffPlayMode();
+    }
+
     private function evaluateTaskBankAnswers(Quest $quest, array $answers): array
     {
         $questions = ($quest->taskBank?->questions ?? collect())
@@ -493,6 +505,8 @@ class SubmissionController extends Controller
         if (! $quest->study_group_id) {
             return;
         }
+
+        abort_if((bool) auth()->user()?->isStaffPlayMode(), 403, 'STAFF_PLAY_MODE_QUEST_ACCESS_DENIED');
 
         $userGroupIds = auth()->user()
             ->studyGroups()
