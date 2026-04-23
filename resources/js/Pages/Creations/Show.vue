@@ -898,6 +898,10 @@ onBeforeUnmount(() => {
     margin: 1rem 0;
     border: 1px solid rgba(203, 213, 225, 1);
     cursor: zoom-in;
+    /* Prevent legacy img align/pasted inline styles from floating text around images */
+    float: none !important;
+    clear: both;
+    position: static !important;
 }
 
 :deep(.creation-doc img[align="left"]),

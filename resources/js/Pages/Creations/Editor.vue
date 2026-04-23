@@ -37,6 +37,7 @@ const sidebarCollapsed = ref(false);
 const loading = ref(Boolean(activeCreationId.value));
 const saving = ref(false);
 const autosaving = ref(false);
+const syncingPublished = ref(false);
 const isResizingWorkspace = ref(false);
 const workspaceHeight = ref(0);
 const uploadingFeaturedImage = ref(false);
@@ -353,6 +354,17 @@ const migrateLocalStateKey = (nextId) => {
     }
 };
 
+const clearEditorLocalDraftState = () => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    window.localStorage.removeItem(formStorageKey.value);
+    if (persistKey.value) {
+        window.localStorage.removeItem(`creation.editor.state.${persistKey.value}`);
+    }
+};
+
 const applyStateToForm = (payload) => {
     if (!payload) {
         return;
@@ -373,6 +385,34 @@ const applyStateToForm = (payload) => {
     removedPhotoIds.value = Array.isArray(payload.removed_photo_ids)
         ? payload.removed_photo_ids.map((id) => Number(id)).filter((id) => id > 0)
         : [];
+};
+
+const applyServerCreationSnapshot = (creation) => {
+    applyStateToForm({
+        title: creation?.title,
+        content: creation?.content || creation?.description || '<p></p>',
+        link: creation?.link,
+        category_id: creation?.category_id,
+        tags: creation?.tags || [],
+        featured_image: creation?.featured_image,
+        status: creation?.status,
+        progress: creation?.progress,
+        publication_status: creation?.publication_status || (creation?.is_public ? 'publish' : 'draft'),
+        is_open_for_collaboration: creation?.is_open_for_collaboration,
+    });
+
+    canManageCollaboration.value = Boolean(creation?.can_manage_collaboration ?? creation?.can_delete ?? false);
+    existingPhotos.value = Array.isArray(creation?.photos) ? creation.photos : [];
+    removedPhotoIds.value = [];
+    selectedPhotoFiles.value = [];
+    clearNewPhotoPreviews();
+    photoErrorMessage.value = '';
+    if (photoInputRef.value) {
+        photoInputRef.value.value = '';
+    }
+
+    editorRestoreAfter.value = parseTimestamp(creation?.updated_at);
+    lastSavedFingerprint = JSON.stringify(buildPersistPayload(form.publication_status || 'draft'));
 };
 
 const applyEditorPreferences = (payload) => {
@@ -491,21 +531,7 @@ const fetchCreation = async () => {
         const serverUpdatedAt = parseTimestamp(creation.updated_at);
         editorRestoreAfter.value = serverUpdatedAt;
 
-        applyStateToForm({
-            title: creation.title,
-            content: creation.content || creation.description || '<p></p>',
-            link: creation.link,
-            category_id: creation.category_id,
-            tags: creation.tags || [],
-            featured_image: creation.featured_image,
-            status: creation.status,
-            progress: creation.progress,
-            publication_status: creation.publication_status || (creation.is_public ? 'publish' : 'draft'),
-            is_open_for_collaboration: creation.is_open_for_collaboration,
-        });
-        canManageCollaboration.value = Boolean(creation.can_manage_collaboration ?? creation.can_delete ?? false);
-        existingPhotos.value = Array.isArray(creation.photos) ? creation.photos : [];
-        removedPhotoIds.value = [];
+        applyServerCreationSnapshot(creation);
         const localState = loadLocalFormState();
         const shouldRestoreDraft = shouldRestoreLocalDraft(localState, serverUpdatedAt);
         if (shouldRestoreDraft) {
@@ -657,6 +683,47 @@ const handlePublish = async () => {
     await persistCreation({ publicationStatus: 'publish', notify: true });
 };
 
+const syncFromPublished = async () => {
+    if (!activeCreationId.value || syncingPublished.value) {
+        return;
+    }
+
+    const confirmation = await toast.confirm(
+        'SINKRON KE PUBLISH?',
+        'Yakin menimpa draft lokal dengan versi publish terbaru? Perubahan draft lokal yang belum disimpan akan hilang.',
+        'YA, TIMPA DRAFT'
+    );
+
+    if (!confirmation?.isConfirmed) {
+        return;
+    }
+
+    syncingPublished.value = true;
+
+    try {
+        const response = await window.axios.get(route('api.creations.show', { creation: activeCreationId.value }, false));
+        const creation = response.data?.data || null;
+        if (!creation) {
+            throw new Error('CREATION_NOT_FOUND');
+        }
+
+        if (String(creation.publication_status || 'draft') !== 'publish') {
+            toast.error('SYNC_BLOCKED', 'Belum ada versi publish terbaru untuk disinkronkan.');
+            return;
+        }
+
+        applyServerCreationSnapshot(creation);
+        clearEditorLocalDraftState();
+        saveFormStateLocally();
+        lastSavedAt.value = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        toast.success('SYNCED', 'Editor berhasil disinkronkan ke versi publish terbaru.');
+    } catch (error) {
+        toast.error('SYNC_FAILED', 'Unable to sync creation to latest published version.');
+    } finally {
+        syncingPublished.value = false;
+    }
+};
+
 const openFeaturedImagePicker = () => {
     featuredImageInputRef.value?.click();
 };
@@ -730,7 +797,7 @@ onMounted(async () => {
     titleInputRef.value?.focus();
 
     autosaveTimer = window.setInterval(() => {
-        if (saving.value || autosaving.value || editorUploadBusy.value) {
+        if (saving.value || autosaving.value || syncingPublished.value || editorUploadBusy.value) {
             return;
         }
         persistCreation({ publicationStatus: form.publication_status || 'draft', autosave: true });
@@ -772,6 +839,7 @@ onBeforeUnmount(() => {
 
                 <div class="creation-editor-page__actions">
                     <span v-if="autosaving" class="creation-editor-page__meta">Autosaving...</span>
+                    <span v-else-if="syncingPublished" class="creation-editor-page__meta">Syncing latest published...</span>
                     <span v-else-if="lastSavedAt" class="creation-editor-page__meta">Saved {{ lastSavedAt }}</span>
                     <button
                         type="button"
@@ -1061,11 +1129,22 @@ onBeforeUnmount(() => {
                     </section>
 
                     <section class="creation-sidebar__section creation-sidebar__section--actions">
-                        <button type="button" class="creation-sidebar__primary" :disabled="saving || editorUploadBusy" title="Save draft" @click="handleManualSave">
+                        <button type="button" class="creation-sidebar__primary" :disabled="saving || syncingPublished || editorUploadBusy" title="Save draft" @click="handleManualSave">
                             <i class="fi fi-rr-disk text-[12px]" />
                             <span>Save</span>
                         </button>
-                        <button type="button" class="creation-sidebar__accent" :disabled="saving || editorUploadBusy" title="Publish creation" @click="handlePublish">
+                        <button
+                            v-if="activeCreationId"
+                            type="button"
+                            class="creation-sidebar__secondary"
+                            :disabled="saving || syncingPublished || editorUploadBusy"
+                            title="Sync from latest published version"
+                            @click="syncFromPublished"
+                        >
+                            <i class="fi fi-rr-refresh text-[12px]" />
+                            <span>Sync Publish</span>
+                        </button>
+                        <button type="button" class="creation-sidebar__accent" :disabled="saving || syncingPublished || editorUploadBusy" title="Publish creation" @click="handlePublish">
                             <i class="fi fi-rr-paper-plane text-[12px]" />
                             <span>Publish</span>
                         </button>
@@ -1297,6 +1376,7 @@ onBeforeUnmount(() => {
 
 .creation-sidebar__icon,
 .creation-sidebar__primary,
+.creation-sidebar__secondary,
 .creation-sidebar__accent,
 .creation-sidebar__toggle-btn {
     display: inline-flex;
@@ -1315,6 +1395,7 @@ onBeforeUnmount(() => {
 
 .creation-sidebar__icon:hover,
 .creation-sidebar__primary:hover,
+.creation-sidebar__secondary:hover,
 .creation-sidebar__accent:hover,
 .creation-sidebar__toggle-btn:hover,
 .creation-sidebar__toggle-btn--active {
@@ -1443,6 +1524,7 @@ onBeforeUnmount(() => {
 
 .creation-sidebar__toggle-btn,
 .creation-sidebar__primary,
+.creation-sidebar__secondary,
 .creation-sidebar__accent {
     min-height: 2.75rem;
 }
@@ -1466,6 +1548,30 @@ onBeforeUnmount(() => {
     padding: 0 0.9rem;
     font-size: 8px;
     text-transform: uppercase;
+}
+
+.creation-sidebar__secondary {
+    gap: 0.45rem;
+    padding: 0 0.8rem;
+    font-size: 8px;
+    text-transform: uppercase;
+    border-color: rgba(245, 158, 11, 0.82);
+    background: rgba(120, 53, 15, 0.88);
+    color: #fef3c7;
+}
+
+.creation-sidebar__secondary:hover {
+    border-color: rgba(250, 204, 21, 0.95);
+    background: rgba(202, 138, 4, 0.92);
+    color: #fffbeb;
+}
+
+.creation-sidebar__secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: rgba(217, 119, 6, 0.45);
+    background: rgba(120, 53, 15, 0.46);
+    color: rgba(254, 243, 199, 0.72);
 }
 
 .creation-sidebar__accent {
@@ -1535,6 +1641,7 @@ onBeforeUnmount(() => {
     }
 
     .creation-sidebar__primary,
+    .creation-sidebar__secondary,
     .creation-sidebar__accent {
         flex: 1 1 0;
         min-height: 2.5rem;
@@ -1571,6 +1678,7 @@ onBeforeUnmount(() => {
 
     .creation-sidebar__toggle-btn,
     .creation-sidebar__primary,
+    .creation-sidebar__secondary,
     .creation-sidebar__accent {
         min-height: 2.3rem;
     }
