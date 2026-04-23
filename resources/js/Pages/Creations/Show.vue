@@ -13,6 +13,7 @@ const props = defineProps({
 
 const page = usePage();
 const HALL_RETURN_URL_STORAGE_KEY = 'hall.creations.return_to';
+const EMPTY_CREATION_PARAGRAPH_PATTERN = '<p>(?:\\s|&nbsp;|<br\\s*\\/?>)*<\\/p>';
 const authUser = computed(() => page.props?.auth?.user || null);
 const creation = ref(null);
 const loadingCreation = ref(false);
@@ -90,6 +91,24 @@ const toDisplayDate = (value) => {
 const teamMembers = computed(() => Array.isArray(creation.value?.team) ? creation.value.team : []);
 const pendingCollaborationRequests = computed(() => Array.isArray(creation.value?.pending_collaboration_requests) ? creation.value.pending_collaboration_requests : []);
 const creationTags = computed(() => Array.isArray(creation.value?.tags) ? creation.value.tags : []);
+const renderedCreationContent = computed(() => {
+    const rawContent = String(creation.value?.content || '').trim();
+    if (rawContent === '') {
+        return '';
+    }
+
+    const leadingEmptyParagraphs = new RegExp(`^(?:${EMPTY_CREATION_PARAGRAPH_PATTERN}\\s*)+`, 'i');
+    const trailingEmptyParagraphs = new RegExp(`(?:\\s*${EMPTY_CREATION_PARAGRAPH_PATTERN})+$`, 'i');
+    const emptyParagraphs = new RegExp(EMPTY_CREATION_PARAGRAPH_PATTERN, 'gi');
+    const repeatedSpacers = /(?:<p class="creation-doc__spacer"><br><\/p>\s*){2,}/gi;
+
+    return rawContent
+        .replace(leadingEmptyParagraphs, '')
+        .replace(trailingEmptyParagraphs, '')
+        .replace(emptyParagraphs, '<p class="creation-doc__spacer"><br></p>')
+        .replace(repeatedSpacers, '<p class="creation-doc__spacer"><br></p>')
+        .trim();
+});
 const canRequestCollaboration = computed(() => {
     if (!creation.value) {
         return false;
@@ -505,7 +524,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="creation-reading-surface mb-5" @click="handleDocImageClick">
-                    <article v-if="creation.content" class="creation-doc" v-html="creation.content" />
+                    <article v-if="renderedCreationContent" class="creation-doc" v-html="renderedCreationContent" />
                     <p v-else class="creation-doc creation-doc--plain whitespace-pre-line text-[8px] leading-relaxed text-slate-700">{{ creation.description }}</p>
                 </div>
 
@@ -796,6 +815,14 @@ onBeforeUnmount(() => {
     margin: 0;
 }
 
+:deep(.creation-doc > :first-child) {
+    margin-top: 0;
+}
+
+:deep(.creation-doc > :last-child) {
+    margin-bottom: 0;
+}
+
 .creation-reading-surface {
     max-height: min(62vh, 760px);
     overflow-y: auto;
@@ -828,6 +855,15 @@ onBeforeUnmount(() => {
 :deep(.creation-doc blockquote),
 :deep(.creation-doc pre) {
     margin-bottom: 1rem;
+}
+
+:deep(.creation-doc p:empty) {
+    display: none;
+}
+
+:deep(.creation-doc p.creation-doc__spacer) {
+    min-height: 0.95rem;
+    margin: 0.45rem 0 0.9rem;
 }
 
 :deep(.creation-doc ul),
