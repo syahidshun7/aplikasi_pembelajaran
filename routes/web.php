@@ -125,13 +125,14 @@ if (app()->environment(['local', 'testing'])) {
     });
 }
 
+Route::get('/hall-of-creations', [CreationPageController::class, 'hallIndex'])->name('hall.creations.index');
+Route::get('/hall-of-creations/{creation}', [CreationPageController::class, 'show'])->name('hall.creations.show');
+
 Route::middleware('auth')->group(function () {
-    Route::get('/hall-of-creations', [CreationPageController::class, 'hallIndex'])->name('hall.creations.index');
     Route::get('/my-creations', [CreationPageController::class, 'index'])->name('creations.index');
     Route::get('/profile/creations', [CreationPageController::class, 'profileCreations'])->name('profile.creations');
     Route::get('/profile/creations/create', [CreationPageController::class, 'create'])->name('profile.creations.create');
     Route::get('/profile/creations/{creation}/edit', [CreationPageController::class, 'edit'])->name('profile.creations.edit');
-    Route::get('/hall-of-creations/{creation}', [CreationPageController::class, 'show'])->name('hall.creations.show');
 
     Route::get('/profile', [ProfileController::class, 'dashboard'])->name('profile.dashboard');
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');

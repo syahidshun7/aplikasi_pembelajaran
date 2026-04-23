@@ -1,5 +1,5 @@
 <script setup>
-import { Head, router } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import CreationCard from '@/Components/Creations/CreationCard.vue';
@@ -9,6 +9,8 @@ const HALL_RETURN_URL_STORAGE_KEY = 'hall.creations.return_to';
 const HALL_CACHE_STORAGE_KEY = 'hall.creations.cache';
 const HALL_DEFAULT_SORT = 'popular';
 const HALL_CACHE_TTL = 5 * 60 * 1000;
+const page = usePage();
+const authUser = computed(() => page.props?.auth?.user || null);
 const allowedHallSorts = ['popular', 'latest'];
 const allowedHallStatuses = ['crafting', 'refining', 'finished', 'collaboration'];
 const readHallStateFromUrl = () => {
@@ -209,6 +211,14 @@ const getAppreciationErrorMessage = (error) => {
     return 'Unable to update appreciation.';
 };
 
+const redirectToLogin = () => {
+    const loginUrl = route('login');
+    if (typeof window !== 'undefined') {
+        persistHallReturnUrl(meta.value.current_page);
+    }
+    router.visit(loginUrl);
+};
+
 const replaceCreationCard = (creationId, nextCreation) => {
     const targetId = Number(creationId || 0);
     if (!targetId || !nextCreation) {
@@ -295,6 +305,11 @@ const toggleAppreciation = async (creation) => {
         return;
     }
 
+    if (!authUser.value) {
+        redirectToLogin();
+        return;
+    }
+
     togglingId.value = Number(creation.id);
 
     try {
@@ -310,6 +325,11 @@ const toggleAppreciation = async (creation) => {
 
         await refreshCreationCard(creation.id);
     } catch (error) {
+        if (Number(error?.response?.status || 0) === 401) {
+            redirectToLogin();
+            return;
+        }
+
         console.error('hall appreciation failed', {
             status: error?.response?.status,
             message: error?.response?.data?.message,

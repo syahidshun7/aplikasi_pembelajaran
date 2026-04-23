@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { toast } from '@/Utils/Alert';
@@ -55,6 +55,24 @@ const backToHallHref = computed(() => {
 
     return savedHref.startsWith(hallIndexPath) ? savedHref : fallbackHref;
 });
+
+const redirectToLogin = () => {
+    if (typeof window !== 'undefined') {
+        const currentPath = `${window.location.pathname}${window.location.search || ''}`;
+        window.sessionStorage.setItem(HALL_RETURN_URL_STORAGE_KEY, currentPath);
+    }
+
+    router.visit(route('login'));
+};
+
+const ensureAuthenticatedOrRedirect = () => {
+    if (authUser.value) {
+        return true;
+    }
+
+    redirectToLogin();
+    return false;
+};
 
 const getAppreciationErrorMessage = (error) => {
     const status = Number(error?.response?.status || 0);
@@ -194,6 +212,10 @@ const toggleAppreciation = async () => {
         return;
     }
 
+    if (!ensureAuthenticatedOrRedirect()) {
+        return;
+    }
+
     togglingAppreciation.value = true;
 
     try {
@@ -207,6 +229,11 @@ const toggleAppreciation = async () => {
             creation.value.appreciations_count = Number(response.data?.appreciations_count || 0);
         }
     } catch (error) {
+        if (Number(error?.response?.status || 0) === 401) {
+            redirectToLogin();
+            return;
+        }
+
         console.error('creation detail appreciation failed', {
             status: error?.response?.status,
             message: error?.response?.data?.message,
@@ -220,6 +247,10 @@ const toggleAppreciation = async () => {
 };
 
 const submitInsight = async () => {
+    if (!ensureAuthenticatedOrRedirect()) {
+        return;
+    }
+
     const content = String(insightForm.content || '').trim();
     if (!content) {
         toast.error('EMPTY_INSIGHT', 'Insight content cannot be empty.');
@@ -240,6 +271,11 @@ const submitInsight = async () => {
             creation.value.insights_count = Number(creation.value.insights_count || 0) + 1;
         }
     } catch (error) {
+        if (Number(error?.response?.status || 0) === 401) {
+            redirectToLogin();
+            return;
+        }
+
         const firstError = Object.values(error?.response?.data?.errors || {})?.[0]?.[0] || 'Failed to send insight.';
         toast.error('POST_FAILED', String(firstError));
     } finally {
@@ -248,6 +284,10 @@ const submitInsight = async () => {
 };
 
 const setReply = (insightId) => {
+    if (!ensureAuthenticatedOrRedirect()) {
+        return;
+    }
+
     insightForm.parent_id = Number(insightId);
 };
 
@@ -324,6 +364,10 @@ const submitCollaborationRequest = async () => {
         return;
     }
 
+    if (!ensureAuthenticatedOrRedirect()) {
+        return;
+    }
+
     collaborationSubmitting.value = true;
 
     try {
@@ -336,6 +380,11 @@ const submitCollaborationRequest = async () => {
         await refreshCreation();
         toast.success('REQUEST_SENT', 'Collaboration request sent.');
     } catch (error) {
+        if (Number(error?.response?.status || 0) === 401) {
+            redirectToLogin();
+            return;
+        }
+
         toast.error('REQUEST_FAILED', String(error?.response?.data?.message || 'Unable to send collaboration request.'));
     } finally {
         collaborationSubmitting.value = false;
@@ -345,6 +394,10 @@ const submitCollaborationRequest = async () => {
 const withdrawCollaborationRequest = async () => {
     const requestId = Number(creation.value?.viewer_collaboration_request_id || 0);
     if (!requestId || collaborationSubmitting.value) {
+        return;
+    }
+
+    if (!ensureAuthenticatedOrRedirect()) {
         return;
     }
 
@@ -358,6 +411,11 @@ const withdrawCollaborationRequest = async () => {
         await refreshCreation();
         toast.success('REQUEST_UPDATED', 'Collaboration request withdrawn.');
     } catch (error) {
+        if (Number(error?.response?.status || 0) === 401) {
+            redirectToLogin();
+            return;
+        }
+
         toast.error('REQUEST_FAILED', String(error?.response?.data?.message || 'Unable to withdraw collaboration request.'));
     } finally {
         collaborationSubmitting.value = false;
@@ -367,6 +425,10 @@ const withdrawCollaborationRequest = async () => {
 const approveRequest = async (requestItem) => {
     const requestId = Number(requestItem?.id || 0);
     if (!requestId || collaborationActionId.value === requestId) {
+        return;
+    }
+
+    if (!ensureAuthenticatedOrRedirect()) {
         return;
     }
 
@@ -380,6 +442,11 @@ const approveRequest = async (requestItem) => {
         await refreshCreation();
         toast.success('REQUEST_APPROVED', 'Collaboration request approved.');
     } catch (error) {
+        if (Number(error?.response?.status || 0) === 401) {
+            redirectToLogin();
+            return;
+        }
+
         toast.error('REQUEST_FAILED', String(error?.response?.data?.message || 'Unable to approve request.'));
     } finally {
         collaborationActionId.value = 0;
@@ -389,6 +456,10 @@ const approveRequest = async (requestItem) => {
 const rejectRequest = async (requestItem) => {
     const requestId = Number(requestItem?.id || 0);
     if (!requestId || collaborationActionId.value === requestId) {
+        return;
+    }
+
+    if (!ensureAuthenticatedOrRedirect()) {
         return;
     }
 
@@ -402,6 +473,11 @@ const rejectRequest = async (requestItem) => {
         await refreshCreation();
         toast.success('REQUEST_REJECTED', 'Collaboration request rejected.');
     } catch (error) {
+        if (Number(error?.response?.status || 0) === 401) {
+            redirectToLogin();
+            return;
+        }
+
         toast.error('REQUEST_FAILED', String(error?.response?.data?.message || 'Unable to reject request.'));
     } finally {
         collaborationActionId.value = 0;
@@ -411,6 +487,10 @@ const rejectRequest = async (requestItem) => {
 const removeCollaborator = async (member) => {
     const userId = Number(member?.id || 0);
     if (!userId || removingCollaboratorId.value === userId || member?.is_owner) {
+        return;
+    }
+
+    if (!ensureAuthenticatedOrRedirect()) {
         return;
     }
 
@@ -424,6 +504,11 @@ const removeCollaborator = async (member) => {
         await refreshCreation();
         toast.success('TEAM_UPDATED', 'Collaborator removed from team.');
     } catch (error) {
+        if (Number(error?.response?.status || 0) === 401) {
+            redirectToLogin();
+            return;
+        }
+
         toast.error('ACTION_FAILED', String(error?.response?.data?.message || 'Unable to remove collaborator.'));
     } finally {
         removingCollaboratorId.value = 0;

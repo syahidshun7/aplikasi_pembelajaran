@@ -141,13 +141,44 @@ const expandedMentorId = ref(null);
 const isPageLoaded = ref(false);
 let pageLoadHandler = null;
 
-const hallEntryHref = computed(() => (
-    props.canLogin ? route('login') : route('hall.creations.index')
-));
+const hallEntryHref = computed(() => route('hall.creations.index'));
 
 const hallEntryLabel = computed(() => (
-    props.canLogin ? 'Login to Open Hall' : 'Open Hall'
+    'Open Public Hall'
 ));
+
+const hallSecondaryHref = computed(() => (
+    props.canRegister ? route('register') : route('hall.creations.index')
+));
+
+const hallSecondaryLabel = computed(() => (
+    props.canRegister ? 'Create Account' : 'View Public Hall'
+));
+
+const hallStats = computed(() => {
+    return featuredCreations.value.reduce((accumulator, creation) => {
+        accumulator.appreciations += Number(creation?.appreciations_count || 0);
+        accumulator.insights += Number(creation?.insights_count || 0);
+
+        if (String(creation?.status || '') !== 'finished') {
+            accumulator.activeProjects += 1;
+        }
+
+        return accumulator;
+    }, {
+        appreciations: 0,
+        insights: 0,
+        activeProjects: 0,
+    });
+});
+
+const getHallRankTitle = (index) => {
+    if (index === 0) return 'Legendary Pick';
+    if (index === 1) return 'Hot Pick';
+    if (index === 2) return 'Rising Pick';
+    if (index === 3) return 'Community Pick';
+    return 'Fresh Pick';
+};
 
 const seoTitle = 'DOOPTECH | Platform Pembelajaran Quest-Based';
 const seoDescription = 'DOOPTECH adalah aplikasi pembelajaran berbasis game yang menghubungkan pemula dan profesional dalam satu ekosistem belajar.';
@@ -842,111 +873,161 @@ onBeforeUnmount(() => {
                 </div>
             </section>
 
-            <section v-if="featuredCreations.length > 0" class="px-4 md:px-10 pb-12">
-                <div class="mx-auto max-w-5xl">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <p class="text-[8px] md:text-[9px] uppercase tracking-[0.24em] text-cyan-700">Hall Preview</p>
-                            <h2 class="mt-2 text-[10px] md:text-xs uppercase text-slate-900">Top 5 Hall of Creations</h2>
-                        </div>
+            <section class="px-4 md:px-10 pb-12">
+                <div class="mx-auto max-w-6xl hall-preview-shell">
+                    <div class="hall-preview-panel">
+                        <div class="hall-preview-panel__glow hall-preview-panel__glow--one"></div>
+                        <div class="hall-preview-panel__glow hall-preview-panel__glow--two"></div>
 
-                        <Link
-                            :href="hallEntryHref"
-                            class="text-[8px] md:text-[9px] px-4 py-2 uppercase bg-slate-900 text-cyan-200 border border-cyan-300/60 border-b-4 border-r-4 border-b-slate-950 border-r-slate-950 hover:bg-cyan-800/90 hover:text-white transition-colors"
-                        >
-                            {{ hallEntryLabel }}
-                        </Link>
-                    </div>
+                        <div class="relative z-10">
+                            <div class="flex flex-wrap items-start justify-between gap-4">
+                                <div class="max-w-2xl">
+                                    <p class="text-[8px] md:text-[9px] uppercase tracking-[0.26em] text-cyan-200/90">Hall of Creations</p>
+                                    <h2 class="mt-2 text-[11px] md:text-[13px] uppercase text-white">Showcase karya terbaik komunitas</h2>
+                                    <p class="mt-3 text-[11px] md:text-[13px] font-sans leading-relaxed text-cyan-50/90">
+                                        Lihat project yang lagi naik, pantau progres real, dan temukan inspirasi dari learner serta mentor aktif di DOOPTECH.
+                                    </p>
 
-                    <div class="mt-6 flex flex-wrap justify-center gap-4">
-                        <article
-                            v-for="(creation, index) in featuredCreations"
-                            :key="creation.id"
-                            class="group relative w-full max-w-[220px] overflow-hidden border border-white/70 border-r-4 border-b-4 border-r-slate-900 border-b-slate-900 bg-gradient-to-br text-left transition-all duration-200 hover:-translate-y-1 active:translate-y-0.5 active:border-r-2 active:border-b-2"
-                            :class="getCreationTheme(index).card"
-                        >
-                            <div
-                                class="absolute -right-10 -top-10 h-24 w-24 rounded-full blur-2xl opacity-35"
-                                :class="getCreationTheme(index).glow"
-                            ></div>
-                            <div
-                                class="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r"
-                                :class="getCreationTheme(index).line"
-                            ></div>
+                                    <div class="mt-4 flex flex-wrap gap-2">
+                                        <span class="hall-stat-chip">
+                                            <i class="fi fi-rr-heart text-[10px]"></i>
+                                            {{ hallStats.appreciations }} Appreciation
+                                        </span>
+                                        <span class="hall-stat-chip">
+                                            <i class="fi fi-rr-comment-alt text-[10px]"></i>
+                                            {{ hallStats.insights }} Insight
+                                        </span>
+                                        <span class="hall-stat-chip">
+                                            <i class="fi fi-rr-target text-[10px]"></i>
+                                            {{ hallStats.activeProjects }} Active Project
+                                        </span>
+                                    </div>
+                                </div>
 
-                            <div class="relative z-10 px-3 pt-3">
-                                <div class="flex items-center justify-between gap-2">
-                                    <span class="border border-white/40 bg-black/15 px-2 py-1 text-[6px] uppercase text-white/90">
-                                        Hall Rank
-                                    </span>
-                                    <span class="border border-white/40 bg-black/15 px-2 py-1 text-[6px] uppercase text-white/90">
-                                        0{{ index + 1 }}
-                                    </span>
+                                <div class="flex flex-wrap gap-2">
+                                    <Link
+                                        :href="hallEntryHref"
+                                        class="hall-cta hall-cta--primary"
+                                    >
+                                        {{ hallEntryLabel }}
+                                    </Link>
+                                    <Link
+                                        :href="hallSecondaryHref"
+                                        class="hall-cta hall-cta--secondary"
+                                    >
+                                        {{ hallSecondaryLabel }}
+                                    </Link>
                                 </div>
                             </div>
 
-                            <div class="relative mt-3 aspect-[4/3] overflow-hidden border-y border-white/25 bg-black/15">
-                                <img
-                                    v-if="creation.thumbnail_url"
-                                    :src="creation.thumbnail_url"
-                                    :alt="creation.title"
-                                    class="h-full w-full object-cover object-center"
-                                    loading="lazy"
-                                    decoding="async"
-                                />
-                                <div v-else class="flex h-full items-center justify-center">
-                                    <i class="fi fi-rr-lightbulb-on text-[28px] text-cyan-200/80"></i>
-                                </div>
-
-                                <span
-                                    class="absolute left-2 top-2 rounded border px-2 py-1 text-[6px] uppercase backdrop-blur-[1px]"
-                                    :class="getCreationStatusClass(creation.status)"
+                            <div v-if="featuredCreations.length > 0" class="mt-6 hall-preview-grid">
+                                <article
+                                    v-for="(creation, index) in featuredCreations"
+                                    :key="creation.id"
+                                    class="group hall-showcase-card relative overflow-hidden border border-white/70 border-r-4 border-b-4 border-r-slate-900 border-b-slate-900 bg-gradient-to-br text-left"
+                                    :class="getCreationTheme(index).card"
+                                    :style="{ animationDelay: `${index * 90}ms` }"
                                 >
-                                    {{ creation.status }}
-                                </span>
+                                    <div class="hall-showcase-card__shine"></div>
+                                    <div
+                                        class="absolute -right-10 -top-10 h-24 w-24 rounded-full blur-2xl opacity-35"
+                                        :class="getCreationTheme(index).glow"
+                                    ></div>
+                                    <div
+                                        class="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r"
+                                        :class="getCreationTheme(index).line"
+                                    ></div>
 
-                                <div class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/55 to-transparent"></div>
+                                    <div class="relative z-10 px-3 pt-3">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="border border-white/40 bg-black/15 px-2 py-1 text-[6px] uppercase text-white/90">
+                                                {{ getHallRankTitle(index) }}
+                                            </span>
+                                            <span class="border border-white/40 bg-black/15 px-2 py-1 text-[6px] uppercase text-white/90">
+                                                Rank 0{{ index + 1 }}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div class="relative mt-3 aspect-[4/3] overflow-hidden border-y border-white/25 bg-black/15">
+                                        <img
+                                            v-if="creation.thumbnail_url"
+                                            :src="creation.thumbnail_url"
+                                            :alt="creation.title"
+                                            class="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.05]"
+                                            loading="lazy"
+                                            decoding="async"
+                                        />
+                                        <div v-else class="flex h-full items-center justify-center">
+                                            <i class="fi fi-rr-lightbulb-on text-[28px] text-cyan-200/80"></i>
+                                        </div>
+
+                                        <span
+                                            class="absolute left-2 top-2 rounded border px-2 py-1 text-[6px] uppercase backdrop-blur-[1px]"
+                                            :class="getCreationStatusClass(creation.status)"
+                                        >
+                                            {{ creation.status }}
+                                        </span>
+
+                                        <div class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/55 to-transparent"></div>
+                                    </div>
+
+                                    <div class="relative z-10 space-y-2 p-3 text-white">
+                                        <div class="min-w-0">
+                                            <h3 class="line-clamp-1 text-[9px] uppercase text-white [text-shadow:1px_1px_0_rgba(2,6,23,0.45)]">
+                                                {{ creation.title }}
+                                            </h3>
+                                            <p class="mt-1 line-clamp-1 text-[7px] uppercase" :class="getCreationTheme(index).meta">
+                                                {{ creation.creator?.username || creation.creator?.name || 'Adventurer' }}
+                                            </p>
+                                        </div>
+
+                                        <div v-if="creation.status !== 'finished'" class="space-y-1">
+                                            <div class="h-1.5 overflow-hidden border border-white/25 bg-slate-950/80">
+                                                <div
+                                                    class="h-full bg-gradient-to-r"
+                                                    :class="getCreationTheme(index).line"
+                                                    :style="{ width: `${creation.progress || 0}%` }"
+                                                ></div>
+                                            </div>
+                                            <p class="text-[6px] uppercase tracking-[0.18em] text-white/75">{{ creation.progress || 0 }}%</p>
+                                        </div>
+
+                                        <div class="flex items-center justify-between border-t border-white/15 pt-2 text-[7px] uppercase">
+                                            <div class="flex items-center gap-2">
+                                                <span class="inline-flex items-center gap-1 border px-2 py-1" :class="getCreationTheme(index).stat">
+                                                    <i class="fi fi-rr-heart text-[9px]"></i>
+                                                    {{ creation.appreciations_count || 0 }}
+                                                </span>
+                                                <span class="inline-flex items-center gap-1 border px-2 py-1" :class="getCreationTheme(index).stat">
+                                                    <i class="fi fi-rr-comment-alt text-[9px]"></i>
+                                                    {{ creation.insights_count || 0 }}
+                                                </span>
+                                            </div>
+
+                                            <Link
+                                                :href="route('hall.creations.show', { creation: creation.id })"
+                                                class="border border-white/45 bg-black/20 px-2 py-1 text-[6px] uppercase text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+                                            >
+                                                View
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </article>
                             </div>
 
-                            <div class="relative z-10 space-y-2 p-3 text-white">
-                                <div class="min-w-0">
-                                    <h3 class="line-clamp-1 text-[9px] uppercase text-white [text-shadow:1px_1px_0_rgba(2,6,23,0.45)]">
-                                        {{ creation.title }}
-                                    </h3>
-                                    <p class="mt-1 line-clamp-1 text-[7px] uppercase" :class="getCreationTheme(index).meta">
-                                        {{ creation.creator?.username || creation.creator?.name || 'Adventurer' }}
+                            <div v-else class="mt-6 hall-empty-state">
+                                <div class="hall-empty-state__icon-wrap">
+                                    <i class="fi fi-rr-lightbulb-on text-[24px] text-cyan-200"></i>
+                                </div>
+                                <div class="space-y-2">
+                                    <p class="text-[10px] uppercase text-white">Belum ada creation publik di Hall</p>
+                                    <p class="text-[11px] md:text-[13px] font-sans text-cyan-100/85">
+                                        Jadi yang pertama publish karya dan buka diskusi dari komunitas.
                                     </p>
                                 </div>
-
-                                <div v-if="creation.status !== 'finished'" class="space-y-1">
-                                    <div class="h-1.5 overflow-hidden border border-white/25 bg-slate-950/80">
-                                        <div
-                                            class="h-full bg-gradient-to-r"
-                                            :class="getCreationTheme(index).line"
-                                            :style="{ width: `${creation.progress || 0}%` }"
-                                        ></div>
-                                    </div>
-                                    <p class="text-[6px] uppercase tracking-[0.18em] text-white/75">{{ creation.progress || 0 }}%</p>
-                                </div>
-
-                                <div class="flex items-center justify-between border-t border-white/15 pt-2 text-[7px] uppercase">
-                                    <div class="flex items-center gap-2">
-                                        <span class="inline-flex items-center gap-1 border px-2 py-1" :class="getCreationTheme(index).stat">
-                                            <i class="fi fi-rr-heart text-[9px]"></i>
-                                            {{ creation.appreciations_count || 0 }}
-                                        </span>
-                                        <span class="inline-flex items-center gap-1 border px-2 py-1" :class="getCreationTheme(index).stat">
-                                            <i class="fi fi-rr-comment-alt text-[9px]"></i>
-                                            {{ creation.insights_count || 0 }}
-                                        </span>
-                                    </div>
-
-                                    <span class="line-clamp-1 max-w-[72px] text-right text-[6px] text-white/65">
-                                        {{ creation.category || 'General' }}
-                                    </span>
-                                </div>
                             </div>
-                        </article>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -1414,6 +1495,204 @@ onBeforeUnmount(() => {
     --mentor-accent: #7dd3fc;
     --mentor-accent-glow: rgba(125, 211, 252, 0.75);
     --mentor-text-glow: rgba(125, 211, 252, 0.6);
+}
+
+.hall-preview-shell {
+    position: relative;
+}
+
+.hall-preview-panel {
+    position: relative;
+    overflow: hidden;
+    border: 2px solid rgba(103, 232, 249, 0.32);
+    background:
+        linear-gradient(145deg, rgba(2, 6, 23, 0.92), rgba(15, 23, 42, 0.88)),
+        linear-gradient(125deg, rgba(6, 182, 212, 0.16), rgba(59, 130, 246, 0.12));
+    padding: 1.15rem;
+    box-shadow: 0 14px 30px rgba(2, 6, 23, 0.32);
+}
+
+.hall-preview-panel__glow {
+    position: absolute;
+    width: 260px;
+    height: 260px;
+    border-radius: 999px;
+    filter: blur(62px);
+    opacity: 0.12;
+    pointer-events: none;
+    animation: hall-aurora 7.5s ease-in-out infinite;
+}
+
+.hall-preview-panel__glow--one {
+    top: -150px;
+    right: -60px;
+    background: #22d3ee;
+}
+
+.hall-preview-panel__glow--two {
+    bottom: -170px;
+    left: -80px;
+    background: #38bdf8;
+    animation-delay: 2.4s;
+}
+
+.hall-stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid rgba(125, 211, 252, 0.46);
+    background: rgba(15, 23, 42, 0.74);
+    padding: 0.38rem 0.6rem;
+    font-size: 8px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(207, 250, 254, 0.92);
+}
+
+.hall-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid;
+    padding: 0.58rem 0.9rem;
+    font-size: 8px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    transition: transform 180ms ease, background-color 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+
+.hall-cta:hover {
+    transform: translateY(-1px);
+}
+
+.hall-cta--primary {
+    border-color: rgba(103, 232, 249, 0.72);
+    background: rgba(14, 116, 144, 0.3);
+    color: #ecfeff;
+}
+
+.hall-cta--primary:hover {
+    border-color: rgba(165, 243, 252, 0.92);
+    background: rgba(8, 145, 178, 0.5);
+}
+
+.hall-cta--secondary {
+    border-color: rgba(191, 219, 254, 0.6);
+    background: rgba(15, 23, 42, 0.76);
+    color: rgba(224, 242, 254, 0.94);
+}
+
+.hall-cta--secondary:hover {
+    border-color: rgba(148, 163, 184, 0.86);
+    background: rgba(15, 23, 42, 0.9);
+}
+
+.hall-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.hall-showcase-card {
+    min-height: 295px;
+    transform: translateY(14px);
+    opacity: 0;
+    animation: hall-card-reveal 520ms ease forwards;
+}
+
+.hall-showcase-card:hover {
+    transform: translateY(-4px);
+}
+
+.hall-showcase-card__shine {
+    position: absolute;
+    top: -50%;
+    left: -120%;
+    width: 45%;
+    height: 200%;
+    background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+    transform: rotate(16deg);
+    transition: left 420ms ease;
+    pointer-events: none;
+}
+
+.hall-showcase-card:hover .hall-showcase-card__shine {
+    left: 140%;
+}
+
+.hall-empty-state {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    border: 1px dashed rgba(125, 211, 252, 0.44);
+    background: rgba(2, 6, 23, 0.35);
+    padding: 1rem;
+}
+
+.hall-empty-state__icon-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border: 1px solid rgba(125, 211, 252, 0.45);
+    background: rgba(8, 47, 73, 0.45);
+}
+
+@media (min-width: 768px) {
+    .hall-preview-panel {
+        padding: 1.35rem;
+    }
+
+    .hall-preview-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1280px) {
+    .hall-preview-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+}
+
+@keyframes hall-aurora {
+    0%, 100% {
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+        transform: translate3d(10px, -8px, 0) scale(1.08);
+    }
+}
+
+@keyframes hall-card-reveal {
+    from {
+        transform: translateY(14px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hall-preview-panel__glow,
+    .hall-showcase-card {
+        animation: none;
+    }
+
+    .hall-showcase-card,
+    .hall-showcase-card:hover,
+    .hall-cta:hover,
+    .hall-showcase-card__shine {
+        transform: none;
+        transition: none;
+    }
+
+    .hall-showcase-card__shine,
+    .hall-showcase-card:hover .hall-showcase-card__shine {
+        left: -120%;
+    }
 }
 
 .landing-nav {
