@@ -891,24 +891,31 @@ onBeforeUnmount(() => {
     text-decoration: underline;
 }
 
-:deep(.creation-doc img.creation-image) {
+:deep(.creation-doc img) {
     display: block;
     max-width: 100%;
+    height: auto;
     margin: 1rem 0;
     border: 1px solid rgba(203, 213, 225, 1);
     cursor: zoom-in;
 }
 
+:deep(.creation-doc img[align="left"]),
+:deep(.creation-doc img[data-align="left"]),
 :deep(.creation-doc img.creation-image--left) {
     margin-left: 0;
     margin-right: auto;
 }
 
+:deep(.creation-doc img[align="center"]),
+:deep(.creation-doc img[data-align="center"]),
 :deep(.creation-doc img.creation-image--center) {
     margin-left: auto;
     margin-right: auto;
 }
 
+:deep(.creation-doc img[align="right"]),
+:deep(.creation-doc img[data-align="right"]),
 :deep(.creation-doc img.creation-image--right) {
     margin-left: auto;
     margin-right: 0;
