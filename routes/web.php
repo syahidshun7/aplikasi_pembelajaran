@@ -11,6 +11,10 @@ use App\Http\Controllers\AdminSubmissionController;
 use App\Http\Controllers\AdminSubmissionManagementController;
 use App\Http\Controllers\AdminTaskBankController;
 use App\Http\Controllers\AdminUserController;
+use App\Http\Controllers\AdminDailyQuestDefinitionController;
+use App\Http\Controllers\DoopLabDashboardController;
+use App\Http\Controllers\DoopLabTodoController;
+use App\Models\User;
 use App\Http\Controllers\CreationApiController;
 use App\Http\Controllers\CreationInteractionController;
 use App\Http\Controllers\CreationCollaborationController;
@@ -34,6 +38,7 @@ use App\Http\Controllers\SubmissionController;
 use App\Http\Controllers\UserEventController;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 Route::prefix('api')->name('api.')->group(function () {
     Route::get('/hall-of-creations', [HallOfCreationApiController::class, 'index'])->name('hall.index');
@@ -129,6 +134,21 @@ Route::get('/hall-of-creations', [CreationPageController::class, 'hallIndex'])->
 Route::get('/hall-of-creations/{creation}', [CreationPageController::class, 'show'])->name('hall.creations.show');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/dooplab', function () {
+        return Inertia::render('DoopLab/Index', [
+            'telemetryStats' => [
+                'total_member' => User::query()->where('role', User::ROLE_STUDENT)->count(),
+                'total_mentor' => User::query()->where('role', User::ROLE_MENTOR)->count(),
+            ],
+        ]);
+    })->name('dooplab.index');
+    Route::get('/dooplab/dashboard', [DoopLabDashboardController::class, 'index'])->name('dooplab.dashboard');
+    Route::post('/dooplab/todos', [DoopLabTodoController::class, 'store'])->name('dooplab.todos.store');
+    Route::patch('/dooplab/todos/{todo}', [DoopLabTodoController::class, 'update'])->name('dooplab.todos.update');
+    Route::patch('/dooplab/todos/{todo}/toggle', [DoopLabTodoController::class, 'toggle'])->name('dooplab.todos.toggle');
+    Route::delete('/dooplab/todos/{todo}', [DoopLabTodoController::class, 'destroy'])->name('dooplab.todos.destroy');
+    Route::post('/dooplab/todos/{todo}/notes', [DoopLabTodoController::class, 'storeNote'])->name('dooplab.todos.notes.store');
+
     Route::get('/my-creations', [CreationPageController::class, 'index'])->name('creations.index');
     Route::get('/profile/creations', [CreationPageController::class, 'profileCreations'])->name('profile.creations');
     Route::get('/profile/creations/create', [CreationPageController::class, 'create'])->name('profile.creations.create');
@@ -281,6 +301,13 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         Route::post('/', [AdminShopItemController::class, 'store'])->name('store');
         Route::put('/{item}', [AdminShopItemController::class, 'update'])->name('update');
         Route::delete('/{item}', [AdminShopItemController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('admin/daily-quest-definitions')->name('admin.daily-quest-definitions.')->group(function () {
+        Route::get('/', [AdminDailyQuestDefinitionController::class, 'index'])->name('index');
+        Route::post('/', [AdminDailyQuestDefinitionController::class, 'store'])->name('store');
+        Route::put('/{definition}', [AdminDailyQuestDefinitionController::class, 'update'])->name('update');
+        Route::delete('/{definition}', [AdminDailyQuestDefinitionController::class, 'destroy'])->name('destroy');
     });
 
     Route::prefix('admin/submissions')->name('admin.submissions.manage.')->group(function () {

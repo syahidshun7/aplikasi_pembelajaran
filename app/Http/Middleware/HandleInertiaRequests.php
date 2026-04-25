@@ -42,6 +42,8 @@ class HandleInertiaRequests extends Middleware
                     'email_verified_at' => $request->user()->email_verified_at,
                     'role' => $request->user()->role,
                     'staff_play_mode' => (bool) $request->user()->isStaffPlayMode(),
+                    'is_paid_member' => (bool) $request->user()->isPaidMember(),
+                    'can_access_dooplab' => (bool) $request->user()->canAccessDoopLab(),
                     'player_mode_label' => $request->user()->isStaffPlayMode() ? 'STAFF_PLAY_MODE' : 'PLAYER_MODE',
                     'player_mode_notice' => $request->user()->isStaffPlayMode()
                         ? 'Mode preview aktif: reward, leaderboard, dan akses kelas student tidak dihitung.'

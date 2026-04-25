@@ -748,7 +748,7 @@ onBeforeUnmount(() => {
     flex-direction: column;
     min-height: 0;
     width: 100%;
-    overflow: visible;
+    overflow: hidden;
 }
 
 .doc-editor--drag {
@@ -951,6 +951,7 @@ onBeforeUnmount(() => {
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
     scrollbar-color: rgba(148, 163, 184, 0.95) rgba(241, 245, 249, 0.9);
 }
@@ -1088,6 +1089,11 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1099px) {
+    .doc-editor {
+        height: min(72vh, 760px);
+        max-height: min(72vh, 760px);
+    }
+
     .doc-editor__toolbar {
         flex-wrap: nowrap;
         align-items: stretch;
@@ -1120,7 +1126,7 @@ onBeforeUnmount(() => {
     }
 
     .doc-editor__surface {
-        min-height: max(50vh, 360px);
+        min-height: 0;
     }
 
     :deep(.doc-editor__content) {
@@ -1149,6 +1155,11 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
+    .doc-editor {
+        height: min(68vh, 620px);
+        max-height: min(68vh, 620px);
+    }
+
     .doc-editor__toolbar {
         gap: 0.4rem;
         padding: 0.6rem;
@@ -1178,7 +1189,7 @@ onBeforeUnmount(() => {
     }
 
     .doc-editor__surface {
-        min-height: max(56vh, 410px);
+        min-height: 0;
     }
 
     :deep(.doc-editor__content) {

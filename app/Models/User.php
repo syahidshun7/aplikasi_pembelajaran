@@ -212,4 +212,14 @@ public function isStaffPlayMode(): bool
 {
     return $this->isStaff();
 }
+
+public function isPaidMember(): bool
+{
+    return $this->hasRole(self::ROLE_STUDENT);
+}
+
+public function canAccessDoopLab(): bool
+{
+    return $this->isStaff() || $this->isPaidMember();
+}
 }

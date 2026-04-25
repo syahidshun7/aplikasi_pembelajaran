@@ -147,13 +147,13 @@ const hallEntryLabel = computed(() => (
     'Open Public Hall'
 ));
 
-const hallSecondaryHref = computed(() => (
-    props.canRegister ? route('register') : route('hall.creations.index')
-));
+const hallSecondaryHref = computed(() => route('register'));
 
 const hallSecondaryLabel = computed(() => (
-    props.canRegister ? 'Create Account' : 'View Public Hall'
+    'Create Account'
 ));
+
+const showHallSecondaryCta = computed(() => Boolean(props.canRegister));
 
 const hallStats = computed(() => {
     return featuredCreations.value.reduce((accumulator, creation) => {
@@ -912,6 +912,7 @@ onBeforeUnmount(() => {
                                         {{ hallEntryLabel }}
                                     </Link>
                                     <Link
+                                        v-if="showHallSecondaryCta"
                                         :href="hallSecondaryHref"
                                         class="hall-cta hall-cta--secondary"
                                     >

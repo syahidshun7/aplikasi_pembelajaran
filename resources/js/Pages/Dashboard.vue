@@ -90,6 +90,10 @@ const getRiskColor = (grade) => {
                             class="menu-btn border-teal-500 text-teal-300 bg-teal-900/10 hover:bg-teal-300 hover:text-black">
                             [T] TASK_BANK
                         </Link>
+                        <Link v-if="isAdminAccess" :href="route('admin.daily-quest-definitions.index')"
+                            class="menu-btn border-fuchsia-500 text-fuchsia-300 bg-fuchsia-900/10 hover:bg-fuchsia-300 hover:text-black">
+                            [D] DAILY_QUEST
+                        </Link>
                         <Link :href="route('admin.events.index')"
                             class="menu-btn border-blue-500 text-blue-300 bg-blue-900/10 hover:bg-blue-300 hover:text-black">
                             [E] EVENTS
@@ -271,6 +275,13 @@ const getRiskColor = (grade) => {
                                     class="px-3 py-3 border border-rose-600 text-rose-300 hover:bg-rose-400 hover:text-black uppercase text-[9px] transition-colors"
                                 >
                                     [Open] Server_Error_Logs
+                                </Link>
+                                <Link
+                                    v-if="isAdminAccess"
+                                    :href="route('admin.daily-quest-definitions.index')"
+                                    class="px-3 py-3 border border-fuchsia-600 text-fuchsia-300 hover:bg-fuchsia-400 hover:text-black uppercase text-[9px] transition-colors"
+                                >
+                                    [Open] Daily_Quest_Definitions
                                 </Link>
                                 <Link
                                     :href="route('notifications.index')"

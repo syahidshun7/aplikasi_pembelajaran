@@ -17,7 +17,7 @@ const mobileMenuOpen = ref(false);
 
 const normalizedUserRole = computed(() => String(auth.value?.user?.role || '').trim().toLowerCase());
 const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(normalizedUserRole.value));
-const isStaffPlayMode = computed(() => Boolean(auth.value?.user?.staff_play_mode));
+const canAccessDoopLab = computed(() => Boolean(auth.value?.user?.can_access_dooplab));
 const staffNavLabel = computed(() => {
     if (normalizedUserRole.value === 'super_admin') return 'Super Admin';
     if (normalizedUserRole.value === 'mentor') return 'Mentor';
@@ -71,6 +71,11 @@ const handleLogout = () => {
                         Shop
                     </Link>
 
+                    <Link :href="route('dooplab.index')" class="nav-action nav-action--hall" @click="closeMobileMenu">
+                        <i :class="['fi', canAccessDoopLab ? 'fi-rr-apps' : 'fi-rr-lock', 'text-[10px]', 'leading-none']"></i>
+                        DoopLab
+                    </Link>
+
                     <Link :href="route('hall.creations.index')" class="nav-action nav-action--hall" @click="closeMobileMenu">
                         <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
                         <span class="hidden xl:inline">Hall of Creations</span>
@@ -78,13 +83,6 @@ const handleLogout = () => {
                     </Link>
 
                     <NotificationBell />
-
-                    <span
-                        v-if="isStaffPlayMode"
-                        class="nav-action border-cyan-500/60 bg-cyan-500/10 text-cyan-200"
-                    >
-                        Staff Play Mode
-                    </span>
 
                     <button @click="handleLogout" class="nav-action nav-action--logout" type="button">
                         <span class="sr-only">Logout</span>
@@ -148,6 +146,15 @@ const handleLogout = () => {
                 </Link>
 
                 <Link
+                    :href="route('dooplab.index')"
+                    class="nav-action nav-action--hall w-full justify-center"
+                    @click="closeMobileMenu"
+                >
+                    <i :class="['fi', canAccessDoopLab ? 'fi-rr-apps' : 'fi-rr-lock', 'text-[10px]', 'leading-none']"></i>
+                    DoopLab
+                </Link>
+
+                <Link
                     :href="route('hall.creations.index')"
                     class="nav-action nav-action--hall w-full justify-center"
                     @click="closeMobileMenu"
@@ -170,13 +177,6 @@ const handleLogout = () => {
                         {{ Number(page.props?.notificationCenter?.unread_count || 0) }}
                     </span>
                 </Link>
-
-                <span
-                    v-if="isStaffPlayMode"
-                    class="nav-action w-full justify-center border-cyan-500/60 bg-cyan-500/10 text-cyan-200"
-                >
-                    Staff Play Mode
-                </span>
 
                 <button
                     class="nav-action nav-action--logout w-full justify-center"

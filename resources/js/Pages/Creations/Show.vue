@@ -619,10 +619,11 @@ onBeforeUnmount(() => {
                         :href="creation.link"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="icon-btn text-cyan-300 hover:text-cyan-100"
-                        title="Open project"
+                        class="creation-link-btn"
+                        title="Lihat karya"
                     >
                         <i class="fi fi-rr-link text-[12px]" />
+                        <span>Lihat Karya</span>
                     </a>
                     <button
                         type="button"
@@ -852,6 +853,14 @@ onBeforeUnmount(() => {
 
 .icon-btn {
     @apply inline-flex min-h-8 items-center justify-center border border-slate-700 bg-black/25 px-2 transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.creation-link-btn {
+    @apply inline-flex min-h-8 items-center justify-center gap-2 border border-cyan-500/60 bg-cyan-500/10 px-3 text-[8px] uppercase text-cyan-200 transition-colors;
+}
+
+.creation-link-btn:hover {
+    @apply border-cyan-300 text-cyan-100 bg-cyan-500/20;
 }
 
 .creation-stage {
@@ -1106,7 +1115,8 @@ onBeforeUnmount(() => {
 
 @media (max-width: 768px) {
     .creation-reading-surface {
-        max-height: none;
+        max-height: min(56vh, 560px);
+        overflow-y: auto;
         padding: 0.9rem;
     }
 
