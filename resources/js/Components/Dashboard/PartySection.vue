@@ -23,6 +23,9 @@ defineProps({
 
 const page = usePage();
 const isStaffPlayMode = computed(() => Boolean(page.props?.auth?.user?.staff_play_mode));
+const normalizedUserRole = computed(() => String(page.props?.auth?.user?.role || '').trim().toLowerCase());
+const isMentor = computed(() => normalizedUserRole.value === 'mentor');
+const canManagePartyMembership = computed(() => !isStaffPlayMode.value || isMentor.value);
 </script>
 
 <template>
@@ -43,10 +46,16 @@ const isStaffPlayMode = computed(() => Boolean(page.props?.auth?.user?.staff_pla
 
         <div v-if="items.length > 0" class="grid gap-4 lg:grid-cols-2">
             <div
-                v-if="isStaffPlayMode"
+                v-if="isStaffPlayMode && !isMentor"
                 class="lg:col-span-2 border border-cyan-500/40 bg-cyan-500/10 p-3 text-[8px] uppercase leading-relaxed text-cyan-100"
             >
-                Staff play mode aktif. Daftar party tetap bisa dilihat, tetapi join dan leave dimatikan untuk mencegah mentor/admin mengambil slot kelas student.
+                Staff play mode aktif. Daftar party tetap bisa dilihat, tetapi admin/super admin tidak bisa join atau leave kelas student.
+            </div>
+            <div
+                v-else-if="isStaffPlayMode && isMentor"
+                class="lg:col-span-2 border border-cyan-500/40 bg-cyan-500/10 p-3 text-[8px] uppercase leading-relaxed text-cyan-100"
+            >
+                Mentor play mode: kamu bisa join party sebagai observer. Membership mentor tidak dihitung slot pemain dan tidak masuk absensi event.
             </div>
             <article
                 v-for="group in items"
@@ -72,7 +81,7 @@ const isStaffPlayMode = computed(() => Boolean(page.props?.auth?.user?.staff_pla
                         v-if="group.is_member"
                         type="button"
                         class="border border-red-700 bg-red-900/50 px-3 py-1 text-[8px] uppercase text-red-400 transition-all hover:bg-red-600 hover:text-white"
-                        :disabled="isStaffPlayMode"
+                        :disabled="!canManagePartyMembership"
                         @click="onLeave?.(group.uuid)"
                     >
                         Leave
@@ -90,11 +99,11 @@ const isStaffPlayMode = computed(() => Boolean(page.props?.auth?.user?.staff_pla
                     <button
                         v-else
                         type="button"
-                        :disabled="joinProcessing || isStaffPlayMode"
+                        :disabled="joinProcessing || !canManagePartyMembership"
                         class="border border-emerald-700 bg-emerald-900/50 px-3 py-1 text-[8px] uppercase text-emerald-400 transition-all hover:bg-emerald-500 hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
                         @click="onJoin?.(group.uuid)"
                     >
-                        {{ isStaffPlayMode ? 'Preview Only' : (joinProcessing ? 'Sending...' : 'Join') }}
+                        {{ !canManagePartyMembership ? 'Preview Only' : (joinProcessing ? 'Sending...' : 'Join') }}
                     </button>
                 </div>
             </article>

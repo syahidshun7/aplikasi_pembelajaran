@@ -22,6 +22,9 @@ const activeJoinUuid = ref('');
 const activeLeaveUuid = ref('');
 const page = usePage();
 const isStaffPlayMode = computed(() => Boolean(page.props?.auth?.user?.staff_play_mode));
+const normalizedUserRole = computed(() => String(page.props?.auth?.user?.role || '').trim().toLowerCase());
+const isMentor = computed(() => normalizedUserRole.value === 'mentor');
+const canManageMembership = computed(() => !isStaffPlayMode.value || isMentor.value);
 
 const groupItems = computed(() => props.groups?.data || []);
 const paginationLinks = computed(() => props.groups?.links || []);
@@ -67,8 +70,8 @@ const memberBadgeText = (group) => {
 
 const requestAccess = (group) => {
     if (joinForm.processing || leaveForm.processing) return;
-    if (isStaffPlayMode.value) {
-        toast.error('STAFF_PLAY_MODE', 'Mentor/admin tidak bisa join kelas student di mode preview.');
+    if (!canManageMembership.value) {
+        toast.error('STAFF_PLAY_MODE', 'Admin/super admin tidak bisa join kelas student di mode preview.');
         return;
     }
     joinForm.study_group_uuid = group.uuid;
@@ -92,8 +95,8 @@ const requestAccess = (group) => {
 
 const leaveGroup = (group) => {
     if (joinForm.processing || leaveForm.processing) return;
-    if (isStaffPlayMode.value) {
-        toast.error('STAFF_PLAY_MODE', 'Membership kelas student dimatikan untuk mode preview.');
+    if (!canManageMembership.value) {
+        toast.error('STAFF_PLAY_MODE', 'Membership kelas student dimatikan untuk admin/super admin di mode preview.');
         return;
     }
 
@@ -136,10 +139,16 @@ const leaveGroup = (group) => {
 
                 <div class="rpg-panel border-slate-700 flex flex-col min-h-[540px]">
                     <div
-                        v-if="isStaffPlayMode"
+                        v-if="isStaffPlayMode && !isMentor"
                         class="mb-4 border border-cyan-500/50 bg-cyan-500/10 p-3 text-[9px] uppercase leading-relaxed text-cyan-100"
                     >
-                        Staff play mode aktif. Kamu tetap bisa melihat daftar kelas, tetapi tidak bisa join atau leave kelas student.
+                        Staff play mode aktif. Kamu tetap bisa melihat daftar kelas, tetapi admin/super admin tidak bisa join atau leave kelas student.
+                    </div>
+                    <div
+                        v-else-if="isStaffPlayMode && isMentor"
+                        class="mb-4 border border-cyan-500/50 bg-cyan-500/10 p-3 text-[9px] uppercase leading-relaxed text-cyan-100"
+                    >
+                        Mentor play mode: kamu bisa join/leave kelas sebagai observer. Membership mentor tidak dihitung slot pemain atau absensi event.
                     </div>
                     <form @submit.prevent="applySearch" class="mb-4 flex flex-col md:flex-row gap-2">
                         <input
@@ -190,7 +199,7 @@ const leaveGroup = (group) => {
                                     v-if="group.is_member"
                                     type="button"
                                     class="inline-block px-3 py-1 border border-red-700 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[8px] disabled:opacity-50"
-                                    :disabled="leaveForm.processing || isStaffPlayMode"
+                                    :disabled="leaveForm.processing || !canManageMembership"
                                     @click="leaveGroup(group)"
                                 >
                                     {{ activeLeaveUuid === group.uuid && leaveForm.processing ? 'Leaving...' : 'Leave_Party' }}
@@ -207,7 +216,7 @@ const leaveGroup = (group) => {
                                     v-else
                                     type="button"
                                     class="inline-block px-3 py-1 border border-emerald-700 text-emerald-400 hover:bg-emerald-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
-                                    :disabled="joinForm.processing || isStaffPlayMode"
+                                    :disabled="joinForm.processing || !canManageMembership"
                                     @click="requestAccess(group)"
                                 >
                                     {{ activeJoinUuid === group.uuid && joinForm.processing ? 'Sending...' : 'Request_Access' }}
@@ -257,7 +266,7 @@ const leaveGroup = (group) => {
                                             v-if="group.is_member"
                                             type="button"
                                             class="inline-block px-3 py-1 border border-red-700 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[8px] disabled:opacity-50"
-                                            :disabled="leaveForm.processing || isStaffPlayMode"
+                                            :disabled="leaveForm.processing || !canManageMembership"
                                             @click="leaveGroup(group)"
                                         >
                                             {{ activeLeaveUuid === group.uuid && leaveForm.processing ? 'Leaving...' : 'Leave_Party' }}
@@ -274,7 +283,7 @@ const leaveGroup = (group) => {
                                             v-else
                                             type="button"
                                             class="inline-block px-3 py-1 border border-emerald-700 text-emerald-400 hover:bg-emerald-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
-                                            :disabled="joinForm.processing || isStaffPlayMode"
+                                            :disabled="joinForm.processing || !canManageMembership"
                                             @click="requestAccess(group)"
                                         >
                                             {{ activeJoinUuid === group.uuid && joinForm.processing ? 'Sending...' : 'Request_Access' }}

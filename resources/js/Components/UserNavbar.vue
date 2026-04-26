@@ -71,7 +71,7 @@ const handleLogout = () => {
                         Shop
                     </Link>
 
-                    <Link :href="route('dooplab.index')" class="nav-action nav-action--hall" @click="closeMobileMenu">
+                    <Link :href="route('dooplab.index')" class="nav-action nav-action--dooplab" @click="closeMobileMenu">
                         <i :class="['fi', canAccessDoopLab ? 'fi-rr-apps' : 'fi-rr-lock', 'text-[10px]', 'leading-none']"></i>
                         DoopLab
                     </Link>
@@ -147,7 +147,7 @@ const handleLogout = () => {
 
                 <Link
                     :href="route('dooplab.index')"
-                    class="nav-action nav-action--hall w-full justify-center"
+                    class="nav-action nav-action--dooplab w-full justify-center"
                     @click="closeMobileMenu"
                 >
                     <i :class="['fi', canAccessDoopLab ? 'fi-rr-apps' : 'fi-rr-lock', 'text-[10px]', 'leading-none']"></i>

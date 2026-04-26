@@ -14,6 +14,7 @@ const props = defineProps({
 const isEditing = ref(false);
 const editUuid = ref(null);
 const showFormModal = ref(false);
+const importFileInputRef = ref(null);
 
 const filterForm = useForm({
     search: props.filters?.search || '',
@@ -31,6 +32,7 @@ const form = useForm({
 
 const importForm = useForm({
     import_file: null,
+    import_json_text: '',
     skip_invalid: true,
 });
 
@@ -168,7 +170,12 @@ const submitImport = () => {
         forceFormData: true,
         onSuccess: () => {
             importForm.reset();
+            importForm.import_file = null;
+            importForm.import_json_text = '';
             importForm.skip_invalid = true;
+            if (importFileInputRef.value) {
+                importFileInputRef.value.value = '';
+            }
         },
     });
 };
@@ -213,6 +220,7 @@ const submitImport = () => {
                                 <div>
                                     <label class="block mb-2 text-white uppercase">JSON_FILE:</label>
                                     <input
+                                        ref="importFileInputRef"
                                         type="file"
                                         accept=".json,application/json,text/plain"
                                         class="w-full bg-black border-2 border-slate-700 p-2 text-[10px] text-slate-300 file:mr-3 file:border-0 file:bg-cyan-900/40 file:px-3 file:py-2 file:text-[8px] file:uppercase file:text-cyan-200"
@@ -222,6 +230,21 @@ const submitImport = () => {
                                         Upload file JSON array untuk import banyak soal sekaligus.
                                     </p>
                                     <p v-if="importForm.errors.import_file" class="mt-2 text-red-400 text-[8px]">{{ importForm.errors.import_file }}</p>
+                                </div>
+
+                                <div class="border border-slate-700 bg-black/20 p-3">
+                                    <p class="text-[8px] uppercase text-slate-300 mb-2">ATAU</p>
+                                    <label class="block mb-2 text-white uppercase">JSON_INPUT (PASTE):</label>
+                                    <textarea
+                                        v-model="importForm.import_json_text"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 text-[11px] font-sans text-slate-200 focus:border-cyan-400 focus:ring-0"
+                                        style="resize: vertical; min-height: 150px;"
+                                        placeholder='Paste JSON di sini, contoh: [{"pertanyaan":"...","tipe_soal":"essay","bobot":1}]'
+                                    ></textarea>
+                                    <p class="mt-2 text-[8px] text-slate-400 uppercase">
+                                        Bisa paste JSON array langsung tanpa upload file.
+                                    </p>
+                                    <p v-if="importForm.errors.import_json_text" class="mt-2 text-red-400 text-[8px]">{{ importForm.errors.import_json_text }}</p>
                                 </div>
 
                                 <label class="inline-flex items-center gap-2 text-[9px] uppercase text-slate-300">

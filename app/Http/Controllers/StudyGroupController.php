@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Events\JoinGroupRequested;
 use App\Models\StudyGroup;
 use App\Models\StudyGroupJoinRequest;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
@@ -16,10 +17,10 @@ class StudyGroupController extends Controller
         $user = Auth::user();
         $userId = (int) Auth::id();
         $userJobId = $user?->job_id;
-        $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
+        $canManageMembership = $this->canManageStudentMembership($user);
         $search = trim((string) $request->input('search', ''));
 
-        $userGroupIds = $user && ! $isStaffPlayMode
+        $userGroupIds = $user && $canManageMembership
             ? $user->studyGroups()
                 ->where('study_groups.job_id', $userJobId)
                 ->pluck('study_groups.id')
@@ -27,7 +28,7 @@ class StudyGroupController extends Controller
                 ->all()
             : [];
 
-        $groupRequestStatuses = $userId > 0 && ! $isStaffPlayMode
+        $groupRequestStatuses = $userId > 0 && $canManageMembership
             ? StudyGroupJoinRequest::query()
                 ->where('user_id', $userId)
                 ->pluck('status', 'study_group_id')
@@ -36,7 +37,9 @@ class StudyGroupController extends Controller
 
         $query = StudyGroup::query()
             ->with('job:id,name')
-            ->withCount('users')
+            ->withCount([
+                'users as users_count' => fn ($userQuery) => $userQuery->whereNotIn('users.role', User::staffRoles()),
+            ])
             ->withCount([
                 'joinRequests as pending_requests_count' => fn ($joinRequestQuery) => $joinRequestQuery->where('status', 'pending'),
             ])
@@ -75,9 +78,9 @@ class StudyGroupController extends Controller
     // Logic JOIN Party
     public function join(Request $request)
     {
-        if ((bool) $request->user()?->isStaffPlayMode()) {
+        if (! $this->canManageStudentMembership($request->user())) {
             return back()->withErrors([
-                'study_group_uuid' => 'Staff play mode tidak bisa join kelas student.',
+                'study_group_uuid' => 'Staff play mode admin tidak bisa join kelas student.',
             ]);
         }
 
@@ -129,9 +132,9 @@ class StudyGroupController extends Controller
     // Logic LEAVE Party
     public function leave($uuid)
     {
-        if ((bool) Auth::user()?->isStaffPlayMode()) {
+        if (! $this->canManageStudentMembership(Auth::user())) {
             return back()->withErrors([
-                'study_group_uuid' => 'Staff play mode tidak memakai membership kelas student.',
+                'study_group_uuid' => 'Staff play mode admin tidak memakai membership kelas student.',
             ]);
         }
 
@@ -139,5 +142,18 @@ class StudyGroupController extends Controller
         $group->softRemoveMember((int) Auth::id());
 
         return back()->with('message', 'LEFT_THE_PARTY');
+    }
+
+    private function canManageStudentMembership(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if (! $user->isStaffPlayMode()) {
+            return true;
+        }
+
+        return $user->isMentor();
     }
 }

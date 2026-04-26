@@ -223,6 +223,8 @@
   .nav-action--profile { --accent-rgb: 103, 232, 249; }
   .nav-action--shop { --accent: #facc15; }
   .nav-action--shop { --accent-rgb: 250, 204, 21; }
+  .nav-action--dooplab { --accent: #22d3ee; }
+  .nav-action--dooplab { --accent-rgb: 34, 211, 238; }
   .nav-action--hall { --accent: #4ade80; }
   .nav-action--hall { --accent-rgb: 74, 222, 128; }
   .nav-action--notifications { --accent: #f97316; }
@@ -234,6 +236,7 @@
   .nav-action--admin { --flicker-delay: -2.7s; --flicker-dur: 22s; --wander-dur: 10s; }
   .nav-action--profile { --flicker-delay: -6.1s; --flicker-dur: 19s; --wander-dur: 9s; }
   .nav-action--shop { --flicker-delay: -9.3s; --flicker-dur: 24s; --wander-dur: 11s; }
+  .nav-action--dooplab { --flicker-delay: -3.6s; --flicker-dur: 20s; --wander-dur: 8s; }
   .nav-action--hall { --flicker-delay: -7.4s; --flicker-dur: 21s; --wander-dur: 10s; }
   .nav-action--notifications { --flicker-delay: -1.9s; --flicker-dur: 23s; --wander-dur: 8s; }
   .nav-action--logout { --flicker-delay: -4.8s; --flicker-dur: 20s; --wander-dur: 9s; }

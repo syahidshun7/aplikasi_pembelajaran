@@ -32,7 +32,7 @@ class AdminStudyGroupController extends Controller
             ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
             ->with('job:id,name')
             ->withCount([
-                'users',
+                'users as users_count' => fn ($userQuery) => $userQuery->whereNotIn('users.role', User::staffRoles()),
                 'joinRequests as pending_requests_count' => function ($q) {
                     $q->where('status', 'pending');
                 },
@@ -171,11 +171,16 @@ class AdminStudyGroupController extends Controller
             ->where('status', 'pending')
             ->firstOrFail();
 
-        if ($group->users()->count() >= (int) $group->max_members) {
-            return back()->withErrors(['group' => 'PARTY_FULL: Kapasitas sudah penuh.']);
+        $member = User::query()->findOrFail((int) $joinRequest->user_id);
+        $isStaffMember = (bool) $member->isStaff();
+        $activePlayerCount = (int) $group->users()
+            ->whereNotIn('users.role', User::staffRoles())
+            ->count();
+
+        if (! $isStaffMember && $activePlayerCount >= (int) $group->max_members) {
+            return back()->withErrors(['group' => 'PARTY_FULL: Kapasitas player sudah penuh.']);
         }
 
-        $member = User::query()->findOrFail((int) $joinRequest->user_id);
         $groupJobId = (int) ($group->job_id ?? 0);
 
         if ($groupJobId > 0) {
@@ -199,7 +204,7 @@ class AdminStudyGroupController extends Controller
             }
         }
 
-        $group->attachOrRestoreMember((int) $joinRequest->user_id, 'member');
+        $group->attachOrRestoreMember((int) $joinRequest->user_id, $member->isMentor() ? 'mentor_observer' : 'member');
 
         $joinRequest->update([
             'status' => 'approved',

@@ -254,10 +254,12 @@ class AdminEventController extends Controller
             $attendanceUsers = User::query()
                 ->select('users.id', 'users.name', 'users.profile_photo')
                 ->whereIn('users.id', function ($q) use ($event) {
-                    $q->from('group_user')
+                    $q->from('group_user as gu')
+                        ->join('users as gu_users', 'gu_users.id', '=', 'gu.user_id')
                         ->select('user_id')
-                        ->where('study_group_id', $event->study_group_id)
-                        ->whereNull('deleted_at');
+                        ->where('gu.study_group_id', $event->study_group_id)
+                        ->whereNull('gu.deleted_at')
+                        ->whereNotIn('gu_users.role', User::staffRoles());
                 })
                 ->orderBy('users.name')
                 ->get()
@@ -416,10 +418,12 @@ class AdminEventController extends Controller
         if ($event->study_group_id) {
             $allowedUserIds = User::query()
                 ->whereIn('id', function ($q) use ($event) {
-                    $q->from('group_user')
+                    $q->from('group_user as gu')
+                        ->join('users as gu_users', 'gu_users.id', '=', 'gu.user_id')
                         ->select('user_id')
-                        ->where('study_group_id', $event->study_group_id)
-                        ->whereNull('deleted_at');
+                        ->where('gu.study_group_id', $event->study_group_id)
+                        ->whereNull('gu.deleted_at')
+                        ->whereNotIn('gu_users.role', User::staffRoles());
                 })
                 ->pluck('id');
         }

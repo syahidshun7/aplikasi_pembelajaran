@@ -33,11 +33,12 @@ class HomeController extends Controller
     $user = Auth::user();
     $userJobId = $user?->job_id;
     $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
+    $canManageMembership = $user && (! $isStaffPlayMode || (bool) $user->isMentor());
     if ($user) {
         $user->loadMissing('job:id,name');
     }
 
-    $userClassGroups = $userId && ! $isStaffPlayMode
+    $userClassGroups = $userId && $canManageMembership
         ? $user->studyGroups()
             ->select('study_groups.id', 'study_groups.name')
             ->orderBy('study_groups.name')
@@ -69,7 +70,7 @@ class HomeController extends Controller
     $selectedClassGroupName = (string) ($selectedClassGroup['name'] ?? '');
 
     // 1. Ambil Quest dengan status submission (Logika Kelompok Party)
-    $userGroupIds = $userId && ! $isStaffPlayMode
+    $userGroupIds = $userId && $canManageMembership
         ? $user->studyGroups()
             ->where('study_groups.job_id', $userJobId)
             ->pluck('study_groups.id')
@@ -218,7 +219,9 @@ class HomeController extends Controller
                 'job_id',
             ])
             
-            ->withCount('users')
+            ->withCount([
+                'users as users_count' => fn ($userQuery) => $userQuery->whereNotIn('users.role', User::staffRoles()),
+            ])
             ->where('job_id', $userJobId)
             ->latest()
             ->take(10)
@@ -226,7 +229,7 @@ class HomeController extends Controller
             ->map(fn ($group) => $group->toArray())
     );
 
-    $groupRequestStatuses = $userId
+    $groupRequestStatuses = $userId && $canManageMembership
         ? StudyGroupJoinRequest::where('user_id', $userId)->pluck('status', 'study_group_id')->toArray()
         : [];
 

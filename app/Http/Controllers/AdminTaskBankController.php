@@ -185,25 +185,41 @@ class AdminTaskBankController extends Controller
         $this->assertMentorCanAccessTaskBank($taskBank);
 
         $validated = $request->validate([
-            'import_file' => ['required', 'file', 'max:2048', 'mimes:json,txt'],
+            'import_file' => ['nullable', 'file', 'max:2048', 'mimes:json,txt', 'required_without:import_json_text'],
+            'import_json_text' => ['nullable', 'string', 'required_without:import_file'],
             'skip_invalid' => ['nullable', 'boolean'],
         ]);
 
         $skipInvalid = (bool) ($validated['skip_invalid'] ?? false);
-        $rawContents = (string) file_get_contents($validated['import_file']->getRealPath());
+        $importJsonText = trim((string) ($validated['import_json_text'] ?? ''));
+        $sourceErrorKey = 'import_file';
+        $sourceLabel = 'File JSON';
+
+        if ($importJsonText !== '') {
+            $sourceErrorKey = 'import_json_text';
+            $sourceLabel = 'Input JSON';
+            $rawContents = $importJsonText;
+        } else {
+            $rawContents = (string) file_get_contents($validated['import_file']->getRealPath());
+        }
 
         try {
             $decoded = json_decode($rawContents, true, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
             throw ValidationException::withMessages([
-                'import_file' => 'File JSON tidak valid: ' . $exception->getMessage(),
+                $sourceErrorKey => "{$sourceLabel} tidak valid: " . $exception->getMessage(),
             ]);
         }
 
-        $rows = $this->extractImportRows($decoded);
+        try {
+            $rows = $this->extractImportRows($decoded);
+        } catch (ValidationException $exception) {
+            throw $this->remapImportValidationErrors($exception, $sourceErrorKey);
+        }
+
         if (count($rows) === 0) {
             throw ValidationException::withMessages([
-                'import_file' => 'File JSON tidak berisi soal untuk diimport.',
+                $sourceErrorKey => "{$sourceLabel} tidak berisi soal untuk diimport.",
             ]);
         }
 
@@ -241,7 +257,7 @@ class AdminTaskBankController extends Controller
         $successCount = 0;
         if (! empty($errors) && ! $skipInvalid) {
             return back()
-                ->withErrors(['import_file' => 'Import dibatalkan karena ada data yang tidak valid.'])
+                ->withErrors([$sourceErrorKey => 'Import dibatalkan karena ada data yang tidak valid.'])
                 ->with('task_bank_import_result', [
                     'success_count' => 0,
                     'failed_count' => count($errors),
@@ -540,6 +556,28 @@ class AdminTaskBankController extends Controller
         }
 
         return $normalized;
+    }
+
+    private function remapImportValidationErrors(ValidationException $exception, string $targetErrorKey): ValidationException
+    {
+        $messages = [];
+
+        foreach ($exception->errors() as $errorMessages) {
+            foreach ((array) $errorMessages as $message) {
+                $normalized = trim((string) $message);
+                if ($normalized !== '') {
+                    $messages[] = $normalized;
+                }
+            }
+        }
+
+        if ($messages === []) {
+            $messages[] = 'Data import tidak valid.';
+        }
+
+        return ValidationException::withMessages([
+            $targetErrorKey => $messages,
+        ]);
     }
 
     private function questionFingerprint(string $text): string
