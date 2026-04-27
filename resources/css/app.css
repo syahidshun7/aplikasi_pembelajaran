@@ -327,6 +327,34 @@
     color: #94a3b8 !important; /* Slate 400 */
 }
 
+.swal2-textarea.rpg-alert-textarea {
+    width: 100% !important;
+    min-height: 130px !important;
+    margin: 0.5rem 0 0 !important;
+    padding: 0.75rem !important;
+    border: 2px solid #3d415f !important;
+    border-radius: 0 !important;
+    background: #0d1117 !important;
+    color: #a5f3fc !important;
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 8px !important;
+    line-height: 1.6 !important;
+    text-transform: uppercase !important;
+    box-shadow: none !important;
+    resize: vertical !important;
+}
+
+.swal2-textarea.rpg-alert-textarea:focus {
+    border-color: #22d3ee !important;
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.2) !important;
+    outline: none !important;
+}
+
+.swal2-textarea.rpg-alert-textarea::placeholder {
+    color: #64748b !important;
+    opacity: 1 !important;
+}
+
 /* 3. Tombol (Tombol Biru Akan Hilang Di Sini) */
 .btn-pixel-alert {
     font-family: 'Press Start 2P', cursive !important;

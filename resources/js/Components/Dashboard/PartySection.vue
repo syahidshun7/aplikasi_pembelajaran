@@ -101,7 +101,7 @@ const canManagePartyMembership = computed(() => !isStaffPlayMode.value || isMent
                         type="button"
                         :disabled="joinProcessing || !canManagePartyMembership"
                         class="border border-emerald-700 bg-emerald-900/50 px-3 py-1 text-[8px] uppercase text-emerald-400 transition-all hover:bg-emerald-500 hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
-                        @click="onJoin?.(group.uuid)"
+                        @click="onJoin?.(group)"
                     >
                         {{ !canManagePartyMembership ? 'Preview Only' : (joinProcessing ? 'Sending...' : 'Join') }}
                     </button>

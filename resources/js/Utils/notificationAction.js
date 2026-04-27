@@ -36,6 +36,10 @@ export const resolveNotificationActionUrl = (
         return `${routeFn('lobby')}#daily-quests`;
     }
 
+    if (category === 'study_group' && event === 'join_rejected') {
+        return routeFn('groups.index');
+    }
+
     if (category === 'study_group' && resource?.study_group_uuid) {
         return isAdmin
             ? routeFn('groups.detail', { uuid: resource.study_group_uuid })

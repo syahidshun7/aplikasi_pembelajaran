@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\JobRole;
 use App\Models\StudyGroup;
 use App\Models\StudyGroupJoinRequest;
+use App\Notifications\JoinGroupRequestRejectedNotification;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -214,8 +215,16 @@ class AdminStudyGroupController extends Controller
         return back()->with('message', 'REQUEST_APPROVED_MEMBER_ADDED');
     }
 
-    public function rejectRequest($uuid, $requestId)
+    public function rejectRequest(Request $request, $uuid, $requestId)
     {
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+        $rejectionReason = trim((string) ($validated['reason'] ?? ''));
+        if ($rejectionReason === '') {
+            $rejectionReason = null;
+        }
+
         $group = StudyGroup::where('uuid', $uuid)->firstOrFail();
         $joinRequest = StudyGroupJoinRequest::where('id', $requestId)
             ->where('study_group_id', $group->id)
@@ -226,6 +235,17 @@ class AdminStudyGroupController extends Controller
             'status' => 'rejected',
             'processed_by' => Auth::id(),
         ]);
+
+        $requester = $joinRequest->user()->first();
+        if ($requester) {
+            $requester->notify(new JoinGroupRequestRejectedNotification(
+                $joinRequest->loadMissing([
+                    'studyGroup:id,uuid,name',
+                    'user:id,name,username',
+                ]),
+                $rejectionReason
+            ));
+        }
 
         return back()->with('message', 'REQUEST_REJECTED');
     }

@@ -86,8 +86,15 @@ class StudyGroupController extends Controller
 
         $validated = $request->validate([
             'study_group_uuid' => ['required', 'uuid'],
+            'reason' => ['required', 'string', 'min:10', 'max:500', 'regex:/\S/'],
+        ], [
+            'reason.required' => 'Alasan bergabung wajib diisi.',
+            'reason.min' => 'Alasan bergabung minimal 10 karakter.',
+            'reason.max' => 'Alasan bergabung maksimal 500 karakter.',
+            'reason.regex' => 'Alasan bergabung tidak boleh kosong.',
         ]);
         $groupUuid = trim((string) $validated['study_group_uuid']);
+        $joinReason = trim((string) ($validated['reason'] ?? ''));
         $userId = (int) Auth::id();
 
         $group = StudyGroup::query()
@@ -117,6 +124,7 @@ class StudyGroupController extends Controller
         }
 
         $joinRequest->status = 'pending';
+        $joinRequest->reason = $joinReason;
         $joinRequest->processed_by = null;
         $joinRequest->save();
         JoinGroupRequested::dispatch(

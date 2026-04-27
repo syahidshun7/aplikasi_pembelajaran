@@ -2,7 +2,7 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { toast } from '@/Utils/Alert';
+import { swal, toast } from '@/Utils/Alert';
 
 const props = defineProps({
     groups: Object,
@@ -15,6 +15,7 @@ const form = useForm({
 
 const joinForm = useForm({
     study_group_uuid: '',
+    reason: '',
 });
 
 const leaveForm = useForm({});
@@ -74,22 +75,48 @@ const requestAccess = (group) => {
         toast.error('STAFF_PLAY_MODE', 'Admin/super admin tidak bisa join kelas student di mode preview.');
         return;
     }
-    joinForm.study_group_uuid = group.uuid;
-    activeJoinUuid.value = group.uuid;
 
-    joinForm.post(route('groups.join'), {
-        preserveScroll: true,
-        onSuccess: () => {
-            toast.success('REQUEST_SENT', 'Join request sent. Waiting for admin approval.');
+    swal.fire({
+        title: 'ALASAN_GABUNG_PARTY',
+        text: `Tuliskan alasan kamu ingin bergabung ke ${group.name}.`,
+        input: 'textarea',
+        inputPlaceholder: 'Tulis alasan singkat...',
+        inputAttributes: {
+            maxlength: 500,
         },
-        onError: (errors) => {
-            const firstMessage = Object.values(errors || {})[0] || 'Unable to send join request.';
-            toast.error('REQUEST_FAILED', String(firstMessage));
+        inputClass: 'rpg-alert-textarea',
+        inputValidator: (value) => {
+            const reason = String(value || '').trim();
+            if (reason.length < 10) {
+                return 'Alasan minimal 10 karakter.';
+            }
+
+            return null;
         },
-        onFinish: () => {
-            activeJoinUuid.value = '';
-            joinForm.reset('study_group_uuid');
-        },
+        showCancelButton: true,
+        confirmButtonText: 'KIRIM_REQUEST',
+        cancelButtonText: 'BATAL',
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+
+        joinForm.study_group_uuid = group.uuid;
+        joinForm.reason = String(result.value || '').trim();
+        activeJoinUuid.value = group.uuid;
+
+        joinForm.post(route('groups.join'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success('REQUEST_SENT', 'Join request sent. Waiting for admin approval.');
+            },
+            onError: (errors) => {
+                const firstMessage = Object.values(errors || {})[0] || 'Unable to send join request.';
+                toast.error('REQUEST_FAILED', String(firstMessage));
+            },
+            onFinish: () => {
+                activeJoinUuid.value = '';
+                joinForm.reset('study_group_uuid', 'reason');
+            },
+        });
     });
 };
 

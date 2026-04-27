@@ -1,7 +1,7 @@
 <script setup>
 import { Head, Link, router } from '@inertiajs/vue3';
-import Swal from 'sweetalert2';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
+import { swal } from '@/Utils/Alert';
 
 const props = defineProps({
     group: Object,
@@ -15,23 +15,40 @@ const approveRequest = (requestId) => {
     });
 };
 
-const rejectRequest = (requestId) => {
-    router.post(route('groups.requests.reject', { uuid: props.group.uuid, requestId }), {}, {
+const rejectRequest = async (requestItem) => {
+    const result = await swal.fire({
+        title: 'REJECT_REQUEST',
+        text: `Kamu bisa isi alasan reject untuk ${requestItem.user?.username || requestItem.user?.name || 'user'} (opsional).`,
+        input: 'textarea',
+        inputPlaceholder: 'Alasan reject (opsional)',
+        inputClass: 'rpg-alert-textarea',
+        inputAttributes: {
+            maxlength: 500,
+        },
+        showCancelButton: true,
+        confirmButtonText: 'REJECT',
+        cancelButtonText: 'BATAL',
+    });
+
+    if (!result.isConfirmed) {
+        return;
+    }
+
+    router.post(route('groups.requests.reject', { uuid: props.group.uuid, requestId: requestItem.id }), {
+        reason: String(result.value || '').trim() || null,
+    }, {
         preserveScroll: true,
     });
 };
 
 const removeMember = (member) => {
-    Swal.fire({
+    swal.fire({
         title: 'REMOVE_MEMBER?',
         text: `Keluarkan ${member.username || member.name} dari group ini?`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'YES_REMOVE',
         cancelButtonText: 'CANCEL',
-        background: '#1a1c2c',
-        color: '#4ed4d4',
-        confirmButtonColor: '#b91c1c',
     }).then((result) => {
         if (!result.isConfirmed) return;
         router.delete(route('groups.members.remove', { uuid: props.group.uuid, userId: member.id }), {
@@ -70,12 +87,18 @@ const removeMember = (member) => {
                         <div v-for="r in requests" :key="r.id" class="p-3 bg-black/40 border border-slate-800">
                             <p class="text-white uppercase">{{ r.user?.username || r.user?.name }}</p>
                             <p class="text-[8px] text-slate-500 mb-3">{{ r.user?.email }}</p>
+                            <div class="mb-3 border border-cyan-900/60 bg-cyan-950/20 p-2">
+                                <p class="text-[8px] uppercase text-cyan-300">Reason</p>
+                                <p class="mt-1 font-sans text-[12px] leading-relaxed text-slate-200 break-words">
+                                    {{ r.reason || '-' }}
+                                </p>
+                            </div>
                             <div class="flex gap-2">
                                 <button @click="approveRequest(r.id)"
                                     class="px-3 py-2 border border-emerald-500 text-emerald-400 hover:bg-emerald-500 hover:text-black uppercase text-[8px]">
                                     Approve
                                 </button>
-                                <button @click="rejectRequest(r.id)"
+                                <button @click="rejectRequest(r)"
                                     class="px-3 py-2 border border-red-500 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[8px]">
                                     Reject
                                 </button>

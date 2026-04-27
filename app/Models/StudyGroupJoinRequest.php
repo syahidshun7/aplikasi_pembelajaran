@@ -10,6 +10,7 @@ class StudyGroupJoinRequest extends Model
         'study_group_id',
         'user_id',
         'status',
+        'reason',
         'processed_by',
     ];
 

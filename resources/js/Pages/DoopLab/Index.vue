@@ -48,13 +48,19 @@ const canAccessDoopLab = computed(() => Boolean(page.props?.auth?.user?.can_acce
                             <div class="hud-corner top-left"></div>
                             <div class="hud-corner bottom-right"></div>
                             
-                            <div class="hologram-visual-core">
-                                <div class="target-object">
-                                    <div class="core-glow"></div>
-                                    <div class="pixel-vial">
-                                        <i class="fi fi-rr-test-tube test-tube-icon"></i>
+                                <div class="hologram-visual-core">
+                                    <div class="target-object">
+                                        <div class="core-glow"></div>
+                                        <div class="lab-logo-shell">
+                                            <div class="lab-logo-aura"></div>
+                                            <div class="lab-logo-plate"></div>
+                                            <img
+                                                src="/images/logo%20-dooplab.png"
+                                                alt="DoopLab Logo"
+                                                class="lab-logo-core"
+                                            >
+                                        </div>
                                     </div>
-                                </div>
                                 
                                 <div class="hologram-rings">
                                     <div class="ring r1"></div>
@@ -163,7 +169,7 @@ const canAccessDoopLab = computed(() => Boolean(page.props?.auth?.user?.can_acce
 
 /* Fluid Holographic Visual */
 .visual-stage {
-    position: relative; height: 420px;
+    position: relative; height: 480px;
     background: rgba(0,0,0,0.3); /* Panel semi-transparan */
     border: 1px solid rgba(88, 245, 229, 0.1);
     backdrop-filter: blur(8px); /* Menjaga keterbacaan HUD di atas BG asli */
@@ -173,43 +179,111 @@ const canAccessDoopLab = computed(() => Boolean(page.props?.auth?.user?.can_acce
 .top-left { top: 20px; left: 20px; border-width: 2px 0 0 2px; }
 .bottom-right { bottom: 20px; right: 20px; border-width: 0 2px 2px 0; }
 
-.hologram-visual-core { position: relative; width: 250px; height: 250px; }
+.hologram-visual-core { position: relative; width: 350px; height: 350px; }
 .target-object { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; z-index: 10; }
-.core-glow { position: absolute; inset: 0; background: radial-gradient(var(--neon-teal), transparent 70%); opacity: 0.2; filter: blur(20px); }
-.pixel-vial {
-    position: relative;
-    border: 3px solid var(--neon-teal);
-    width: 60px; height: 100px;
-    display: flex; justify-content: center; align-items: center;
-    background: linear-gradient(180deg, rgba(88,245,229,0.2), transparent);
-    box-shadow: inset 0 0 15px rgba(88, 245, 229, 0.4);
-    animation: floating 5s ease-in-out infinite;
+.core-glow {
+    position: absolute;
+    inset: -34px;
+    background: radial-gradient(circle, rgba(88, 245, 229, 0.6) 0%, rgba(88, 245, 229, 0.12) 42%, transparent 72%);
+    opacity: 0.95;
+    filter: blur(34px);
 }
-.test-tube-icon { font-size: 40px; color: var(--neon-teal); filter: drop-shadow(0 0 8px var(--neon-teal)); }
+.lab-logo-shell {
+    position: relative;
+    width: 252px;
+    height: 252px;
+    border: 1px solid rgba(88, 245, 229, 0.24);
+    border-radius: 48px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background:
+        radial-gradient(circle at 50% 46%, rgba(88, 245, 229, 0.28), rgba(5, 26, 46, 0.36) 58%, rgba(3, 13, 28, 0.42) 100%),
+        linear-gradient(180deg, rgba(88, 245, 229, 0.08), rgba(88, 245, 229, 0.02));
+    box-shadow:
+        inset 0 0 28px rgba(88, 245, 229, 0.15),
+        0 0 24px rgba(88, 245, 229, 0.2);
+    animation: floating 5s ease-in-out infinite;
+    overflow: hidden;
+}
 
-.hologram-rings { position: absolute; inset: -20px; z-index: 5; }
+.lab-logo-shell::before {
+    content: '';
+    position: absolute;
+    inset: 10px;
+    border: 1px solid rgba(88, 245, 229, 0.2);
+    border-radius: 38px;
+    pointer-events: none;
+}
+
+.lab-logo-shell::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background:
+        linear-gradient(135deg, rgba(88, 245, 229, 0.12), transparent 36%),
+        linear-gradient(315deg, rgba(88, 245, 229, 0.08), transparent 42%);
+    pointer-events: none;
+}
+
+.lab-logo-aura {
+    position: absolute;
+    inset: -24px;
+    border-radius: 56px;
+    border: 1px dashed rgba(88, 245, 229, 0.3);
+    animation: rotate-hologram 18s linear infinite;
+    pointer-events: none;
+}
+
+.lab-logo-plate {
+    position: absolute;
+    inset: 26px;
+    border-radius: 34px;
+    border: none;
+    background: radial-gradient(circle at 50% 52%, rgba(88, 245, 229, 0.28), rgba(14, 35, 56, 0.02) 70%);
+    box-shadow: inset 0 0 24px rgba(88, 245, 229, 0.16);
+    filter: blur(0.4px);
+}
+
+.lab-logo-core {
+    width: 260px;
+    height: 182px;
+    object-fit: cover;
+    object-position: center;
+    transform: translateY(-4px);
+    filter:
+        drop-shadow(0 0 20px rgba(88, 245, 229, 0.95))
+        drop-shadow(0 0 40px rgba(88, 245, 229, 0.55))
+        drop-shadow(0 0 8px rgba(255, 255, 255, 0.28));
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    z-index: 12;
+}
+
+.hologram-rings { position: absolute; inset: -42px; z-index: 5; }
 .ring {
     position: absolute; inset: 0; border-radius: 50%;
-    border: 1px solid rgba(88, 245, 229, 0.7);
-    box-shadow: 0 0 15px rgba(88, 245, 229, 0.3);
+    border: 1px solid rgba(88, 245, 229, 0.48);
+    box-shadow: 0 0 18px rgba(88, 245, 229, 0.28);
     animation: rotate-hologram 12s linear infinite;
 }
 .r1 { transform: rotateX(65deg) rotateY(10deg); }
 .r2 { transform: rotateX(-65deg) rotateY(-10deg); border-style: dashed; }
 .scan-beam {
-    position: absolute; top: 0; left: 0; right: 0; height: 4px;
-    background: rgba(88, 245, 229, 0.8);
-    filter: blur(3px) drop-shadow(0 0 10px var(--neon-teal));
+    position: absolute; top: 0; left: -26px; right: -26px; height: 6px;
+    background: rgba(88, 245, 229, 0.65);
+    filter: blur(4px) drop-shadow(0 0 8px var(--neon-teal));
     animation: scan-up-down 5s ease-in-out infinite;
-    z-index: 15;
+    z-index: 4;
 }
 
 /* Floating Data Particles */
 .data-particles { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
-.data-particles span { position: absolute; font-size: 5px; color: var(--neon-teal); opacity: 0.6; }
-.p1 { top: 10%; left: 10%; animation: float-data 4s infinite; }
-.p2 { top: 50%; right: 5%; animation: float-data 5s infinite 1s; }
-.p3 { bottom: 15%; left: 20%; animation: float-data 6s infinite 2s; }
+.data-particles span { position: absolute; font-size: 6px; color: var(--neon-teal); opacity: 0.42; }
+.p1 { top: 9%; left: 8%; animation: float-data 4s infinite; }
+.p2 { top: 50%; right: 3%; animation: float-data 5s infinite 1s; }
+.p3 { bottom: 14%; left: 13%; animation: float-data 6s infinite 2s; }
 
 /* Text Stage & Telemetry Bar */
 .text-stage { display: flex; align-items: center; }
@@ -285,7 +359,7 @@ const canAccessDoopLab = computed(() => Boolean(page.props?.auth?.user?.can_acce
 @keyframes rotate-hologram { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes scan-up-down {
     0%, 100% { transform: translateY(0); opacity: 0.5; }
-    50% { transform: translateY(250px); opacity: 1; }
+    50% { transform: translateY(350px); opacity: 1; }
 }
 @keyframes float-data {
     0% { transform: translateY(0) scale(1); opacity: 0; }
@@ -296,6 +370,20 @@ const canAccessDoopLab = computed(() => Boolean(page.props?.auth?.user?.can_acce
 @media (max-width: 968px) {
     .showcase-inner { grid-template-columns: 1fr; gap: 2rem; }
     .features-grid { grid-template-columns: repeat(2, 1fr); }
-    .visual-stage { height: 320px; }
+    .visual-stage { height: 400px; }
+    .hologram-visual-core { width: 280px; height: 280px; }
+    .lab-logo-shell { width: 206px; height: 206px; border-radius: 36px; }
+    .lab-logo-plate { inset: 20px; border-radius: 26px; }
+    .lab-logo-core { width: 208px; height: 146px; }
+    .hologram-rings { inset: -30px; }
+}
+
+@media (max-width: 520px) {
+    .visual-stage { height: 350px; }
+    .hologram-visual-core { width: 250px; height: 250px; }
+    .lab-logo-shell { width: 186px; height: 186px; border-radius: 32px; }
+    .lab-logo-plate { inset: 18px; border-radius: 22px; }
+    .lab-logo-core { width: 188px; height: 132px; }
+    .hologram-rings { inset: -26px; }
 }
 </style>
