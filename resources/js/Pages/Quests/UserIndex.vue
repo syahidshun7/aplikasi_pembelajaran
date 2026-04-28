@@ -5,10 +5,15 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 const props = defineProps({
     quests: Object,
     filters: Object,
+    classGroups: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const form = useForm({
     search: props.filters?.search || '',
+    class_group_id: props.filters?.class_group_id ? String(props.filters.class_group_id) : '',
 });
 
 const applySearch = () => {
@@ -17,6 +22,7 @@ const applySearch = () => {
 
 const resetSearch = () => {
     form.search = '';
+    form.class_group_id = '';
     applySearch();
 };
 
@@ -35,6 +41,50 @@ const questTypeClass = (questType) => {
     return String(questType || 'main') === 'optional'
         ? 'text-lime-300 border-lime-900 bg-lime-900/20'
         : 'text-sky-300 border-sky-900 bg-sky-900/20';
+};
+
+const tonePalette = [
+    { border: '#2d65cf', bg: 'rgba(22, 47, 93, 0.20)', accent: '#8cc4ff' },
+    { border: '#1b9a6a', bg: 'rgba(20, 82, 62, 0.18)', accent: '#8ff0c8' },
+    { border: '#8b5cf6', bg: 'rgba(67, 46, 112, 0.20)', accent: '#ccb5ff' },
+    { border: '#c97f1c', bg: 'rgba(92, 62, 20, 0.20)', accent: '#ffd28d' },
+    { border: '#c24b79', bg: 'rgba(96, 35, 61, 0.20)', accent: '#ffb8d2' },
+];
+
+const hashGroupKey = (value) => {
+    const normalized = String(value || 'global');
+    let hash = 0;
+
+    for (let index = 0; index < normalized.length; index += 1) {
+        hash = ((hash << 5) - hash) + normalized.charCodeAt(index);
+        hash |= 0;
+    }
+
+    return Math.abs(hash);
+};
+
+const toneStyleForQuest = (item) => {
+    const toneKey = item?.study_group_id ?? item?.study_group?.id ?? item?.study_group?.name ?? 'global';
+    const tone = tonePalette[hashGroupKey(toneKey) % tonePalette.length];
+
+    return {
+        '--quest-tone-border': tone.border,
+        '--quest-tone-bg': tone.bg,
+        '--quest-tone-accent': tone.accent,
+    };
+};
+
+const classLabelForQuest = (item) => {
+    if (!item?.study_group_id) {
+        return 'Global';
+    }
+
+    const groupName = String(item?.study_group?.name || '').trim();
+    if (groupName !== '') {
+        return groupName;
+    }
+
+    return `#${item.study_group_id}`;
 };
 </script>
 
@@ -62,6 +112,15 @@ const questTypeClass = (questType) => {
                             placeholder="SEARCH QUEST / PARTY / STATUS / RANK"
                             class="flex-1 bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
                         />
+                        <select
+                            v-model="form.class_group_id"
+                            class="w-full md:w-56 bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
+                        >
+                            <option value="">ALL_CLASSES</option>
+                            <option v-for="group in classGroups" :key="group.id" :value="String(group.id)">
+                                {{ group.name }}
+                            </option>
+                        </select>
                         <div class="flex gap-2">
                             <button type="submit"
                                 class="px-4 py-2 border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-black uppercase">
@@ -78,13 +137,13 @@ const questTypeClass = (questType) => {
                         <div
                             v-for="item in quests.data"
                             :key="`m-${item.uuid}`"
-                            class="p-3 bg-black/40 border border-slate-800"
+                            class="quest-item-card p-3 border"
+                            :style="toneStyleForQuest(item)"
                         >
                             <p class="text-white uppercase text-[11px]">{{ item.title }}</p>
                             <div class="mt-2 flex flex-wrap gap-1">
-                                <span class="px-2 py-1 border text-[8px] uppercase"
-                                    :class="item.study_group_id ? 'text-emerald-400 border-emerald-900 bg-emerald-900/20' : 'text-cyan-400 border-cyan-900 bg-cyan-900/20'">
-                                    {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
+                                <span class="quest-item-badge px-2 py-1 border text-[8px] uppercase">
+                                    {{ classLabelForQuest(item) }}
                                 </span>
                                 <span class="px-2 py-1 border text-[8px] uppercase" :class="questTypeClass(item.quest_type)">
                                     {{ String(item.quest_type || 'main') === 'optional' ? 'Optional Bonus' : 'Main Quest' }}
@@ -124,13 +183,13 @@ const questTypeClass = (questType) => {
                                 <tr
                                     v-for="item in quests.data"
                                     :key="item.uuid"
-                                    class="border-b border-slate-800 hover:bg-slate-900/40"
+                                    class="quest-row border-b border-slate-800 hover:bg-slate-900/40"
+                                    :style="toneStyleForQuest(item)"
                                 >
                                     <td class="py-3 px-2 text-white uppercase">{{ item.title }}</td>
                                     <td class="py-3 px-2">
-                                        <span class="px-2 py-1 border text-[8px] uppercase"
-                                            :class="item.study_group_id ? 'text-emerald-400 border-emerald-900 bg-emerald-900/20' : 'text-cyan-400 border-cyan-900 bg-cyan-900/20'">
-                                            {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
+                                        <span class="quest-item-badge px-2 py-1 border text-[8px] uppercase">
+                                            {{ classLabelForQuest(item) }}
                                         </span>
                                         <span class="ml-2 px-2 py-1 border text-[8px] uppercase" :class="questTypeClass(item.quest_type)">
                                             {{ String(item.quest_type || 'main') === 'optional' ? 'Optional Bonus' : 'Main Quest' }}
@@ -190,5 +249,30 @@ const questTypeClass = (questType) => {
     border-width: 4px;
     padding: 1rem;
     box-shadow: 8px 8px 0 0 rgba(0, 0, 0, 0.5);
+}
+
+.quest-item-card {
+    border-color: color-mix(in srgb, var(--quest-tone-border) 52%, #1f2937 48%);
+    background:
+        linear-gradient(
+            180deg,
+            var(--quest-tone-bg) 0%,
+            rgba(13, 17, 23, 0.90) 100%
+        );
+}
+
+.quest-row {
+    background:
+        linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--quest-tone-bg) 70%, transparent 30%) 0%,
+            transparent 42%
+        );
+}
+
+.quest-item-badge {
+    border-color: color-mix(in srgb, var(--quest-tone-border) 58%, transparent 42%);
+    background: color-mix(in srgb, var(--quest-tone-bg) 74%, transparent 26%);
+    color: color-mix(in srgb, var(--quest-tone-accent) 90%, #f8fafc 10%);
 }
 </style>

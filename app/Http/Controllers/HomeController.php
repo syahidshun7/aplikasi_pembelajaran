@@ -120,12 +120,13 @@ class HomeController extends Controller
     }
 
     $quests = Cache::remember(
-        "home.quests.v{$homeCacheVersion}.job.{$jobKey}.groups.{$groupKey}",
+        "home.quests.v{$homeCacheVersion}.with_group_v2.job.{$jobKey}.groups.{$groupKey}",
         now()->addMinutes(5),
         fn () => Quest::where(function ($query) use ($userGroupIds) {
             $query->whereNull('study_group_id')
                 ->orWhereIn('study_group_id', $userGroupIds);
         })
+            ->with('studyGroup:id,name')
             ->listedForUsers()
             ->latest()
             ->take(10)

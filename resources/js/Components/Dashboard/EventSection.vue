@@ -1,7 +1,8 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
-defineProps({
+const props = defineProps({
     items: {
         type: Array,
         default: () => [],
@@ -10,6 +11,42 @@ defineProps({
         type: Boolean,
         default: false,
     },
+});
+
+const tonePalette = [
+    { border: '#2d65cf', bg: 'rgba(22, 47, 93, 0.24)', accent: '#8cc4ff' },
+    { border: '#1b9a6a', bg: 'rgba(20, 82, 62, 0.22)', accent: '#8ff0c8' },
+    { border: '#8b5cf6', bg: 'rgba(67, 46, 112, 0.24)', accent: '#ccb5ff' },
+    { border: '#c97f1c', bg: 'rgba(92, 62, 20, 0.24)', accent: '#ffd28d' },
+    { border: '#c24b79', bg: 'rgba(96, 35, 61, 0.24)', accent: '#ffb8d2' },
+];
+
+const hashGroupKey = (value) => {
+    const normalized = String(value || 'public');
+    let hash = 0;
+
+    for (let index = 0; index < normalized.length; index += 1) {
+        hash = ((hash << 5) - hash) + normalized.charCodeAt(index);
+        hash |= 0;
+    }
+
+    return Math.abs(hash);
+};
+
+const eventItemsWithTone = computed(() => {
+    return (props.items || []).map((event) => {
+        const toneKey = event?.study_group_id ?? event?.study_group?.id ?? event?.study_group?.name ?? 'public';
+        const tone = tonePalette[hashGroupKey(toneKey) % tonePalette.length];
+
+        return {
+            ...event,
+            __tone_style: {
+                '--event-tone-border': tone.border,
+                '--event-tone-bg': tone.bg,
+                '--event-tone-accent': tone.accent,
+            },
+        };
+    });
 });
 </script>
 
@@ -31,13 +68,14 @@ defineProps({
 
         <div v-if="items.length > 0" class="space-y-4">
             <article
-                v-for="event in items"
+                v-for="event in eventItemsWithTone"
                 :key="event.uuid"
-                class="border border-slate-800 bg-[#0d1117] p-4 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
+                class="event-card border p-4 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
+                :style="event.__tone_style"
             >
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                    <span class="text-[7px] uppercase text-blue-300">Meeting_{{ event.sequence_order }}</span>
-                    <span class="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[7px] uppercase text-blue-100">
+                    <span class="event-card__meeting text-[7px] uppercase">Meeting_{{ event.sequence_order }}</span>
+                    <span class="event-card__group rounded-full border px-2 py-1 text-[7px] uppercase">
                         {{ event.study_group?.name || 'Public' }}
                     </span>
                 </div>
@@ -95,5 +133,25 @@ defineProps({
 
 .dashboard-empty-state__copy {
     @apply max-w-[280px] text-[9px] uppercase leading-relaxed text-slate-500;
+}
+
+.event-card {
+    border-color: color-mix(in srgb, var(--event-tone-border) 52%, #1f2937 48%);
+    background:
+        linear-gradient(
+            180deg,
+            var(--event-tone-bg) 0%,
+            rgba(13, 17, 23, 0.92) 100%
+        );
+}
+
+.event-card__meeting {
+    color: color-mix(in srgb, var(--event-tone-accent) 86%, #cbd5e1 14%);
+}
+
+.event-card__group {
+    border-color: color-mix(in srgb, var(--event-tone-border) 56%, transparent 44%);
+    background: color-mix(in srgb, var(--event-tone-bg) 72%, transparent 28%);
+    color: color-mix(in srgb, var(--event-tone-accent) 88%, #f8fafc 12%);
 }
 </style>

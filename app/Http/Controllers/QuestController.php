@@ -29,24 +29,42 @@ class QuestController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
+            'class_group_id' => ['nullable', 'integer'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
+        $classGroupId = (int) ($validated['class_group_id'] ?? 0);
         $userId = auth()->id();
-        $userGroupIds = (bool) auth()->user()?->isStaffPlayMode()
-            ? []
-            : auth()->user()->studyGroups()->pluck('study_groups.id')->toArray();
+        $user = auth()->user();
+        $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
+        $canManageMembership = $user && (! $isStaffPlayMode || (bool) $user->isMentor());
+        $userJobId = $user?->job_id;
+        $userGroupIds = $canManageMembership
+            ? $user->studyGroups()
+                ->where('study_groups.job_id', $userJobId)
+                ->pluck('study_groups.id')
+                ->toArray()
+            : [];
+        $availableClassGroups = StudyGroup::query()
+            ->whereIn('id', $userGroupIds)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        if ($classGroupId > 0 && !in_array($classGroupId, $userGroupIds, true)) {
+            $classGroupId = 0;
+        }
 
         $questsCacheVersion = CacheVersion::get('quests');
         $groupKey = sha1(json_encode(collect($userGroupIds)->map(fn ($id) => (int) $id)->unique()->sort()->values()->all()));
         $searchKey = $search === '' ? 'none' : sha1($search);
+        $classGroupKey = $classGroupId > 0 ? (string) $classGroupId : 'all';
         $page = max(1, (int) $request->query('page', 1));
         $perPage = 15;
 
         $cached = Cache::remember(
-            "quests.page.v{$questsCacheVersion}.groups.{$groupKey}.search.{$searchKey}.page.{$page}",
+            "quests.page.v{$questsCacheVersion}.groups.{$groupKey}.class.{$classGroupKey}.search.{$searchKey}.page.{$page}",
             now()->addMinutes(5),
-            function () use ($userGroupIds, $search, $page, $perPage) {
+            function () use ($userGroupIds, $search, $classGroupId, $page, $perPage) {
                 $paginator = Quest::query()
                     ->where(function ($query) use ($userGroupIds) {
                         $query->whereNull('study_group_id')
@@ -63,6 +81,9 @@ class QuestController extends Controller
                                     $sq->where('name', 'like', "%{$search}%");
                                 });
                         });
+                    })
+                    ->when($classGroupId > 0, function ($query) use ($classGroupId) {
+                        $query->where('study_group_id', $classGroupId);
                     })
                     ->with('studyGroup:id,name')
                     ->latest()
@@ -136,7 +157,9 @@ class QuestController extends Controller
             'quests' => $quests,
             'filters' => [
                 'search' => $search,
+                'class_group_id' => $classGroupId > 0 ? $classGroupId : null,
             ],
+            'classGroups' => $availableClassGroups,
         ]);
     }
 

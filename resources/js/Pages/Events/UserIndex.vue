@@ -5,10 +5,15 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 const props = defineProps({
     events: Object,
     filters: Object,
+    classGroups: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const form = useForm({
     search: props.filters?.search || '',
+    class_group_id: props.filters?.class_group_id ? String(props.filters.class_group_id) : '',
 });
 
 const applySearch = () => {
@@ -17,6 +22,7 @@ const applySearch = () => {
 
 const resetSearch = () => {
     form.search = '';
+    form.class_group_id = '';
     applySearch();
 };
 
@@ -37,6 +43,37 @@ const shortText = (text, max = 130) => {
     if (value === '') return '-';
     if (value.length <= max) return value;
     return `${value.slice(0, max)}...`;
+};
+
+const tonePalette = [
+    { border: '#2d65cf', bg: 'rgba(22, 47, 93, 0.20)', accent: '#8cc4ff' },
+    { border: '#1b9a6a', bg: 'rgba(20, 82, 62, 0.18)', accent: '#8ff0c8' },
+    { border: '#8b5cf6', bg: 'rgba(67, 46, 112, 0.20)', accent: '#ccb5ff' },
+    { border: '#c97f1c', bg: 'rgba(92, 62, 20, 0.20)', accent: '#ffd28d' },
+    { border: '#c24b79', bg: 'rgba(96, 35, 61, 0.20)', accent: '#ffb8d2' },
+];
+
+const hashGroupKey = (value) => {
+    const normalized = String(value || 'public');
+    let hash = 0;
+
+    for (let index = 0; index < normalized.length; index += 1) {
+        hash = ((hash << 5) - hash) + normalized.charCodeAt(index);
+        hash |= 0;
+    }
+
+    return Math.abs(hash);
+};
+
+const toneStyleForEvent = (item) => {
+    const toneKey = item?.study_group_id ?? item?.study_group?.id ?? item?.study_group?.name ?? 'public';
+    const tone = tonePalette[hashGroupKey(toneKey) % tonePalette.length];
+
+    return {
+        '--event-tone-border': tone.border,
+        '--event-tone-bg': tone.bg,
+        '--event-tone-accent': tone.accent,
+    };
 };
 </script>
 
@@ -64,6 +101,19 @@ const shortText = (text, max = 130) => {
                             placeholder="SEARCH EVENT / PARTY / DESCRIPTION"
                             class="flex-1 bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
                         />
+                        <select
+                            v-model="form.class_group_id"
+                            class="w-full md:w-56 bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
+                        >
+                            <option value="">ALL_CLASSES</option>
+                            <option
+                                v-for="group in classGroups"
+                                :key="group.id"
+                                :value="String(group.id)"
+                            >
+                                {{ group.name }}
+                            </option>
+                        </select>
                         <div class="flex gap-2">
                             <button
                                 type="submit"
@@ -82,9 +132,14 @@ const shortText = (text, max = 130) => {
                     </form>
 
                     <div class="md:hidden space-y-3 flex-1">
-                        <div v-for="item in events.data" :key="`m-${item.uuid}`" class="p-3 bg-black/40 border border-slate-800">
+                        <div
+                            v-for="item in events.data"
+                            :key="`m-${item.uuid}`"
+                            class="event-item-card p-3 border"
+                            :style="toneStyleForEvent(item)"
+                        >
                             <p class="text-white uppercase text-[11px]">{{ item.title }}</p>
-                            <p class="mt-1 text-[8px] uppercase" :class="item.study_group_id ? 'text-emerald-400' : 'text-cyan-400'">
+                            <p class="event-item-type mt-1 text-[8px] uppercase">
                                 {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : `Public${item.job?.name ? ` / ${item.job.name}` : ''}` }}
                             </p>
                             <p class="mt-2 text-slate-400 font-sans text-[11px]">{{ shortText(item.description, 120) }}</p>
@@ -114,12 +169,16 @@ const shortText = (text, max = 130) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="item in events.data" :key="item.uuid" class="border-b border-slate-800 hover:bg-slate-900/40">
+                                <tr
+                                    v-for="item in events.data"
+                                    :key="item.uuid"
+                                    class="event-row border-b border-slate-800 hover:bg-slate-900/40"
+                                    :style="toneStyleForEvent(item)"
+                                >
                                     <td class="py-3 px-2 text-white uppercase">{{ item.title }}</td>
                                     <td class="py-3 px-2">
                                         <span
-                                            class="px-2 py-1 border text-[8px] uppercase"
-                                            :class="item.study_group_id ? 'text-emerald-400 border-emerald-900 bg-emerald-900/20' : 'text-cyan-400 border-cyan-900 bg-cyan-900/20'"
+                                            class="event-item-badge px-2 py-1 border text-[8px] uppercase"
                                         >
                                             {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : `Public${item.job?.name ? ` / ${item.job.name}` : ''}` }}
                                         </span>
@@ -173,5 +232,34 @@ const shortText = (text, max = 130) => {
     border-width: 4px;
     padding: 1rem;
     box-shadow: 8px 8px 0 0 rgba(0, 0, 0, 0.5);
+}
+
+.event-item-card {
+    border-color: color-mix(in srgb, var(--event-tone-border) 52%, #1f2937 48%);
+    background:
+        linear-gradient(
+            180deg,
+            var(--event-tone-bg) 0%,
+            rgba(13, 17, 23, 0.90) 100%
+        );
+}
+
+.event-item-type {
+    color: color-mix(in srgb, var(--event-tone-accent) 88%, #f8fafc 12%);
+}
+
+.event-row {
+    background:
+        linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--event-tone-bg) 70%, transparent 30%) 0%,
+            transparent 42%
+        );
+}
+
+.event-item-badge {
+    border-color: color-mix(in srgb, var(--event-tone-border) 58%, transparent 42%);
+    background: color-mix(in srgb, var(--event-tone-bg) 74%, transparent 26%);
+    color: color-mix(in srgb, var(--event-tone-accent) 90%, #f8fafc 10%);
 }
 </style>

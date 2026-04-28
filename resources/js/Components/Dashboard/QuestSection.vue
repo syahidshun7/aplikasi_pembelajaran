@@ -76,6 +76,50 @@ const isLateUnsubmitted = (quest) => {
         && !quest?.user_has_unlock
     );
 };
+
+const tonePalette = [
+    { border: '#2d65cf', bg: 'rgba(22, 47, 93, 0.18)', accent: '#8cc4ff' },
+    { border: '#1b9a6a', bg: 'rgba(20, 82, 62, 0.16)', accent: '#8ff0c8' },
+    { border: '#8b5cf6', bg: 'rgba(67, 46, 112, 0.18)', accent: '#ccb5ff' },
+    { border: '#c97f1c', bg: 'rgba(92, 62, 20, 0.18)', accent: '#ffd28d' },
+    { border: '#c24b79', bg: 'rgba(96, 35, 61, 0.18)', accent: '#ffb8d2' },
+];
+
+const hashGroupKey = (value) => {
+    const normalized = String(value || 'global');
+    let hash = 0;
+
+    for (let index = 0; index < normalized.length; index += 1) {
+        hash = ((hash << 5) - hash) + normalized.charCodeAt(index);
+        hash |= 0;
+    }
+
+    return Math.abs(hash);
+};
+
+const toneStyleForQuest = (quest) => {
+    const toneKey = quest?.study_group_id ?? quest?.study_group?.id ?? quest?.study_group?.name ?? 'global';
+    const tone = tonePalette[hashGroupKey(toneKey) % tonePalette.length];
+
+    return {
+        '--quest-tone-border': tone.border,
+        '--quest-tone-bg': tone.bg,
+        '--quest-tone-accent': tone.accent,
+    };
+};
+
+const partyLabelForQuest = (quest) => {
+    if (!quest?.study_group_id) {
+        return 'Global';
+    }
+
+    const groupName = String(quest?.study_group?.name || '').trim();
+    if (groupName !== '') {
+        return groupName;
+    }
+
+    return `#${quest.study_group_id}`;
+};
 </script>
 
 <template>
@@ -197,7 +241,8 @@ const isLateUnsubmitted = (quest) => {
             <article
                 v-for="quest in items"
                 :key="quest.uuid"
-                class="group flex min-h-[220px] flex-col border-2 bg-[#161b22] p-4 transition-all"
+                class="quest-item-card group flex min-h-[220px] flex-col border-2 p-4 transition-all"
+                :style="toneStyleForQuest(quest)"
                 :class="[
                     (quest.user_submission_status === 'Approved') ? 'border-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.35)] bg-emerald-950/20' :
                     (quest.user_submission_status === 'Pending') ? 'border-yellow-500 shadow-[0_0_12px_rgba(234,179,8,0.35)] bg-yellow-950/20' :
@@ -211,17 +256,19 @@ const isLateUnsubmitted = (quest) => {
                     <span class="border border-slate-600 bg-slate-800 px-2 py-1 text-[7px] uppercase text-slate-400">
                         ID:{{ quest.id }}
                     </span>
-                    <span
-                        :class="{
-                            'text-red-500': quest.difficulty === 'S-Rank',
-                            'text-orange-500': quest.difficulty === 'A-Rank',
-                            'text-cyan-500': quest.difficulty === 'B-Rank',
-                            'text-green-500': quest.difficulty === 'C-Rank'
-                        }"
-                        class="text-[8px] font-bold tracking-widest"
-                    >
-                        {{ quest.difficulty }}
-                    </span>
+                    <div class="flex flex-wrap items-center justify-end gap-1.5">
+                        <span
+                            :class="{
+                                'text-red-500': quest.difficulty === 'S-Rank',
+                                'text-orange-500': quest.difficulty === 'A-Rank',
+                                'text-cyan-500': quest.difficulty === 'B-Rank',
+                                'text-green-500': quest.difficulty === 'C-Rank'
+                            }"
+                            class="text-[8px] font-bold tracking-widest"
+                        >
+                            {{ quest.difficulty }}
+                        </span>
+                    </div>
                 </div>
 
                 <h3 class="mb-2 line-clamp-3 break-words text-[9px] uppercase leading-relaxed text-white group-hover:text-[#4ed4d4] sm:text-[10px]">
@@ -229,14 +276,19 @@ const isLateUnsubmitted = (quest) => {
                 </h3>
 
                 <div class="mb-2">
-                    <span
-                        class="inline-flex border px-2 py-1 text-[6px] uppercase tracking-[0.16em]"
-                        :class="String(quest.quest_type || 'main') === 'optional'
-                            ? 'border-lime-500/30 bg-lime-500/10 text-lime-200'
-                            : 'border-sky-500/30 bg-sky-500/10 text-sky-200'"
-                    >
-                        {{ String(quest.quest_type || 'main') === 'optional' ? 'Optional Bonus Quest' : 'Main Quest' }}
-                    </span>
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <span
+                            class="inline-flex border px-2 py-1 text-[6px] uppercase tracking-[0.16em]"
+                            :class="String(quest.quest_type || 'main') === 'optional'
+                                ? 'border-lime-500/30 bg-lime-500/10 text-lime-200'
+                                : 'border-sky-500/30 bg-sky-500/10 text-sky-200'"
+                        >
+                            {{ String(quest.quest_type || 'main') === 'optional' ? 'Optional Bonus Quest' : 'Main Quest' }}
+                        </span>
+                        <span class="quest-group-badge px-2 py-1 border text-[6px] uppercase tracking-[0.14em]">
+                            {{ partyLabelForQuest(quest) }}
+                        </span>
+                    </div>
                 </div>
 
                 <div class="mb-2 flex items-center gap-1">
@@ -417,6 +469,21 @@ const isLateUnsubmitted = (quest) => {
 
 .daily-claim-card__empty-title {
     @apply text-[8px] uppercase tracking-[0.18em] text-slate-200;
+}
+
+.quest-item-card {
+    background:
+        linear-gradient(
+            180deg,
+            var(--quest-tone-bg) 0%,
+            rgba(22, 27, 34, 0.94) 100%
+        );
+}
+
+.quest-group-badge {
+    border-color: color-mix(in srgb, var(--quest-tone-border) 58%, transparent 42%);
+    background: color-mix(in srgb, var(--quest-tone-bg) 76%, transparent 24%);
+    color: color-mix(in srgb, var(--quest-tone-accent) 90%, #f8fafc 10%);
 }
 
 .daily-claim-card__empty-copy {

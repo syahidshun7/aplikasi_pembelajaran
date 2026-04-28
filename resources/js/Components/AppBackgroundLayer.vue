@@ -35,7 +35,7 @@ const backgroundStyle = computed(() => ({
 
 <style scoped>
 .app-bg-layer {
-    background: #0a0c10;
+    background: var(--bg, #0a0c10);
 }
 
 .app-bg-layer__image {

@@ -6,6 +6,7 @@ use App\Events\DailyQuestActivityTriggered;
 use App\Models\DailyQuestDefinition;
 use App\Models\Event;
 use App\Models\EventAttendance;
+use App\Models\StudyGroup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\RedirectResponse;
@@ -18,15 +19,29 @@ class UserEventController extends Controller
     {
         $user = Auth::user();
         $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
+        $canManageMembership = $user && (! $isStaffPlayMode || (bool) $user->isMentor());
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
+            'class_group_id' => ['nullable', 'integer'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
-        $userGroupIds = $isStaffPlayMode
-            ? []
-            : $user->studyGroups()->pluck('study_groups.id')->toArray();
-        $userJobId = (int) ($user->job_id ?? 0);
+        $classGroupId = (int) ($validated['class_group_id'] ?? 0);
+        $userJobId = $user?->job_id;
+        $userGroupIds = $canManageMembership
+            ? $user->studyGroups()
+                ->where('study_groups.job_id', $userJobId)
+                ->pluck('study_groups.id')
+                ->toArray()
+            : [];
+        $availableClassGroups = StudyGroup::query()
+            ->whereIn('id', $userGroupIds)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        if ($classGroupId > 0 && !in_array($classGroupId, $userGroupIds, true)) {
+            $classGroupId = 0;
+        }
 
         $events = Event::query()
             ->where(function ($query) use ($userGroupIds, $userJobId) {
@@ -35,7 +50,7 @@ class UserEventController extends Controller
                         ->where(function ($audienceQuery) use ($userJobId) {
                             $audienceQuery->whereNull('job_id');
 
-                            if ($userJobId > 0) {
+                            if (! is_null($userJobId)) {
                                 $audienceQuery->orWhere('job_id', $userJobId);
                             }
                         });
@@ -51,6 +66,9 @@ class UserEventController extends Controller
                         });
                 });
             })
+            ->when($classGroupId > 0, function ($query) use ($classGroupId) {
+                $query->where('study_group_id', $classGroupId);
+            })
             ->with(['studyGroup:id,name', 'job:id,name'])
             ->withCount(['guides', 'quests'])
             ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
@@ -63,7 +81,9 @@ class UserEventController extends Controller
             'events' => $events,
             'filters' => [
                 'search' => $search,
+                'class_group_id' => $classGroupId > 0 ? $classGroupId : null,
             ],
+            'classGroups' => $availableClassGroups,
         ]);
     }
 
@@ -152,16 +172,21 @@ class UserEventController extends Controller
 
     private function ensureUserCanAccessEvent(Event $event, $user): void
     {
-        $userGroupIds = (bool) $user?->isStaffPlayMode()
-            ? []
-            : $user->studyGroups()->pluck('study_groups.id')->toArray();
-        $userJobId = (int) ($user->job_id ?? 0);
+        $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
+        $canManageMembership = $user && (! $isStaffPlayMode || (bool) $user->isMentor());
+        $userJobId = $user?->job_id;
+        $userGroupIds = $canManageMembership
+            ? $user->studyGroups()
+                ->where('study_groups.job_id', $userJobId)
+                ->pluck('study_groups.id')
+                ->toArray()
+            : [];
 
         $isAccessible = (
             is_null($event->study_group_id)
             && (
                 is_null($event->job_id)
-                || ($userJobId > 0 && (int) $event->job_id === $userJobId)
+                || (! is_null($userJobId) && (int) $event->job_id === (int) $userJobId)
             )
         ) || in_array((int) $event->study_group_id, $userGroupIds, true);
 

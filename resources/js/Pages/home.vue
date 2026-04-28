@@ -221,14 +221,25 @@ const leaderboardPreview = computed(() => {
 const isLeaderboardEmpty = computed(() => leaderboardPreview.value.length === 0);
 
 const eventItems = computed(() => {
-    return (events.value || []).map((event) => {
-        const startsAtDate = toSafeDate(event?.starts_at);
+    return (events.value || [])
+        .map((event) => {
+            const startsAtDate = toSafeDate(event?.starts_at);
+            const createdAtDate = toSafeDate(event?.created_at);
 
-        return {
-            ...event,
-            __starts_at_label: startsAtDate ? startsAtDate.toLocaleString('id-ID') : 'Schedule_Not_Set',
-        };
-    });
+            return {
+                ...event,
+                __starts_at_ts: startsAtDate ? startsAtDate.getTime() : -1,
+                __created_at_ts: createdAtDate ? createdAtDate.getTime() : -1,
+                __starts_at_label: startsAtDate ? startsAtDate.toLocaleString('id-ID') : 'Schedule_Not_Set',
+            };
+        })
+        .sort((left, right) => {
+            if (right.__starts_at_ts !== left.__starts_at_ts) {
+                return right.__starts_at_ts - left.__starts_at_ts;
+            }
+
+            return right.__created_at_ts - left.__created_at_ts;
+        });
 });
 
 const upcomingEventPreview = computed(() => eventItems.value.slice(0, 10));
@@ -475,7 +486,8 @@ onBeforeUnmount(() => {
     <Head title="DOOPTECH" />
 
     <div
-        class="relative isolate min-h-screen overflow-x-hidden bg-[#0a0c10] font-['Press_Start_2P']"
+        data-app-surface="user"
+        class="user-theme-root relative isolate min-h-screen overflow-x-hidden font-['Press_Start_2P']"
     >
         <AppBackgroundLayer overlay-class="bg-black/60" />
 
@@ -581,8 +593,8 @@ onBeforeUnmount(() => {
 
             <FloatingChat v-if="auth.user" />
 
-            <footer class="mt-auto border-t-2 border-white/10 bg-[#1a1c2c] p-6 text-center md:bg-[#1a1c2c]/50 md:backdrop-blur-md md:p-8">
-                <p class="break-words text-[7px] uppercase tracking-[0.18em] text-white/50 sm:text-[8px] sm:tracking-[0.3em]">
+            <footer class="user-theme-footer mt-auto border-t-2 p-6 text-center md:backdrop-blur-md md:p-8">
+                <p class="user-theme-muted break-words text-[7px] uppercase tracking-[0.18em] sm:text-[8px] sm:tracking-[0.3em]">
                     Build_Ver_1.1.0 // P-Quest Engine
                 </p>
             </footer>
@@ -594,7 +606,9 @@ onBeforeUnmount(() => {
 @import "../../css/lobby-style.css";
 
 .academy-hub {
-    @apply overflow-hidden border-2 border-[#3d415f] bg-[#1a1c2c] p-2 shadow-[0_14px_38px_rgba(2,8,16,0.42)];
+    @apply overflow-hidden border-2 p-2 shadow-[0_14px_38px_rgba(2,8,16,0.42)];
+    border-color: var(--panel-border);
+    background-color: var(--panel);
 }
 
 .academy-hub--joined {
@@ -602,12 +616,15 @@ onBeforeUnmount(() => {
 }
 
 .academy-scene {
-    @apply relative overflow-hidden border border-slate-700 bg-[#1a1c2c];
+    @apply relative overflow-hidden border;
+    border-color: var(--panel-border);
+    background-color: var(--panel);
     min-height: 268px;
 }
 
 .academy-scene__backdrop {
-    @apply absolute inset-0 bg-[#1a1c2c];
+    @apply absolute inset-0;
+    background-color: var(--panel);
 }
 
 .academy-scene__content {
@@ -615,7 +632,8 @@ onBeforeUnmount(() => {
 }
 
 .academy-scene__copy {
-    @apply mx-auto max-w-[760px] px-4 pb-4 text-center text-[9px] uppercase leading-relaxed tracking-[0.16em] text-slate-300;
+    @apply mx-auto max-w-[760px] px-4 pb-4 text-center text-[9px] uppercase leading-relaxed tracking-[0.16em];
+    color: var(--text-muted);
 }
 
 .academy-scene__footer {
@@ -627,7 +645,8 @@ onBeforeUnmount(() => {
 }
 
 .dashboard-focus-shell--joined {
-    @apply border-t border-[#33415f] px-2 pb-2 pt-5;
+    @apply border-t px-2 pb-2 pt-5;
+    border-top-color: var(--panel-border);
 }
 
 .dashboard-focus-shell__meta {

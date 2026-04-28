@@ -8,6 +8,57 @@
 
 /* 2. Base Fixes */
 @layer base {
+  :root {
+    --bg: #0a0c10;
+    --text: #e6f8ff;
+    --panel: #1a1c2c;
+    --accent: #4ed4d4;
+    --panel-border: #3d415f;
+    --text-muted: #8ea8bb;
+    --panel-soft: rgba(26, 28, 44, 0.72);
+  }
+
+  [data-app-surface='user'] {
+    --bg: #0a0c10;
+    --text: #e6f8ff;
+    --panel: #1a1c2c;
+    --accent: #4ed4d4;
+    --panel-border: #3d415f;
+    --text-muted: #8ea8bb;
+    --panel-soft: rgba(26, 28, 44, 0.72);
+    color-scheme: dark;
+  }
+
+  [data-app-surface='user'][data-theme='light'] {
+    --bg: #eff7ff;
+    --text: #122335;
+    --panel: #ffffff;
+    --accent: #0a8fa1;
+    --panel-border: #b8cfe0;
+    --text-muted: #526a80;
+    --panel-soft: rgba(255, 255, 255, 0.88);
+    color-scheme: light;
+  }
+
+  [data-app-surface='user'].user-theme-root {
+    background-color: var(--bg);
+    color: var(--text);
+  }
+
+  [data-app-surface='user'] .user-theme-panel {
+    background-color: var(--panel);
+  }
+
+  [data-app-surface='user'] .user-theme-footer {
+    background-color: var(--panel-soft);
+    border-top-color: rgba(148, 163, 184, 0.2);
+    color: var(--text);
+  }
+
+  [data-app-surface='user'] .user-theme-muted {
+    color: var(--text-muted);
+  }
+
   /* Memastikan font global jika kamu mau seluruh aplikasi pakai font ini */
   html {
     color-scheme: dark;
@@ -23,6 +74,12 @@
     color-scheme: dark;
   }
 
+  [data-app-surface='user'][data-theme='light'] input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='submit']):not([type='button']):not([type='reset']),
+  [data-app-surface='user'][data-theme='light'] textarea,
+  [data-app-surface='user'][data-theme='light'] select {
+    color-scheme: light;
+  }
+
   select option,
   select optgroup {
     background-color: #0d1117;
@@ -34,6 +91,19 @@
   select option:focus {
     background: linear-gradient(0deg, #164e63, #164e63);
     color: #ecfeff;
+  }
+
+  [data-app-surface='user'][data-theme='light'] select option,
+  [data-app-surface='user'][data-theme='light'] select optgroup {
+    background-color: #f8fbff;
+    color: #122335;
+  }
+
+  [data-app-surface='user'][data-theme='light'] select option:checked,
+  [data-app-surface='user'][data-theme='light'] select option:hover,
+  [data-app-surface='user'][data-theme='light'] select option:focus {
+    background: linear-gradient(0deg, #d8ecff, #d8ecff);
+    color: #0b1f33;
   }
 
   /* Paksa tampilan autofill tetap selaras dengan dark auth theme */
@@ -78,6 +148,18 @@
     );
     box-shadow:
       0 12px 28px rgba(0, 0, 0, 0.22);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .nav-dock {
+    background: linear-gradient(
+      180deg,
+      rgba(214, 229, 242, 0.96) 0%,
+      rgba(194, 213, 229, 0.98) 100%
+    );
+    border: 1px solid rgba(70, 101, 125, 0.52);
+    box-shadow:
+      inset 0 1px 0 rgba(242, 248, 255, 0.62),
+      0 10px 18px rgba(10, 38, 58, 0.16);
   }
 
   .nav-action {
@@ -133,9 +215,41 @@
     animation-delay: var(--flicker-delay);
   }
 
+  [data-app-surface='user'][data-theme='light'] .nav-action {
+    background: linear-gradient(
+      180deg,
+      rgba(244, 250, 255, 0.98) 0%,
+      rgba(226, 238, 248, 0.99) 58%,
+      rgba(208, 224, 238, 0.98) 100%
+    );
+    border-top: 1px solid rgba(var(--accent-rgb), 0.52);
+    border-bottom: 1px solid rgba(20, 46, 65, 0.36);
+    text-shadow:
+      0 1px 0 rgba(242, 248, 255, 0.58),
+      0 0 5px rgba(var(--accent-rgb), 0.22);
+    box-shadow:
+      inset 0 0 0 1px rgba(246, 251, 255, 0.72),
+      inset 0 -8px 14px rgba(var(--accent-rgb), 0.05),
+      0 0 0 1px rgba(84, 112, 133, 0.26);
+  }
+
   /* Dividers only when items are inside the dock */
   .nav-dock .nav-action + .nav-action {
     border-left: 1px solid rgba(61, 65, 95, 0.55);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .nav-dock .nav-action + .nav-action {
+    border-left: 1px solid rgba(123, 146, 166, 0.52);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .nav-action::before {
+    opacity: 0.14;
+    filter: drop-shadow(0 0 5px var(--accent)) blur(0.1px);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .nav-dock .nav-action::after {
+    opacity: 0.50;
+    box-shadow: 0 0 6px var(--accent);
   }
 
   /* Moving "lamp hotspot" inside the button (the light moves, not the button) */
@@ -201,6 +315,20 @@
     filter: saturate(1.1);
   }
 
+  [data-app-surface='user'][data-theme='light'] .nav-action:hover {
+    background: linear-gradient(
+      180deg,
+      rgba(248, 252, 255, 1) 0%,
+      rgba(228, 240, 250, 0.98) 62%,
+      rgba(206, 223, 238, 0.98) 100%
+    );
+    box-shadow:
+      inset 0 0 0 1px rgba(246, 252, 255, 0.76),
+      inset 0 0 16px rgba(var(--accent-rgb), 0.11),
+      0 0 10px rgba(var(--accent-rgb), 0.18);
+    filter: saturate(1.08);
+  }
+
   .nav-action:hover::after {
     opacity: 0.85;
     transform: translateY(0);
@@ -229,8 +357,68 @@
   .nav-action--hall { --accent-rgb: 74, 222, 128; }
   .nav-action--notifications { --accent: #f97316; }
   .nav-action--notifications { --accent-rgb: 249, 115, 22; }
+  .nav-action--theme { --accent: #60a5fa; }
+  .nav-action--theme { --accent-rgb: 96, 165, 250; }
   .nav-action--logout { --accent: #fb7185; }
   .nav-action--logout { --accent-rgb: 251, 113, 133; }
+
+  [data-app-surface='user'][data-theme='light'] .nav-action--admin { --accent: #8c4cd3; --accent-rgb: 140, 76, 211; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--profile { --accent: #0d7b95; --accent-rgb: 13, 123, 149; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--shop { --accent: #a77600; --accent-rgb: 167, 118, 0; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--dooplab { --accent: #0f86ab; --accent-rgb: 15, 134, 171; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--hall { --accent: #1a9154; --accent-rgb: 26, 145, 84; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--notifications { --accent: #cf6c09; --accent-rgb: 207, 108, 9; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--theme { --accent: #2c66d3; --accent-rgb: 44, 102, 211; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--logout { --accent: #d9485f; --accent-rgb: 217, 72, 95; }
+
+  [data-app-surface='user'][data-theme='light'] .user-navbar-shell {
+    background: linear-gradient(
+      180deg,
+      rgba(224, 237, 248, 0.96) 0%,
+      rgba(202, 219, 234, 0.98) 100%
+    ) !important;
+    border-bottom-color: #62849d !important;
+    box-shadow:
+      inset 0 1px 0 rgba(242, 248, 255, 0.62),
+      0 10px 22px rgba(8, 34, 54, 0.16);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .user-navbar-brand-logo {
+    background: linear-gradient(180deg, #0d151b 0%, #070e13 100%) !important;
+    border-color: #20a7c6 !important;
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+      0 0 0 1px rgba(23, 127, 153, 0.34);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .user-navbar-brand-logo img {
+    filter: contrast(1.1) saturate(1.02);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .user-navbar-brand-title {
+    color: #0b6f88 !important;
+    opacity: 1 !important;
+    text-shadow:
+      0 1px 0 rgba(242, 248, 255, 0.56),
+      0 0 4px rgba(11, 111, 136, 0.12);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .user-navbar-mobile-toggle {
+    background: linear-gradient(180deg, #edf6fd 0%, #d8e8f4 100%) !important;
+    border-color: #6f8da3 !important;
+    color: #0f7390 !important;
+    box-shadow:
+      inset 0 1px 0 rgba(242, 248, 255, 0.58),
+      0 0 0 1px rgba(108, 136, 158, 0.20);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .user-navbar-mobile-shell {
+    background: linear-gradient(180deg, rgba(228, 239, 249, 0.98) 0%, rgba(206, 222, 236, 0.98) 100%) !important;
+    border-color: #7090a8 !important;
+    box-shadow:
+      inset 0 1px 0 rgba(242, 248, 255, 0.60),
+      0 12px 22px rgba(8, 35, 56, 0.18);
+  }
 
   /* Stagger timings so they don't flicker in sync */
   .nav-action--admin { --flicker-delay: -2.7s; --flicker-dur: 22s; --wander-dur: 10s; }
@@ -239,6 +427,7 @@
   .nav-action--dooplab { --flicker-delay: -3.6s; --flicker-dur: 20s; --wander-dur: 8s; }
   .nav-action--hall { --flicker-delay: -7.4s; --flicker-dur: 21s; --wander-dur: 10s; }
   .nav-action--notifications { --flicker-delay: -1.9s; --flicker-dur: 23s; --wander-dur: 8s; }
+  .nav-action--theme { --flicker-delay: -5.2s; --flicker-dur: 20s; --wander-dur: 9s; }
   .nav-action--logout { --flicker-delay: -4.8s; --flicker-dur: 20s; --wander-dur: 9s; }
 
   .xp-bar-fill {

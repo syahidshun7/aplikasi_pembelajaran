@@ -1,6 +1,6 @@
 <script setup>
 import { Head, usePage, Link } from '@inertiajs/vue3';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm.vue';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue';
@@ -25,6 +25,8 @@ const props = defineProps({
 });
 
 const page = usePage();
+const USER_THEME_STORAGE_KEY = 'dooptech-user-theme';
+const USER_THEME_EVENT = 'dooptech:user-theme-change';
 const userData = computed(() => props.user || page.props.auth.user);
 const isDashboardView = computed(() => props.profileView === 'dashboard');
 const userExp = computed(() => Number(userData.value?.exp ?? 0));
@@ -93,6 +95,7 @@ const resolveActiveTabFromLocation = () => {
 };
 
 const activeTab = ref(resolveActiveTabFromLocation());
+const themeMode = ref('dark');
 
 const getGradeColor = (grade) => {
     if (grade >= 90) return 'text-yellow-400';
@@ -121,6 +124,65 @@ watch(classAverageRows, (rows) => {
 const toggleAverageGradeDropdown = () => {
     isAverageGradeOpen.value = !isAverageGradeOpen.value;
 };
+
+const normalizeTheme = (value) => (String(value || '').toLowerCase() === 'light' ? 'light' : 'dark');
+
+const setThemeMode = (nextTheme, options = {}) => {
+    const { persist = true, broadcast = true } = options;
+    const normalizedTheme = normalizeTheme(nextTheme);
+    themeMode.value = normalizedTheme;
+
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    if (persist) {
+        window.localStorage.setItem(USER_THEME_STORAGE_KEY, normalizedTheme);
+    }
+
+    if (broadcast) {
+        window.dispatchEvent(new CustomEvent(USER_THEME_EVENT, { detail: { theme: normalizedTheme } }));
+    }
+};
+
+const applyDarkTheme = () => {
+    setThemeMode('dark');
+};
+
+const applyLightTheme = () => {
+    setThemeMode('light');
+};
+
+const syncThemeFromStorage = (event) => {
+    if (event.key !== USER_THEME_STORAGE_KEY) {
+        return;
+    }
+
+    setThemeMode(event.newValue, { persist: false, broadcast: false });
+};
+
+const syncThemeFromBroadcast = (event) => {
+    setThemeMode(event?.detail?.theme, { persist: false, broadcast: false });
+};
+
+onMounted(() => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    setThemeMode(window.localStorage.getItem(USER_THEME_STORAGE_KEY), { persist: false, broadcast: false });
+    window.addEventListener('storage', syncThemeFromStorage);
+    window.addEventListener(USER_THEME_EVENT, syncThemeFromBroadcast);
+});
+
+onBeforeUnmount(() => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    window.removeEventListener('storage', syncThemeFromStorage);
+    window.removeEventListener(USER_THEME_EVENT, syncThemeFromBroadcast);
+});
 </script>
 
 <template>
@@ -440,6 +502,34 @@ const toggleAverageGradeDropdown = () => {
                                 <h3 class="text-cyan-400 mb-6 uppercase tracking-widest border-l-4 border-cyan-400 pl-3">
                                     Update_Identity
                                 </h3>
+                                <div class="border-2 border-cyan-500/40 bg-black/35 p-4">
+                                    <p class="text-[7px] uppercase text-cyan-300">Theme_Display</p>
+                                    <p class="mt-2 text-[7px] leading-relaxed text-slate-400">
+                                        Atur mode tampilan aplikasi. Tema akan tersimpan di browser ini.
+                                    </p>
+                                    <div class="mt-3 flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            class="border px-3 py-2 text-[7px] uppercase transition-colors"
+                                            :class="themeMode === 'dark'
+                                                ? 'border-cyan-300 bg-cyan-400 text-black'
+                                                : 'border-slate-600 bg-slate-900 text-slate-200 hover:border-cyan-500/50'"
+                                            @click="applyDarkTheme"
+                                        >
+                                            Dark
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="border px-3 py-2 text-[7px] uppercase transition-colors"
+                                            :class="themeMode === 'light'
+                                                ? 'border-cyan-300 bg-cyan-400 text-black'
+                                                : 'border-slate-600 bg-slate-900 text-slate-200 hover:border-cyan-500/50'"
+                                            @click="applyLightTheme"
+                                        >
+                                            Light
+                                        </button>
+                                    </div>
+                                </div>
                                 <div class="form-container">
                                     <UpdateProfileInformationForm
                                         :must-verify-email="mustVerifyEmail"

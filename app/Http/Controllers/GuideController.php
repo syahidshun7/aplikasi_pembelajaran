@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Guide;
+use App\Models\StudyGroup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -14,14 +15,29 @@ class GuideController extends Controller
     {
         $user = Auth::user();
         $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
+        $canManageMembership = $user && (! $isStaffPlayMode || (bool) $user->isMentor());
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
+            'class_group_id' => ['nullable', 'integer'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
-        $userGroupIds = $isStaffPlayMode
-            ? []
-            : $user->studyGroups()->pluck('study_groups.id')->toArray();
+        $classGroupId = (int) ($validated['class_group_id'] ?? 0);
+        $userJobId = $user?->job_id;
+        $userGroupIds = $canManageMembership
+            ? $user->studyGroups()
+                ->where('study_groups.job_id', $userJobId)
+                ->pluck('study_groups.id')
+                ->toArray()
+            : [];
+        $availableClassGroups = StudyGroup::query()
+            ->whereIn('id', $userGroupIds)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        if ($classGroupId > 0 && !in_array($classGroupId, $userGroupIds, true)) {
+            $classGroupId = 0;
+        }
 
         $guides = Guide::query()
             ->where(function ($query) use ($userGroupIds) {
@@ -37,6 +53,9 @@ class GuideController extends Controller
                         });
                 });
             })
+            ->when($classGroupId > 0, function ($query) use ($classGroupId) {
+                $query->where('study_group_id', $classGroupId);
+            })
             ->with('studyGroup:id,name')
             ->latest()
             ->paginate(15)
@@ -46,7 +65,9 @@ class GuideController extends Controller
             'guides' => $guides,
             'filters' => [
                 'search' => $search,
+                'class_group_id' => $classGroupId > 0 ? $classGroupId : null,
             ],
+            'classGroups' => $availableClassGroups,
         ]);
     }
 

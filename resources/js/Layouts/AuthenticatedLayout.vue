@@ -20,7 +20,10 @@ const playerModeNotice = computed(() => String(auth.value?.user?.player_mode_not
         <meta head-key="robots" name="robots" content="noindex,nofollow" />
     </Head>
 
-    <div class="min-h-screen font-['Press_Start_2P'] selection:bg-[#009999] relative isolate overflow-x-hidden text-[#4ed4d4] flex flex-col">
+    <div
+        data-app-surface="user"
+        class="user-theme-root min-h-screen font-['Press_Start_2P'] selection:bg-[var(--accent)] relative isolate overflow-x-hidden flex flex-col"
+    >
         <AppBackgroundLayer />
 
         <UserNavbar />
@@ -68,8 +71,8 @@ const playerModeNotice = computed(() => String(auth.value?.user?.player_mode_not
         <main class="relative z-10 p-4 md:p-8 animate-in fade-in zoom-in-95 duration-500 flex-1">
             <slot />
         </main>
-        <footer class="mt-auto border-t-2 border-white/10 bg-[#1a1c2c]/50 p-6 text-center backdrop-blur-md md:p-8">
-            <p class="break-words text-[7px] uppercase tracking-[0.18em] text-white/50 sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
+        <footer class="user-theme-footer mt-auto border-t-2 p-6 text-center backdrop-blur-md md:p-8">
+            <p class="user-theme-muted break-words text-[7px] uppercase tracking-[0.18em] sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
         </footer>
 
         <FloatingChat v-if="showFloatingChat" />

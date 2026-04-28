@@ -1,6 +1,6 @@
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import NotificationBell from '@/Components/NotificationBell.vue';
 import { toast } from '@/Utils/Alert';
 
@@ -12,8 +12,11 @@ const props = defineProps({
 });
 
 const page = usePage();
+const USER_THEME_STORAGE_KEY = 'dooptech-user-theme';
+const USER_THEME_EVENT = 'dooptech:user-theme-change';
 const auth = computed(() => page.props.auth || {});
 const mobileMenuOpen = ref(false);
+const userTheme = ref('dark');
 
 const normalizedUserRole = computed(() => String(auth.value?.user?.role || '').trim().toLowerCase());
 const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(normalizedUserRole.value));
@@ -30,6 +33,38 @@ const closeMobileMenu = () => {
     mobileMenuOpen.value = false;
 };
 
+const normalizeTheme = (value) => (String(value || '').toLowerCase() === 'light' ? 'light' : 'dark');
+
+const setUserTheme = (nextTheme, options = {}) => {
+    const { persist = true, broadcast = true } = options;
+    const normalizedTheme = normalizeTheme(nextTheme);
+    userTheme.value = normalizedTheme;
+
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    if (persist) {
+        window.localStorage.setItem(USER_THEME_STORAGE_KEY, normalizedTheme);
+    }
+
+    if (broadcast) {
+        window.dispatchEvent(new CustomEvent(USER_THEME_EVENT, { detail: { theme: normalizedTheme } }));
+    }
+};
+
+const syncThemeFromStorage = (event) => {
+    if (event.key !== USER_THEME_STORAGE_KEY) {
+        return;
+    }
+
+    setUserTheme(event.newValue, { persist: false, broadcast: false });
+};
+
+const syncThemeFromBroadcast = (event) => {
+    setUserTheme(event?.detail?.theme, { persist: false, broadcast: false });
+};
+
 const handleLogout = () => {
     toast.confirm('QUIT GAME?', 'Are you sure you want to exit?')
         .then((result) => {
@@ -39,16 +74,36 @@ const handleLogout = () => {
             }
         });
 };
+
+onMounted(() => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    setUserTheme(window.localStorage.getItem(USER_THEME_STORAGE_KEY), { persist: false, broadcast: false });
+    window.addEventListener('storage', syncThemeFromStorage);
+    window.addEventListener(USER_THEME_EVENT, syncThemeFromBroadcast);
+});
+
+onBeforeUnmount(() => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    window.removeEventListener('storage', syncThemeFromStorage);
+    window.removeEventListener(USER_THEME_EVENT, syncThemeFromBroadcast);
+});
 </script>
 
 <template>
-    <nav class="sticky top-0 z-50 flex items-center justify-between border-b-4 border-[#3d415f] bg-[#1a1c2c] p-4 shadow-2xl md:bg-[#1a1c2c]/90 md:backdrop-blur-sm md:px-8">
+    <div data-app-surface="user" :data-theme="userTheme" class="user-navbar-theme-scope">
+    <nav class="user-navbar-shell sticky top-0 z-50 flex items-center justify-between border-b-4 border-[var(--panel-border)] bg-[var(--panel)] p-4 text-[var(--text)] shadow-2xl md:bg-[var(--panel-soft)] md:backdrop-blur-sm md:px-8">
         <div class="flex items-center gap-4">
             <Link :href="route('lobby')" class="group flex items-center gap-4" @click="closeMobileMenu">
-                <div class="flex h-10 w-10 items-center justify-center overflow-hidden border-b-4 border-r-4 border-[#4ed4d4] bg-[#0a0c10] transition-transform group-hover:scale-110">
+                <div class="user-navbar-brand-logo flex h-10 w-10 items-center justify-center overflow-hidden border-b-4 border-r-4 border-[var(--accent)] bg-[var(--bg)] transition-transform group-hover:scale-110">
                     <img src="/images/logo.png" alt="Logo" class="pixelated h-7 w-7 object-contain">
                 </div>
-                <h1 class="text-[8px] uppercase tracking-tighter text-[#009999] group-hover:text-[#4ed4d4] md:text-sm">
+                <h1 class="user-navbar-brand-title text-[8px] uppercase tracking-tighter text-[var(--accent)] opacity-85 group-hover:opacity-100 md:text-sm">
                     DOOPTECH
                 </h1>
             </Link>
@@ -106,7 +161,7 @@ const handleLogout = () => {
         <button
             v-if="canOpenMobileMenu"
             type="button"
-            class="inline-flex h-10 w-10 items-center justify-center border-2 border-slate-600 bg-slate-900/70 text-cyan-300 lg:hidden"
+            class="user-navbar-mobile-toggle inline-flex h-10 w-10 items-center justify-center border-2 border-[var(--panel-border)] bg-[var(--panel-soft)] text-[var(--accent)] lg:hidden"
             :aria-expanded="mobileMenuOpen ? 'true' : 'false'"
             aria-label="Toggle menu"
             @click="mobileMenuOpen = !mobileMenuOpen"
@@ -116,7 +171,7 @@ const handleLogout = () => {
     </nav>
 
     <div v-if="mobileMenuOpen && canOpenMobileMenu" class="relative z-50 px-4 pb-4 lg:hidden">
-        <div class="space-y-2 border-2 border-[#3d415f] bg-[#1a1c2c] p-3 shadow-2xl md:bg-[#1a1c2c]/95 md:backdrop-blur-sm">
+        <div class="user-navbar-mobile-shell space-y-2 border-2 border-[var(--panel-border)] bg-[var(--panel)] p-3 shadow-2xl md:bg-[var(--panel-soft)] md:backdrop-blur-sm">
             <template v-if="auth.user">
                 <Link
                     v-if="isStaff"
@@ -204,5 +259,6 @@ const handleLogout = () => {
                 </Link>
             </template>
         </div>
+    </div>
     </div>
 </template>

@@ -11,6 +11,37 @@ defineProps({
         default: false,
     },
 });
+
+const tonePalette = [
+    { border: '#2d65cf', bg: 'rgba(22, 47, 93, 0.22)', accent: '#8cc4ff' },
+    { border: '#1b9a6a', bg: 'rgba(20, 82, 62, 0.20)', accent: '#8ff0c8' },
+    { border: '#8b5cf6', bg: 'rgba(67, 46, 112, 0.22)', accent: '#ccb5ff' },
+    { border: '#c97f1c', bg: 'rgba(92, 62, 20, 0.22)', accent: '#ffd28d' },
+    { border: '#c24b79', bg: 'rgba(96, 35, 61, 0.22)', accent: '#ffb8d2' },
+];
+
+const hashGroupKey = (value) => {
+    const normalized = String(value || 'global');
+    let hash = 0;
+
+    for (let index = 0; index < normalized.length; index += 1) {
+        hash = ((hash << 5) - hash) + normalized.charCodeAt(index);
+        hash |= 0;
+    }
+
+    return Math.abs(hash);
+};
+
+const toneStyleForGuide = (item) => {
+    const toneKey = item?.study_group_id ?? item?.study_group?.id ?? item?.study_group?.name ?? 'global';
+    const tone = tonePalette[hashGroupKey(toneKey) % tonePalette.length];
+
+    return {
+        '--guide-tone-border': tone.border,
+        '--guide-tone-bg': tone.bg,
+        '--guide-tone-accent': tone.accent,
+    };
+};
 </script>
 
 <template>
@@ -33,10 +64,11 @@ defineProps({
             <article
                 v-for="item in items"
                 :key="item.uuid"
-                class="border border-slate-800 bg-[#0d1117] p-4 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
+                class="library-item-card border p-4 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
+                :style="toneStyleForGuide(item)"
             >
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                    <span class="text-[7px] uppercase text-indigo-400">Study_Material</span>
+                    <span class="library-item-label text-[7px] uppercase">Study_Material</span>
                     <span class="text-[7px] uppercase text-slate-600">Ref.{{ item.uuid.substring(0, 5) }}</span>
                 </div>
                 <h3 class="mt-3 break-words text-[10px] uppercase text-white">{{ item.title }}</h3>
@@ -44,7 +76,7 @@ defineProps({
                     {{ item.description || 'Accessing knowledge database...' }}
                 </p>
                 <div class="mt-4 flex items-center justify-between gap-2 border-t border-slate-800 pt-3">
-                    <span class="text-[7px] uppercase" :class="item.study_group_id ? 'text-emerald-400' : 'text-cyan-400'">
+                    <span class="library-item-group text-[7px] uppercase">
                         {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
                     </span>
                     <Link :href="route('guides.user.show', item.uuid)" class="text-[7px] uppercase text-indigo-300 hover:text-white">
@@ -97,5 +129,23 @@ defineProps({
 
 .dashboard-empty-state__copy {
     @apply max-w-[280px] text-[9px] uppercase leading-relaxed text-slate-500;
+}
+
+.library-item-card {
+    border-color: color-mix(in srgb, var(--guide-tone-border) 52%, #1f2937 48%);
+    background:
+        linear-gradient(
+            180deg,
+            var(--guide-tone-bg) 0%,
+            rgba(13, 17, 23, 0.92) 100%
+        );
+}
+
+.library-item-label {
+    color: color-mix(in srgb, var(--guide-tone-accent) 86%, #cbd5e1 14%);
+}
+
+.library-item-group {
+    color: color-mix(in srgb, var(--guide-tone-accent) 90%, #f8fafc 10%);
 }
 </style>
