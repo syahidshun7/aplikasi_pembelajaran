@@ -43,6 +43,57 @@ const createdAtLabel = computed(() => {
     if (Number.isNaN(date.getTime())) return '-';
     return date.toLocaleString('id-ID');
 });
+
+const hashGroupKey = (value) => {
+    const normalized = String(value || 'global');
+    let hash = 0;
+    for (let index = 0; index < normalized.length; index += 1) {
+        hash = ((hash << 5) - hash) + normalized.charCodeAt(index);
+        hash |= 0;
+    }
+    return Math.abs(hash);
+};
+
+const toneForGroup = (groupKey) => {
+    if (!groupKey || groupKey === 'global') {
+        return {
+            border: '#4f46e5',
+            bg: 'rgba(49, 46, 129, 0.18)',
+            accent: '#a5b4fc',
+        };
+    }
+    const hash = hashGroupKey(groupKey);
+    let hue = Math.floor((hash * 137.508) % 360);
+    if (hue >= 230 && hue <= 255) {
+        hue = (hue + 92) % 360;
+    }
+    const saturation = 64 + (hash % 9);
+    const borderLightness = 56 + ((hash >> 3) % 7);
+    const accentLightness = 74 + ((hash >> 5) % 8);
+    return {
+        border: `hsl(${hue} ${saturation}% ${borderLightness}%)`,
+        bg: `hsl(${hue} ${Math.max(58, saturation - 6)}% 20% / 0.18)`,
+        accent: `hsl(${hue} ${Math.min(90, saturation + 10)}% ${accentLightness}%)`,
+    };
+};
+
+const guideToneStyle = computed(() => {
+    const toneKey = props.guide?.study_group_id ?? props.guide?.study_group?.id ?? props.guide?.study_group?.name ?? 'global';
+    const tone = toneForGroup(String(toneKey));
+    return {
+        '--guide-tone-border': tone.border,
+        '--guide-tone-bg': tone.bg,
+        '--guide-tone-accent': tone.accent,
+    };
+});
+
+const guideClassLabel = computed(() => {
+    if (!props.guide?.study_group_id) {
+        return 'Global';
+    }
+    const name = String(props.guide?.study_group?.name || '').trim();
+    return name !== '' ? name : `#${props.guide.study_group_id}`;
+});
 </script>
 
 <template>
@@ -69,12 +120,12 @@ const createdAtLabel = computed(() => {
                     </div>
                 </div>
 
-                <div class="rpg-panel border-indigo-700/70 space-y-6">
+                <div class="rpg-panel border-indigo-700/70 space-y-6" :style="guideToneStyle">
                     <div class="space-y-3">
                         <p class="text-[8px] uppercase text-slate-400">
                             Ref: {{ guide.uuid?.substring(0, 8) }} | Type:
-                            <span :class="guide.study_group_id ? 'text-emerald-400' : 'text-cyan-400'">
-                                {{ guide.study_group_id ? `Party: ${guide.study_group?.name || 'Unknown'}` : 'Global' }}
+                            <span class="guide-class-badge">
+                                {{ guideClassLabel }}
                             </span>
                         </p>
                         <h2 class="text-white text-sm md:text-lg uppercase leading-relaxed">{{ guide.title }}</h2>
@@ -133,5 +184,14 @@ const createdAtLabel = computed(() => {
     border-width: 4px;
     padding: 1rem;
     box-shadow: 8px 8px 0 0 rgba(0, 0, 0, 0.5);
+    border-color: color-mix(in srgb, var(--guide-tone-border) 56%, #312e81 44%);
+    background-image: linear-gradient(180deg, var(--guide-tone-bg) 0%, rgba(26, 28, 44, 0.94) 100%);
+}
+
+.guide-class-badge {
+    border: 1px solid color-mix(in srgb, var(--guide-tone-border) 58%, transparent 42%);
+    background: color-mix(in srgb, var(--guide-tone-bg) 72%, transparent 28%);
+    color: color-mix(in srgb, var(--guide-tone-accent) 90%, #f8fafc 10%);
+    padding: 0.15rem 0.45rem;
 }
 </style>

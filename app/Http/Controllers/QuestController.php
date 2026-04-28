@@ -407,6 +407,7 @@ class QuestController extends Controller
 
         $userId = (int) auth()->id();
         $quest->load([
+            'studyGroup:id,name',
             'taskBank:id,uuid,name,assessment_type',
             'taskBank.questions' => function ($query) {
                 $query->where('is_active', true)

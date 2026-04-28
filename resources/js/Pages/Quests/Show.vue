@@ -49,6 +49,57 @@ const unansweredCount = computed(() => {
     }).length;
 });
 
+const hashGroupKey = (value) => {
+    const normalized = String(value || 'global');
+    let hash = 0;
+    for (let index = 0; index < normalized.length; index += 1) {
+        hash = ((hash << 5) - hash) + normalized.charCodeAt(index);
+        hash |= 0;
+    }
+    return Math.abs(hash);
+};
+
+const toneForGroup = (groupKey) => {
+    if (!groupKey || groupKey === 'global') {
+        return {
+            border: '#2d65cf',
+            bg: 'rgba(22, 47, 93, 0.16)',
+            accent: '#8cc4ff',
+        };
+    }
+    const hash = hashGroupKey(groupKey);
+    let hue = Math.floor((hash * 137.508) % 360);
+    if (hue >= 185 && hue <= 225) {
+        hue = (hue + 92) % 360;
+    }
+    const saturation = 66 + (hash % 8);
+    const borderLightness = 56 + ((hash >> 3) % 7);
+    const accentLightness = 74 + ((hash >> 5) % 8);
+    return {
+        border: `hsl(${hue} ${saturation}% ${borderLightness}%)`,
+        bg: `hsl(${hue} ${Math.max(60, saturation - 6)}% 20% / 0.16)`,
+        accent: `hsl(${hue} ${Math.min(90, saturation + 10)}% ${accentLightness}%)`,
+    };
+};
+
+const questToneStyle = computed(() => {
+    const toneKey = props.quest?.study_group_id ?? props.quest?.study_group?.id ?? props.quest?.study_group?.name ?? 'global';
+    const tone = toneForGroup(String(toneKey));
+    return {
+        '--quest-tone-border': tone.border,
+        '--quest-tone-bg': tone.bg,
+        '--quest-tone-accent': tone.accent,
+    };
+});
+
+const questClassLabel = computed(() => {
+    if (!props.quest?.study_group_id) {
+        return 'Global';
+    }
+    const name = String(props.quest?.study_group?.name || '').trim();
+    return name !== '' ? name : `#${props.quest.study_group_id}`;
+});
+
 const answerFor = (question) => {
     const uuid = String(question?.uuid || '');
     if (!uuid) return '';
@@ -171,7 +222,8 @@ const unlockLateQuest = () => {
             <Head :title="'DETAILS - ' + quest.title" />
 
             <div
-                class="max-w-3xl w-full bg-[#161b22] border-4 border-slate-700 shadow-[10px_10px_0px_0px_rgba(0,0,0,0.5)] md:shadow-[20px_20px_0px_0px_rgba(0,0,0,0.5)] relative overflow-hidden"
+                class="quest-shell max-w-3xl w-full border-4 border-slate-700 shadow-[10px_10px_0px_0px_rgba(0,0,0,0.5)] md:shadow-[20px_20px_0px_0px_rgba(0,0,0,0.5)] relative overflow-hidden"
+                :style="questToneStyle"
             >
                 <div
                     class="hidden sm:flex absolute top-10 right-10 w-24 h-24 border-4 border-red-900/30 rounded-full items-center justify-center -rotate-12 select-none pointer-events-none text-red-900/30 text-[10px] text-center uppercase"
@@ -206,6 +258,11 @@ const unlockLateQuest = () => {
                             <p class="text-slate-500 mb-2 uppercase">Reward_EXP:</p>
                             <p class="text-cyan-400 font-bold">{{ quest.reward_exp || quest.reward_gold }} EXP</p>
                         </div>
+                    </div>
+
+                    <div class="pb-2 text-[11px] uppercase">
+                        <span class="text-slate-500">Class_Node:</span>
+                        <span class="quest-class-badge ml-2">{{ questClassLabel }}</span>
                     </div>
 
                     <div
@@ -480,3 +537,18 @@ const unlockLateQuest = () => {
         </div>
     </AuthenticatedLayout>
 </template>
+
+<style scoped>
+.quest-shell {
+    background-color: #161b22;
+    border-color: color-mix(in srgb, var(--quest-tone-border) 54%, #334155 46%);
+    background-image: linear-gradient(180deg, var(--quest-tone-bg) 0%, rgba(22, 27, 34, 0.95) 100%);
+}
+
+.quest-class-badge {
+    border: 1px solid color-mix(in srgb, var(--quest-tone-border) 58%, transparent 42%);
+    background: color-mix(in srgb, var(--quest-tone-bg) 72%, transparent 28%);
+    color: color-mix(in srgb, var(--quest-tone-accent) 90%, #f8fafc 10%);
+    padding: 0.18rem 0.5rem;
+}
+</style>

@@ -99,10 +99,16 @@ const toneForGroup = (groupKey) => {
     }
 
     const hash = hashGroupKey(groupKey);
-    const hue = hash % 360;
-    const border = `hsl(${hue} 70% 58%)`;
-    const accent = `hsl(${hue} 82% 76%)`;
-    const bg = `hsl(${hue} 72% 20% / 0.22)`;
+    let hue = Math.floor((hash * 137.508) % 360);
+    if (hue >= 185 && hue <= 225) {
+        hue = (hue + 92) % 360;
+    }
+    const saturation = 66 + (hash % 8);
+    const borderLightness = 56 + ((hash >> 3) % 7);
+    const accentLightness = 74 + ((hash >> 5) % 8);
+    const border = `hsl(${hue} ${saturation}% ${borderLightness}%)`;
+    const accent = `hsl(${hue} ${Math.min(90, saturation + 10)}% ${accentLightness}%)`;
+    const bg = `hsl(${hue} ${Math.max(60, saturation - 6)}% 20% / 0.22)`;
 
     return { border, bg, accent };
 };

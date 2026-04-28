@@ -12,14 +12,6 @@ defineProps({
     },
 });
 
-const tonePalette = [
-    { border: '#2d65cf', bg: 'rgba(22, 47, 93, 0.22)', accent: '#8cc4ff' },
-    { border: '#1b9a6a', bg: 'rgba(20, 82, 62, 0.20)', accent: '#8ff0c8' },
-    { border: '#8b5cf6', bg: 'rgba(67, 46, 112, 0.22)', accent: '#ccb5ff' },
-    { border: '#c97f1c', bg: 'rgba(92, 62, 20, 0.22)', accent: '#ffd28d' },
-    { border: '#c24b79', bg: 'rgba(96, 35, 61, 0.22)', accent: '#ffb8d2' },
-];
-
 const hashGroupKey = (value) => {
     const normalized = String(value || 'global');
     let hash = 0;
@@ -32,9 +24,34 @@ const hashGroupKey = (value) => {
     return Math.abs(hash);
 };
 
+const toneForGroup = (groupKey) => {
+    if (!groupKey || groupKey === 'global') {
+        return {
+            border: '#4f46e5',
+            bg: 'rgba(49, 46, 129, 0.24)',
+            accent: '#a5b4fc',
+        };
+    }
+
+    const hash = hashGroupKey(groupKey);
+    let hue = Math.floor((hash * 137.508) % 360);
+    if (hue >= 230 && hue <= 255) {
+        hue = (hue + 92) % 360;
+    }
+    const saturation = 64 + (hash % 9);
+    const borderLightness = 56 + ((hash >> 3) % 7);
+    const accentLightness = 74 + ((hash >> 5) % 8);
+
+    return {
+        border: `hsl(${hue} ${saturation}% ${borderLightness}%)`,
+        bg: `hsl(${hue} ${Math.max(58, saturation - 6)}% 20% / 0.24)`,
+        accent: `hsl(${hue} ${Math.min(90, saturation + 10)}% ${accentLightness}%)`,
+    };
+};
+
 const toneStyleForGuide = (item) => {
     const toneKey = item?.study_group_id ?? item?.study_group?.id ?? item?.study_group?.name ?? 'global';
-    const tone = tonePalette[hashGroupKey(toneKey) % tonePalette.length];
+    const tone = toneForGroup(String(toneKey));
 
     return {
         '--guide-tone-border': tone.border,
