@@ -45,14 +45,6 @@ const shortText = (text, max = 130) => {
     return `${value.slice(0, max)}...`;
 };
 
-const tonePalette = [
-    { border: '#2d65cf', bg: 'rgba(22, 47, 93, 0.20)', accent: '#8cc4ff' },
-    { border: '#1b9a6a', bg: 'rgba(20, 82, 62, 0.18)', accent: '#8ff0c8' },
-    { border: '#8b5cf6', bg: 'rgba(67, 46, 112, 0.20)', accent: '#ccb5ff' },
-    { border: '#c97f1c', bg: 'rgba(92, 62, 20, 0.20)', accent: '#ffd28d' },
-    { border: '#c24b79', bg: 'rgba(96, 35, 61, 0.20)', accent: '#ffb8d2' },
-];
-
 const hashGroupKey = (value) => {
     const normalized = String(value || 'public');
     let hash = 0;
@@ -65,9 +57,37 @@ const hashGroupKey = (value) => {
     return Math.abs(hash);
 };
 
+const toneForEvent = (item) => {
+    const groupId = item?.study_group_id ?? item?.study_group?.id ?? null;
+
+    if (!groupId) {
+        return {
+            border: '#2d65cf',
+            bg: 'rgba(22, 47, 93, 0.20)',
+            accent: '#8cc4ff',
+        };
+    }
+
+    const hash = hashGroupKey(String(groupId));
+    let hue = Math.floor((hash * 137.508) % 360);
+
+    if (hue >= 185 && hue <= 225) {
+        hue = (hue + 92) % 360;
+    }
+
+    const saturation = 66 + (hash % 8);
+    const borderLightness = 56 + ((hash >> 3) % 7);
+    const accentLightness = 74 + ((hash >> 5) % 8);
+
+    return {
+        border: `hsl(${hue} ${saturation}% ${borderLightness}%)`,
+        bg: `hsl(${hue} ${Math.max(60, saturation - 6)}% 20% / 0.22)`,
+        accent: `hsl(${hue} ${Math.min(90, saturation + 10)}% ${accentLightness}%)`,
+    };
+};
+
 const toneStyleForEvent = (item) => {
-    const toneKey = item?.study_group_id ?? item?.study_group?.id ?? item?.study_group?.name ?? 'public';
-    const tone = tonePalette[hashGroupKey(toneKey) % tonePalette.length];
+    const tone = toneForEvent(item);
 
     return {
         '--event-tone-border': tone.border,

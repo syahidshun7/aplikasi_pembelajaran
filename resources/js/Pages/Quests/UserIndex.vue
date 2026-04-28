@@ -43,14 +43,6 @@ const questTypeClass = (questType) => {
         : 'text-sky-300 border-sky-900 bg-sky-900/20';
 };
 
-const tonePalette = [
-    { border: '#2d65cf', bg: 'rgba(22, 47, 93, 0.20)', accent: '#8cc4ff' },
-    { border: '#1b9a6a', bg: 'rgba(20, 82, 62, 0.18)', accent: '#8ff0c8' },
-    { border: '#8b5cf6', bg: 'rgba(67, 46, 112, 0.20)', accent: '#ccb5ff' },
-    { border: '#c97f1c', bg: 'rgba(92, 62, 20, 0.20)', accent: '#ffd28d' },
-    { border: '#c24b79', bg: 'rgba(96, 35, 61, 0.20)', accent: '#ffb8d2' },
-];
-
 const hashGroupKey = (value) => {
     const normalized = String(value || 'global');
     let hash = 0;
@@ -63,9 +55,27 @@ const hashGroupKey = (value) => {
     return Math.abs(hash);
 };
 
+const toneForGroup = (groupKey) => {
+    if (!groupKey || groupKey === 'global') {
+        return {
+            border: '#2d65cf',
+            bg: 'rgba(22, 47, 93, 0.20)',
+            accent: '#8cc4ff',
+        };
+    }
+
+    const hash = hashGroupKey(groupKey);
+    const hue = hash % 360;
+    const border = `hsl(${hue} 70% 58%)`;
+    const accent = `hsl(${hue} 82% 76%)`;
+    const bg = `hsl(${hue} 72% 20% / 0.24)`;
+
+    return { border, bg, accent };
+};
+
 const toneStyleForQuest = (item) => {
     const toneKey = item?.study_group_id ?? item?.study_group?.id ?? item?.study_group?.name ?? 'global';
-    const tone = tonePalette[hashGroupKey(toneKey) % tonePalette.length];
+    const tone = toneForGroup(String(toneKey));
 
     return {
         '--quest-tone-border': tone.border,
