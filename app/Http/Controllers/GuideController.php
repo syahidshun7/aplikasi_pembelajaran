@@ -15,7 +15,8 @@ class GuideController extends Controller
     {
         $user = Auth::user();
         $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
-        $canManageMembership = $user && (! $isStaffPlayMode || (bool) $user->isMentor());
+        $canAdminPreviewGuide = (bool) $user?->isAdmin();
+        $canManageMembership = $user && (! $isStaffPlayMode || (bool) $user->isMentor() || $canAdminPreviewGuide);
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'class_group_id' => ['nullable', 'integer'],
@@ -24,12 +25,20 @@ class GuideController extends Controller
         $search = trim((string) ($validated['search'] ?? ''));
         $classGroupId = (int) ($validated['class_group_id'] ?? 0);
         $userJobId = $user?->job_id;
-        $userGroupIds = $canManageMembership
-            ? $user->studyGroups()
-                ->where('study_groups.job_id', $userJobId)
-                ->pluck('study_groups.id')
-                ->toArray()
-            : [];
+        if ($canAdminPreviewGuide && $isStaffPlayMode) {
+            $userGroupIds = StudyGroup::query()
+                ->when(! is_null($userJobId), fn ($query) => $query->where('job_id', $userJobId))
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+        } else {
+            $userGroupIds = $canManageMembership
+                ? $user->studyGroups()
+                    ->where('study_groups.job_id', $userJobId)
+                    ->pluck('study_groups.id')
+                    ->toArray()
+                : [];
+        }
         $availableClassGroups = StudyGroup::query()
             ->whereIn('id', $userGroupIds)
             ->orderBy('name')
@@ -87,10 +96,20 @@ class GuideController extends Controller
             return;
         }
 
-        abort_if((bool) Auth::user()?->isStaffPlayMode(), 403, 'STAFF_PLAY_MODE_GUIDE_ACCESS_DENIED');
+        $user = Auth::user();
+        $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
+        $canAdminPreviewGuide = (bool) $user?->isAdmin();
+        $canManageMembership = $user && (! $isStaffPlayMode || (bool) $user->isMentor() || $canAdminPreviewGuide);
 
-        $userGroupIds = Auth::user()
-            ->studyGroups()
+        abort_unless($canManageMembership, 403, 'STAFF_PLAY_MODE_GUIDE_ACCESS_DENIED');
+
+        $userJobId = $user?->job_id;
+        if ($canAdminPreviewGuide && $isStaffPlayMode) {
+            return;
+        }
+
+        $userGroupIds = $user->studyGroups()
+            ->where('study_groups.job_id', $userJobId)
             ->pluck('study_groups.id')
             ->map(fn ($id) => (int) $id)
             ->all();

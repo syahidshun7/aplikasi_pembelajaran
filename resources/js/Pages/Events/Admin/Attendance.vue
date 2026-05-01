@@ -57,7 +57,7 @@ const photoUrl = (user) => {
                     <div>
                         <h1 class="text-base md:text-xl text-white uppercase tracking-widest">{{ event.title }}</h1>
                         <p class="text-[8px] text-slate-400 uppercase mt-2">
-                            ABSENSI_EVENT | GROUP: <span class="text-cyan-400">{{ event.study_group?.name || 'NO_GROUP' }}</span>
+                            ABSENSI_EVENT | GROUP: <span class="text-cyan-400">{{ event.study_group?.name || 'GLOBAL_EVENT' }}</span>
                         </p>
                     </div>
                     <Link :href="route('admin.events.detail', event.uuid)" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white uppercase text-[8px]">
@@ -78,11 +78,11 @@ const photoUrl = (user) => {
                     </button>
                 </div>
 
-                <p v-if="!event.study_group_id" class="text-[8px] text-slate-500 uppercase italic">
-                    Attendance hanya aktif untuk event yang terhubung ke study group.
+                <p v-if="!event.study_group_id" class="text-[8px] text-cyan-300 uppercase italic mb-4">
+                    Event global: absensi berlaku lintas kelas sesuai target job event.
                 </p>
 
-                <div v-else>
+                <div>
                     <div class="p-3 border border-slate-700 bg-black/30 mb-4">
                         <p class="text-[8px] text-slate-300 uppercase mb-2">Global_Action</p>
                         <div class="flex flex-wrap gap-2">
@@ -129,7 +129,7 @@ const photoUrl = (user) => {
                     </div>
 
                     <p v-if="!attendanceUsers.length" class="text-[8px] text-slate-500 uppercase italic mt-3">
-                        Belum ada anggota study group untuk diabsen.
+                        Belum ada peserta yang bisa diabsen untuk event ini.
                     </p>
                 </div>
             </div>

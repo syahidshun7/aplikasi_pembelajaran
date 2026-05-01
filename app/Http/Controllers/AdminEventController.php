@@ -249,26 +249,26 @@ class AdminEventController extends Controller
 
         $event->load(['studyGroup:id,name', 'attendances']);
 
-        $attendanceUsers = collect();
-        if ($event->study_group_id) {
-            $attendanceUsers = User::query()
-                ->select('users.id', 'users.name', 'users.profile_photo')
-                ->whereIn('users.id', function ($q) use ($event) {
+        $attendanceUsers = User::query()
+            ->select('users.id', 'users.name', 'users.profile_photo')
+            ->whereNotIn('users.role', User::staffRoles())
+            ->when($event->study_group_id, function ($query) use ($event) {
+                $query->whereIn('users.id', function ($q) use ($event) {
                     $q->from('group_user as gu')
-                        ->join('users as gu_users', 'gu_users.id', '=', 'gu.user_id')
-                        ->select('user_id')
+                        ->select('gu.user_id')
                         ->where('gu.study_group_id', $event->study_group_id)
-                        ->whereNull('gu.deleted_at')
-                        ->whereNotIn('gu_users.role', User::staffRoles());
-                })
-                ->orderBy('users.name')
-                ->get()
-                ->map(function ($user) use ($event) {
-                    $status = $event->attendances->firstWhere('user_id', $user->id)?->status ?? 'pending';
-                    $user->attendance_status = $status;
-                    return $user;
+                        ->whereNull('gu.deleted_at');
                 });
-        }
+            }, function ($query) use ($event) {
+                $query->where('users.job_id', (int) $event->job_id);
+            })
+            ->orderBy('users.name')
+            ->get()
+            ->map(function ($user) use ($event) {
+                $status = $event->attendances->firstWhere('user_id', $user->id)?->status ?? 'pending';
+                $user->attendance_status = $status;
+                return $user;
+            });
 
         return Inertia::render('Events/Admin/Attendance', [
             'event' => $event,
@@ -414,25 +414,22 @@ class AdminEventController extends Controller
             'attendance.*.status' => ['required', 'in:pending,present,absent,excused'],
         ]);
 
-        $allowedUserIds = collect();
-        if ($event->study_group_id) {
-            $allowedUserIds = User::query()
-                ->whereIn('id', function ($q) use ($event) {
+        $allowedUserIds = User::query()
+            ->whereNotIn('users.role', User::staffRoles())
+            ->when($event->study_group_id, function ($query) use ($event) {
+                $query->whereIn('users.id', function ($q) use ($event) {
                     $q->from('group_user as gu')
-                        ->join('users as gu_users', 'gu_users.id', '=', 'gu.user_id')
-                        ->select('user_id')
+                        ->select('gu.user_id')
                         ->where('gu.study_group_id', $event->study_group_id)
-                        ->whereNull('gu.deleted_at')
-                        ->whereNotIn('gu_users.role', User::staffRoles());
-                })
-                ->pluck('id');
-        }
+                        ->whereNull('gu.deleted_at');
+                });
+            }, function ($query) use ($event) {
+                $query->where('users.job_id', (int) $event->job_id);
+            })
+            ->pluck('users.id');
 
         $rows = collect($validated['attendance'])
-            ->filter(function ($row) use ($event, $allowedUserIds) {
-                if (! $event->study_group_id) {
-                    return false;
-                }
+            ->filter(function ($row) use ($allowedUserIds) {
                 return $allowedUserIds->contains((int) $row['user_id']);
             })
             ->map(function ($row) use ($event) {
