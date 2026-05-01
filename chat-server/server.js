@@ -39,6 +39,7 @@ const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_SECONDS = 1;
 const MESSAGE_PAGE_SIZE = 10;
 const MESSAGE_PAGE_MAX = 50;
+const DM_CONTACT_LIMIT = 200;
 
 /**
  * App + server bootstrap
@@ -134,6 +135,25 @@ const buildJobRoom = (jobValue) => {
     };
 };
 
+const buildDmRoomByUserIds = (userIdA, userIdB) => {
+    const first = Math.min(Number(userIdA || 0), Number(userIdB || 0));
+    const second = Math.max(Number(userIdA || 0), Number(userIdB || 0));
+
+    if (!Number.isInteger(first) || !Number.isInteger(second) || first <= 0 || second <= 0 || first === second) {
+        return '';
+    }
+
+    return `dm:${first}-${second}`;
+};
+
+const buildUserInboxRoom = (userId) => `user:${Number(userId || 0)}`;
+
+const userDisplayName = (user) => {
+    const username = normalizeText(user?.username);
+    if (username) return username;
+    return normalizeText(user?.name, 'Anonymous');
+};
+
 const onlineUsersKey = (room) => `online:room:${room}:users`;
 const onlineUserCounterKey = (room, userId) => `online:room:${room}:user:${userId}:count`;
 const rateLimitKey = (userId, epochSecond) => `rate_limit:user:${userId}:${epochSecond}`;
@@ -176,19 +196,397 @@ const validateTokenAndLoadUser = async (token) => {
     const userId = parseUserIdFromToken(token);
     if (!userId) return null;
 
+    return loadUserById(userId);
+};
+
+const loadUserById = async (userId) => {
     const [rows] = await dbPool.execute(
         `SELECT u.id,
                 u.name,
+                u.username,
+                u.role,
+                u.job_id,
                 COALESCE(jr.name, u.role, 'General') AS job
          FROM users u
          LEFT JOIN job_roles jr ON jr.id = u.job_id
-         WHERE u.id = ?
+         WHERE u.deleted_at IS NULL
+           AND u.id = ?
          LIMIT 1`,
         [userId]
     );
 
     if (!rows.length) return null;
     return rows[0];
+};
+
+const buildUserRoomCatalog = async (user) => {
+    const { room: jobRoomName, job } = buildJobRoom(user?.job);
+    const jobRoom = {
+        type: 'job',
+        key: jobRoomName,
+        room: jobRoomName,
+        label: `Job: ${job}`,
+        meta: {
+            job,
+        },
+    };
+
+    const [classRows] = await dbPool.execute(
+        `SELECT sg.uuid,
+                sg.name
+         FROM group_user gu
+         INNER JOIN study_groups sg ON sg.id = gu.study_group_id
+         WHERE gu.user_id = ?
+           AND gu.deleted_at IS NULL
+           AND sg.deleted_at IS NULL
+         ORDER BY sg.name ASC`,
+        [user.id]
+    );
+
+    const classRooms = classRows.map((row) => {
+        const groupUuid = normalizeText(row.uuid);
+        return {
+            type: 'class',
+            key: groupUuid,
+            room: `class:${groupUuid}`,
+            label: `Class: ${normalizeText(row.name, groupUuid)}`,
+            meta: {
+                study_group_uuid: groupUuid,
+                study_group_name: normalizeText(row.name, groupUuid),
+            },
+        };
+    }).filter((room) => room.key !== '');
+
+    const [dmRows] = await dbPool.execute(
+        `SELECT DISTINCT u.id,
+                u.name,
+                u.username
+         FROM group_user gu_self
+         INNER JOIN group_user gu_peer ON gu_peer.study_group_id = gu_self.study_group_id
+         INNER JOIN users u ON u.id = gu_peer.user_id
+         INNER JOIN study_groups sg ON sg.id = gu_self.study_group_id
+         WHERE gu_self.user_id = ?
+           AND gu_self.deleted_at IS NULL
+           AND gu_peer.deleted_at IS NULL
+           AND gu_peer.user_id != ?
+           AND u.deleted_at IS NULL
+           AND sg.deleted_at IS NULL
+         ORDER BY COALESCE(NULLIF(u.username, ''), u.name) ASC
+         LIMIT ${DM_CONTACT_LIMIT}`,
+        [user.id, user.id]
+    );
+
+    const dmContacts = dmRows.map((row) => {
+        const peerId = Number(row.id || 0);
+        const peerName = normalizeText(row.name, 'User');
+        const peerUsername = normalizeText(row.username);
+        return {
+            user_id: peerId,
+            name: peerName,
+            username: peerUsername,
+            label: peerUsername || peerName,
+        };
+    }).filter((contact) => Number.isInteger(contact.user_id) && contact.user_id > 0);
+
+    return {
+        job_room: jobRoom,
+        class_rooms: classRooms,
+        dm_contacts: dmContacts,
+    };
+};
+
+const resolveRoomAssignment = (catalog, requestData = {}) => {
+    const requestedType = normalizeText(requestData.type || requestData.room_type || 'job').toLowerCase();
+
+    if (requestedType === 'class') {
+        const requestedUuid = normalizeText(
+            requestData.group_uuid || requestData.room_key || requestData.key || requestData.target
+        );
+
+        const matchedClassRoom = catalog.class_rooms.find((room) => room.key === requestedUuid);
+        if (matchedClassRoom) {
+            return matchedClassRoom;
+        }
+
+        return null;
+    }
+
+    if (requestedType === 'dm') {
+        const targetUserId = normalizePositiveInt(requestData.user_id || requestData.target_user_id, null);
+        if (!targetUserId) {
+            return null;
+        }
+
+        const matchedContact = catalog.dm_contacts.find((contact) => contact.user_id === targetUserId);
+        if (!matchedContact) {
+            return null;
+        }
+
+        const roomName = buildDmRoomByUserIds(requestData.current_user_id, targetUserId);
+        if (!roomName) {
+            return null;
+        }
+
+        return {
+            type: 'dm',
+            key: String(targetUserId),
+            room: roomName,
+            label: `DM: ${matchedContact.label}`,
+            meta: {
+                peer_user_id: targetUserId,
+                peer_name: matchedContact.name,
+                peer_username: matchedContact.username,
+            },
+        };
+    }
+
+    return catalog.job_room;
+};
+
+const emitRoomAssignedWithHistory = async (socket, presence) => {
+    socket.emit('room_assigned', {
+        room: presence.room,
+        room_type: presence.roomType,
+        room_key: presence.roomKey,
+        room_label: presence.roomLabel,
+        job: presence.job,
+        user: {
+            id: presence.userId,
+            name: presence.userRealName,
+            username: presence.userName,
+        },
+    });
+
+    const history = await loadRoomMessages({
+        room: presence.room,
+        limit: MESSAGE_PAGE_SIZE,
+    });
+
+    socket.emit('message_history', {
+        room: presence.room,
+        mode: 'replace',
+        ...history,
+    });
+};
+
+const assignSocketToRoom = async ({ socket, user, roomAssignment }) => {
+    const previousPresence = socketPresence.get(socket.id);
+    if (previousPresence?.room === roomAssignment.room) {
+        await emitRoomAssignedWithHistory(socket, previousPresence);
+        return previousPresence;
+    }
+
+    const removedPresence = await removeSocketFromRoom(socket, { leaveSocketRoom: true });
+    if (removedPresence?.room) {
+        await emitOnlineUsers(removedPresence.room);
+    }
+
+    await socket.join(roomAssignment.room);
+
+    const nextPresence = {
+        room: roomAssignment.room,
+        roomType: roomAssignment.type,
+        roomKey: roomAssignment.key,
+        roomLabel: roomAssignment.label,
+        userId: Number(user.id),
+        userName: userDisplayName(user),
+        userRealName: normalizeText(user.name, userDisplayName(user)),
+        job: normalizeText(user.job, 'General'),
+    };
+
+    socketPresence.set(socket.id, nextPresence);
+
+    await addOnlineUser(nextPresence.room, nextPresence.userId, nextPresence.userName);
+    await emitOnlineUsers(nextPresence.room);
+    await emitRoomAssignedWithHistory(socket, nextPresence);
+
+    return nextPresence;
+};
+
+const buildCatalogPayload = (catalog) => ({
+    job_room: catalog.job_room,
+    class_rooms: catalog.class_rooms,
+    dm_contacts: catalog.dm_contacts,
+});
+
+const buildRoomOptionKey = ({ roomType, roomKey, senderUserId = null, recipientUserId = null }) => {
+    if (roomType === 'class') {
+        const classKey = normalizeText(roomKey);
+        return classKey ? `class:${classKey}` : '';
+    }
+
+    if (roomType === 'dm') {
+        const senderId = Number(senderUserId || 0);
+        const recipientId = Number(recipientUserId || 0);
+        if (!senderId || !recipientId) return '';
+        const peerId = senderId === recipientId ? null : senderId;
+        return peerId ? `dm:${peerId}` : '';
+    }
+
+    return 'job';
+};
+
+const buildCurrentOptionKeyByPresence = (presence) => {
+    if (presence?.roomType === 'class') {
+        const roomKey = normalizeText(presence.roomKey);
+        return roomKey ? `class:${roomKey}` : 'job';
+    }
+
+    if (presence?.roomType === 'dm') {
+        const roomKey = normalizeText(presence.roomKey);
+        return roomKey ? `dm:${roomKey}` : 'job';
+    }
+
+    return 'job';
+};
+
+const buildCatalogRoomTargets = (catalog, currentUserId) => {
+    const targets = [];
+
+    if (catalog?.job_room?.room) {
+        targets.push({
+            option_key: 'job',
+            room: String(catalog.job_room.room),
+        });
+    }
+
+    for (const classRoom of (catalog?.class_rooms || [])) {
+        const key = normalizeText(classRoom?.key);
+        const room = normalizeText(classRoom?.room);
+        if (!key || !room) continue;
+
+        targets.push({
+            option_key: `class:${key}`,
+            room,
+        });
+    }
+
+    for (const contact of (catalog?.dm_contacts || [])) {
+        const peerUserId = Number(contact?.user_id || 0);
+        if (!Number.isInteger(peerUserId) || peerUserId <= 0) continue;
+
+        const room = buildDmRoomByUserIds(currentUserId, peerUserId);
+        if (!room) continue;
+
+        targets.push({
+            option_key: `dm:${peerUserId}`,
+            room,
+        });
+    }
+
+    return targets;
+};
+
+const loadUnreadSnapshotForCatalog = async ({ userId, catalog }) => {
+    const parsedUserId = Number(userId || 0);
+    if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) {
+        return {};
+    }
+
+    const targets = buildCatalogRoomTargets(catalog, parsedUserId);
+    if (!targets.length) return {};
+
+    const uniqueRooms = Array.from(new Set(targets.map((target) => target.room).filter(Boolean)));
+    if (!uniqueRooms.length) return {};
+
+    const placeholders = uniqueRooms.map(() => '?').join(',');
+
+    try {
+        const [rows] = await dbPool.execute(
+            `SELECT m.room,
+                    COUNT(*) AS unread_count
+             FROM messages m
+             LEFT JOIN chat_room_reads rr
+               ON rr.user_id = ?
+              AND rr.room = m.room
+             WHERE m.room IN (${placeholders})
+               AND m.user_id <> ?
+               AND m.id > COALESCE(rr.last_read_message_id, 0)
+             GROUP BY m.room`,
+            [parsedUserId, ...uniqueRooms, parsedUserId]
+        );
+
+        const unreadByRoom = new Map();
+        for (const row of rows) {
+            const room = normalizeText(row?.room);
+            const unreadCount = Number(row?.unread_count || 0);
+            if (!room) continue;
+            if (!Number.isFinite(unreadCount) || unreadCount <= 0) continue;
+            unreadByRoom.set(room, Math.floor(unreadCount));
+        }
+
+        const counts = {};
+        for (const target of targets) {
+            const roomUnread = unreadByRoom.get(target.room) || 0;
+            if (roomUnread <= 0) continue;
+            counts[target.option_key] = roomUnread;
+        }
+
+        return counts;
+    } catch (error) {
+        const sqlState = String(error?.code || '');
+        if (sqlState === 'ER_NO_SUCH_TABLE') {
+            return {};
+        }
+        throw error;
+    }
+};
+
+const emitUnreadSnapshotToSocket = async ({ socket, userId, catalog }) => {
+    const counts = await loadUnreadSnapshotForCatalog({ userId, catalog });
+    socket.emit('unread_snapshot', { counts });
+};
+
+const getAudienceUserIdsByRoom = async (presence) => {
+    if (!presence?.roomType || !presence?.room) return [];
+
+    if (presence.roomType === 'dm') {
+        const selfId = Number(presence.userId || 0);
+        const peerId = Number(presence.roomKey || 0);
+        const audience = [selfId, peerId].filter((id) => Number.isInteger(id) && id > 0);
+        return Array.from(new Set(audience));
+    }
+
+    if (presence.roomType === 'class') {
+        const classUuid = normalizeText(presence.roomKey);
+        if (!classUuid) return [];
+
+        const [rows] = await dbPool.execute(
+            `SELECT gu.user_id
+             FROM group_user gu
+             INNER JOIN study_groups sg ON sg.id = gu.study_group_id
+             WHERE sg.uuid = ?
+               AND sg.deleted_at IS NULL
+               AND gu.deleted_at IS NULL`,
+            [classUuid]
+        );
+
+        return Array.from(
+            new Set(
+                rows
+                    .map((row) => Number(row.user_id || 0))
+                    .filter((id) => Number.isInteger(id) && id > 0)
+            )
+        );
+    }
+
+    const jobName = normalizeText(presence.job, 'General');
+    const [rows] = await dbPool.execute(
+        `SELECT u.id
+         FROM users u
+         LEFT JOIN job_roles jr ON jr.id = u.job_id
+         WHERE u.deleted_at IS NULL
+           AND COALESCE(jr.name, u.role, 'General') = ?`,
+        [jobName]
+    );
+
+    return Array.from(
+        new Set(
+            rows
+                .map((row) => Number(row.id || 0))
+                .filter((id) => Number.isInteger(id) && id > 0)
+        )
+    );
 };
 
 const addOnlineUser = async (room, userId, userName) => {
@@ -254,6 +652,42 @@ const saveMessage = async (userId, room, message) => {
     return result.insertId;
 };
 
+const markRoomAsRead = async ({ userId, room, requestedMessageId = null }) => {
+    const parsedUserId = Number(userId || 0);
+    const parsedRoom = normalizeText(room);
+    if (!Number.isInteger(parsedUserId) || parsedUserId <= 0 || parsedRoom === '') {
+        return 0;
+    }
+
+    const [rows] = await dbPool.execute(
+        'SELECT COALESCE(MAX(id), 0) AS max_id FROM messages WHERE room = ?',
+        [parsedRoom]
+    );
+
+    const roomMaxId = Number(rows?.[0]?.max_id || 0);
+    const requestedId = normalizePositiveInt(requestedMessageId, null);
+    const safeLastReadId = requestedId ? Math.min(requestedId, roomMaxId) : roomMaxId;
+
+    try {
+        await dbPool.execute(
+            `INSERT INTO chat_room_reads (user_id, room, last_read_message_id, last_read_at, created_at, updated_at)
+             VALUES (?, ?, ?, NOW(), NOW(), NOW())
+             ON DUPLICATE KEY UPDATE
+                 last_read_message_id = GREATEST(last_read_message_id, VALUES(last_read_message_id)),
+                 last_read_at = VALUES(last_read_at),
+                 updated_at = VALUES(updated_at)`,
+            [parsedUserId, parsedRoom, safeLastReadId]
+        );
+    } catch (error) {
+        const sqlState = String(error?.code || '');
+        if (sqlState !== 'ER_NO_SUCH_TABLE') {
+            throw error;
+        }
+    }
+
+    return safeLastReadId;
+};
+
 const loadRoomMessages = async ({ room, beforeId = null, limit = MESSAGE_PAGE_SIZE }) => {
     const pageLimit = normalizePositiveInt(limit, MESSAGE_PAGE_SIZE, MESSAGE_PAGE_MAX);
     const cursor = normalizePositiveInt(beforeId, null);
@@ -265,7 +699,7 @@ const loadRoomMessages = async ({ room, beforeId = null, limit = MESSAGE_PAGE_SI
                m.room,
                m.message,
                m.created_at,
-               u.name AS user_name
+               COALESCE(NULLIF(u.username, ''), u.name) AS user_name
         FROM messages m
         LEFT JOIN users u ON u.id = m.user_id
         WHERE m.room = ?
@@ -366,47 +800,112 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            const { room, job } = buildJobRoom(user.job);
-
-            const previousPresence = await removeSocketFromRoom(socket, { leaveSocketRoom: true });
-            if (previousPresence?.room) {
-                await emitOnlineUsers(previousPresence.room);
+            const inboxRoom = buildUserInboxRoom(user.id);
+            if (inboxRoom !== 'user:0') {
+                await socket.join(inboxRoom);
             }
 
-            await socket.join(room);
+            const catalog = await buildUserRoomCatalog(user);
 
-            socketPresence.set(socket.id, {
-                room,
-                userId: user.id,
-                userName: user.name,
-                job,
+            const roomAssignment = resolveRoomAssignment(catalog, {
+                ...data,
+                current_user_id: Number(user.id),
+            }) || catalog.job_room;
+
+            await assignSocketToRoom({
+                socket,
+                user,
+                roomAssignment,
             });
 
-            await addOnlineUser(room, user.id, user.name);
-            await emitOnlineUsers(room);
-
-            socket.emit('room_assigned', {
-                room,
-                job,
-                user: {
-                    id: user.id,
-                    name: user.name,
-                },
-            });
-
-            const history = await loadRoomMessages({
-                room,
-                limit: MESSAGE_PAGE_SIZE,
-            });
-
-            socket.emit('message_history', {
-                room,
-                mode: 'replace',
-                ...history,
+            socket.emit('room_catalog', buildCatalogPayload(catalog));
+            await emitUnreadSnapshotToSocket({
+                socket,
+                userId: Number(user.id),
+                catalog,
             });
         } catch (error) {
             console.error('join_room error:', error);
             socket.emit('server_error', { message: 'Failed to join room' });
+        }
+    });
+
+    socket.on('switch_room', async (data = {}) => {
+        try {
+            const presence = socketPresence.get(socket.id);
+            if (!presence?.userId) {
+                socket.emit('auth_error', { message: 'Join a room first' });
+                return;
+            }
+
+            const user = await loadUserById(presence.userId);
+            if (!user) {
+                socket.emit('auth_error', { message: 'User session invalid' });
+                return;
+            }
+
+            const catalog = await buildUserRoomCatalog(user);
+            socket.emit('room_catalog', buildCatalogPayload(catalog));
+
+            const roomAssignment = resolveRoomAssignment(catalog, {
+                ...data,
+                current_user_id: Number(user.id),
+            });
+
+            if (!roomAssignment) {
+                socket.emit('room_switch_failed', { message: 'Room tidak ditemukan atau tidak diizinkan.' });
+                return;
+            }
+
+            await assignSocketToRoom({
+                socket,
+                user,
+                roomAssignment,
+            });
+
+            await emitUnreadSnapshotToSocket({
+                socket,
+                userId: Number(user.id),
+                catalog,
+            });
+        } catch (error) {
+            console.error('switch_room error:', error);
+            socket.emit('server_error', { message: 'Failed to switch room' });
+        }
+    });
+
+    socket.on('mark_room_read', async (data = {}) => {
+        try {
+            const presence = socketPresence.get(socket.id);
+            if (!presence?.room || !presence?.userId) return;
+
+            const requestRoom = normalizeText(data.room);
+            if (requestRoom && requestRoom !== presence.room) {
+                return;
+            }
+
+            await markRoomAsRead({
+                userId: presence.userId,
+                room: presence.room,
+                requestedMessageId: data.last_message_id,
+            });
+
+            const user = await loadUserById(presence.userId);
+            if (!user) return;
+
+            const catalog = await buildUserRoomCatalog(user);
+            await emitUnreadSnapshotToSocket({
+                socket,
+                userId: Number(user.id),
+                catalog,
+            });
+
+            socket.emit('room_read_ack', {
+                room: presence.room,
+                option_key: buildCurrentOptionKeyByPresence(presence),
+            });
+        } catch (error) {
+            console.error('mark_room_read error:', error);
         }
     });
 
@@ -443,6 +942,33 @@ io.on('connection', (socket) => {
                 time: getTimeStamp(now),
                 created_at: now.toISOString(),
             });
+
+            const audienceUserIds = await getAudienceUserIdsByRoom(presence);
+            for (const recipientUserId of audienceUserIds) {
+                if (Number(recipientUserId) === Number(presence.userId)) {
+                    continue;
+                }
+
+                const roomOptionKey = buildRoomOptionKey({
+                    roomType: presence.roomType,
+                    roomKey: presence.roomKey,
+                    senderUserId: presence.userId,
+                    recipientUserId,
+                });
+
+                io.to(buildUserInboxRoom(recipientUserId)).emit('room_activity', {
+                    message_id: insertedId,
+                    room: presence.room,
+                    room_type: presence.roomType,
+                    room_key: presence.roomKey,
+                    room_label: presence.roomLabel,
+                    room_option_key: roomOptionKey,
+                    sender_user_id: presence.userId,
+                    sender_user_name: presence.userName,
+                    message_preview: message.slice(0, 80),
+                    created_at: now.toISOString(),
+                });
+            }
 
             socket.to(presence.room).emit('typing_status', {
                 room: presence.room,

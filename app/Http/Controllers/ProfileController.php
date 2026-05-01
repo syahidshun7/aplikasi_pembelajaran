@@ -85,6 +85,9 @@ class ProfileController extends Controller
     {
         $user = $request->user();
         $validated = $request->validated();
+        $profilePayload = collect($validated)
+            ->except('profile_photo')
+            ->all();
         $requestedJobId = (int) ($validated['job_id'] ?? 0);
         $currentJobId = (int) ($user->job_id ?? 0);
 
@@ -101,7 +104,7 @@ class ProfileController extends Controller
         }
 
         // 1. Isi data teks (name, email, username) dari hasil validasi
-        $user->fill($validated);
+        $user->fill($profilePayload);
 
         // 2. Reset verifikasi email jika email diubah
         if ($user->isDirty('email')) {
