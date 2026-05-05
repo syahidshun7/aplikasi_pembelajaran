@@ -92,6 +92,7 @@ class CreationApiController extends Controller
                 array_key_exists('is_public', $validated) ? $validated['is_public'] : null,
                 $publicationStatus
             ),
+            'is_open_for_review' => (bool) ($validated['is_open_for_review'] ?? false),
         ]);
 
         $uploadedPhotos = $this->uploadedPhotos($request);
@@ -140,7 +141,7 @@ class CreationApiController extends Controller
             ->all();
 
         if (! $creation->isOwnedBy($userId)) {
-            unset($payload['is_public'], $payload['is_open_for_collaboration'], $payload['publication_status']);
+            unset($payload['is_public'], $payload['is_open_for_collaboration'], $payload['is_open_for_review'], $payload['publication_status']);
         }
 
         if (! is_null($content)) {
@@ -346,6 +347,10 @@ class CreationApiController extends Controller
             'progress' => (int) ($creation->progress ?? 0),
             'is_public' => (bool) $creation->is_public,
             'is_open_for_collaboration' => (bool) $creation->is_open_for_collaboration,
+            'is_open_for_review' => (bool) ($creation->is_open_for_review ?? false),
+            'review_status' => (string) ($creation->review_status ?? 'none'),
+            'assigned_reviewer_id' => $creation->assigned_reviewer_id ? (int) $creation->assigned_reviewer_id : null,
+            'assigned_rubric_id' => $creation->assigned_rubric_id ? (int) $creation->assigned_rubric_id : null,
             'appreciations_count' => (int) ($creation->appreciations_count ?? 0),
             'insights_count' => (int) ($creation->insights_count ?? 0),
             'photos_count' => (int) ($creation->photos_count ?? count($photos)),

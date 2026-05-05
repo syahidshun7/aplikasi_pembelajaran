@@ -56,6 +56,16 @@ class CreationPageController extends Controller
         ]);
     }
 
+    public function showReview(Request $request, Creation $creation): Response
+    {
+        $viewerId = (int) ($request->user()?->id ?? 0);
+        abort_unless($creation->canView($viewerId), 404, 'CREATION_NOT_FOUND');
+
+        return Inertia::render('Creations/ReviewResult', [
+            'creationId' => (int) $creation->id,
+        ]);
+    }
+
     private function categoryOptions(): array
     {
         return CreationCategory::query()

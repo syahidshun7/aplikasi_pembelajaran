@@ -96,6 +96,7 @@ const handleLogout = () => {
                     <Link href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
                     <Link :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
                     <Link :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
+                    <Link :href="route('admin.creations.queue')" class="dropdown-item" @click="closeAllMenus">CREATION REVIEW</Link>
                     <Link :href="route('admin.task-banks.index')" class="dropdown-item" @click="closeAllMenus">TASK BANK</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.daily-quest-definitions.index')" class="dropdown-item" @click="closeAllMenus">DAILY QUEST</Link>
                     <Link :href="route('admin.rubrics.index')" class="dropdown-item" @click="closeAllMenus">RUBRICS</Link>
@@ -128,6 +129,7 @@ const handleLogout = () => {
                 <Link href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
                 <Link :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
                 <Link :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
+                <Link :href="route('admin.creations.queue')" class="dropdown-item" @click="closeAllMenus">CREATION REVIEW</Link>
                 <Link :href="route('admin.task-banks.index')" class="dropdown-item" @click="closeAllMenus">TASK BANK</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.daily-quest-definitions.index')" class="dropdown-item" @click="closeAllMenus">DAILY QUEST</Link>
                 <Link :href="route('admin.rubrics.index')" class="dropdown-item" @click="closeAllMenus">RUBRICS</Link>

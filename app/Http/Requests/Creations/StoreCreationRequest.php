@@ -30,6 +30,7 @@ class StoreCreationRequest extends FormRequest
             'progress' => ['nullable', 'integer', 'between:0,100'],
             'is_public' => ['sometimes', 'boolean'],
             'is_open_for_collaboration' => ['sometimes', 'boolean'],
+            'is_open_for_review' => ['sometimes', 'boolean'],
             'photos' => ['sometimes', 'array', 'max:8'],
             'photos.*' => ['bail', 'file', 'mimes:jpg,jpeg,png,webp', 'mimetypes:image/jpeg,image/png,image/x-png,image/webp', 'max:4096'],
         ];
@@ -58,6 +59,7 @@ class StoreCreationRequest extends FormRequest
             'progress.integer' => 'Progress harus berupa angka bulat.',
             'progress.between' => 'Progress harus berada di antara 0 sampai 100.',
             'is_open_for_collaboration.boolean' => 'Pengaturan kolaborasi tidak valid.',
+            'is_open_for_review.boolean' => 'Pengaturan review mentor tidak valid.',
             'photos.array' => 'Format upload foto tidak valid.',
             'photos.max' => 'Maksimal 8 foto untuk satu creation.',
             'photos.*.file' => 'File foto tidak valid.',
@@ -83,6 +85,7 @@ class StoreCreationRequest extends FormRequest
             'status' => 'status creation',
             'progress' => 'progress',
             'is_open_for_collaboration' => 'pengaturan kolaborasi',
+            'is_open_for_review' => 'pengaturan review mentor',
             'photos' => 'foto creation',
             'photos.*' => 'foto creation',
         ];

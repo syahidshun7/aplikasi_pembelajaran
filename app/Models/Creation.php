@@ -24,6 +24,7 @@ class Creation extends Model
         'progress',
         'is_public',
         'is_open_for_collaboration',
+        'is_open_for_review',
     ];
 
     protected $casts = [
@@ -32,6 +33,7 @@ class Creation extends Model
         'tags' => 'array',
         'is_public' => 'boolean',
         'is_open_for_collaboration' => 'boolean',
+        'is_open_for_review' => 'boolean',
     ];
 
     protected static function booted(): void
@@ -91,6 +93,33 @@ class Creation extends Model
     public function insights()
     {
         return $this->hasMany(CreationInsight::class);
+    }
+
+    public function finalReview()
+    {
+        return $this->hasOne(CreationReview::class);
+    }
+
+    public function peerReviews()
+    {
+        return $this->hasMany(CreationPeerReview::class)
+            ->latest('reviewed_at');
+    }
+
+    public function reviewPublications()
+    {
+        return $this->hasMany(CreationReviewPublication::class)
+            ->latest('published_at');
+    }
+
+    public function assignedReviewer()
+    {
+        return $this->belongsTo(User::class, 'assigned_reviewer_id');
+    }
+
+    public function assignedRubric()
+    {
+        return $this->belongsTo(Rubric::class, 'assigned_rubric_id');
     }
 
     public function topLevelInsights()

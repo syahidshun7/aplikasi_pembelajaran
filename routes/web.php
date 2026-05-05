@@ -12,6 +12,7 @@ use App\Http\Controllers\AdminSubmissionManagementController;
 use App\Http\Controllers\AdminTaskBankController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminDailyQuestDefinitionController;
+use App\Http\Controllers\AdminCreationReviewController;
 use App\Http\Controllers\DoopLabDashboardController;
 use App\Http\Controllers\DoopLabTodoController;
 use App\Models\User;
@@ -132,6 +133,7 @@ if (app()->environment(['local', 'testing'])) {
 
 Route::get('/hall-of-creations', [CreationPageController::class, 'hallIndex'])->name('hall.creations.index');
 Route::get('/hall-of-creations/{creation}', [CreationPageController::class, 'show'])->name('hall.creations.show');
+Route::get('/hall-of-creations/{creation}/review', [CreationPageController::class, 'showReview'])->name('hall.creations.review');
 
 Route::middleware('auth')->group(function () {
     Route::get('/dooplab', function () {
@@ -255,6 +257,7 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
         Route::get('/', [RubricController::class, 'index'])->name('index');
         Route::get('/create', [RubricController::class, 'create'])->name('create');
         Route::post('/', [RubricController::class, 'store'])->name('store');
+        Route::post('/import-json', [RubricController::class, 'importJson'])->name('import-json');
         Route::get('/{rubric}', [RubricController::class, 'show'])->name('show');
         Route::get('/{rubric}/edit', [RubricController::class, 'edit'])->name('edit');
         Route::put('/{rubric}', [RubricController::class, 'update'])->name('update');
@@ -272,6 +275,16 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
 
     Route::post('/admin/notifications/announcement', [NotificationDispatchController::class, 'announcement'])
         ->name('admin.notifications.announcement');
+
+    Route::prefix('admin/creations')->name('admin.creations.')->group(function () {
+        Route::get('/review-queue', [AdminCreationReviewController::class, 'index'])->name('queue');
+        Route::get('/{creation}/preview', [AdminCreationReviewController::class, 'preview'])->name('preview');
+        Route::post('/{creation}/review', [AdminCreationReviewController::class, 'submitFinalReview'])->name('review.submit');
+        Route::post('/{creation}/reviews/publish-aggregate', [AdminCreationReviewController::class, 'publishOfficialAggregate'])
+            ->name('review.publish-aggregate');
+        Route::post('/{creation}/peer-reviews/{peerReview}/publish', [AdminCreationReviewController::class, 'publishOfficialReview'])
+            ->name('review.publish');
+    });
 
 });
 
@@ -319,6 +332,9 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     });
 
     Route::get('/admin/error-logs', [AdminErrorLogController::class, 'index'])->name('admin.error-logs.index');
+
+    Route::patch('/admin/creations/{creation}/assignment', [AdminCreationReviewController::class, 'updateAssignment'])
+        ->name('admin.creations.assignment.update');
 });
 
 Route::middleware(['auth', 'verified', 'role:admin,mentor'])->prefix('admin')->group(function () {

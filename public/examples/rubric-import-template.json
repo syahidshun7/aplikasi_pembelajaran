@@ -1,0 +1,25 @@
+{
+  "rubric": {
+    "title": "Essay Rubric (Sample)",
+    "description": "Rubric untuk menilai karya essay secara terstruktur."
+  },
+  "criteria": [
+    { "id": "c1", "name": "Kebenaran Konsep", "weight": 50, "order": 1 },
+    { "id": "c2", "name": "Struktur Penulisan", "weight": 30, "order": 2 },
+    { "id": "c3", "name": "Kelengkapan Referensi", "weight": 20, "order": 3 }
+  ],
+  "levels": [
+    { "id": "l1", "level": 1, "label": "Poor", "score_value": 1 },
+    { "id": "l2", "level": 2, "label": "Fair", "score_value": 2 },
+    { "id": "l3", "level": 3, "label": "Good", "score_value": 3 },
+    { "id": "l4", "level": 4, "label": "Excellent", "score_value": 4 }
+  ],
+  "matrix": [
+    { "criteria_id": "c1", "level_id": "l1", "description": "Konsep banyak keliru atau tidak relevan." },
+    { "criteria_id": "c1", "level_id": "l4", "description": "Konsep tepat, kuat, dan konsisten." },
+    { "criteria_id": "c2", "level_id": "l1", "description": "Struktur tidak jelas, alur sulit diikuti." },
+    { "criteria_id": "c2", "level_id": "l4", "description": "Struktur runtut, logis, dan mudah dipahami." },
+    { "criteria_id": "c3", "level_id": "l1", "description": "Referensi minim atau tidak kredibel." },
+    { "criteria_id": "c3", "level_id": "l4", "description": "Referensi lengkap, relevan, dan valid." }
+  ]
+}

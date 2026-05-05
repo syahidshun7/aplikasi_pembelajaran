@@ -625,6 +625,14 @@ onBeforeUnmount(() => {
                         <i class="fi fi-rr-link text-[12px]" />
                         <span>Lihat Karya</span>
                     </a>
+                    <Link
+                        :href="route('hall.creations.review', { creation: creation.id })"
+                        class="creation-link-btn"
+                        title="Lihat hasil review"
+                    >
+                        <i class="fi fi-rr-eye text-[12px]" />
+                        <span>Hasil Review</span>
+                    </Link>
                     <button
                         type="button"
                         class="icon-btn inline-flex items-center gap-1"

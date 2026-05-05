@@ -64,6 +64,7 @@ const form = reactive({
     progress: 100,
     publication_status: 'draft',
     is_open_for_collaboration: true,
+    is_open_for_review: false,
 });
 
 const persistKey = computed(() => `creation-editor-${activeCreationId.value || 'new'}`);
@@ -163,6 +164,7 @@ const formSnapshot = () => ({
     progress: clampProgress(form.progress),
     publication_status: String(form.publication_status || 'draft'),
     is_open_for_collaboration: Boolean(form.is_open_for_collaboration),
+    is_open_for_review: Boolean(form.is_open_for_review),
     photos: selectedPhotoFiles.value.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
     removed_photo_ids: [...removedPhotoIds.value].map((id) => Number(id)).sort((left, right) => left - right),
 });
@@ -179,6 +181,7 @@ const buildPersistPayload = (publicationStatus = form.publication_status) => ({
     status: normalizeProjectStatus(form.status),
     progress: clampProgress(form.progress),
     is_open_for_collaboration: Boolean(form.is_open_for_collaboration),
+    is_open_for_review: Boolean(form.is_open_for_review),
 });
 
 const hasMeaningfulContent = () => {
@@ -382,6 +385,7 @@ const applyStateToForm = (payload) => {
     form.progress = clampProgress(payload.progress);
     form.publication_status = String(payload.publication_status || 'draft');
     form.is_open_for_collaboration = toBooleanFlag(payload.is_open_for_collaboration, true);
+    form.is_open_for_review = toBooleanFlag(payload.is_open_for_review, false);
     removedPhotoIds.value = Array.isArray(payload.removed_photo_ids)
         ? payload.removed_photo_ids.map((id) => Number(id)).filter((id) => id > 0)
         : [];
@@ -399,6 +403,7 @@ const applyServerCreationSnapshot = (creation) => {
         progress: creation?.progress,
         publication_status: creation?.publication_status || (creation?.is_public ? 'publish' : 'draft'),
         is_open_for_collaboration: creation?.is_open_for_collaboration,
+        is_open_for_review: creation?.is_open_for_review,
     });
 
     canManageCollaboration.value = Boolean(creation?.can_manage_collaboration ?? creation?.can_delete ?? false);
@@ -582,6 +587,7 @@ const persistCreation = async ({ publicationStatus = form.publication_status, no
         requestPayload.append('status', String(payload.status));
         requestPayload.append('progress', String(payload.progress));
         requestPayload.append('is_open_for_collaboration', payload.is_open_for_collaboration ? '1' : '0');
+        requestPayload.append('is_open_for_review', payload.is_open_for_review ? '1' : '0');
         requestPayload.append('link', String(payload.link || ''));
 
         if (payload.category_id) {
@@ -639,6 +645,10 @@ const persistCreation = async ({ publicationStatus = form.publication_status, no
         form.is_open_for_collaboration = toBooleanFlag(
             saved?.is_open_for_collaboration,
             payload.is_open_for_collaboration,
+        );
+        form.is_open_for_review = toBooleanFlag(
+            saved?.is_open_for_review,
+            payload.is_open_for_review,
         );
         existingPhotos.value = Array.isArray(saved?.photos) ? saved.photos : [];
         removedPhotoIds.value = [];
@@ -1125,6 +1135,37 @@ onBeforeUnmount(() => {
                             {{ canManageCollaboration
                                 ? (form.is_open_for_collaboration ? 'Creator lain bisa kirim request kolaborasi.' : 'Kolaborasi ditutup untuk sementara.')
                                 : 'Hanya owner yang bisa mengubah akses kolaborasi.' }}
+                        </p>
+                    </section>
+
+                    <section class="creation-sidebar__section">
+                        <p class="creation-sidebar__label">Mentor Preview</p>
+                        <div class="creation-sidebar__toggle">
+                            <button
+                                type="button"
+                                class="creation-sidebar__toggle-btn"
+                                :class="{ 'creation-sidebar__toggle-btn--active': form.is_open_for_review }"
+                                :disabled="!canManageCollaboration"
+                                @click="form.is_open_for_review = true"
+                            >
+                                Open Review
+                            </button>
+                            <button
+                                type="button"
+                                class="creation-sidebar__toggle-btn"
+                                :class="{ 'creation-sidebar__toggle-btn--active': !form.is_open_for_review }"
+                                :disabled="!canManageCollaboration"
+                                @click="form.is_open_for_review = false"
+                            >
+                                Close
+                            </button>
+                        </div>
+                        <p class="creation-sidebar__hint">
+                            {{ canManageCollaboration
+                                ? (form.is_open_for_review
+                                    ? 'Mentor atau admin bisa membuka halaman preview dan memberi penilaian rubric.'
+                                    : 'Preview mentor ditutup untuk sementara.')
+                                : 'Hanya owner yang bisa mengubah akses preview mentor.' }}
                         </p>
                     </section>
 

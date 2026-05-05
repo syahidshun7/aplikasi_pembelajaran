@@ -150,6 +150,8 @@ class HallOfCreationApiController extends Controller
             ->load([
                 'photos:id,creation_id,path,sort_order',
                 'collaborators.user:id,name,username,profile_photo',
+                'finalReview.reviewer:id,name,username,profile_photo',
+                'finalReview.rubric:id,title',
             ])
             ->loadCount(['appreciations', 'insights', 'photos', 'collaborators']);
 
@@ -196,6 +198,29 @@ class HallOfCreationApiController extends Controller
                 'viewer_collaboration_request_status' => (string) ($viewerRequest?->status ?? ''),
                 'viewer_collaboration_request_id' => $viewerRequest?->id ? (int) $viewerRequest->id : null,
                 'pending_collaboration_requests' => $pendingRequests,
+                'official_review' => $creation->finalReview ? [
+                    'id' => (int) $creation->finalReview->id,
+                    'score_percent' => (int) $creation->finalReview->score_percent,
+                    'status' => (string) $creation->finalReview->status,
+                    'feedback' => (string) ($creation->finalReview->feedback ?? ''),
+                    'reviewed_at' => $creation->finalReview->reviewed_at?->toISOString(),
+                    'reviewer_label' => (string) (
+                        str_starts_with((string) data_get($creation->finalReview->result_breakdown, 'mode', ''), 'aggregate_')
+                            ? ('AGGREGATED (' . max(2, count((array) data_get($creation->finalReview->result_breakdown, 'reviewers', []))) . ' REVIEWERS)')
+                            : ($creation->finalReview->reviewer?->username ?: $creation->finalReview->reviewer?->name ?: '-')
+                    ),
+                    'is_aggregate' => (bool) str_starts_with((string) data_get($creation->finalReview->result_breakdown, 'mode', ''), 'aggregate_'),
+                    'reviewer' => [
+                        'id' => (int) ($creation->finalReview->reviewer?->id ?? 0),
+                        'name' => (string) ($creation->finalReview->reviewer?->name ?? ''),
+                        'username' => (string) ($creation->finalReview->reviewer?->username ?? ''),
+                        'profile_photo' => (string) ($creation->finalReview->reviewer?->profile_photo ?? ''),
+                    ],
+                    'rubric' => [
+                        'id' => (int) ($creation->finalReview->rubric?->id ?? 0),
+                        'title' => (string) ($creation->finalReview->rubric?->title ?? ''),
+                    ],
+                ] : null,
             ],
         ]);
     }
@@ -225,6 +250,8 @@ class HallOfCreationApiController extends Controller
             'progress' => (int) ($creation->progress ?? 0),
             'is_public' => (bool) $creation->is_public,
             'is_open_for_collaboration' => (bool) $creation->is_open_for_collaboration,
+            'is_open_for_review' => (bool) ($creation->is_open_for_review ?? false),
+            'review_status' => (string) ($creation->review_status ?? 'none'),
             'appreciations_count' => (int) ($creation->appreciations_count ?? 0),
             'insights_count' => (int) ($creation->insights_count ?? 0),
             'photos_count' => (int) ($creation->photos_count ?? $creation->photos->count()),
