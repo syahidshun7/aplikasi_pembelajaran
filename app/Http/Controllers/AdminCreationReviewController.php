@@ -46,12 +46,6 @@ class AdminCreationReviewController extends Controller
                 'finalReview.rubric:id,title',
             ])
             ->withCount('peerReviews')
-            ->where(function ($builder) {
-                $builder->where('is_open_for_review', true)
-                    ->orWhereIn('review_status', ['pending', 'needs_revision', 'approved'])
-                    ->orWhereNotNull('assigned_reviewer_id')
-                    ->orWhereNotNull('assigned_rubric_id');
-            })
             ->when($search !== '', function ($builder) use ($search) {
                 $builder->where(function ($inner) use ($search) {
                     $inner->where('title', 'like', "%{$search}%")
@@ -63,7 +57,13 @@ class AdminCreationReviewController extends Controller
                         });
                 });
             })
-            ->when($reviewStatus !== 'all', fn ($builder) => $builder->where('review_status', $reviewStatus));
+            ->when($reviewStatus === 'none', function ($builder) {
+                $builder->where(function ($statusQuery) {
+                    $statusQuery->whereNull('review_status')
+                        ->orWhere('review_status', 'none');
+                });
+            })
+            ->when(! in_array($reviewStatus, ['all', 'none'], true), fn ($builder) => $builder->where('review_status', $reviewStatus));
 
         if ($this->isAdminUser($user)) {
             if ($scope === 'assigned') {

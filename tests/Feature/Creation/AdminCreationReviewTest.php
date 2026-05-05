@@ -328,6 +328,40 @@ test('mentor review queue shows same-job or assigned creations only', function (
     $response->assertDontSee('Hidden Creation');
 });
 
+test('admin review queue with all status includes non-open none-status creations', function () {
+    $admin = User::factory()->create([
+        'role' => User::ROLE_ADMIN,
+    ]);
+
+    $creator = User::factory()->create([
+        'role' => User::ROLE_STUDENT,
+    ]);
+
+    makeCreationForReview($creator, [
+        'title' => 'Creation None Closed',
+        'is_open_for_review' => false,
+        'review_status' => 'none',
+        'assigned_reviewer_id' => null,
+        'assigned_rubric_id' => null,
+    ]);
+
+    makeCreationForReview($creator, [
+        'title' => 'Creation Pending Open',
+        'is_open_for_review' => true,
+        'review_status' => 'pending',
+    ]);
+
+    $response = $this->actingAs($admin)
+        ->get(route('admin.creations.queue', [
+            'review_status' => 'all',
+            'scope' => 'all',
+        ]));
+
+    $response->assertOk();
+    $response->assertSee('Creation None Closed');
+    $response->assertSee('Creation Pending Open');
+});
+
 test('admin can publish official result from selected peer review', function () {
     Notification::fake();
 
