@@ -3,6 +3,7 @@ import { Head, useForm, Link, usePage, router } from '@inertiajs/vue3';
 import { ref, watch, computed } from 'vue'; 
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 import Swal from 'sweetalert2';
+import axios from 'axios';
 
 const props = defineProps({
     quests: Object,
@@ -53,6 +54,21 @@ const isTrashView = computed(() => filterForm.view === 'trash');
 const questItems = computed(() => props.quests?.data || []);
 const paginationLinks = computed(() => props.quests?.links || []);
 const selectedJobScope = ref('');
+const aiScopeForm = useForm({
+    job_id: '',
+    study_group_id: '',
+    sample_size: 120,
+});
+const isGeneratingOptionalPreview = ref(false);
+const isCommittingOptionalDraft = ref(false);
+const optionalQuestPreview = ref(null);
+const currentRole = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase());
+const isSuperAdmin = computed(() => currentRole.value === 'super_admin');
+const canUseOptionalQuestAi = computed(() => ['super_admin', 'admin', 'mentor'].includes(currentRole.value));
+const mentorJobId = computed(() => {
+    const value = Number(page.props?.auth?.user?.job_id || 0);
+    return Number.isFinite(value) ? value : 0;
+});
 
 const filteredStudyGroups = computed(() => {
     if (isMentor.value || selectedJobScope.value === '') {
@@ -68,6 +84,14 @@ const filteredTaskBanks = computed(() => {
     }
 
     return (props.taskBanks || []).filter((bank) => String(bank.job_role_id || '') === selectedJobScope.value);
+});
+
+const aiFilteredStudyGroups = computed(() => {
+    if (isMentor.value || aiScopeForm.job_id === '') {
+        return props.studyGroups || [];
+    }
+
+    return (props.studyGroups || []).filter((group) => String(group.job_id || '') === String(aiScopeForm.job_id));
 });
 
 const form = useForm({
@@ -145,6 +169,27 @@ watch(selectedJobScope, (jobId) => {
 
     if (form.task_bank_id && !filteredTaskBanks.value.some((bank) => String(bank.id) === String(form.task_bank_id))) {
         form.task_bank_id = null;
+    }
+});
+
+watch([isMentor, mentorJobId], () => {
+    if (!isMentor.value) return;
+    if (mentorJobId.value > 0) {
+        aiScopeForm.job_id = String(mentorJobId.value);
+    }
+    if (!aiScopeForm.study_group_id && firstStudyGroupId.value) {
+        aiScopeForm.study_group_id = String(firstStudyGroupId.value);
+    }
+}, { immediate: true });
+
+watch(() => aiScopeForm.job_id, () => {
+    if (!aiScopeForm.study_group_id) {
+        return;
+    }
+
+    const exists = aiFilteredStudyGroups.value.some((group) => String(group.id) === String(aiScopeForm.study_group_id));
+    if (!exists) {
+        aiScopeForm.study_group_id = '';
     }
 });
 
@@ -312,6 +357,84 @@ const goToPage = (url) => {
         preserveState: true,
         preserveScroll: true,
     });
+};
+
+const resetOptionalQuestPreview = () => {
+    optionalQuestPreview.value = null;
+};
+
+const generateOptionalQuestPreview = async () => {
+    if (!canUseOptionalQuestAi.value) return;
+    isGeneratingOptionalPreview.value = true;
+    try {
+        const payload = {
+            sample_size: Number(aiScopeForm.sample_size || 120),
+        };
+
+        if (aiScopeForm.job_id) {
+            payload.job_id = Number(aiScopeForm.job_id);
+        }
+        if (aiScopeForm.study_group_id) {
+            payload.study_group_id = Number(aiScopeForm.study_group_id);
+        }
+
+        const response = await axios.post(route('admin.quests.optional.generate-preview'), payload);
+        optionalQuestPreview.value = response?.data || null;
+
+        Toast.fire({
+            icon: 'success',
+            title: 'OPTIONAL_QUEST_PREVIEW_READY',
+        });
+    } catch (error) {
+        const message = String(error?.response?.data?.message || 'FAILED_TO_GENERATE_OPTIONAL_QUEST_PREVIEW');
+        Swal.fire('UPLINK_ERROR', message, 'error');
+    } finally {
+        isGeneratingOptionalPreview.value = false;
+    }
+};
+
+const commitOptionalQuestDraft = async () => {
+    const draft = optionalQuestPreview.value?.draft;
+    if (!draft) {
+        Swal.fire('NO_DRAFT', 'Generate preview dulu sebelum commit draft.', 'warning');
+        return;
+    }
+
+    isCommittingOptionalDraft.value = true;
+    try {
+        const payload = {
+            title: draft.title,
+            description: draft.description,
+            difficulty: draft.difficulty,
+            learning_objectives: draft.learning_objectives || [],
+            success_criteria: draft.success_criteria || [],
+            reasoning: draft.reasoning || '',
+        };
+
+        if (aiScopeForm.job_id) {
+            payload.job_id = Number(aiScopeForm.job_id);
+        }
+        if (aiScopeForm.study_group_id) {
+            payload.study_group_id = Number(aiScopeForm.study_group_id);
+        }
+
+        const response = await axios.post(route('admin.quests.optional.commit-draft'), payload);
+        const message = String(response?.data?.message || 'OPTIONAL_QUEST_DRAFT_COMMITTED');
+
+        Toast.fire({ icon: 'success', title: message });
+        optionalQuestPreview.value = null;
+
+        router.reload({
+            only: ['quests'],
+            preserveState: true,
+            preserveScroll: true,
+        });
+    } catch (error) {
+        const message = String(error?.response?.data?.message || 'FAILED_TO_COMMIT_OPTIONAL_QUEST_DRAFT');
+        Swal.fire('COMMIT_FAILED', message, 'error');
+    } finally {
+        isCommittingOptionalDraft.value = false;
+    }
 };
 </script>
 
@@ -558,6 +681,90 @@ const goToPage = (url) => {
                                 class="px-3 py-2 border-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white uppercase">
                                 RESET
                             </button>
+                        </div>
+
+                        <div v-if="canUseOptionalQuestAi && !isTrashView" class="mb-5 p-4 border-2 border-lime-700 bg-lime-950/20 space-y-4">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                <h3 class="text-lime-300 uppercase text-[9px]">>> OPTIONAL_QUEST_AI_GENERATOR</h3>
+                                <span class="text-[7px] uppercase text-slate-400">DRAFT_ONLY // HUMAN_APPROVAL_REQUIRED</span>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+                                <div v-if="isSuperAdmin || isAdminScope">
+                                    <label class="block mb-2 text-[7px] text-slate-300 uppercase">Job Scope</label>
+                                    <select
+                                        v-model="aiScopeForm.job_id"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
+                                    >
+                                        <option value="">ALL_JOB</option>
+                                        <option v-for="job in jobRoles" :key="`job-${job.id}`" :value="String(job.id)">
+                                            {{ job.name }}
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block mb-2 text-[7px] text-slate-300 uppercase">Study Group</label>
+                                    <select
+                                        v-model="aiScopeForm.study_group_id"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
+                                    >
+                                        <option value="">ALL_GROUP</option>
+                                        <option v-for="group in aiFilteredStudyGroups" :key="`group-${group.id}`" :value="String(group.id)">
+                                            {{ group.name }}
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block mb-2 text-[7px] text-slate-300 uppercase">Sample Size</label>
+                                    <input
+                                        v-model.number="aiScopeForm.sample_size"
+                                        type="number"
+                                        min="20"
+                                        max="300"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
+                                    />
+                                </div>
+
+                                <div class="flex items-end gap-2">
+                                    <button
+                                        type="button"
+                                        @click="generateOptionalQuestPreview"
+                                        :disabled="isGeneratingOptionalPreview"
+                                        class="flex-1 px-3 py-2 border-2 border-lime-500 text-lime-300 hover:bg-lime-500 hover:text-black uppercase text-[8px]"
+                                    >
+                                        {{ isGeneratingOptionalPreview ? 'GENERATING...' : 'GENERATE_PREVIEW' }}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="resetOptionalQuestPreview"
+                                        class="px-3 py-2 border-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white uppercase text-[8px]"
+                                    >
+                                        RESET
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div v-if="optionalQuestPreview?.draft" class="p-3 border border-lime-800 bg-black/40 space-y-2">
+                                <div class="text-[7px] uppercase text-slate-400">
+                                    PROVIDER: {{ optionalQuestPreview.provider_used || '-' }}
+                                    <span class="text-amber-300 ml-2" v-if="optionalQuestPreview.is_fallback">[FALLBACK]</span>
+                                    <span class="ml-2">LATENCY: {{ optionalQuestPreview.latency_ms || 0 }}ms</span>
+                                </div>
+                                <p class="text-lime-200 text-[8px] uppercase">TITLE: {{ optionalQuestPreview.draft.title }}</p>
+                                <p class="text-slate-300 text-[8px] font-sans leading-relaxed">{{ optionalQuestPreview.draft.description }}</p>
+                                <p class="text-[7px] text-cyan-300 uppercase">DIFFICULTY: {{ optionalQuestPreview.draft.difficulty }}</p>
+                                <p class="text-[7px] text-slate-400 uppercase">REASONING: {{ optionalQuestPreview.draft.reasoning || '-' }}</p>
+                                <button
+                                    type="button"
+                                    @click="commitOptionalQuestDraft"
+                                    :disabled="isCommittingOptionalDraft"
+                                    class="mt-2 px-4 py-2 border-2 border-cyan-400 text-cyan-300 hover:bg-cyan-400 hover:text-black uppercase text-[8px]"
+                                >
+                                    {{ isCommittingOptionalDraft ? 'COMMITTING...' : 'COMMIT_DRAFT' }}
+                                </button>
+                            </div>
                         </div>
 
                         <div class="space-y-4 max-h-[560px] overflow-y-auto pr-2 custom-scroll">

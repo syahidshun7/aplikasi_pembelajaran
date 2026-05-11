@@ -7,6 +7,8 @@ use App\Events\JoinGroupRequested;
 use App\Listeners\SendJoinGroupRequestNotification;
 use App\Listeners\RecordDailyQuestProgress;
 use App\Listeners\TrackLoginDailyQuestProgress;
+use App\Services\Ai\GeminiClient;
+use App\Services\Ai\OllamaClient;
 use App\Models\Creation;
 use App\Models\CreationCollaborationRequest;
 use App\Models\CreationCollaborator;
@@ -35,7 +37,24 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(GeminiClient::class, function () {
+            return new GeminiClient(
+                apiKey: config('services.ai.gemini.api_key'),
+                baseUrl: (string) config('services.ai.gemini.base_url'),
+                model: (string) config('services.ai.gemini.model', 'gemini-3.1-flash-lite'),
+                timeoutMs: (int) config('services.ai.timeout_ms', 15000),
+                retryCount: (int) config('services.ai.retry_count', 1),
+            );
+        });
+
+        $this->app->singleton(OllamaClient::class, function () {
+            return new OllamaClient(
+                baseUrl: (string) config('services.ai.ollama.base_url', 'http://127.0.0.1:11434'),
+                model: (string) config('services.ai.ollama.model', 'qwen3.5:4b'),
+                timeoutMs: (int) config('services.ai.timeout_ms', 15000),
+                retryCount: (int) config('services.ai.retry_count', 1),
+            );
+        });
     }
 
     /**

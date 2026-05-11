@@ -22,6 +22,7 @@ use App\Notifications\CreationInsightAddedNotification;
 use App\Notifications\EventPublishedNotification;
 use App\Notifications\GradeReleasedNotification;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Notification;
 
@@ -30,6 +31,8 @@ class LmsNotificationService
     public function notifySubmissionReceived(Submission $submission): void
     {
         $recipients = $this->submissionReviewRecipients($submission);
+        $recipients = $this->filterRecipientsWithoutRecentSubmissionNotice($recipients, $submission);
+
         if ($recipients->isEmpty()) {
             return;
         }
@@ -203,6 +206,38 @@ class LmsNotificationService
         return collect($recipients)
             ->filter(fn ($recipient) => $recipient instanceof User)
             ->unique(fn (User $user) => (int) $user->id)
+            ->values();
+    }
+
+    private function filterRecipientsWithoutRecentSubmissionNotice(Collection $recipients, Submission $submission): Collection
+    {
+        if ($recipients->isEmpty()) {
+            return $recipients;
+        }
+
+        $recipientIds = $recipients
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->values();
+
+        if ($recipientIds->isEmpty()) {
+            return collect();
+        }
+
+        $alreadyNotifiedRecipientIds = DatabaseNotification::query()
+            ->where('type', AssignmentSubmittedNotification::class)
+            ->where('notifiable_type', User::class)
+            ->whereIn('notifiable_id', $recipientIds->all())
+            ->where('data->resource->type', 'submission')
+            ->where('data->resource->id', (int) $submission->id)
+            ->where('created_at', '>=', now()->subMinutes(2))
+            ->pluck('notifiable_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return $recipients
+            ->reject(fn (User $user) => in_array((int) $user->id, $alreadyNotifiedRecipientIds, true))
             ->values();
     }
 }

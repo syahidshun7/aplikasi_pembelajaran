@@ -167,9 +167,9 @@
                         <span v-else class="text-[8px] text-slate-400 uppercase italic">
                             MANUAL_SCORE: <span class="text-cyan-300 font-bold">1–100</span>
                         </span>
-                        <button v-if="!hasRubric && !isTaskBankSubmission" @click="scanWithAI" :disabled="isScanning" 
+                        <button @click="scanWithAI" :disabled="isScanning || isPreparingAiPreview" 
                             class="text-[8px] bg-indigo-900/30 text-indigo-400 px-3 py-1 border border-indigo-700 hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50">
-                            {{ isScanning ? 'ANALYZING...' : '[ AI_ADVISOR_SCAN ]' }}
+                            {{ isPreparingAiPreview ? 'PREPARING...' : (isScanning ? 'ANALYZING...' : '[ AI_ADVISOR_SCAN ]') }}
                         </button>
                     </div>
                 </div>
@@ -411,6 +411,61 @@
                     </div>
                 </div>
             </section>
+
+            <div v-if="showAiPreviewModal" class="fixed inset-0 z-[140] bg-black/85 backdrop-blur-sm p-4 flex items-center justify-center">
+                <div class="w-full max-w-5xl max-h-[90vh] overflow-y-auto border-2 border-indigo-700 bg-[#0d1117] p-4 md:p-6 space-y-4">
+                    <div class="flex items-center justify-between gap-2 border-b border-slate-700 pb-3">
+                        <h4 class="text-[10px] text-indigo-300 uppercase">AI_PAYLOAD_PREVIEW</h4>
+                        <button
+                            type="button"
+                            @click="closeAiPreviewModal"
+                            class="px-3 py-1 border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white text-[8px] uppercase"
+                        >
+                            CLOSE
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="border border-slate-800 bg-black/40 p-3">
+                            <p class="text-[8px] uppercase text-slate-400 mb-2">RINGKASAN_METADATA</p>
+                            <pre class="text-[10px] font-sans text-slate-200 whitespace-pre-wrap break-words max-h-72 overflow-y-auto custom-scrollbar">{{ aiPreviewSummaryText }}</pre>
+                        </div>
+                        <div class="border border-slate-800 bg-black/40 p-3">
+                            <p class="text-[8px] uppercase text-slate-400 mb-2">DETAIL_JSON</p>
+                            <pre class="text-[10px] font-sans text-slate-300 whitespace-pre-wrap break-words max-h-72 overflow-y-auto custom-scrollbar">{{ aiPreviewJsonText }}</pre>
+                        </div>
+                    </div>
+
+                    <div class="border border-amber-700 bg-amber-950/20 p-3 space-y-2">
+                        <p class="text-[8px] uppercase text-amber-300">CATATAN_KE_AI (opsional)</p>
+                        <textarea
+                            v-model="aiAdvisorNote"
+                            rows="4"
+                            class="w-full bg-black border border-slate-700 p-3 font-sans text-[12px] text-slate-100"
+                            placeholder="Contoh: fokuskan penilaian pada bukti implementasi route + controller, abaikan typo minor."
+                        />
+                        <p class="text-[7px] text-slate-500 uppercase">Catatan ini akan ditambahkan ke prompt final sebelum request AI.</p>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <button
+                            type="button"
+                            @click="confirmAiScanFromPreview"
+                            :disabled="isScanning"
+                            class="px-4 py-2 border-2 border-indigo-500 text-indigo-300 hover:bg-indigo-500 hover:text-black text-[8px] uppercase"
+                        >
+                            {{ isScanning ? 'ANALYZING...' : 'KIRIM_KE_AI' }}
+                        </button>
+                        <button
+                            type="button"
+                            @click="closeAiPreviewModal"
+                            class="px-4 py-2 border-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white text-[8px] uppercase"
+                        >
+                            BATAL
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -426,12 +481,20 @@ const props = defineProps({
     submission: Object,
     rubric: Object,
     rubricSource: String,
+    aiAdvisorConfig: {
+        type: Object,
+        default: () => ({ auto_apply_min_confidence: 65 }),
+    },
 });
 
 // 1. STATE & DATA
 const feedbackText = ref(props.submission.feedback || '');
 const localStatus = ref(['Approved', 'Rejected'].includes(props.submission.status) ? props.submission.status : 'Approved');
 const isScanning = ref(false);
+const isPreparingAiPreview = ref(false);
+const showAiPreviewModal = ref(false);
+const aiPreviewPayload = ref(null);
+const aiAdvisorNote = ref('');
 const manualFinalScore = ref(Math.max(1, Math.min(100, Number(props.submission.grade || 1))));
 const selectedLevels = ref({});
 const essayPoints = ref({});
@@ -448,6 +511,62 @@ const isTaskBankSubmission = computed(() => taskQuestions.value.length > 0);
 const taskBankType = computed(() => taskBank.value?.assessment_type || null);
 const mcqQuestions = computed(() => taskQuestions.value.filter((q) => q.question_type === 'multiple_choice'));
 const essayQuestions = computed(() => taskQuestions.value.filter((q) => q.question_type !== 'multiple_choice'));
+const aiPreviewJsonText = computed(() => {
+    if (!aiPreviewPayload.value) return '{}';
+    try {
+        return JSON.stringify(aiPreviewPayload.value, null, 2);
+    } catch (error) {
+        return '{}';
+    }
+});
+const aiPreviewSummaryText = computed(() => {
+    const preview = aiPreviewPayload.value;
+    if (!preview) return 'Belum ada metadata preview.';
+
+    const quest = preview?.quest || {};
+    const artifact = preview?.artifact || {};
+    const evidence = preview?.evidence || {};
+    const confidence = evidence?.confidence || {};
+    const stats = preview?.stats || {};
+    const artifactStats = stats?.artifact || {};
+    const taskBankStats = stats?.task_bank || {};
+    const rubricStats = stats?.rubric || {};
+    const evidenceStats = stats?.evidence || {};
+    const confidenceStats = stats?.confidence || confidence || {};
+    const advisorNotePresent = Boolean(stats?.advisor_note_present);
+    const sourceFlags = Array.isArray(artifact?.source_flags) ? artifact.source_flags.join(', ') : '-';
+    const warnings = Array.isArray(artifact?.warnings) ? artifact.warnings.join(', ') : '-';
+
+    return [
+        `Quest: ${String(quest?.title || '-')}`,
+        `Difficulty: ${String(quest?.difficulty || '-')}`,
+        `Source Flags: ${sourceFlags || '-'}`,
+        `Artifact Warnings: ${warnings || '-'}`,
+        `Raw Artifact Chars: ${String(artifactStats?.raw_combined_chars ?? '-')}`,
+        `Normalized Chars: ${String(artifactStats?.normalized_chars ?? '-')}`,
+        `Artifact Truncated: ${String(Boolean(artifactStats?.is_truncated))}`,
+        `TaskBank Present: ${String(Boolean(taskBankStats?.present))}`,
+        `Question Total: ${String(taskBankStats?.question_total ?? '-')}`,
+        `Answered Total: ${String(taskBankStats?.answered_total ?? '-')}`,
+        `Unanswered Total: ${String(taskBankStats?.unanswered_total ?? '-')}`,
+        `Answer Completion Rate: ${String(taskBankStats?.answer_completion_rate ?? '-')}%`,
+        `Count Source: ${String(taskBankStats?.count_source ?? '-')}`,
+        `AI Count Confidence: ${String(taskBankStats?.ai_count_confidence ?? '-')}`,
+        `AI Count Notes: ${String(taskBankStats?.ai_count_notes ?? '-')}`,
+        `Rubric Present: ${String(Boolean(rubricStats?.present))}`,
+        `Rubric Criteria Total: ${String(rubricStats?.criteria_total ?? '-')}`,
+        `Rubric Levels Total: ${String(rubricStats?.levels_total ?? '-')}`,
+        `Rubric Matrix Entries: ${String(rubricStats?.matrix_entries_total ?? '-')}`,
+        `Quality Score: ${String(evidenceStats?.quality_score ?? evidence?.quality_score ?? '-')}`,
+        `Evidence Chunk Count: ${String(evidenceStats?.chunk_count ?? '-')}`,
+        `Rubric Evidence Count: ${String(evidenceStats?.rubric_evidence_count ?? '-')}`,
+        `TaskBank Evidence Count: ${String(evidenceStats?.task_bank_evidence_count ?? '-')}`,
+        `Confidence Overall: ${String(confidenceStats?.overall ?? '-')}`,
+        `Confidence Rubric: ${String(confidenceStats?.rubric ?? '-')}`,
+        `Confidence TaskBank: ${String(confidenceStats?.task_bank ?? '-')}`,
+        `Advisor Note Present: ${String(advisorNotePresent)}`,
+    ].join('\n');
+});
 
 const attachmentPreviewUrl = computed(() => {
     if (!props.submission?.file_path) return null;
@@ -653,33 +772,215 @@ onMounted(() => {
     }
 });
 
+const closeAiPreviewModal = () => {
+    showAiPreviewModal.value = false;
+};
+
 const scanWithAI = async () => {
-    if (hasRubric.value || isTaskBankSubmission.value) return;
+    isPreparingAiPreview.value = true;
+    try {
+        const response = await axios.post(route('admin.submissions.checkAIPreview', { submission: props.submission.uuid }), {
+            advisor_note: aiAdvisorNote.value,
+        });
+
+        aiPreviewPayload.value = response?.data?.preview || null;
+        showAiPreviewModal.value = true;
+    } catch (error) {
+        const backendMessage = String(error?.response?.data?.message || '').trim();
+        Swal.fire('UPLINK_ERROR', backendMessage || 'AI preview unavailable.', 'error');
+    } finally {
+        isPreparingAiPreview.value = false;
+    }
+};
+
+const confirmAiScanFromPreview = async () => {
     isScanning.value = true;
     try {
-        const response = await axios.post(route('admin.submissions.checkAI', { submission: props.submission.uuid }));
+        const response = await axios.post(route('admin.submissions.checkAI', { submission: props.submission.uuid }), {
+            advisor_note: aiAdvisorNote.value,
+        });
         const data = response.data;
+        const minAutoApplyConfidence = Math.max(1, Math.min(100, Number(props.aiAdvisorConfig?.auto_apply_min_confidence ?? 65)));
 
-        const func = Number(data.func ?? 0);
-        const logic = Number(data.logic ?? 0);
-        const clean = Number(data.clean ?? 0);
-        const suggested = Math.round((func + logic + clean) / 3);
-        if (!isNaN(suggested) && suggested > 0) {
+        const applyRubricRecommendations = (recommendations) => {
+            if (!hasRubric.value || !Array.isArray(recommendations) || !recommendations.length) {
+                return 0;
+            }
+
+            const nextSelectedLevels = { ...(selectedLevels.value || {}) };
+            let appliedCount = 0;
+
+            recommendations.forEach((item) => {
+                let criteria = null;
+                const criteriaId = Number(item?.criteria_id || 0);
+                if (criteriaId > 0) {
+                    criteria = rubricCriteria.value.find((c) => Number(c.id) === criteriaId) || null;
+                }
+
+                if (!criteria) {
+                    const criteriaName = String(item?.criteria_name || '').trim().toLowerCase();
+                    if (criteriaName) {
+                        criteria = rubricCriteria.value.find((c) => String(c.name || '').trim().toLowerCase() === criteriaName) || null;
+                    }
+                }
+
+                if (!criteria) return;
+
+                let level = null;
+                const suggestedLevelId = Number(item?.suggested_level_id || 0);
+                if (suggestedLevelId > 0) {
+                    level = rubricLevels.value.find((l) => Number(l.id) === suggestedLevelId) || null;
+                }
+
+                if (!level) {
+                    const suggestedLevelNumber = Number(item?.suggested_level || item?.level || 0);
+                    if (suggestedLevelNumber > 0) {
+                        level = rubricLevels.value.find((l) => Number(l.level) === suggestedLevelNumber) || null;
+                    }
+                }
+
+                if (!level) {
+                    const suggestedLevelLabel = String(item?.suggested_level_label || item?.level_label || '').trim().toLowerCase();
+                    if (suggestedLevelLabel) {
+                        level = rubricLevels.value.find((l) => String(l.label || '').trim().toLowerCase() === suggestedLevelLabel) || null;
+                    }
+                }
+
+                if (!level) return;
+
+                const current = Number(nextSelectedLevels[criteria.id] || 0);
+                const next = Number(level.id || 0);
+                if (next > 0 && current !== next) {
+                    nextSelectedLevels[criteria.id] = next;
+                    appliedCount += 1;
+                }
+            });
+
+            if (appliedCount > 0) {
+                selectedLevels.value = nextSelectedLevels;
+            }
+
+            return appliedCount;
+        };
+
+        const autoFillRubricByScore = (targetScore) => {
+            if (!hasRubric.value || !Number.isFinite(targetScore) || targetScore <= 0) {
+                return 0;
+            }
+
+            const levels = [...rubricLevels.value]
+                .filter((item) => Number(item?.id || 0) > 0)
+                .sort((a, b) => Number(a?.score_value || 0) - Number(b?.score_value || 0));
+
+            if (!levels.length) return 0;
+
+            const maxScoreValue = Math.max(...levels.map((item) => Number(item?.score_value || 0)));
+            if (maxScoreValue <= 0) return 0;
+
+            let nearestLevel = levels[0];
+            let nearestDiff = Number.POSITIVE_INFINITY;
+
+            levels.forEach((levelItem) => {
+                const ratio = (Number(levelItem?.score_value || 0) / maxScoreValue) * 100;
+                const diff = Math.abs(ratio - targetScore);
+                if (diff < nearestDiff) {
+                    nearestDiff = diff;
+                    nearestLevel = levelItem;
+                }
+            });
+
+            const nextSelectedLevels = { ...(selectedLevels.value || {}) };
+            let appliedCount = 0;
+
+            rubricCriteria.value.forEach((criterion) => {
+                const criterionId = Number(criterion?.id || 0);
+                if (criterionId <= 0) return;
+
+                const current = Number(nextSelectedLevels[criterionId] || 0);
+                const next = Number(nearestLevel?.id || 0);
+                if (next > 0 && current !== next) {
+                    nextSelectedLevels[criterionId] = next;
+                    appliedCount += 1;
+                }
+            });
+
+            if (appliedCount > 0) {
+                selectedLevels.value = nextSelectedLevels;
+            }
+
+            return appliedCount;
+        };
+
+        let suggested = 0;
+        const scoreRange = String(data.suggested_score_range || '').trim();
+        const match = scoreRange.match(/^(\d{1,3})\s*-\s*(\d{1,3})$/);
+        if (match) {
+            const min = Math.max(1, Math.min(100, Number(match[1])));
+            const max = Math.max(1, Math.min(100, Number(match[2])));
+            suggested = Math.round((min + max) / 2);
+        } else {
+            const func = Number(data.func ?? 0);
+            const logic = Number(data.logic ?? 0);
+            const clean = Number(data.clean ?? 0);
+            suggested = Math.round((func + logic + clean) / 3);
+        }
+
+        const confidenceOverall = Number(data?.confidence?.overall ?? 0);
+        const evidenceQualityScore = Number(data?.evidence_quality_score ?? 0);
+        const qualityWarnings = Array.isArray(data?.evidence_quality_warnings) ? data.evidence_quality_warnings : [];
+
+        if (!hasRubric.value && !isTaskBankSubmission.value && !isNaN(suggested) && suggested > 0) {
             manualFinalScore.value = Math.max(1, Math.min(100, suggested));
         }
 
-        feedbackText.value = `[AI_ADVISOR]: ${data.feedback}\n\n${feedbackText.value}`;
+        let appliedRubricCount = applyRubricRecommendations(data.rubric_recommendations);
+        if (
+            hasRubric.value
+            && appliedRubricCount === 0
+            && confidenceOverall >= minAutoApplyConfidence
+            && !isNaN(suggested)
+            && suggested > 0
+        ) {
+            appliedRubricCount = autoFillRubricByScore(suggested);
+        }
+
+        const suggestionText = String(data.suggested_feedback || data.feedback || '').trim();
+        const summaryText = String(data.summary || '').trim();
+        const advisoryText = [summaryText, suggestionText].filter(Boolean).join(' | ');
+        feedbackText.value = `[AI_ADVISOR]: ${advisoryText}\n\n${feedbackText.value}`;
+
+        const lowConfidenceMessage = confidenceOverall > 0 && confidenceOverall < minAutoApplyConfidence
+            ? `Low confidence (${confidenceOverall}). Review manual wajib.`
+            : '';
+
+        const qualityWarningMessage = qualityWarnings.length
+            ? `Warnings: ${qualityWarnings.join(', ')}`
+            : '';
+
+        const messageParts = [
+            appliedRubricCount > 0
+                ? `System calibrated. ${appliedRubricCount} rubric level auto-selected.`
+                : 'System has been calibrated with AI suggestions.',
+            `Confidence: ${confidenceOverall || 0}`,
+            `Evidence quality: ${evidenceQualityScore || 0}`,
+            lowConfidenceMessage,
+            qualityWarningMessage,
+        ].filter(Boolean);
+
+        showAiPreviewModal.value = false;
 
         Swal.fire({
             title: 'AI_ANALYSIS_COMPLETE',
-            text: 'System has been calibrated with AI suggestions.',
+            text: messageParts.join(' | '),
             icon: 'success',
             background: '#0d1117',
             color: '#4ed4d4',
             confirmButtonColor: '#1e293b'
         });
     } catch (error) {
-        Swal.fire('UPLINK_ERROR', 'AI Advisor is currently offline.', 'error');
+        const backendMessage = String(error?.response?.data?.message || '').trim();
+        const fallbackMessage = 'AI Advisor is currently offline.';
+        Swal.fire('UPLINK_ERROR', backendMessage || fallbackMessage, 'error');
     } finally {
         isScanning.value = false;
     }

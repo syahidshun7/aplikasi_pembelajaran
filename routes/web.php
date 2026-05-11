@@ -13,6 +13,7 @@ use App\Http\Controllers\AdminTaskBankController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminDailyQuestDefinitionController;
 use App\Http\Controllers\AdminCreationReviewController;
+use App\Http\Controllers\AdminOptionalQuestAiController;
 use App\Http\Controllers\DoopLabDashboardController;
 use App\Http\Controllers\DoopLabTodoController;
 use App\Models\User;
@@ -218,8 +219,14 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
         ->name('admin.submissions.file');
     Route::post('/submissions/{submission}/verdict', [AdminSubmissionController::class, 'verdict'])
         ->name('admin.submissions.verdict');
+    Route::post('/submissions/{submission}/check-ai/preview', [AdminSubmissionController::class, 'previewAiPayload'])
+        ->name('admin.submissions.checkAIPreview');
     Route::post('/submissions/{submission}/check-ai', [AdminSubmissionController::class, 'checkWithAI'])
         ->name('admin.submissions.checkAI');
+    Route::post('/admin/quests/optional/generate-preview', [AdminOptionalQuestAiController::class, 'generatePreview'])
+        ->name('admin.quests.optional.generate-preview');
+    Route::post('/admin/quests/optional/commit-draft', [AdminOptionalQuestAiController::class, 'commitDraft'])
+        ->name('admin.quests.optional.commit-draft');
 
     Route::prefix('admin/task-banks')->name('admin.task-banks.')->group(function () {
         Route::get('/', [AdminTaskBankController::class, 'index'])->name('index');

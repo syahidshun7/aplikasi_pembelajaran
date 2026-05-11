@@ -6,14 +6,16 @@ use App\Models\Rubric;
 use App\Models\RubricDescription;
 use App\Models\Submission;
 use App\Models\User;
-use App\Support\Cache\CacheVersion;
-use App\Services\RubricScoringService;
+use App\Services\Ai\SubmissionAiAdvisorService;
 use App\Services\LmsNotificationService;
+use App\Services\RubricScoringService;
 use App\Services\UserRewardSyncService;
+use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Throwable;
 
 class AdminSubmissionController extends Controller
 {
@@ -56,6 +58,9 @@ class AdminSubmissionController extends Controller
             'submission' => $submission,
             'rubric' => $rubricPayload,
             'rubricSource' => $rubricSource,
+            'aiAdvisorConfig' => [
+                'auto_apply_min_confidence' => (int) config('services.ai.auto_apply_min_confidence', 65),
+            ],
         ]);
     }
 
@@ -330,64 +335,139 @@ class AdminSubmissionController extends Controller
     return redirect()->back()->with('message', 'Verdict Processed & Rewards Calculated!');
 }
     /**
-     * Fitur AI Advisor (Simulasi)
+     * Fitur AI Advisor (real provider + fallback).
      */
-    public function checkWithAI(Submission $submission)
+    public function previewAiPayload(Request $request, Submission $submission, SubmissionAiAdvisorService $advisorService)
+    {
+        $this->assertMentorCanAccessSubmission($submission);
+
+        $validated = $request->validate([
+            'advisor_note' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        try {
+            $preview = $advisorService->previewPayload($submission, $validated['advisor_note'] ?? null);
+        } catch (Throwable) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'AI_ADVISOR_PREVIEW_UNAVAILABLE',
+            ], 503);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'preview' => $preview,
+        ]);
+    }
+
+    public function checkWithAI(Request $request, Submission $submission, SubmissionAiAdvisorService $advisorService)
     {
         $this->assertMentorCanAccessSubmission($submission);
 
         $submission->load('quest');
 
-        $rubric = $this->resolveRubricForSubmission($submission);
-        if ($rubric) {
+        $validated = $request->validate([
+            'advisor_note' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        try {
+            $result = $advisorService->analyze($submission, $validated['advisor_note'] ?? null);
+        } catch (Throwable $exception) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'AI_ADVISOR_UNAVAILABLE_FOR_RUBRIC',
-            ], 422);
+                'message' => 'AI_ADVISOR_UNAVAILABLE',
+            ], 503);
         }
 
-        $questTitle = $submission->quest->title;
-        $studentWork = $submission->content ?? '';
-        $workLength = strlen($studentWork);
+        $advisor = $result['advisor'];
+        $range = (string) ($advisor['suggested_score_range'] ?? '60-75');
+        [$minScore, $maxScore] = $this->parseScoreRange($range);
+        $midScore = (int) round(($minScore + $maxScore) / 2);
 
-        // Inisialisasi Score
-        $scoreFunc = 0;
-        $scoreLogic = 0;
-        $scoreClean = 0;
-        $aiFeedback = "";
+        $feedbackSummary = trim((string) ($advisor['summary'] ?? ''));
+        $feedbackSuggestion = trim((string) ($advisor['suggested_feedback'] ?? ''));
+        $feedbackPayload = trim($feedbackSummary.' '.$feedbackSuggestion);
 
-        // Logika Analisis Sederhana
-        if ($workLength < 15) {
-            $scoreFunc = 10;
-            $scoreLogic = 10;
-            $scoreClean = 20;
-            $aiFeedback = "CRITICAL_FAILURE: Bukti pengerjaan terlalu minim. Sistem mendeteksi kemungkinan bypass quest.";
-        } elseif ($workLength < 100) {
-            $scoreFunc = 65;
-            $scoreLogic = 60;
-            $scoreClean = 75;
-            $aiFeedback = "ANALYSIS_PARTIAL: Implementasi dasar ditemukan untuk '{$questTitle}'. Namun, penjelasan atau struktur kode masih bisa ditingkatkan.";
-        } else {
-            $scoreFunc = rand(85, 100);
-            $scoreLogic = rand(80, 95);
-            $scoreClean = rand(85, 100);
-            $aiFeedback = "ANALYSIS_SUCCESS: Data artefak untuk '{$questTitle}' tervalidasi. Struktur logika efisien dan memenuhi standar Adventurer Guild.";
+        $scoresDetail = $submission->scores_detail;
+        if (! is_array($scoresDetail)) {
+            $scoresDetail = [];
         }
+        $scoresDetail['ai_advisor'] = [
+            ...$advisor,
+            'provider_used' => $result['provider_used'],
+            'is_fallback' => $result['is_fallback'],
+            'latency_ms' => $result['latency_ms'],
+            'artifact_source_flags' => $result['artifact_source_flags'] ?? [],
+            'artifact_warnings' => $result['artifact_warnings'] ?? [],
+            'used_local_preprocessor' => (bool) ($result['used_local_preprocessor'] ?? false),
+            'preprocessed_key_points' => $result['preprocessed_key_points'] ?? [],
+            'task_bank_context_present' => (bool) ($result['task_bank_context_present'] ?? false),
+            'rubric_context_present' => (bool) ($result['rubric_context_present'] ?? false),
+            'evidence_quality_score' => (float) ($result['evidence_quality_score'] ?? 0),
+            'evidence_quality_warnings' => $result['evidence_quality_warnings'] ?? [],
+            'confidence' => $advisor['confidence'] ?? ['overall' => 0, 'rubric' => 0, 'task_bank' => 0, 'notes' => ''],
+            'generated_at' => now()->toIso8601String(),
+            'merged_qa_stats' => $result['merged_qa_stats'] ?? null,
+        ];
+
+        $submission->update([
+            'scores_detail' => $scoresDetail,
+        ]);
 
         return response()->json([
             'status' => 'success',
+            'summary' => $advisor['summary'] ?? '',
+            'strengths' => $advisor['strengths'] ?? [],
+            'gaps' => $advisor['gaps'] ?? [],
+            'risk_flags' => $advisor['risk_flags'] ?? [],
+            'suggested_score_range' => $range,
+            'suggested_feedback' => $advisor['suggested_feedback'] ?? '',
+            'provider_used' => $result['provider_used'],
+            'is_fallback' => $result['is_fallback'],
+            'latency_ms' => $result['latency_ms'],
+            'artifact_source_flags' => $result['artifact_source_flags'] ?? [],
+            'artifact_warnings' => $result['artifact_warnings'] ?? [],
+            'used_local_preprocessor' => (bool) ($result['used_local_preprocessor'] ?? false),
+            'preprocessed_key_points' => $result['preprocessed_key_points'] ?? [],
+            'task_bank_context_present' => (bool) ($result['task_bank_context_present'] ?? false),
+            'rubric_context_present' => (bool) ($result['rubric_context_present'] ?? false),
+            'evidence_quality_score' => (float) ($result['evidence_quality_score'] ?? 0),
+            'evidence_quality_warnings' => $result['evidence_quality_warnings'] ?? [],
+            'confidence' => $advisor['confidence'] ?? ['overall' => 0, 'rubric' => 0, 'task_bank' => 0, 'notes' => ''],
+            'merged_qa_stats' => $result['merged_qa_stats'] ?? null,
+
+            // Legacy compatibility for current UI consumer.
             'scores' => [
-                'func' => $scoreFunc,
-                'logic' => $scoreLogic,
-                'neat' => $scoreClean,
+                'func' => $midScore,
+                'logic' => $midScore,
+                'neat' => $midScore,
                 'extra' => 0,
                 'att' => 0,
             ],
-            'func'   => $scoreFunc,
-            'logic'  => $scoreLogic,
-            'clean'  => $scoreClean,
-            'feedback' => $aiFeedback,
+            'func' => $midScore,
+            'logic' => $midScore,
+            'clean' => $midScore,
+            'feedback' => $feedbackPayload,
         ]);
+    }
+
+    /**
+     * @return array{0:int,1:int}
+     */
+    private function parseScoreRange(string $range): array
+    {
+        if (! preg_match('/^(\d{1,3})\s*-\s*(\d{1,3})$/', trim($range), $matches)) {
+            return [60, 75];
+        }
+
+        $minScore = max(1, min(100, (int) $matches[1]));
+        $maxScore = max(1, min(100, (int) $matches[2]));
+
+        if ($minScore > $maxScore) {
+            [$minScore, $maxScore] = [$maxScore, $minScore];
+        }
+
+        return [$minScore, $maxScore];
     }
 
     private function isMentorUser(): bool
