@@ -15,12 +15,25 @@ class GenerateOptionalQuestDrafts extends Command
         {--study-group-id= : Target specific study group id}
         {--sample-size=120 : Submission sample size per draft}
         {--max-drafts=3 : Max draft commits in one run}
+        {--theme= : Generate directly from theme}
+        {--question-type=mixed : multiple_choice|essay|mixed}
+        {--question-count=10 : Number of generated questions}
+        {--difficulty=C-Rank : C-Rank|B-Rank|A-Rank|S-Rank}
+        {--publish-mode=draft : draft|publish_now|schedule}
+        {--publish-at= : Scheduled publish datetime}
+        {--available-until= : Optional availability end datetime}
+        {--deadline= : Optional quest deadline}
         {--dry-run : Generate preview only, without saving draft quests}';
 
     protected $description = 'Generate optional quest drafts from submission patterns using AI advisor pipeline';
 
     public function handle(OptionalQuestGeneratorService $generator): int
     {
+        $theme = trim((string) ($this->option('theme') ?? ''));
+        if ($theme !== '') {
+            return $this->handleThemeMode($generator, $theme);
+        }
+
         $sampleSize = max(20, min(300, (int) $this->option('sample-size')));
         $maxDrafts = max(1, min(20, (int) $this->option('max-drafts')));
         $dryRun = (bool) $this->option('dry-run');
@@ -91,6 +104,53 @@ class GenerateOptionalQuestDrafts extends Command
         }
 
         $this->info("OPTIONAL_QUEST_DRAFTS_CREATED: {$created}");
+
+        return self::SUCCESS;
+    }
+
+    private function handleThemeMode(OptionalQuestGeneratorService $generator, string $theme): int
+    {
+        $questionType = (string) $this->option('question-type');
+        $questionCount = max(3, min(30, (int) $this->option('question-count')));
+        $difficulty = (string) $this->option('difficulty');
+        $publishMode = (string) $this->option('publish-mode');
+        $dryRun = (bool) $this->option('dry-run');
+        $jobId = (int) ($this->option('job-id') ?? 0) ?: null;
+        $studyGroupId = (int) ($this->option('study-group-id') ?? 0) ?: null;
+
+        $preview = $generator->generateFromTheme([
+            'theme' => $theme,
+            'question_type' => $questionType,
+            'question_count' => $questionCount,
+            'difficulty' => $difficulty,
+            'job_id' => $jobId,
+            'study_group_id' => $studyGroupId,
+        ]);
+
+        $bundle = $preview['bundle'] ?? [];
+        $this->table(['TITLE', 'DIFFICULTY', 'Q_COUNT', 'ASSESSMENT'], [[
+            (string) data_get($bundle, 'quest.title', '-'),
+            (string) data_get($bundle, 'quest.difficulty', '-'),
+            (int) data_get($bundle, 'question_count', 0),
+            (string) data_get($bundle, 'task_bank.assessment_type', '-'),
+        ]]);
+
+        if ($dryRun) {
+            $this->info('THEME_MODE_DRY_RUN_COMPLETE');
+            return self::SUCCESS;
+        }
+
+        $quest = $generator->commitFromTheme([
+            'bundle' => $bundle,
+            'publish_mode' => $publishMode,
+            'available_from' => (string) ($this->option('publish-at') ?? ''),
+            'available_until' => (string) ($this->option('available-until') ?? ''),
+            'deadline' => (string) ($this->option('deadline') ?? ''),
+            'job_id' => $jobId,
+            'study_group_id' => $studyGroupId,
+        ]);
+
+        $this->info("THEME_QUEST_COMMITTED: {$quest->title} ({$quest->uuid})");
 
         return self::SUCCESS;
     }
@@ -191,4 +251,3 @@ class GenerateOptionalQuestDrafts extends Command
         return implode("\n\n", $parts);
     }
 }
-

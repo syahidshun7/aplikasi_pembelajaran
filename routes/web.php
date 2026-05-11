@@ -227,6 +227,10 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
         ->name('admin.quests.optional.generate-preview');
     Route::post('/admin/quests/optional/commit-draft', [AdminOptionalQuestAiController::class, 'commitDraft'])
         ->name('admin.quests.optional.commit-draft');
+    Route::post('/admin/quests/optional/theme-preview', [AdminOptionalQuestAiController::class, 'generateThemePreview'])
+        ->name('admin.quests.optional.theme-preview');
+    Route::post('/admin/quests/optional/commit-theme', [AdminOptionalQuestAiController::class, 'commitThemeBundle'])
+        ->name('admin.quests.optional.commit-theme');
 
     Route::prefix('admin/task-banks')->name('admin.task-banks.')->group(function () {
         Route::get('/', [AdminTaskBankController::class, 'index'])->name('index');

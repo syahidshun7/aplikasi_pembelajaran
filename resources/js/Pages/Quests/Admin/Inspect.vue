@@ -428,7 +428,138 @@
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         <div class="border border-slate-800 bg-black/40 p-3">
                             <p class="text-[8px] uppercase text-slate-400 mb-2">RINGKASAN_METADATA</p>
-                            <pre class="text-[10px] font-sans text-slate-200 whitespace-pre-wrap break-words max-h-72 overflow-y-auto custom-scrollbar">{{ aiPreviewSummaryText }}</pre>
+                            <div class="space-y-3 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div class="border border-slate-800 bg-slate-900/40 px-3 py-2">
+                                        <p class="text-[7px] uppercase text-slate-500">Quest</p>
+                                        <p class="text-[11px] text-slate-100 font-semibold break-words">{{ aiPreviewSummary.quest || '-' }}</p>
+                                        <p class="text-[8px] uppercase text-indigo-300 mt-1">{{ aiPreviewSummary.difficulty || '-' }}</p>
+                                    </div>
+                                    <div class="border border-slate-800 bg-slate-900/40 px-3 py-2">
+                                        <p class="text-[7px] uppercase text-slate-500">Sumber Data</p>
+                                        <div class="flex flex-wrap gap-1 mt-1">
+                                            <span
+                                                v-for="flag in aiPreviewSummary.source_flags"
+                                                :key="flag"
+                                                class="px-2 py-[2px] border border-slate-600 text-[7px] uppercase tracking-wide text-slate-200"
+                                            >{{ flag }}</span>
+                                            <span
+                                                v-if="!aiPreviewSummary.source_flags.length"
+                                                class="text-[8px] uppercase text-slate-500"
+                                            >-</span>
+                                        </div>
+                                        <p class="text-[7px] uppercase text-amber-300 mt-2" v-if="aiPreviewSummary.warnings.length">
+                                            Warning: {{ aiPreviewSummary.warnings.join(', ') }}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <p class="text-[7px] uppercase text-slate-500 mb-1">Q/A Counter</p>
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <div class="border border-slate-800 bg-slate-900/40 px-3 py-2">
+                                            <p class="text-[7px] uppercase text-slate-500">Total Soal</p>
+                                            <p class="text-[16px] font-mono text-cyan-200">{{ aiPreviewSummary.task_bank.question_total ?? '-' }}</p>
+                                        </div>
+                                        <div class="border border-slate-800 bg-slate-900/40 px-3 py-2">
+                                            <p class="text-[7px] uppercase text-slate-500">Terjawab</p>
+                                            <p class="text-[16px] font-mono text-emerald-300">{{ aiPreviewSummary.task_bank.answered_total ?? '-' }}</p>
+                                        </div>
+                                        <div class="border border-slate-800 bg-slate-900/40 px-3 py-2">
+                                            <p class="text-[7px] uppercase text-slate-500">Kosong</p>
+                                            <p class="text-[16px] font-mono text-rose-300">{{ aiPreviewSummary.task_bank.unanswered_total ?? '-' }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2 border border-slate-800 bg-slate-900/40 px-3 py-2">
+                                        <div class="flex items-center justify-between text-[8px] uppercase text-slate-400">
+                                            <span>Completion</span>
+                                            <span class="text-slate-200 font-mono">{{ aiPreviewSummary.task_bank.answer_completion_rate }}%</span>
+                                        </div>
+                                        <div class="h-2 mt-1 bg-slate-800 overflow-hidden">
+                                            <div
+                                                class="h-full"
+                                                :class="aiPreviewSummary.completion_class"
+                                                :style="{ width: aiPreviewSummary.task_bank.answer_completion_rate + '%' }"
+                                            ></div>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2 mt-2 text-[7px] uppercase text-slate-400">
+                                            <span>Sumber: <span class="text-slate-200">{{ aiPreviewSummary.task_bank.count_source }}</span></span>
+                                            <span v-if="aiPreviewSummary.task_bank.ai_count_confidence">AI Confidence: <span class="text-slate-200">{{ aiPreviewSummary.task_bank.ai_count_confidence }}</span></span>
+                                        </div>
+                                        <p class="text-[8px] text-slate-300 mt-2 leading-relaxed" v-if="aiPreviewSummary.task_bank.ai_count_notes">
+                                            {{ aiPreviewSummary.task_bank.ai_count_notes }}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="border border-slate-800 bg-slate-900/40 px-3 py-2">
+                                        <p class="text-[7px] uppercase text-slate-500">Artifact</p>
+                                        <p class="text-[9px] text-slate-200">Raw: {{ aiPreviewSummary.artifact.raw_combined_chars }} chars</p>
+                                        <p class="text-[9px] text-slate-200">Normalized: {{ aiPreviewSummary.artifact.normalized_chars }} chars</p>
+                                        <p
+                                            class="text-[8px] uppercase mt-1"
+                                            :class="aiPreviewSummary.artifact.is_truncated ? 'text-amber-300' : 'text-emerald-300'"
+                                        >
+                                            {{ aiPreviewSummary.artifact.is_truncated ? 'Truncated' : 'Complete' }}
+                                        </p>
+                                    </div>
+                                    <div class="border border-slate-800 bg-slate-900/40 px-3 py-2">
+                                        <p class="text-[7px] uppercase text-slate-500">Rubric</p>
+                                        <p class="text-[9px] text-slate-200">
+                                            <span :class="aiPreviewSummary.rubric.present ? 'text-emerald-300' : 'text-rose-300'">
+                                                {{ aiPreviewSummary.rubric.present ? 'Tersedia' : 'Tidak ada' }}
+                                            </span>
+                                        </p>
+                                        <p class="text-[9px] text-slate-200">Kriteria: {{ aiPreviewSummary.rubric.criteria_total }}</p>
+                                        <p class="text-[9px] text-slate-200">Level: {{ aiPreviewSummary.rubric.levels_total }}</p>
+                                        <p class="text-[9px] text-slate-200">Matrix: {{ aiPreviewSummary.rubric.matrix_entries_total }}</p>
+                                    </div>
+                                </div>
+
+                                <div class="border border-slate-800 bg-slate-900/40 px-3 py-2">
+                                    <div class="flex items-center justify-between text-[8px] uppercase text-slate-400">
+                                        <span>Evidence Quality</span>
+                                        <span class="text-slate-200 font-mono">{{ aiPreviewSummary.evidence.quality_score }}</span>
+                                    </div>
+                                    <div class="h-2 mt-1 bg-slate-800 overflow-hidden">
+                                        <div
+                                            class="h-full"
+                                            :class="aiPreviewSummary.quality_class"
+                                            :style="{ width: aiPreviewSummary.quality_percent + '%' }"
+                                        ></div>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-2 mt-2 text-[8px] uppercase text-slate-400">
+                                        <span>Chunks: <span class="text-slate-200">{{ aiPreviewSummary.evidence.chunk_count }}</span></span>
+                                        <span>Rubric ev: <span class="text-slate-200">{{ aiPreviewSummary.evidence.rubric_evidence_count }}</span></span>
+                                        <span>TaskBank ev: <span class="text-slate-200">{{ aiPreviewSummary.evidence.task_bank_evidence_count }}</span></span>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div class="border border-slate-800 bg-slate-900/40 px-3 py-2 text-center">
+                                        <p class="text-[7px] uppercase text-slate-500">Conf. Overall</p>
+                                        <p class="text-[14px] font-mono text-cyan-200">{{ aiPreviewSummary.confidence.overall }}</p>
+                                    </div>
+                                    <div class="border border-slate-800 bg-slate-900/40 px-3 py-2 text-center">
+                                        <p class="text-[7px] uppercase text-slate-500">Conf. Rubric</p>
+                                        <p class="text-[14px] font-mono text-indigo-200">{{ aiPreviewSummary.confidence.rubric }}</p>
+                                    </div>
+                                    <div class="border border-slate-800 bg-slate-900/40 px-3 py-2 text-center">
+                                        <p class="text-[7px] uppercase text-slate-500">Conf. TaskBank</p>
+                                        <p class="text-[14px] font-mono text-emerald-200">{{ aiPreviewSummary.confidence.task_bank }}</p>
+                                    </div>
+                                </div>
+
+                                <div class="text-[8px] uppercase text-slate-400">
+                                    Advisor Note:
+                                    <span
+                                        :class="aiPreviewSummary.advisor_note_present ? 'text-emerald-300' : 'text-slate-500'"
+                                    >
+                                        {{ aiPreviewSummary.advisor_note_present ? 'Ada catatan reviewer' : 'Belum ada catatan' }}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                         <div class="border border-slate-800 bg-black/40 p-3">
                             <p class="text-[8px] uppercase text-slate-400 mb-2">DETAIL_JSON</p>
@@ -566,6 +697,76 @@ const aiPreviewSummaryText = computed(() => {
         `Confidence TaskBank: ${String(confidenceStats?.task_bank ?? '-')}`,
         `Advisor Note Present: ${String(advisorNotePresent)}`,
     ].join('\n');
+});
+
+const aiPreviewSummary = computed(() => {
+    const preview = aiPreviewPayload.value || {};
+    const quest = preview?.quest || {};
+    const artifact = preview?.artifact || {};
+    const evidence = preview?.evidence || {};
+    const stats = preview?.stats || {};
+    const taskBankStats = stats?.task_bank || {};
+    const artifactStats = stats?.artifact || {};
+    const rubricStats = stats?.rubric || {};
+    const evidenceStats = stats?.evidence || {};
+    const confidenceStats = stats?.confidence || evidence?.confidence || {};
+
+    const completionRate = Math.max(0, Math.min(100, Number(taskBankStats?.answer_completion_rate ?? 0) || 0));
+    const completionClass = completionRate >= 90
+        ? 'bg-emerald-400'
+        : completionRate >= 60
+            ? 'bg-amber-400'
+            : 'bg-rose-500';
+
+    const qualityScoreRaw = Number(evidenceStats?.quality_score ?? evidence?.quality_score ?? 0) || 0;
+    const qualityPercent = qualityScoreRaw <= 1 ? Math.round(qualityScoreRaw * 100) : Math.round(qualityScoreRaw);
+    const qualityClass = qualityPercent >= 70
+        ? 'bg-emerald-400'
+        : qualityPercent >= 40
+            ? 'bg-amber-400'
+            : 'bg-rose-500';
+
+    return {
+        quest: String(quest?.title || ''),
+        difficulty: String(quest?.difficulty || ''),
+        source_flags: Array.isArray(artifact?.source_flags) ? artifact.source_flags : [],
+        warnings: Array.isArray(artifact?.warnings) ? artifact.warnings : [],
+        artifact: {
+            raw_combined_chars: Number(artifactStats?.raw_combined_chars ?? 0) || 0,
+            normalized_chars: Number(artifactStats?.normalized_chars ?? 0) || 0,
+            is_truncated: Boolean(artifactStats?.is_truncated),
+        },
+        task_bank: {
+            question_total: taskBankStats?.question_total ?? 0,
+            answered_total: taskBankStats?.answered_total ?? 0,
+            unanswered_total: taskBankStats?.unanswered_total ?? 0,
+            answer_completion_rate: completionRate,
+            count_source: String(taskBankStats?.count_source ?? '-'),
+            ai_count_confidence: Number(taskBankStats?.ai_count_confidence ?? 0) || 0,
+            ai_count_notes: String(taskBankStats?.ai_count_notes ?? ''),
+        },
+        rubric: {
+            present: Boolean(rubricStats?.present),
+            criteria_total: Number(rubricStats?.criteria_total ?? 0) || 0,
+            levels_total: Number(rubricStats?.levels_total ?? 0) || 0,
+            matrix_entries_total: Number(rubricStats?.matrix_entries_total ?? 0) || 0,
+        },
+        evidence: {
+            quality_score: qualityScoreRaw,
+            chunk_count: Number(evidenceStats?.chunk_count ?? 0) || 0,
+            rubric_evidence_count: Number(evidenceStats?.rubric_evidence_count ?? 0) || 0,
+            task_bank_evidence_count: Number(evidenceStats?.task_bank_evidence_count ?? 0) || 0,
+        },
+        confidence: {
+            overall: Number(confidenceStats?.overall ?? 0) || 0,
+            rubric: Number(confidenceStats?.rubric ?? 0) || 0,
+            task_bank: Number(confidenceStats?.task_bank ?? 0) || 0,
+        },
+        advisor_note_present: Boolean(stats?.advisor_note_present),
+        completion_class: completionClass,
+        quality_class: qualityClass,
+        quality_percent: qualityPercent,
+    };
 });
 
 const attachmentPreviewUrl = computed(() => {

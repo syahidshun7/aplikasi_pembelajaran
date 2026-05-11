@@ -94,6 +94,66 @@ class AdminOptionalQuestAiController extends Controller
         ]);
     }
 
+    public function generateThemePreview(Request $request, OptionalQuestGeneratorService $generator): JsonResponse
+    {
+        $validated = $request->validate([
+            'theme' => ['required', 'string', 'max:500'],
+            'question_type' => ['required', 'in:multiple_choice,essay,mixed'],
+            'question_count' => ['required', 'integer', 'min:3', 'max:30'],
+            'difficulty' => ['required', 'in:C-Rank,B-Rank,A-Rank,S-Rank'],
+            'study_group_id' => ['nullable', 'integer', 'exists:study_groups,id'],
+            'job_id' => ['nullable', 'integer', 'exists:job_roles,id'],
+        ]);
+
+        $this->assertMentorCanAccessScope($validated);
+
+        $preview = $generator->generateFromTheme($validated);
+
+        return response()->json([
+            'status' => 'success',
+            ...$preview,
+        ]);
+    }
+
+    public function commitThemeBundle(Request $request, OptionalQuestGeneratorService $generator): JsonResponse
+    {
+        $validated = $request->validate([
+            'bundle' => ['required', 'array'],
+            'bundle.quest' => ['required', 'array'],
+            'bundle.task_bank' => ['required', 'array'],
+            'bundle.questions' => ['required', 'array', 'min:1'],
+            'publish_mode' => ['required', 'in:draft,publish_now,schedule'],
+            'available_from' => ['nullable', 'date', 'required_if:publish_mode,schedule'],
+            'available_until' => ['nullable', 'date', 'after:available_from'],
+            'deadline' => ['nullable', 'date'],
+            'study_group_id' => ['nullable', 'integer', 'exists:study_groups,id'],
+            'job_id' => ['nullable', 'integer', 'exists:job_roles,id'],
+        ]);
+
+        $this->assertMentorCanAccessScope($validated);
+
+        $quest = $generator->commitFromTheme($validated);
+
+        CacheVersion::bump('quests');
+        CacheVersion::bump('home');
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'OPTIONAL_QUEST_AI_BUNDLE_COMMITTED',
+            'quest' => [
+                'id' => (int) $quest->id,
+                'uuid' => (string) $quest->uuid,
+                'title' => (string) $quest->title,
+                'quest_type' => (string) $quest->quest_type,
+                'status' => (string) $quest->status,
+                'schedule_type' => (string) $quest->schedule_type,
+                'task_bank_id' => (int) ($quest->task_bank_id ?? 0),
+                'available_from' => optional($quest->available_from)?->toIso8601String(),
+                'available_until' => optional($quest->available_until)?->toIso8601String(),
+            ],
+        ]);
+    }
+
     /**
      * @param  array<string, mixed>  $payload
      */
