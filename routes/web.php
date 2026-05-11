@@ -16,6 +16,7 @@ use App\Http\Controllers\AdminCreationReviewController;
 use App\Http\Controllers\AdminOptionalQuestAiController;
 use App\Http\Controllers\DoopLabDashboardController;
 use App\Http\Controllers\DoopLabTodoController;
+use App\Http\Controllers\ChatImageUploadController;
 use App\Models\User;
 use App\Http\Controllers\CreationApiController;
 use App\Http\Controllers\CreationInteractionController;
@@ -193,6 +194,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/{notificationId}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::post('/notifications/chat', [NotificationDispatchController::class, 'chat'])->name('notifications.chat');
+    Route::post('/chat/images', [ChatImageUploadController::class, 'store'])->name('chat.images.store');
     Route::post('/daily-quests/{dailyQuest}/claim', [DailyQuestController::class, 'claim'])->name('daily-quests.claim');
 });
 

@@ -1,6 +1,7 @@
 <script setup>
 import { usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import axios from 'axios';
 
 const props = defineProps({
     isOpen: {
@@ -16,6 +17,7 @@ const emit = defineEmits([
 const messages = ref([]);
 const onlineUsers = ref([]);
 const messageInput = ref('');
+const imageInput = ref(null);
 const chatContainer = ref(null);
 const activeRoom = ref('assigning...');
 const activeRoomType = ref('job');
@@ -28,7 +30,6 @@ const historyCursorId = ref(null);
 const typingUsers = ref([]);
 const socketClientId = ref(null);
 const localUnreadCount = ref(0);
-const unreadAnchorKey = ref('');
 let ephemeralMessageCounter = 0;
 const roomCatalog = ref({
     job_room: null,
@@ -42,6 +43,10 @@ const selectedDmUserId = ref('');
 const roomSwitching = ref(false);
 const roomUnreadCounts = ref({});
 const processedRoomActivityIds = new Set();
+const isUploadingImage = ref(false);
+const draftImageFile = ref(null);
+const draftImagePreviewUrl = ref('');
+const draftImageMeta = ref(null);
 
 const userName = ref('Anonymous');
 const userId = ref(null);
@@ -53,6 +58,9 @@ let typingStopTimer = null;
 let markReadTimer = null;
 const MESSAGE_PAGE_SIZE = 10;
 const TYPING_STOP_DELAY_MS = 1200;
+const MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 1600;
+const IMAGE_COMPRESS_QUALITY = 0.78;
 
 const getChatSocketPath = () => {
     const configuredPath = String(import.meta.env.VITE_CHAT_SOCKET_PATH || '').trim();
@@ -186,11 +194,21 @@ const normalizeMessage = (payload = {}) => {
     const hasMessageId = Number.isInteger(messageId) && messageId > 0;
     const key = hasMessageId ? `id-${messageId}` : `tmp-${Date.now()}-${ephemeralMessageCounter++}`;
     const mineById = userId.value && senderId ? senderId === userId.value : false;
+    const rawType = String(payload.message_type || payload.type || 'text').trim().toLowerCase();
+    const messageType = rawType === 'image' ? 'image' : 'text';
+    const imageWidth = Number(payload.image_width || 0);
+    const imageHeight = Number(payload.image_height || 0);
+    const imageSize = Number(payload.image_size || 0);
     return {
         id: hasMessageId ? messageId : null,
         room: String(payload.room || activeRoom.value || 'unknown'),
         user: sender,
         message: String(payload.message || ''),
+        message_type: messageType,
+        image_url: String(payload.image_url || ''),
+        image_width: Number.isFinite(imageWidth) && imageWidth > 0 ? Math.floor(imageWidth) : null,
+        image_height: Number.isFinite(imageHeight) && imageHeight > 0 ? Math.floor(imageHeight) : null,
+        image_size: Number.isFinite(imageSize) && imageSize > 0 ? Math.floor(imageSize) : null,
         time: String(payload.time || (createdAt ? toDisplayTime(createdAt) : fallbackTime())),
         created_at: createdAt,
         isMine: mineById || normalizeIdentity(sender) === normalizeIdentity(userName.value),
@@ -208,6 +226,14 @@ const isPresenceSystemMessage = (payload = {}) => {
 };
 
 const normalizeRoomOptionKey = (value) => String(value || '').trim();
+
+const hasRenderableContent = (item = {}) => {
+    const type = String(item.message_type || '').trim().toLowerCase();
+    if (type === 'image') {
+        return String(item.image_url || '').trim() !== '';
+    }
+    return String(item.message || '').trim() !== '';
+};
 
 const getCurrentRoomOptionKey = () => normalizeRoomOptionKey(selectedRoomKey.value);
 
@@ -439,7 +465,7 @@ const handleReceiveMessage = async (payload = {}) => {
     if (isPresenceSystemMessage(payload)) return;
 
     const parsed = normalizeMessage(payload);
-    if (parsed.message.trim() === '') return;
+    if (!hasRenderableContent(parsed)) return;
     if (parsed.id && messages.value.some((item) => item.id === parsed.id)) return;
 
     if (activeRoom.value !== 'assigning...' && parsed.room !== activeRoom.value) {
@@ -448,9 +474,6 @@ const handleReceiveMessage = async (payload = {}) => {
 
     if (!parsed.isMine && !props.isOpen) {
         parsed.__unread_while_closed = true;
-        if (!unreadAnchorKey.value) {
-            unreadAnchorKey.value = parsed.__key;
-        }
         incrementUnreadForRoom(getCurrentRoomOptionKey(), 1);
     }
 
@@ -586,7 +609,6 @@ const handleRoomAssigned = (payload = {}) => {
     }
 
     messages.value = [];
-    unreadAnchorKey.value = '';
     clearUnreadForRoom(getRoomOptionKeyFromAssignedPayload(payload));
     resetTypingState();
     hasMoreHistory.value = true;
@@ -720,7 +742,6 @@ const inactiveRoomUnreadCount = computed(() => {
 
 const clearUnreadMarkers = () => {
     if (!messages.value.length) {
-        unreadAnchorKey.value = '';
         return;
     }
 
@@ -728,40 +749,184 @@ const clearUnreadMarkers = () => {
         ...item,
         __unread_while_closed: false,
     }));
-
-    unreadAnchorKey.value = '';
-};
-
-const scrollToUnreadAnchor = async () => {
-    if (!chatContainer.value || !unreadAnchorKey.value) {
-        return false;
-    }
-
-    await nextTick();
-
-    const selector = `[data-chat-key="${unreadAnchorKey.value}"]`;
-    const target = chatContainer.value.querySelector(selector);
-    if (!target) {
-        return false;
-    }
-
-    target.scrollIntoView({
-        block: 'start',
-        behavior: 'auto',
-    });
-
-    return true;
 };
 
 const sendMessage = () => {
-    const plainMessage = messageInput.value.trim();
-    if (!socket || plainMessage === '') return;
+    void submitComposer();
+};
 
-    socket.emit('send_message', {
-        message: plainMessage,
+const submitComposer = async () => {
+    if (!socket || !isConnected.value) return;
+    if (isUploadingImage.value) return;
+
+    const plainMessage = messageInput.value.trim();
+    const hasDraftImage = !!draftImageFile.value;
+
+    if (!plainMessage && !hasDraftImage) return;
+
+    if (!hasDraftImage) {
+        socket.emit('send_message', {
+            message: plainMessage,
+        });
+        stopTyping();
+        messageInput.value = '';
+        return;
+    }
+
+    try {
+        isUploadingImage.value = true;
+        const meta = draftImageMeta.value || {};
+        const blob = meta.blob || draftImageFile.value;
+
+        const formData = new FormData();
+        const safeBaseName = String(draftImageFile.value?.name || 'chat')
+            .replace(/\s+/g, '-')
+            .replace(/\.[^/.]+$/, '');
+        const safeName = `${Date.now()}-${safeBaseName}.webp`;
+        formData.append('image', blob, safeName);
+
+        const uploadUrl = typeof route === 'function' ? route('chat.images.store') : '/chat/images';
+        const response = await axios.post(uploadUrl, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        const payload = response?.data || {};
+        const imageUrl = String(payload.image_url || '').trim();
+        if (!imageUrl) {
+            await pushSystemNotice('Upload gambar gagal.');
+            return;
+        }
+
+        socket.emit('send_message', {
+            type: 'image',
+            message: plainMessage,
+            image_url: imageUrl,
+            image_width: Number(payload.image_width || meta.width || 0),
+            image_height: Number(payload.image_height || meta.height || 0),
+            image_size: Number(payload.image_size || blob?.size || 0),
+        });
+
+        stopTyping();
+        messageInput.value = '';
+        clearDraftImage();
+    } catch (error) {
+        const message = String(error?.response?.data?.message || error?.message || 'Upload gambar gagal.');
+        await pushSystemNotice(message);
+    } finally {
+        isUploadingImage.value = false;
+    }
+};
+
+const clearDraftImage = () => {
+    if (draftImagePreviewUrl.value && typeof URL !== 'undefined' && URL.revokeObjectURL) {
+        try { URL.revokeObjectURL(draftImagePreviewUrl.value); } catch (_) { /* ignore */ }
+    }
+    draftImageFile.value = null;
+    draftImagePreviewUrl.value = '';
+    draftImageMeta.value = null;
+};
+
+const openImageInNewTab = (url) => {
+    const safeUrl = String(url || '').trim();
+    if (!safeUrl || typeof window === 'undefined') return;
+    window.open(safeUrl, '_blank', 'noopener,noreferrer');
+};
+
+const openImagePicker = () => {
+    if (isUploadingImage.value) return;
+    imageInput.value?.click();
+};
+
+const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                const width = Number(img.width || 0);
+                const height = Number(img.height || 0);
+                if (!width || !height) {
+                    reject(new Error('Dimensi gambar tidak valid.'));
+                    return;
+                }
+
+                const ratio = Math.min(1, MAX_IMAGE_DIMENSION / width, MAX_IMAGE_DIMENSION / height);
+                const targetWidth = Math.max(1, Math.round(width * ratio));
+                const targetHeight = Math.max(1, Math.round(height * ratio));
+
+                const canvas = document.createElement('canvas');
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    reject(new Error('Canvas tidak tersedia.'));
+                    return;
+                }
+
+                ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+                canvas.toBlob((blob) => {
+                    if (!blob) {
+                        reject(new Error('Gagal kompres gambar.'));
+                        return;
+                    }
+
+                    resolve({
+                        blob,
+                        width: targetWidth,
+                        height: targetHeight,
+                    });
+                }, 'image/webp', IMAGE_COMPRESS_QUALITY);
+            };
+            img.onerror = () => reject(new Error('Gagal membaca gambar.'));
+            img.src = String(reader.result || '');
+        };
+        reader.onerror = () => reject(new Error('Gagal memuat file gambar.'));
+        reader.readAsDataURL(file);
     });
-    stopTyping();
-    messageInput.value = '';
+};
+
+const handleImageSelected = async (event) => {
+    try {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+
+        if (!String(file.type || '').startsWith('image/')) {
+            await pushSystemNotice('File harus berupa gambar.');
+            return;
+        }
+
+        if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+            await pushSystemNotice('Ukuran file maksimal 5MB sebelum kompres.');
+            return;
+        }
+
+        if (!socket || !isConnected.value) {
+            await pushSystemNotice('Chat belum terhubung.');
+            return;
+        }
+
+        clearDraftImage();
+        const compressed = await compressImage(file);
+        draftImageFile.value = file;
+        draftImageMeta.value = {
+            blob: compressed.blob,
+            width: compressed.width,
+            height: compressed.height,
+        };
+        if (typeof URL !== 'undefined' && URL.createObjectURL) {
+            draftImagePreviewUrl.value = URL.createObjectURL(compressed.blob);
+        }
+    } catch (error) {
+        const message = String(error?.response?.data?.message || error?.message || 'Upload gambar gagal.');
+        await pushSystemNotice(message);
+    } finally {
+        if (event?.target) {
+            event.target.value = '';
+        }
+    }
 };
 
 const handleTypingStatus = (payload = {}) => {
@@ -813,7 +978,7 @@ const handleMessageHistory = async (payload = {}) => {
     const incomingRaw = Array.isArray(payload.messages) ? payload.messages : [];
     const incomingParsed = incomingRaw
         .map((item) => normalizeMessage(item))
-        .filter((item) => item.message.trim() !== '')
+        .filter((item) => hasRenderableContent(item))
         .filter((item) => !isPresenceSystemMessage(item));
 
     const mode = String(payload.mode || 'replace');
@@ -870,22 +1035,18 @@ const handleMessageHistory = async (payload = {}) => {
 watch(() => props.isOpen, (isOpen) => {
     const activeOptionKey = getCurrentRoomOptionKey();
 
-    if (isOpen) {
-        if (localUnreadCount.value > 0 && unreadAnchorKey.value) {
-            const schedule = typeof window !== 'undefined' ? window.setTimeout : setTimeout;
-            schedule(async () => {
-                await scrollToUnreadAnchor();
-                clearUnreadMarkers();
-                clearUnreadForRoom(activeOptionKey);
-                scheduleMarkActiveRoomAsRead();
-            }, 60);
-            return;
-        }
-
-        clearUnreadMarkers();
-        clearUnreadForRoom(activeOptionKey);
-        scheduleMarkActiveRoomAsRead();
+    if (!isOpen) {
+        return;
     }
+
+    clearUnreadMarkers();
+    clearUnreadForRoom(activeOptionKey);
+    scheduleMarkActiveRoomAsRead();
+
+    const schedule = typeof window !== 'undefined' ? window.setTimeout : setTimeout;
+    schedule(async () => {
+        await scrollToBottom();
+    }, 60);
 }, { immediate: true });
 
 watch(selectedRoomKey, (nextValue, previousValue) => {
@@ -977,6 +1138,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+    clearDraftImage();
     if (!socket) return;
     socket.off('room_catalog', applyRoomCatalog);
     socket.off('unread_snapshot', applyUnreadSnapshot);
@@ -990,7 +1152,6 @@ onBeforeUnmount(() => {
     stopTyping();
     socket.disconnect();
     socket = null;
-
     if (historyRequestTimer) {
         clearTimeout(historyRequestTimer);
         historyRequestTimer = null;
@@ -1085,7 +1246,17 @@ onBeforeUnmount(() => {
                             </p>
                             <p class="text-[7px] uppercase text-slate-500">{{ item.time }}</p>
                         </div>
-                        <p class="text-[12px] font-sans text-slate-100 break-words leading-snug">{{ item.message }}</p>
+                        <div v-if="item.message_type === 'image' && item.image_url" class="space-y-2">
+                            <img
+                                :src="item.image_url"
+                                alt="chat image"
+                                class="max-h-72 w-auto max-w-full rounded-lg border border-slate-700 object-contain cursor-zoom-in"
+                                loading="lazy"
+                                @click="openImageInNewTab(item.image_url)"
+                            />
+                            <p v-if="item.message" class="text-[12px] font-sans text-slate-100 break-words leading-snug">{{ item.message }}</p>
+                        </div>
+                        <p v-else class="text-[12px] font-sans text-slate-100 break-words leading-snug">{{ item.message }}</p>
                     </div>
                 </div>
 
@@ -1095,13 +1266,36 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="mt-3 pt-3 border-t border-slate-800 flex flex-shrink-0 items-end gap-2">
+                <input
+                    ref="imageInput"
+                    type="file"
+                    accept="image/*"
+                    class="hidden"
+                    @change="handleImageSelected"
+                >
                 <div class="relative flex-1">
+                    <div
+                        v-if="draftImagePreviewUrl"
+                        class="relative mb-2 inline-flex items-start gap-2 rounded-md border border-slate-700 bg-black/60 p-2"
+                    >
+                        <img
+                            :src="draftImagePreviewUrl"
+                            alt="draft preview"
+                            class="max-h-24 w-auto max-w-[120px] rounded object-contain"
+                        />
+                        <button
+                            type="button"
+                            class="absolute -top-2 -right-2 h-5 w-5 rounded-full border border-red-400 bg-black text-red-300 text-[10px] leading-none hover:bg-red-500 hover:text-black"
+                            @click="clearDraftImage"
+                            :disabled="isUploadingImage"
+                        >x</button>
+                    </div>
                     <input
                         v-model="messageInput"
                         type="text"
                         maxlength="500"
                         class="w-full bg-black border-2 border-slate-700 pt-2 pb-4 px-2 text-cyan-300 outline-none text-[10px] font-sans"
-                        placeholder="Type message..."
+                        :placeholder="draftImagePreviewUrl ? 'Tambahkan caption (opsional)...' : 'Type message...'"
                         @input="handleTypingInput"
                         @keydown="handleTypingKeydown"
                         @blur="stopTyping"
@@ -1113,10 +1307,19 @@ onBeforeUnmount(() => {
                 </div>
                 <button
                     type="button"
-                    class="px-3 py-2 border-2 border-cyan-500 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px]"
+                    class="px-3 py-2 border-2 border-fuchsia-500 text-fuchsia-300 hover:bg-fuchsia-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
+                    :disabled="isUploadingImage || !isConnected"
+                    @click="openImagePicker"
+                >
+                    Image
+                </button>
+                <button
+                    type="button"
+                    class="px-3 py-2 border-2 border-cyan-500 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
+                    :disabled="!isConnected || isUploadingImage"
                     @click="sendMessage"
                 >
-                    Send
+                    {{ isUploadingImage ? 'SENDING...' : 'Send' }}
                 </button>
             </div>
         </div>

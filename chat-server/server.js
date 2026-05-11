@@ -80,6 +80,11 @@ const normalizeText = (value, fallback = '') => {
     return text !== '' ? text : fallback;
 };
 
+const normalizeMessageType = (value) => {
+    const raw = String(value || '').trim().toLowerCase();
+    return raw === 'image' ? 'image' : 'text';
+};
+
 const normalizePositiveInt = (value, fallback, max = null) => {
     const num = Number(value);
     if (!Number.isInteger(num) || num <= 0) return fallback;
@@ -643,13 +648,46 @@ const isRateLimited = async (userId) => {
     return currentCount > RATE_LIMIT_MAX;
 };
 
-const saveMessage = async (userId, room, message) => {
-    const [result] = await dbPool.execute(
-        'INSERT INTO messages (user_id, room, message, created_at) VALUES (?, ?, ?, NOW())',
-        [userId, room, message]
-    );
+const saveMessage = async (payload = {}) => {
+    const userId = Number(payload.userId || 0);
+    const room = normalizeText(payload.room);
+    const messageType = normalizeMessageType(payload.messageType);
+    const message = normalizeText(payload.message);
+    const imageUrl = normalizeText(payload.imageUrl);
+    const imageWidth = normalizePositiveInt(payload.imageWidth, null, 10000);
+    const imageHeight = normalizePositiveInt(payload.imageHeight, null, 10000);
+    const imageSize = normalizePositiveInt(payload.imageSize, null, 20 * 1024 * 1024);
 
-    return result.insertId;
+    try {
+        const [result] = await dbPool.execute(
+            `INSERT INTO messages
+                (user_id, room, message, message_type, image_url, image_width, image_height, image_size, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+            [
+                userId,
+                room,
+                message,
+                messageType,
+                imageUrl || null,
+                imageWidth,
+                imageHeight,
+                imageSize,
+            ]
+        );
+
+        return result.insertId;
+    } catch (error) {
+        if (String(error?.code || '') !== 'ER_BAD_FIELD_ERROR') {
+            throw error;
+        }
+
+        const [fallbackResult] = await dbPool.execute(
+            'INSERT INTO messages (user_id, room, message, created_at) VALUES (?, ?, ?, NOW())',
+            [userId, room, message || (messageType === 'image' ? '[Image]' : '')]
+        );
+
+        return fallbackResult.insertId;
+    }
 };
 
 const markRoomAsRead = async ({ userId, room, requestedMessageId = null }) => {
@@ -698,6 +736,11 @@ const loadRoomMessages = async ({ room, beforeId = null, limit = MESSAGE_PAGE_SI
                m.user_id,
                m.room,
                m.message,
+               COALESCE(m.message_type, 'text') AS message_type,
+               m.image_url,
+               m.image_width,
+               m.image_height,
+               m.image_size,
                m.created_at,
                COALESCE(NULLIF(u.username, ''), u.name) AS user_name
         FROM messages m
@@ -718,9 +761,40 @@ const loadRoomMessages = async ({ room, beforeId = null, limit = MESSAGE_PAGE_SI
         LIMIT ${sqlLimit}
     `;
 
-    const [rows] = cursor
-        ? await dbPool.execute(withCursorSql, [room, cursor])
-        : await dbPool.execute(noCursorSql, [room]);
+    let rows;
+    try {
+        const [result] = cursor
+            ? await dbPool.execute(withCursorSql, [room, cursor])
+            : await dbPool.execute(noCursorSql, [room]);
+        rows = result;
+    } catch (error) {
+        if (String(error?.code || '') === 'ER_BAD_FIELD_ERROR') {
+            const fallbackBase = `
+                SELECT m.id,
+                       m.user_id,
+                       m.room,
+                       m.message,
+                       'text' AS message_type,
+                       NULL AS image_url,
+                       NULL AS image_width,
+                       NULL AS image_height,
+                       NULL AS image_size,
+                       m.created_at,
+                       COALESCE(NULLIF(u.username, ''), u.name) AS user_name
+                FROM messages m
+                LEFT JOIN users u ON u.id = m.user_id
+                WHERE m.room = ?
+            `;
+            const fallbackWithCursor = `${fallbackBase} AND m.id < ? ORDER BY m.id DESC LIMIT ${sqlLimit}`;
+            const fallbackNoCursor = `${fallbackBase} ORDER BY m.id DESC LIMIT ${sqlLimit}`;
+            const [fallbackResult] = cursor
+                ? await dbPool.execute(fallbackWithCursor, [room, cursor])
+                : await dbPool.execute(fallbackNoCursor, [room]);
+            rows = fallbackResult;
+        } else {
+            throw error;
+        }
+    }
 
     const hasMore = rows.length > pageLimit;
     const pageRows = hasMore ? rows.slice(0, pageLimit) : rows;
@@ -735,6 +809,11 @@ const loadRoomMessages = async ({ room, beforeId = null, limit = MESSAGE_PAGE_SI
                 user: normalizeText(row.user_name, 'Unknown'),
                 room: row.room,
                 message: normalizeText(row.message),
+                message_type: normalizeMessageType(row.message_type),
+                image_url: normalizeText(row.image_url),
+                image_width: normalizePositiveInt(row.image_width, null, 10000),
+                image_height: normalizePositiveInt(row.image_height, null, 10000),
+                image_size: normalizePositiveInt(row.image_size, null, 20 * 1024 * 1024),
                 time: getTimeStamp(createdAt),
                 created_at: createdAt.toISOString(),
             };
@@ -917,8 +996,18 @@ io.on('connection', (socket) => {
                 return;
             }
 
+            const messageType = normalizeMessageType(data.type || data.message_type);
+            const imageUrl = normalizeText(data.image_url);
             const message = normalizeText(data.message);
-            if (!message) return;
+
+            if (messageType === 'image') {
+                if (!imageUrl || imageUrl.length > 2000 || !/^https?:\/\//i.test(imageUrl) && !imageUrl.startsWith('/')) {
+                    socket.emit('server_error', { message: 'Invalid image URL' });
+                    return;
+                }
+            } else if (!message) {
+                return;
+            }
 
             const limited = await isRateLimited(presence.userId);
             if (limited) {
@@ -930,7 +1019,20 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            const insertedId = await saveMessage(presence.userId, presence.room, message);
+            const imageWidth = normalizePositiveInt(data.image_width, null, 10000);
+            const imageHeight = normalizePositiveInt(data.image_height, null, 10000);
+            const imageSize = normalizePositiveInt(data.image_size, null, 20 * 1024 * 1024);
+
+            const insertedId = await saveMessage({
+                userId: presence.userId,
+                room: presence.room,
+                message,
+                messageType,
+                imageUrl,
+                imageWidth,
+                imageHeight,
+                imageSize,
+            });
             const now = new Date();
 
             io.to(presence.room).emit('receive_message', {
@@ -939,6 +1041,11 @@ io.on('connection', (socket) => {
                 user: presence.userName,
                 user_id: presence.userId,
                 message,
+                message_type: messageType,
+                image_url: imageUrl,
+                image_width: imageWidth,
+                image_height: imageHeight,
+                image_size: imageSize,
                 time: getTimeStamp(now),
                 created_at: now.toISOString(),
             });
@@ -956,6 +1063,10 @@ io.on('connection', (socket) => {
                     recipientUserId,
                 });
 
+                const previewMessage = messageType === 'image'
+                    ? `[Image]${message ? ` ${message.slice(0, 60)}` : ''}`
+                    : message.slice(0, 80);
+
                 io.to(buildUserInboxRoom(recipientUserId)).emit('room_activity', {
                     message_id: insertedId,
                     room: presence.room,
@@ -965,7 +1076,7 @@ io.on('connection', (socket) => {
                     room_option_key: roomOptionKey,
                     sender_user_id: presence.userId,
                     sender_user_name: presence.userName,
-                    message_preview: message.slice(0, 80),
+                    message_preview: previewMessage,
                     created_at: now.toISOString(),
                 });
             }
