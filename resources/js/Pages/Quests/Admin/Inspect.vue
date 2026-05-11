@@ -942,6 +942,37 @@ const selectedAnswerFor = (question) => {
     return typeof value === 'string' ? value : String(value || '');
 };
 
+const applyEssayScoresFromAi = (essayScores) => {
+    if (!isTaskBankSubmission.value || !Array.isArray(essayScores) || essayScores.length === 0) {
+        return 0;
+    }
+
+    const questionMap = new Map(
+        essayQuestions.value.map((question) => [String(question.uuid || ''), Number(question.weight || 0)])
+    );
+    const next = { ...essayPoints.value };
+    let appliedCount = 0;
+
+    essayScores.forEach((item) => {
+        if (!item || typeof item !== 'object') return;
+        const uuid = String(item.question_uuid || item.uuid || '').trim();
+        if (!uuid || !questionMap.has(uuid)) return;
+
+        const maxScore = Number(item.max_score ?? questionMap.get(uuid) ?? 0);
+        const rawScore = Number(item.score ?? 0);
+        const clamped = Math.max(0, Math.min(Number.isFinite(maxScore) && maxScore > 0 ? maxScore : questionMap.get(uuid) || 0, Number.isFinite(rawScore) ? rawScore : 0));
+
+        next[uuid] = Math.round(clamped);
+        appliedCount += 1;
+    });
+
+    if (appliedCount > 0) {
+        essayPoints.value = next;
+    }
+
+    return appliedCount;
+};
+
 onMounted(() => {
     const savedScores = props.submission.scores_detail;
 
@@ -1145,6 +1176,8 @@ const confirmAiScanFromPreview = async () => {
             appliedRubricCount = autoFillRubricByScore(suggested);
         }
 
+        const appliedEssayCount = applyEssayScoresFromAi(data.essay_scores);
+
         const suggestionText = String(data.suggested_feedback || data.feedback || '').trim();
         const summaryText = String(data.summary || '').trim();
         const advisoryText = [summaryText, suggestionText].filter(Boolean).join(' | ');
@@ -1162,6 +1195,7 @@ const confirmAiScanFromPreview = async () => {
             appliedRubricCount > 0
                 ? `System calibrated. ${appliedRubricCount} rubric level auto-selected.`
                 : 'System has been calibrated with AI suggestions.',
+            appliedEssayCount > 0 ? `Essay: ${appliedEssayCount} skor diisi otomatis.` : '',
             `Confidence: ${confidenceOverall || 0}`,
             `Evidence quality: ${evidenceQualityScore || 0}`,
             lowConfidenceMessage,

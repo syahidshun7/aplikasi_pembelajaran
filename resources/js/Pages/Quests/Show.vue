@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import Swal from 'sweetalert2';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 
@@ -31,6 +31,82 @@ const form = useForm({
 
 const unlockForm = useForm({});
 const page = usePage();
+
+const questDraftStorageKey = computed(() => {
+    const questKey = String(props.quest?.uuid || props.quest?.id || 'quest');
+    const userKey = String(page.props?.auth?.user?.id || 'guest');
+    return `quest-draft:${userKey}:${questKey}`;
+});
+
+let draftSaveTimer = null;
+
+const clearDraft = () => {
+    if (typeof window === 'undefined') return;
+    try {
+        window.localStorage.removeItem(questDraftStorageKey.value);
+    } catch (_) {
+        // ignore
+    }
+};
+
+const persistDraft = () => {
+    if (typeof window === 'undefined') return;
+
+    if (draftSaveTimer) {
+        clearTimeout(draftSaveTimer);
+    }
+
+    draftSaveTimer = window.setTimeout(() => {
+        try {
+            window.localStorage.setItem(questDraftStorageKey.value, JSON.stringify({
+                content: form.content || '',
+                task_answers: { ...(form.task_answers || {}) },
+            }));
+        } catch (_) {
+            // ignore quota / privacy mode
+        }
+    }, 150);
+};
+
+const loadDraftFromStorage = () => {
+    if (typeof window === 'undefined') return;
+
+    try {
+        const raw = window.localStorage.getItem(questDraftStorageKey.value);
+        if (!raw) return;
+
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return;
+
+        if (typeof parsed.content === 'string') {
+            form.content = parsed.content;
+        }
+
+        if (parsed.task_answers && typeof parsed.task_answers === 'object' && !Array.isArray(parsed.task_answers)) {
+            form.task_answers = {
+                ...(form.task_answers || {}),
+                ...parsed.task_answers,
+            };
+        }
+    } catch (_) {
+        // ignore corrupted draft
+    }
+};
+
+watch(() => form.content, persistDraft);
+watch(() => form.task_answers, persistDraft, { deep: true });
+
+onMounted(() => {
+    loadDraftFromStorage();
+});
+
+onBeforeUnmount(() => {
+    if (draftSaveTimer) {
+        clearTimeout(draftSaveTimer);
+        draftSaveTimer = null;
+    }
+});
+
 const taskBankType = computed(() => props.quest?.task_bank?.assessment_type || null);
 const isAllMcq = computed(() => {
     if (!isStructuredTaskBankQuest.value) return false;
@@ -180,6 +256,7 @@ const submitReport = () => {
             form.post(url, {
                 preserveScroll: true,
                 onSuccess: () => {
+                    clearDraft();
                     Swal.fire({
                         title: 'LOGGED!',
                         text: 'Submission berhasil dikirim.',
@@ -187,6 +264,9 @@ const submitReport = () => {
                         background: '#161b22',
                         color: '#4ed4d4',
                     });
+                },
+                onError: () => {
+                    persistDraft();
                 },
             });
         }

@@ -371,6 +371,8 @@ class SubmissionAiAdvisorService
             '- evidence_context: '.json_encode($evidenceContext, JSON_UNESCAPED_UNICODE),
             '- scoring_signals: '.json_encode($scoringSignals, JSON_UNESCAPED_UNICODE),
             '- advisor_note_from_reviewer: '.($advisorNote !== '' ? $advisorNote : '[NONE]'),
+            '- instruction_priority: Jika advisor_note_from_reviewer ada, perlakukan sebagai instruksi prioritas tinggi untuk skenario testing/review. Bila note bertentangan dengan evidence, utamakan note selama tidak meminta output non-JSON atau melanggar aturan.',
+            '- essay_instruction: Untuk task bank essay, jika note meminta jawaban essay dianggap benar/diterima, sesuaikan essay_scores dan jelaskan dampaknya di suggested_feedback/summary.',
             '',
             'Submission user (gabungan text + file extract, sudah dimasking):',
             $studentWork !== '' ? $studentWork : '[EMPTY_SUBMISSION]',
@@ -385,6 +387,7 @@ class SubmissionAiAdvisorService
             '  "suggested_feedback": "string",',
             '  "rubric_recommendations": [{"criteria_id": 0, "criteria_name": "string", "suggested_level_id": 0, "reason": "string"}],',
             '  "task_bank_findings": [{"question_uuid": "string", "question_type": "string", "result": "correct|incorrect|unclear", "reason": "string"}],',
+            '  "essay_scores": [{"question_uuid": "string", "score": 0, "max_score": 0, "reason": "string"}],',
             '  "qa_count": {"question_total": 0, "answered_total": 0, "notes": "string", "confidence": 0},',
             '  "confidence": {"overall": 0, "rubric": 0, "task_bank": 0, "notes": "string"}',
             '}',
@@ -394,6 +397,7 @@ class SubmissionAiAdvisorService
             '- suggested_score_range wajib 1-100, contoh "70-85".',
             '- Jika context rubric tersedia, isi rubric_recommendations berbasis evidence_context.rubric_evidence.',
             '- Jika context task bank tersedia, isi task_bank_findings berdasarkan evidence_context.task_bank_evidence.',
+            '- Jika task_bank_context berisi soal essay, isi essay_scores dengan skor per soal essay (score 0 sampai weight soal). Gunakan question_uuid dari task_bank_context.',
             '- Wajib isi confidence secara konservatif. Jika evidence lemah, turunkan confidence.',
             '- Jika jawaban kosong banyak atau evidence lemah, turunkan suggested_score_range secara tegas.',
             '- Jika tidak ada task_bank_context, isi qa_count berdasarkan struktur laporan (deteksi pola soal/pertanyaan dan jawaban). Jika ada task_bank_context, isi qa_count sesuai jumlah soal yang tersedia.',
@@ -455,6 +459,7 @@ class SubmissionAiAdvisorService
             'suggested_feedback' => $suggestedFeedback,
             'rubric_recommendations' => $this->normalizeObjectList($decoded['rubric_recommendations'] ?? []),
             'task_bank_findings' => $this->normalizeObjectList($decoded['task_bank_findings'] ?? []),
+            'essay_scores' => $this->normalizeEssayScores($decoded['essay_scores'] ?? []),
             'score_calibration' => $scoreCalibration,
             'confidence' => [
                 'overall' => $confidenceOverall,
@@ -686,6 +691,40 @@ class SubmissionAiAdvisorService
                     ->all();
             })
             ->filter(fn ($item) => ! empty($item))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  mixed  $value
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeEssayScores(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        return collect($value)
+            ->filter(fn ($item) => is_array($item))
+            ->map(function ($item) {
+                $uuid = trim((string) ($item['question_uuid'] ?? $item['uuid'] ?? ''));
+                if ($uuid === '') {
+                    return null;
+                }
+
+                $score = (float) ($item['score'] ?? 0);
+                $maxScore = (float) ($item['max_score'] ?? 0);
+                $reason = trim((string) ($item['reason'] ?? ''));
+
+                return [
+                    'question_uuid' => $uuid,
+                    'score' => max(0.0, $score),
+                    'max_score' => max(0.0, $maxScore),
+                    'reason' => $reason,
+                ];
+            })
+            ->filter(fn ($item) => is_array($item))
             ->values()
             ->all();
     }

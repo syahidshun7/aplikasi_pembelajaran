@@ -422,6 +422,7 @@ class AdminSubmissionController extends Controller
             'risk_flags' => $advisor['risk_flags'] ?? [],
             'suggested_score_range' => $range,
             'suggested_feedback' => $advisor['suggested_feedback'] ?? '',
+            'essay_scores' => $advisor['essay_scores'] ?? [],
             'provider_used' => $result['provider_used'],
             'is_fallback' => $result['is_fallback'],
             'latency_ms' => $result['latency_ms'],
