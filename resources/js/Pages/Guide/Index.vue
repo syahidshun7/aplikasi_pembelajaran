@@ -65,6 +65,11 @@ const guideItems = computed(() => {
     return props.materi?.data || [];
 });
 
+const canPreviewAsUser = computed(() => {
+    const role = String(page.props?.auth?.user?.role || '').toLowerCase();
+    return ['admin', 'super_admin', 'mentor'].includes(role);
+});
+
 const paginationLinks = computed(() => {
     if (Array.isArray(props.materi)) return [];
     return props.materi?.links || [];
@@ -429,6 +434,8 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                                 </div>
 
                                 <div class="flex gap-4 self-end mt-2">
+                                    <Link v-if="canPreviewAsUser" :href="route('guides.user.show', item.uuid)"
+                                        class="text-cyan-400 hover:text-white text-[8px] uppercase font-bold">[View]</Link>
                                     <button v-if="!isTrashView" @click="startEdit(item)"
                                         class="text-green-500 hover:text-white text-[8px] uppercase font-bold">[Edit]</button>
                                     <button v-if="!isTrashView" @click="confirmDelete(item.uuid)"

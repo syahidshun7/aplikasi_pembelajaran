@@ -49,6 +49,7 @@ const todoNoteForm = useForm({
 
 const todoNoteImagePreview = ref('');
 const selectedTodoChatStreamRef = ref(null);
+const todoChatPanelRef = ref(null);
 const currentTimeMs = ref(Date.now());
 let currentTimeTicker = null;
 
@@ -149,6 +150,33 @@ const pipelineSummary = computed(() => ([
     { label: 'Finished', value: Number(props.my_creation_stats?.finished || 0) },
     { label: 'Published', value: Number(props.my_creation_stats?.published || 0) },
     { label: 'Open Collab', value: Number(props.my_creation_stats?.open_for_collab || 0) },
+]));
+
+const dashboardMetrics = computed(() => ([
+    {
+        label: 'Total To-Do',
+        value: todoCounters.total,
+        hint: 'Semua item aktif',
+        tone: 'cyan',
+    },
+    {
+        label: 'Pending',
+        value: todoCounters.pending,
+        hint: 'Perlu tindak lanjut',
+        tone: 'amber',
+    },
+    {
+        label: 'Selesai',
+        value: todoCounters.completed,
+        hint: 'Sudah ditutup',
+        tone: 'green',
+    },
+    {
+        label: 'Review Queue',
+        value: Number(props.overview?.incoming_review_queue || 0),
+        hint: 'Menunggu cek',
+        tone: 'violet',
+    },
 ]));
 
 const incomingQueue = computed(() => Number(props.collaboration?.incoming_pending || 0));
@@ -327,6 +355,11 @@ const openTodoEditModal = (todo) => {
 
 const openTodoDetail = (todo) => {
     selectedTodoUuid.value = String(todo?.uuid || '');
+    nextTick(() => {
+        if (typeof window !== 'undefined' && todoChatPanelRef.value?.scrollIntoView) {
+            todoChatPanelRef.value.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
 };
 
 const clearSelectedTodo = () => {
@@ -358,6 +391,10 @@ const clearTodoNoteForm = () => {
 watch(selectedTodoUuid, () => {
     clearTodoNoteForm();
     nextTick(() => {
+        if (typeof window !== 'undefined' && todoChatPanelRef.value?.scrollIntoView) {
+            todoChatPanelRef.value.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
         const list = selectedTodoChatStreamRef.value;
         if (!list) return;
         list.scrollTop = list.scrollHeight;
@@ -499,8 +536,9 @@ onUnmounted(() => {
                             <i class="fi fi-rr-apps"></i>
                         </div>
                         <div>
-                            <p class="nb-eyebrow">DOOPLAB NOTEBOOK</p>
-                            <h1 class="nb-title">Eksperimen {{ authUser?.name || 'Researcher' }}</h1>
+                            <p class="nb-eyebrow">DOOPLAB DASHBOARD</p>
+                            <h1 class="nb-title">Halo, {{ authUser?.name || 'Researcher' }}</h1>
+                            <p class="nb-subtitle">Kelola to-do, catatan, dan progres eksperimen dari satu tempat.</p>
                         </div>
                     </div>
 
@@ -510,11 +548,26 @@ onUnmounted(() => {
                     </div>
                 </header>
 
+                <section class="nb-metrics">
+                    <article
+                        v-for="metric in dashboardMetrics"
+                        :key="metric.label"
+                        :class="['metric-card', `metric-card--${metric.tone}`]"
+                    >
+                        <span class="metric-label">{{ metric.label }}</span>
+                        <strong class="metric-value">{{ metric.value }}</strong>
+                        <small class="metric-hint">{{ metric.hint }}</small>
+                    </article>
+                </section>
+
                 <section class="nb-workbench">
-                    <aside class="nb-panel nb-sources">
-                        <div class="panel-head">
-                            <h2>To-Do</h2>
-                            <i class="fi fi-rr-menu-dots-vertical"></i>
+                    <aside class="nb-panel nb-sources nb-todo-nav">
+                        <div class="panel-head panel-head--stacked">
+                            <div>
+                                <h2>To-Do</h2>
+                                <p class="panel-subtitle">Pilih item untuk lihat detail di panel tengah.</p>
+                            </div>
+                            <span class="todo-nav-count">{{ todoCounters.total }}</span>
                         </div>
 
                         <button type="button" class="source-add-btn" @click="openTodoModal">
@@ -527,7 +580,7 @@ onUnmounted(() => {
                             <input
                                 v-model="todoSearch"
                                 type="text"
-                                placeholder="Telusuri to-do eksperimen"
+                                placeholder="Cari to-do"
                             >
                         </label>
 
@@ -555,8 +608,8 @@ onUnmounted(() => {
                             </button>
                         </div>
 
-                        <div class="source-list-wrap custom-scroll">
-                            <div class="source-list-title">
+                        <nav class="todo-nav-list custom-scroll" aria-label="Daftar to-do">
+                            <div class="todo-nav-header">
                                 <span>To-Do Aktif</span>
                                 <span>{{ filteredTodoItems.length }}</span>
                             </div>
@@ -568,47 +621,60 @@ onUnmounted(() => {
                             <article
                                 v-for="item in filteredTodoItems"
                                 :key="item.uuid"
-                                class="todo-item"
-                                :class="{ 'is-completed': item.is_completed }"
+                                class="todo-nav-item"
+                                :class="{
+                                    'is-completed': item.is_completed,
+                                    'is-active': String(selectedTodoUuid || '') === String(item.uuid || ''),
+                                }"
+                                role="button"
+                                tabindex="0"
                                 @click="openTodoDetail(item)"
+                                @keydown.enter.prevent="openTodoDetail(item)"
+                                @keydown.space.prevent="openTodoDetail(item)"
                             >
                                 <button
-                                    type="button"
-                                    class="todo-check"
+                                    class="todo-nav-check"
                                     :class="{ 'is-done': item.is_completed }"
+                                    type="button"
                                     :disabled="!item.can_toggle"
                                     :title="item.can_toggle ? 'Toggle status to-do' : 'Tidak punya izin untuk centang item ini'"
-                                    @click.stop="toggleTodo(item)"
+                                    @click.stop="item.can_toggle && toggleTodo(item)"
                                 >
                                     <i v-if="item.is_completed" class="fi fi-rr-check"></i>
                                 </button>
 
-                                <div class="todo-content">
-                                    <p class="todo-title">{{ item.title }}</p>
-                                    <p class="todo-meta">
-                                        {{ item.owner?.name || '-' }} | {{ formatDate(item.created_at) }}
-                                    </p>
-                                    <p class="todo-deadline" :class="todoDeadlineClass(item)">
-                                        <i class="fi fi-rr-clock-three"></i>
-                                        {{ todoDeadlineLabel(item) }}
-                                    </p>
-                                    <div class="todo-badges">
+                                <span class="todo-nav-body">
+                                    <span class="todo-nav-title">{{ item.title }}</span>
+                                    <span class="todo-nav-sub">
+                                        <span class="todo-nav-meta">{{ item.owner?.name || '-' }}</span>
+                                        <span
+                                            class="todo-nav-deadline"
+                                            :class="todoDeadlineClass(item)"
+                                        >
+                                            <i class="fi fi-rr-clock-three"></i>
+                                            {{ todoDeadlineLabel(item) }}
+                                        </span>
+                                    </span>
+                                    <span class="todo-nav-tags">
                                         <span class="todo-badge">{{ assignmentModeLabel(item.assignment_mode) }}</span>
                                         <span class="todo-state" :class="item.is_completed ? 'is-done' : 'is-pending'">
                                             {{ item.is_completed ? 'DONE' : 'PENDING' }}
                                         </span>
-                                    </div>
-                                </div>
+                                    </span>
+                                </span>
+
+                                <i class="fi fi-rr-angle-small-right todo-nav-arrow"></i>
                             </article>
-                        </div>
+                        </nav>
                     </aside>
 
-                    <main class="nb-panel nb-chat">
-                        <div class="panel-head">
-                            <h2>Chat</h2>
-                            <div class="panel-tools">
-                                <i class="fi fi-rr-settings-sliders"></i>
-                                <i class="fi fi-rr-menu-dots-vertical"></i>
+                    <main ref="todoChatPanelRef" class="nb-panel nb-chat">
+                        <div class="panel-head panel-head--stacked">
+                            <div>
+                                <h2>{{ selectedTodo ? 'Detail To-Do' : 'Ringkasan Kerja' }}</h2>
+                                <p class="panel-subtitle">
+                                    {{ selectedTodo ? 'Catatan dan bukti pengerjaan ditampilkan di bawah.' : 'Pilih to-do dari sidebar untuk mulai mencatat progres.' }}
+                                </p>
                             </div>
                         </div>
 
@@ -623,6 +689,14 @@ onUnmounted(() => {
                                 </div>
                                 <h3>{{ selectedTodo.title }}</h3>
                                 <p>{{ selectedTodo.description || 'Tidak ada deskripsi tambahan.' }}</p>
+                                <div class="chat-hero-meta">
+                                    <span>{{ selectedTodo.owner?.name || '-' }}</span>
+                                    <span>{{ todoDeadlineLabel(selectedTodo) }}</span>
+                                    <span>{{ assignmentModeLabel(selectedTodo.assignment_mode) }}</span>
+                                    <span :class="selectedTodo.is_completed ? 'is-done' : 'is-pending'">
+                                        {{ selectedTodo.is_completed ? 'DONE' : 'PENDING' }}
+                                    </span>
+                                </div>
                             </article>
 
                             <section ref="selectedTodoChatStreamRef" class="chat-stream custom-scroll">
@@ -803,8 +877,11 @@ onUnmounted(() => {
                     </main>
 
                     <aside class="nb-panel nb-studio">
-                        <div class="panel-head">
-                            <h2>Studio</h2>
+                        <div class="panel-head panel-head--stacked">
+                            <div>
+                                <h2>Quick Access</h2>
+                                <p class="panel-subtitle">Shortcut fitur utama DoopTech.</p>
+                            </div>
                             <i class="fi fi-rr-apps-add"></i>
                         </div>
 
@@ -941,67 +1018,57 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@300;400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 .nb-root {
     --bg-0: #090d14;
     --bg-1: #0f1726;
     --bg-2: #141f31;
-    --line: rgba(94, 175, 207, 0.25);
-    --line-strong: rgba(94, 175, 207, 0.5);
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.14);
     --cyan: #57d6ff;
     --amber: #f8c65c;
     --green: #57f6b9;
     --violet: #b9a7ff;
     --danger: #ff7f8f;
-    --text-dim: #9aa9bf;
+    --text-dim: #8ea2bd;
+    --radius: 12px;
     position: relative;
     min-height: calc(100vh - 80px);
-    padding: 14px;
+    padding: 20px;
     overflow: hidden;
     color: #fff;
     font-family: 'Inter', sans-serif;
     background:
-        radial-gradient(circle at 15% 14%, rgba(87, 214, 255, 0.14), transparent 30%),
-        radial-gradient(circle at 84% 20%, rgba(248, 198, 92, 0.1), transparent 24%),
+        radial-gradient(circle at 15% 14%, rgba(87, 214, 255, 0.06), transparent 30%),
+        radial-gradient(circle at 84% 20%, rgba(248, 198, 92, 0.04), transparent 24%),
         linear-gradient(160deg, var(--bg-0), var(--bg-1) 40%, var(--bg-2));
 }
 
 .nb-aurora {
-    position: absolute;
-    inset: -30% 0 0 -20%;
-    pointer-events: none;
-    background:
-        repeating-linear-gradient(
-            90deg,
-            rgba(87, 214, 255, 0.06) 0,
-            rgba(87, 214, 255, 0.06) 1px,
-            transparent 1px,
-            transparent 38px
-        );
-    opacity: 0.4;
-    animation: drift 20s linear infinite;
+    display: none;
 }
 
 .nb-shell {
     position: relative;
     z-index: 1;
-    max-width: 1480px;
+    max-width: 1400px;
     margin: 0 auto;
     display: grid;
-    gap: 12px;
+    gap: 16px;
 }
 
 .nb-topbar,
 .nb-panel {
     border: 1px solid var(--line);
-    background: linear-gradient(155deg, rgba(14, 20, 34, 0.96), rgba(19, 30, 46, 0.94));
-    box-shadow: inset 0 0 28px rgba(87, 214, 255, 0.08);
+    background: rgba(14, 20, 34, 0.85);
+    backdrop-filter: blur(12px);
+    border-radius: var(--radius);
 }
 
 .nb-topbar {
-    min-height: 76px;
-    padding: 14px;
+    min-height: 64px;
+    padding: 16px 20px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1015,28 +1082,40 @@ onUnmounted(() => {
 }
 
 .nb-logo {
-    width: 42px;
-    height: 42px;
-    border: 1px solid var(--line-strong);
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
     display: grid;
     place-items: center;
     color: var(--cyan);
-    font-size: 18px;
-    background: rgba(87, 214, 255, 0.08);
+    font-size: 16px;
+    background: rgba(87, 214, 255, 0.06);
 }
 
 .nb-eyebrow {
-    margin: 0 0 6px;
-    font-family: 'Press Start 2P', cursive;
-    font-size: 8px;
+    margin: 0 0 4px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
     letter-spacing: 1px;
     color: var(--cyan);
+    text-transform: uppercase;
 }
 
 .nb-title {
     margin: 0;
-    font-size: 17px;
-    font-weight: 600;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.nb-subtitle {
+    margin: 4px 0 0;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
 }
 
 .nb-actions {
@@ -1047,17 +1126,23 @@ onUnmounted(() => {
 
 .nb-btn {
     text-decoration: none;
-    font-family: 'Press Start 2P', cursive;
-    font-size: 8px;
-    padding: 12px 14px;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 10px 16px;
     border: 1px solid var(--line-strong);
+    border-radius: 8px;
     transition: 0.2s ease;
     cursor: pointer;
 }
 
 .nb-btn--ghost {
     color: var(--cyan);
-    background: rgba(87, 214, 255, 0.06);
+    background: rgba(87, 214, 255, 0.04);
+}
+
+.nb-btn--ghost:hover {
+    background: rgba(87, 214, 255, 0.1);
 }
 
 .nb-btn--solid {
@@ -1066,28 +1151,92 @@ onUnmounted(() => {
     background: linear-gradient(120deg, #8be8ff, #7fffc9);
 }
 
-.nb-workbench {
+.nb-btn--solid:hover {
+    opacity: 0.9;
+}
+
+.nb-metrics {
     display: grid;
-    grid-template-columns: 330px minmax(0, 1fr) 360px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 12px;
 }
 
+.metric-card {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: rgba(14, 20, 34, 0.7);
+    backdrop-filter: blur(8px);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.metric-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.metric-value {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.metric-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.metric-card--cyan .metric-value { color: var(--cyan); }
+.metric-card--amber .metric-value { color: var(--amber); }
+.metric-card--green .metric-value { color: var(--green); }
+.metric-card--violet .metric-value { color: var(--violet); }
+
+.metric-card--cyan { border-color: rgba(87, 214, 255, 0.15); }
+.metric-card--amber { border-color: rgba(248, 198, 92, 0.15); }
+.metric-card--green { border-color: rgba(87, 246, 185, 0.15); }
+.metric-card--violet { border-color: rgba(185, 167, 255, 0.15); }
+
+.nb-workbench {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr) 300px;
+    gap: 16px;
+}
+
 .nb-panel {
-    min-height: 710px;
+    min-height: 680px;
     max-height: calc(100vh - 130px);
     display: flex;
     flex-direction: column;
-    padding: 14px;
+    padding: 16px;
 }
 
 .panel-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
-    font-family: 'Press Start 2P', cursive;
-    font-size: 9px;
+    margin-bottom: 14px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
     color: #c8d6eb;
+}
+
+.panel-head--stacked {
+    align-items: flex-start;
+}
+
+.panel-subtitle {
+    margin: 4px 0 0;
+    color: #8ea2bd;
+    font-size: 12px;
+    line-height: 1.45;
+    font-family: inherit;
+    font-weight: 400;
 }
 
 .panel-tools {
@@ -1102,12 +1251,32 @@ onUnmounted(() => {
     justify-content: center;
     gap: 8px;
     width: 100%;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 999px;
     color: #d6e1f2;
-    background: transparent;
-    padding: 10px 12px;
+    background: rgba(87, 214, 255, 0.06);
+    padding: 11px 12px;
     margin-bottom: 12px;
+    font-size: 14px;
+}
+
+.source-add-btn:hover {
+    border-color: rgba(87, 214, 255, 0.35);
+    background: rgba(87, 214, 255, 0.14);
+}
+
+.todo-nav-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(87, 214, 255, 0.35);
+    color: #b8ebff;
+    background: rgba(87, 214, 255, 0.08);
+    font-size: 12px;
 }
 
 .source-search {
@@ -1115,8 +1284,8 @@ onUnmounted(() => {
     grid-template-columns: 16px 1fr;
     align-items: center;
     gap: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
     padding: 10px 12px;
     margin-bottom: 12px;
     color: var(--text-dim);
@@ -1128,7 +1297,7 @@ onUnmounted(() => {
     outline: none;
     color: #d8e5f8;
     background: transparent;
-    font-size: 13px;
+    font-size: 14px;
 }
 
 .todo-filters {
@@ -1138,13 +1307,18 @@ onUnmounted(() => {
     margin-bottom: 12px;
 }
 
+.todo-filters--menu {
+    margin-bottom: 10px;
+}
+
 .todo-filter {
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     color: #b5c6dd;
     background: rgba(255, 255, 255, 0.03);
-    padding: 6px 10px;
+    padding: 7px 12px;
     border-radius: 999px;
     font-size: 12px;
+    font-weight: 500;
 }
 
 .todo-filter.is-active {
@@ -1159,12 +1333,34 @@ onUnmounted(() => {
     padding-right: 6px;
 }
 
+.todo-nav-list {
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
 .source-list-title {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-family: 'Press Start 2P', cursive;
-    font-size: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #a9bdd7;
+    margin-bottom: 10px;
+}
+
+.todo-nav-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     color: #a9bdd7;
     margin-bottom: 10px;
 }
@@ -1174,6 +1370,138 @@ onUnmounted(() => {
     color: var(--text-dim);
     font-size: 13px;
     line-height: 1.6;
+}
+
+.todo-nav-item {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) 16px;
+    gap: 10px;
+    align-items: start;
+    text-align: left;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(8, 16, 30, 0.42);
+    margin-bottom: 8px;
+    padding: 11px;
+    cursor: pointer;
+    border-radius: 10px;
+}
+
+.todo-nav-item:hover {
+    border-color: rgba(87, 214, 255, 0.38);
+    background: rgba(12, 24, 42, 0.65);
+}
+
+.todo-nav-item.is-active {
+    border-color: rgba(87, 214, 255, 0.7);
+    background: rgba(16, 36, 60, 0.62);
+    box-shadow: 0 0 0 1px rgba(87, 214, 255, 0.12) inset;
+}
+
+.todo-nav-item.is-completed .todo-nav-title {
+    color: #8fa4bb;
+    text-decoration: line-through;
+}
+
+.todo-nav-check {
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    display: grid;
+    place-items: center;
+    color: #d2e1f6;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+}
+
+.todo-nav-check.is-done {
+    border-color: rgba(87, 246, 185, 0.6);
+    background: rgba(87, 246, 185, 0.12);
+}
+
+.todo-nav-check:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.todo-nav-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.todo-nav-title {
+    margin: 0;
+    color: #ebf2ff;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.45;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.todo-nav-sub {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.todo-nav-meta {
+    color: #8ea2bd;
+    font-size: 12px;
+}
+
+.todo-nav-deadline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: #a8bdd8;
+}
+
+.todo-nav-deadline i {
+    font-size: 11px;
+}
+
+.todo-nav-deadline.is-none {
+    color: #8ea2bd;
+}
+
+.todo-nav-deadline.is-safe {
+    color: #9de8ff;
+}
+
+.todo-nav-deadline.is-soon {
+    color: #ffd18f;
+}
+
+.todo-nav-deadline.is-urgent {
+    color: #ffb66e;
+}
+
+.todo-nav-deadline.is-overdue {
+    color: #ff8f9f;
+}
+
+.todo-nav-deadline.is-done {
+    color: #a9f9d4;
+}
+
+.todo-nav-tags {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.todo-nav-arrow {
+    color: #88a8c7;
+    font-size: 18px;
+    margin-top: 1px;
 }
 
 .todo-item {
@@ -1229,9 +1557,12 @@ onUnmounted(() => {
     color: #ebf2ff;
     font-weight: 600;
     font-size: 13px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
 }
 
 .todo-meta {
@@ -1286,12 +1617,15 @@ onUnmounted(() => {
 }
 
 .todo-badge {
-    font-family: 'Press Start 2P', cursive;
-    font-size: 7px;
-    padding: 5px 7px;
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    padding: 4px 8px;
     color: #9edfff;
     border: 1px solid rgba(87, 214, 255, 0.35);
     background: rgba(87, 214, 255, 0.08);
+    border-radius: 999px;
 }
 
 .todo-description {
@@ -1309,10 +1643,13 @@ onUnmounted(() => {
 }
 
 .todo-state {
-    font-family: 'Press Start 2P', cursive;
-    font-size: 7px;
-    padding: 6px 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 8px;
+    letter-spacing: 0.3px;
     border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
 }
 
 .todo-state.is-pending {
@@ -1328,10 +1665,11 @@ onUnmounted(() => {
 }
 
 .chat-hero {
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    padding: 14px;
-    background: linear-gradient(130deg, rgba(255, 255, 255, 0.05), rgba(87, 214, 255, 0.08));
-    margin-bottom: 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
+    background: rgba(14, 20, 34, 0.6);
+    margin-bottom: 14px;
 }
 
 .chat-hero-icon {
@@ -1341,10 +1679,11 @@ onUnmounted(() => {
     height: 24px;
     padding: 0 8px;
     border-radius: 999px;
-    background: rgba(87, 214, 255, 0.2);
+    background: rgba(87, 214, 255, 0.12);
     color: #e4f7ff;
-    font-family: 'Press Start 2P', cursive;
-    font-size: 7px;
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
     margin-bottom: 10px;
 }
 
@@ -1357,26 +1696,59 @@ onUnmounted(() => {
 }
 
 .chat-back-btn {
-    border: 1px solid rgba(87, 214, 255, 0.35);
-    background: rgba(87, 214, 255, 0.08);
+    border: 1px solid rgba(87, 214, 255, 0.25);
+    border-radius: 8px;
+    background: rgba(87, 214, 255, 0.06);
     color: #b8ebff;
-    font-size: 12px;
-    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 12px;
     display: inline-flex;
     align-items: center;
     gap: 6px;
 }
 
+.chat-back-btn:hover {
+    background: rgba(87, 214, 255, 0.14);
+}
+
 .chat-hero h3 {
     margin: 0 0 8px;
-    font-size: 31px;
+    font-size: 22px;
+    font-weight: 700;
 }
 
 .chat-hero p {
     margin: 0;
     color: #d3deef;
-    font-size: 15px;
+    font-size: 14px;
     line-height: 1.6;
+}
+
+.chat-hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.chat-hero-meta span {
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.chat-hero-meta .is-done {
+    color: var(--green);
+    border-color: rgba(87, 246, 185, 0.3);
+}
+
+.chat-hero-meta .is-pending {
+    color: var(--amber);
+    border-color: rgba(248, 198, 92, 0.3);
 }
 
 .chip-grid {
@@ -1387,10 +1759,12 @@ onUnmounted(() => {
 }
 
 .chip {
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    font-family: 'Press Start 2P', cursive;
-    font-size: 7px;
-    padding: 7px 8px;
+    border: 1px solid var(--line);
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 999px;
     background: rgba(10, 18, 31, 0.6);
 }
 
@@ -1408,38 +1782,43 @@ onUnmounted(() => {
 }
 
 .chat-bubble {
-    border: 1px solid rgba(255, 255, 255, 0.11);
+    border: 1px solid var(--line);
+    border-radius: 10px;
     background: rgba(10, 17, 30, 0.7);
-    padding: 12px;
-    margin-bottom: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
 }
 
 .chat-role {
     margin: 0 0 8px;
-    font-family: 'Press Start 2P', cursive;
-    font-size: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     color: var(--cyan);
 }
 
 .chat-text {
     margin: 0;
     color: #d5e1f5;
-    font-size: 15px;
+    font-size: 14px;
     line-height: 1.65;
 }
 
 .chat-composer {
     margin-top: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 18px;
-    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
     background: rgba(10, 17, 30, 0.7);
 }
 
 .composer-placeholder {
     margin: 0 0 14px;
     color: var(--text-dim);
-    font-size: 32px;
+    font-size: 16px;
+    font-weight: 400;
 }
 
 .composer-foot {
@@ -1447,14 +1826,14 @@ onUnmounted(() => {
     align-items: center;
     justify-content: space-between;
     color: #c2d2e9;
-    font-size: 22px;
+    font-size: 14px;
 }
 
 .composer-send {
-    width: 44px;
-    height: 44px;
+    width: 38px;
+    height: 38px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--line-strong);
     display: grid;
     place-items: center;
     text-decoration: none;
@@ -1476,17 +1855,24 @@ onUnmounted(() => {
     grid-template-columns: 34px 1fr 16px;
     align-items: center;
     gap: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: linear-gradient(140deg, rgba(87, 214, 255, 0.08), rgba(248, 198, 92, 0.08));
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: rgba(14, 20, 34, 0.5);
     text-decoration: none;
     color: #ebf2ff;
-    padding: 10px;
+    padding: 12px;
+}
+
+.studio-tile:hover {
+    border-color: rgba(87, 214, 255, 0.3);
+    background: rgba(14, 20, 34, 0.7);
 }
 
 .studio-icon {
-    width: 34px;
-    height: 34px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
     display: grid;
     place-items: center;
     color: #d7e9ff;
@@ -1495,19 +1881,21 @@ onUnmounted(() => {
 
 .studio-title {
     margin: 0 0 5px;
-    font-family: 'Press Start 2P', cursive;
-    font-size: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
 }
 
 .studio-desc {
     margin: 0;
     color: #b5c7df;
     font-size: 12px;
+    line-height: 1.4;
 }
 
 .mentor-zone {
     margin-top: auto;
-    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    border-top: 1px solid var(--line);
     padding-top: 12px;
 }
 
@@ -1516,8 +1904,9 @@ onUnmounted(() => {
     align-items: center;
     justify-content: space-between;
     margin-bottom: 10px;
-    font-family: 'Press Start 2P', cursive;
-    font-size: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
     color: #d4e5fb;
 }
 
@@ -1537,16 +1926,18 @@ onUnmounted(() => {
 }
 
 .mentor-avatar {
-    width: 38px;
-    height: 38px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
     display: grid;
     place-items: center;
     overflow: hidden;
     background: rgba(87, 214, 255, 0.12);
     color: #e7f4ff;
-    font-family: 'Press Start 2P', cursive;
-    font-size: 9px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
 }
 
 .mentor-avatar img {
@@ -1595,8 +1986,9 @@ onUnmounted(() => {
 
 .todo-modal-head h3 {
     margin: 0;
-    font-family: 'Press Start 2P', cursive;
-    font-size: 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
     color: #d3e8ff;
 }
 
@@ -1925,7 +2317,7 @@ onUnmounted(() => {
 
 @media (max-width: 1320px) {
     .nb-workbench {
-        grid-template-columns: 300px minmax(0, 1fr);
+        grid-template-columns: 280px minmax(0, 1fr);
     }
 
     .nb-studio {
@@ -1955,6 +2347,10 @@ onUnmounted(() => {
 
     .nb-workbench {
         grid-template-columns: 1fr;
+    }
+
+    .nb-todo-nav {
+        max-height: 360px;
     }
 
     .nb-panel {
