@@ -34,6 +34,7 @@ test('join group request dispatches join group requested event', function () {
         ->actingAs($requester)
         ->post(route('groups.join'), [
             'study_group_uuid' => (string) $group->uuid,
+            'reason' => 'Saya ingin belajar bareng dan ikut kontribusi rutin.',
         ]);
 
     $response->assertRedirect();
@@ -100,6 +101,7 @@ test('join group request notifies group admins and global super admin accounts v
         ->actingAs($requester)
         ->post(route('groups.join'), [
             'study_group_uuid' => (string) $group->uuid,
+            'reason' => 'Saya ingin belajar bareng dan ikut kontribusi rutin.',
         ]);
 
     $response->assertRedirect();
@@ -156,6 +158,7 @@ test('duplicate pending join request does not redispatch event and does not rese
         ->actingAs($requester)
         ->post(route('groups.join'), [
             'study_group_uuid' => (string) $group->uuid,
+            'reason' => 'Saya ingin belajar bareng dan ikut kontribusi rutin.',
         ]);
 
     $response->assertRedirect();

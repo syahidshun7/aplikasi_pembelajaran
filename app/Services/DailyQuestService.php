@@ -12,6 +12,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class DailyQuestService
@@ -349,13 +350,22 @@ class DailyQuestService
                 'claimed_at' => $resolvedNow,
             ]);
 
-            if ($rewardExp > 0) {
-                $lockedUser->increment('exp', $rewardExp);
+            $nextExp = max(0, (int) ($lockedUser->exp ?? 0) + $rewardExp);
+            $nextGold = max(0, (int) ($lockedUser->gold ?? 0) + $rewardGold);
+
+            $updateData = [
+                'exp' => $nextExp,
+                'gold' => $nextGold,
+            ];
+
+            $nextLevel = LevelingService::levelFromExp($nextExp);
+            if (Schema::hasColumn('users', 'lvl')) {
+                $updateData['lvl'] = $nextLevel;
+            } elseif (Schema::hasColumn('users', 'level')) {
+                $updateData['level'] = $nextLevel;
             }
 
-            if ($rewardGold > 0) {
-                $lockedUser->increment('gold', $rewardGold);
-            }
+            $lockedUser->update($updateData);
 
             return $lockedQuest->fresh();
         });

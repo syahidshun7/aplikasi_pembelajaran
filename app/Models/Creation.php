@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class Creation extends Model
 {
@@ -12,6 +13,7 @@ class Creation extends Model
     protected $fillable = [
         'user_id',
         'title',
+        'slug',
         'description',
         'content',
         'link',
@@ -38,6 +40,20 @@ class Creation extends Model
 
     protected static function booted(): void
     {
+        static::saving(function (Creation $creation) {
+            $titleChanged = $creation->isDirty('title');
+            $slugMissing = trim((string) ($creation->slug ?? '')) === '';
+
+            if (! $titleChanged && ! $slugMissing) {
+                return;
+            }
+
+            $creation->slug = static::makeUniqueSlug(
+                (string) ($creation->title ?? ''),
+                (int) ($creation->id ?? 0)
+            );
+        });
+
         static::deleting(function (Creation $creation) {
             $paths = $creation->photos()
                 ->pluck('path')
@@ -51,6 +67,11 @@ class Creation extends Model
 
             Storage::disk('public')->delete($paths);
         });
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'slug';
     }
 
     public function user()
@@ -195,5 +216,26 @@ class Creation extends Model
     public function canManageCollaboration(int $userId): bool
     {
         return $this->isOwnedBy($userId);
+    }
+
+    public static function makeUniqueSlug(string $title, int $ignoreId = 0): string
+    {
+        $baseSlug = Str::slug($title);
+        if ($baseSlug === '') {
+            $baseSlug = 'creation';
+        }
+
+        $slug = $baseSlug;
+        $suffix = 2;
+
+        while (static::query()
+            ->when($ignoreId > 0, fn ($query) => $query->where('id', '!=', $ignoreId))
+            ->where('slug', $slug)
+            ->exists()) {
+            $slug = $baseSlug . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $slug;
     }
 }

@@ -41,6 +41,9 @@ export function useLobby(props) {
                 maxlength: 500,
             },
             inputClass: 'rpg-alert-textarea',
+            customClass: {
+                validationMessage: 'rpg-alert-validation',
+            },
             inputValidator: (value) => {
                 const reason = String(value || '').trim();
                 if (reason.length < 10) {

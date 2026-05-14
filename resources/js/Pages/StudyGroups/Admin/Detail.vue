@@ -87,6 +87,10 @@ const removeMember = (member) => {
                         <div v-for="r in requests" :key="r.id" class="p-3 bg-black/40 border border-slate-800">
                             <p class="text-white uppercase">{{ r.user?.username || r.user?.name }}</p>
                             <p class="text-[8px] text-slate-500 mb-3">{{ r.user?.email }}</p>
+                            <div class="mb-3 flex flex-wrap gap-2">
+                                <span class="px-2 py-1 border border-cyan-800 bg-cyan-900/20 text-cyan-200 text-[8px] uppercase">User LVL {{ r.user_level || 1 }}</span>
+                                <span class="px-2 py-1 border border-yellow-800 bg-yellow-900/20 text-yellow-200 text-[8px] uppercase">Need LVL {{ group.min_level || 1 }}</span>
+                            </div>
                             <div class="mb-3 border border-cyan-900/60 bg-cyan-950/20 p-2">
                                 <p class="text-[8px] uppercase text-cyan-300">Reason</p>
                                 <p class="mt-1 font-sans text-[12px] leading-relaxed text-slate-200 break-words">
@@ -108,9 +112,10 @@ const removeMember = (member) => {
                 </section>
 
                 <section class="rpg-panel border-cyan-500/50">
-                    <h2 class="text-cyan-400 mb-4 uppercase">
-                        Members [{{ members.length }} / {{ group.max_members }}]
-                    </h2>
+                <h2 class="text-cyan-400 mb-4 uppercase">
+                    Members [{{ members.length }} / {{ group.max_members }}]
+                </h2>
+                <p class="text-[8px] text-slate-400 uppercase mb-4">Min Join Level: {{ group.min_level || 1 }}</p>
 
                     <div v-if="members.length === 0" class="text-slate-500 uppercase text-[8px] py-4">
                         NO_MEMBER

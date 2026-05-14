@@ -53,13 +53,14 @@ class CreationCollaborationApprovedNotification extends Notification implements 
                 (string) $creation->title,
                 $ownerName
             ),
-            'action_url' => route('hall.creations.show', ['creation' => (int) $creation->id]),
+            'action_url' => route('hall.creations.show', ['creation' => $creation->slug ?: (int) $creation->id]),
             'action_label' => 'Open creation',
             'icon' => 'fi-rr-badge-check',
             'accent' => 'emerald',
             'resource' => [
                 'type' => 'creation',
                 'id' => (int) $creation->id,
+                'slug' => (string) ($creation->slug ?? ''),
             ],
             'meta' => [
                 'owner_id' => (int) $this->owner->id,

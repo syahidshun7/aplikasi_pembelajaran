@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Services\LevelingService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 
@@ -51,11 +52,13 @@ test('admin can update full user data from user management', function () {
     expect((int) $user->exp)->toBe(8000);
     expect(Hash::check('new-password-123', $user->password))->toBeTrue();
 
+    $expectedLevel = LevelingService::levelFromExp(8000);
+
     if (Schema::hasColumn('users', 'level')) {
-        expect((int) $user->level)->toBe(9);
+        expect((int) $user->level)->toBe($expectedLevel);
     }
     if (Schema::hasColumn('users', 'lvl')) {
-        expect((int) $user->lvl)->toBe(9);
+        expect((int) $user->lvl)->toBe($expectedLevel);
     }
 });
 

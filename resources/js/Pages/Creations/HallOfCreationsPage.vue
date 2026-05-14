@@ -297,7 +297,7 @@ const fetchCreations = async (page = 1) => {
 const openDetail = (creation) => {
     persistHallReturnUrl(meta.value.current_page);
     persistHallCache(meta.value.current_page);
-    router.visit(relativeRoute('hall.creations.show', { creation: creation.id }));
+    router.visit(relativeRoute('hall.creations.show', { creation: creation.slug || creation.id }));
 };
 
 const toggleAppreciation = async (creation) => {

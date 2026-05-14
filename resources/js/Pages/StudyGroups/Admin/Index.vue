@@ -34,6 +34,7 @@ const form = useForm({
     name: '',
     description: '',
     max_members: 5,
+    min_level: 1,
     job_id: '',
 });
 const filterForm = useForm({
@@ -61,6 +62,7 @@ const startEdit = (group) => {
     form.name = group.name;
     form.description = group.description || '';
     form.max_members = group.max_members;
+    form.min_level = group.min_level ?? 1;
     form.job_id = group.job_id || '';
     showFormModal.value = true;
 
@@ -252,6 +254,13 @@ const goToPage = (url) => {
                             </div>
 
                             <div>
+                                <label class="block mb-2 text-white uppercase">MINIMUM_JOIN_LEVEL:</label>
+                                <input v-model.number="form.min_level" type="number" min="1" max="100"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-cyan-400">
+                                <p class="mt-2 text-[8px] uppercase text-slate-500">Player dengan level di bawah ini tidak bisa kirim join request.</p>
+                            </div>
+
+                            <div>
                                 <label class="block mb-2 text-white uppercase">JOB_PATH:</label>
                                 <select v-model="form.job_id"
                                     class="w-full bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-emerald-400 uppercase"
@@ -321,7 +330,7 @@ const goToPage = (url) => {
                             <div v-for="g in groupItems" :key="g.uuid"
                                 class="flex flex-col p-4 bg-slate-900/50 border-l-4 border-emerald-500 hover:bg-slate-800 transition-all">
 
-                                <div class="flex justify-between items-start mb-2">
+                                <div class="flex justify-between items-start gap-3 mb-2">
                                     <div class="flex-1">
                                         <div class="text-[8px] text-slate-500 mb-1 uppercase tracking-tighter">ID: {{ g.uuid.substring(0,8) }}</div>
                                         <div class="text-[7px] text-cyan-400 uppercase mb-1">
@@ -329,7 +338,10 @@ const goToPage = (url) => {
                                         </div>
                                         <div class="text-white uppercase">{{ g.name }}</div>
                                     </div>
-                                    <div class="text-yellow-500 text-[8px] tracking-widest">{{ g.users_count || 0 }} / {{ g.max_members }} MEMBERS</div>
+                                    <div class="shrink-0 text-right leading-tight space-y-1">
+                                        <div class="text-yellow-500 text-[8px] tracking-widest">{{ g.users_count || 0 }} / {{ g.max_members }} MEMBERS</div>
+                                        <div class="text-cyan-300 text-[8px] tracking-widest">MIN JOIN LVL {{ g.min_level || 1 }}</div>
+                                    </div>
                                 </div>
                                 <div v-if="!isTrashView" class="text-[8px] text-orange-400 mb-2 uppercase tracking-tighter">
                                     PENDING_REQUESTS: {{ g.pending_requests_count || 0 }}

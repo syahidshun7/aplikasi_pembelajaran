@@ -251,12 +251,12 @@ onMounted(() => {
                                 </div>
 
                                 <div class="flex items-center gap-1">
-                                    <Link :href="route('profile.creations.edit', { creation: creation.id })" class="icon-action text-cyan-300 hover:text-cyan-100" title="Edit">
-                                        <i class="fi fi-rr-pencil text-[11px]" />
-                                    </Link>
-                                    <Link :href="route('hall.creations.show', { creation: creation.id })" class="icon-action text-amber-300 hover:text-amber-100" title="Detail">
-                                        <i class="fi fi-rr-eye text-[11px]" />
-                                    </Link>
+                                   <Link :href="route('profile.creations.edit', { creation: creation.id })" class="icon-action text-cyan-300 hover:text-cyan-100" title="Edit">
+                                       <i class="fi fi-rr-pencil text-[11px]" />
+                                   </Link>
+                                    <Link :href="route('hall.creations.show', { creation: creation.slug || creation.id })" class="icon-action text-amber-300 hover:text-amber-100" title="Detail">
+                                       <i class="fi fi-rr-eye text-[11px]" />
+                                   </Link>
                                     <button v-if="creation.can_delete" type="button" class="icon-action text-rose-300 hover:text-rose-100" title="Delete" @click="removeCreation(creation)">
                                         <i class="fi fi-rr-trash text-[11px]" />
                                     </button>

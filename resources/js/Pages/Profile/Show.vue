@@ -43,7 +43,12 @@ const relativeRoute = (name, params = {}) => route(name, params, false);
 const userExp = computed(() => Number(props.user?.exp ?? 0));
 const userGold = computed(() => Number(props.user?.gold ?? 0));
 const userLvl = computed(() => Number(props.user?.lvl ?? 1));
-const userExpProgress = computed(() => (userExp.value % 1000) / 10);
+const levelProgress = computed(() => props.user?.level_progress || {});
+const userLevelTitle = computed(() => levelProgress.value?.title || 'Novice');
+const userExpProgress = computed(() => Number(levelProgress.value?.progress_percent ?? 0));
+const userExpInLevel = computed(() => Number(levelProgress.value?.exp_in_level ?? 0));
+const userExpNeeded = computed(() => Number(levelProgress.value?.exp_needed ?? 0));
+const userIsMaxLevel = computed(() => Boolean(levelProgress.value?.is_max_level));
 const creationCount = computed(() => Number(props.creationStats?.total_public ?? creationItems.value.length ?? 0));
 const appreciationCount = computed(() => Number(props.creationStats?.total_appreciations_received ?? 0));
 const classAverageItems = computed(() => Array.isArray(props.classAverages) ? props.classAverages : []);
@@ -110,7 +115,7 @@ const getAppreciationErrorMessage = (error) => {
 };
 
 const openDetail = (creation) => {
-    router.visit(relativeRoute('hall.creations.show', { creation: creation.id }));
+    router.visit(relativeRoute('hall.creations.show', { creation: creation.slug || creation.id }));
 };
 
 const openInsight = (creation) => {
@@ -213,8 +218,9 @@ const toggleAppreciation = async (creation) => {
                     </div>
 
                     <div class="flex flex-wrap justify-between gap-2 text-[7px] uppercase text-slate-400">
-                        <span>LVL. {{ userLvl }}</span>
-                        <span>EXP {{ userExp % 1000 }} / 1000</span>
+                        <span>LVL. {{ userLvl }} — {{ userLevelTitle }}</span>
+                        <span v-if="!userIsMaxLevel">EXP {{ userExpInLevel }} / {{ userExpNeeded }}</span>
+                        <span v-else>MAX LEVEL</span>
                         <span>{{ userGold }} G</span>
                     </div>
                 </div>

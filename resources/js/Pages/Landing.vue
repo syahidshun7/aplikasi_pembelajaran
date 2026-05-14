@@ -1007,7 +1007,7 @@ onBeforeUnmount(() => {
                                             </div>
 
                                             <Link
-                                                :href="route('hall.creations.show', { creation: creation.id })"
+                                                :href="route('hall.creations.show', { creation: creation.slug || creation.id })"
                                                 class="border border-white/45 bg-black/20 px-2 py-1 text-[6px] uppercase text-white/80 transition-colors hover:bg-white/15 hover:text-white"
                                             >
                                                 View

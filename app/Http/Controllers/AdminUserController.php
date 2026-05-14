@@ -9,6 +9,7 @@ use App\Models\JobRole;
 use App\Models\DailyQuest;
 use App\Models\ShopTransaction;
 use App\Models\UserGoldAdjustment;
+use App\Services\LevelingService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -169,7 +170,7 @@ class AdminUserController extends Controller
                 $user->avg_grade = $totalAvailableQuests > 0
                     ? round($gradeSum / $totalAvailableQuests, 1)
                     : 0;
-                $user->level_display = (int) ($user->lvl ?? $user->level ?? 1);
+                $user->level_display = LevelingService::levelFromExp((int) ($user->exp ?? 0));
                 $user->highest_grade = (int) ($user->highest_grade ?? 0);
 
                 return $user;
@@ -389,7 +390,7 @@ class AdminUserController extends Controller
             'job_id' => ['nullable', 'integer', 'exists:job_roles,id'],
             'gold' => ['required', 'integer', 'min:0'],
             'exp' => ['required', 'integer', 'min:0'],
-            'level' => ['required', 'integer', 'min:1'],
+            'level' => ['nullable', 'integer', 'min:1'],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
             'bio' => ['nullable', 'string', 'max:1200'],
             'experience' => ['nullable', 'string', 'max:120'],
@@ -415,11 +416,13 @@ class AdminUserController extends Controller
             'exp' => (int) $validated['exp'],
         ];
 
+        $calculatedLevel = LevelingService::levelFromExp((int) $payload['exp']);
+
         if (Schema::hasColumn('users', 'lvl')) {
-            $payload['lvl'] = (int) $validated['level'];
+            $payload['lvl'] = $calculatedLevel;
         }
         if (Schema::hasColumn('users', 'level')) {
-            $payload['level'] = (int) $validated['level'];
+            $payload['level'] = $calculatedLevel;
         }
         if (!empty($validated['password'])) {
             $payload['password'] = Hash::make((string) $validated['password']);

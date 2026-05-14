@@ -66,7 +66,7 @@ onMounted(async () => {
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-700 pb-3 mb-4">
                     <h1 class="text-[10px] sm:text-[11px] uppercase text-white leading-relaxed">Hasil Review Creation</h1>
                     <div class="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:items-center">
-                        <Link :href="route('hall.creations.show', { creation: creationId })" class="creation-link-btn">
+                        <Link :href="route('hall.creations.show', { creation: creation?.slug || creationId })" class="creation-link-btn">
                             <i class="fi fi-rr-angle-left text-[11px]" />
                             <span>Kembali ke Detail</span>
                         </Link>

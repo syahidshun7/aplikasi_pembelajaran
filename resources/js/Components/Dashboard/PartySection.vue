@@ -26,6 +26,18 @@ const isStaffPlayMode = computed(() => Boolean(page.props?.auth?.user?.staff_pla
 const normalizedUserRole = computed(() => String(page.props?.auth?.user?.role || '').trim().toLowerCase());
 const isMentor = computed(() => normalizedUserRole.value === 'mentor');
 const canManagePartyMembership = computed(() => !isStaffPlayMode.value || isMentor.value);
+
+const viewerLevel = computed(() => {
+    const lvl = Number(page.props?.auth?.user?.lvl ?? page.props?.auth?.user?.level_progress?.level ?? 1);
+    return Number.isFinite(lvl) && lvl > 0 ? lvl : 1;
+});
+
+const groupMinLevel = (group) => {
+    const parsed = Number(group?.min_level ?? 1);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+};
+
+const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
 </script>
 
 <template>
@@ -69,9 +81,19 @@ const canManagePartyMembership = computed(() => !isStaffPlayMode.value || isMent
                             {{ group.description || 'In pursuit of higher knowledge...' }}
                         </p>
                     </div>
-                    <span class="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[8px] text-yellow-300">
-                        {{ group.users_count || 0 }}/{{ group.max_members }}
-                    </span>
+                    <div class="shrink-0 flex flex-col items-end gap-1">
+                        <span class="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[8px] text-yellow-300">
+                            {{ group.users_count || 0 }}/{{ group.max_members }}
+                        </span>
+                        <span
+                            class="rounded-full border px-2 py-1 text-[8px] uppercase"
+                            :class="canJoinByLevel(group)
+                                ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
+                                : 'border-rose-500/30 bg-rose-500/10 text-rose-200'"
+                        >
+                            Min LVL {{ groupMinLevel(group) }}
+                        </span>
+                    </div>
                 </div>
 
                 <div class="mt-4 flex flex-col gap-2 border-t border-slate-800 pt-3 sm:flex-row sm:items-center sm:justify-between">
@@ -99,11 +121,17 @@ const canManagePartyMembership = computed(() => !isStaffPlayMode.value || isMent
                     <button
                         v-else
                         type="button"
-                        :disabled="joinProcessing || !canManagePartyMembership"
+                        :disabled="joinProcessing || !canManagePartyMembership || !canJoinByLevel(group)"
                         class="border border-emerald-700 bg-emerald-900/50 px-3 py-1 text-[8px] uppercase text-emerald-400 transition-all hover:bg-emerald-500 hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
                         @click="onJoin?.(group)"
                     >
-                        {{ !canManagePartyMembership ? 'Preview Only' : (joinProcessing ? 'Sending...' : 'Join') }}
+                        {{
+                            !canManagePartyMembership
+                                ? 'Preview Only'
+                                : (!canJoinByLevel(group)
+                                    ? `Need LVL ${groupMinLevel(group)}`
+                                    : (joinProcessing ? 'Sending...' : 'Join'))
+                        }}
                     </button>
                 </div>
             </article>

@@ -599,16 +599,14 @@ const formatDate = (date) => {
                                 {{ job.name }}
                             </option>
                         </select>
-                        <input
-                            v-model.number="editForm.level"
-                            type="number"
-                            min="1"
-                            placeholder="LEVEL"
-                            class="admin-input"
-                        />
+                        <div class="admin-input flex items-center justify-between uppercase">
+                            <span class="text-slate-300">Level (auto)</span>
+                            <span class="text-cyan-300">{{ editForm.level || 1 }}</span>
+                        </div>
                     </div>
                     <p v-if="editForm.errors.role" class="text-red-500 text-[8px]">{{ editForm.errors.role }}</p>
                     <p v-if="editForm.errors.level" class="text-red-500 text-[8px]">{{ editForm.errors.level }}</p>
+                    <p class="text-[8px] uppercase text-slate-500">Level dihitung otomatis dari total EXP saat disimpan.</p>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <input

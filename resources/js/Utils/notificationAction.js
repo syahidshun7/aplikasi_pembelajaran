@@ -48,12 +48,22 @@ export const resolveNotificationActionUrl = (
 
     if (category === 'creation') {
         const resourceType = String(resource?.type || '').toLowerCase();
+        const resolvedCreationSlug = String(
+            resource?.slug
+            || resource?.creation_slug
+            || meta?.creation_slug
+            || '',
+        ).trim();
         const resolvedCreationId = Number(
             resource?.creation_id
             || (resourceType === 'creation' ? resource?.id : 0)
             || meta?.creation_id
             || 0,
         );
+
+        if (resolvedCreationSlug !== '') {
+            return routeFn('hall.creations.show', { creation: resolvedCreationSlug });
+        }
 
         if (resolvedCreationId > 0) {
             return routeFn('hall.creations.show', { creation: resolvedCreationId });

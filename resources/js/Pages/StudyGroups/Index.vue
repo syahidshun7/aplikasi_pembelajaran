@@ -7,6 +7,10 @@ import { swal, toast } from '@/Utils/Alert';
 const props = defineProps({
     groups: Object,
     filters: Object,
+    viewerLevel: {
+        type: Number,
+        default: 1,
+    },
 });
 
 const form = useForm({
@@ -66,13 +70,28 @@ const memberBadgeClass = (group) => {
 const memberBadgeText = (group) => {
     if (group.is_member) return 'Member';
     if (group.join_request_status === 'pending') return 'Pending_Request';
+    if (!canRequestAccess(group)) return 'Level_Locked';
     return 'Open_Access';
+};
+
+const groupMinLevel = (group) => {
+    const parsed = Number(group?.min_level ?? 1);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+};
+
+const canRequestAccess = (group) => {
+    return Number(props.viewerLevel || 1) >= groupMinLevel(group);
 };
 
 const requestAccess = (group) => {
     if (joinForm.processing || leaveForm.processing) return;
     if (!canManageMembership.value) {
         toast.error('STAFF_PLAY_MODE', 'Admin/super admin tidak bisa join kelas student di mode preview.');
+        return;
+    }
+
+    if (!canRequestAccess(group)) {
+        toast.error('LEVEL_TOO_LOW', `Minimal level untuk join group ini adalah LVL ${groupMinLevel(group)}.`);
         return;
     }
 
@@ -85,6 +104,9 @@ const requestAccess = (group) => {
             maxlength: 500,
         },
         inputClass: 'rpg-alert-textarea',
+        customClass: {
+            validationMessage: 'rpg-alert-validation',
+        },
         inputValidator: (value) => {
             const reason = String(value || '').trim();
             if (reason.length < 10) {
@@ -211,6 +233,9 @@ const leaveGroup = (group) => {
                                 <span class="px-2 py-1 border text-[8px] uppercase border-slate-700 text-slate-300">
                                     {{ group.users_count || 0 }}/{{ group.max_members || 0 }} Members
                                 </span>
+                                <span class="px-2 py-1 border text-[8px] uppercase border-cyan-800 bg-cyan-900/20 text-cyan-200">
+                                    Min LVL: {{ groupMinLevel(group) }}
+                                </span>
                                 <span class="px-2 py-1 border text-[8px] uppercase border-yellow-900 bg-yellow-900/20 text-yellow-300">
                                     Pending: {{ group.pending_requests_count || 0 }}
                                 </span>
@@ -243,10 +268,10 @@ const leaveGroup = (group) => {
                                     v-else
                                     type="button"
                                     class="inline-block px-3 py-1 border border-emerald-700 text-emerald-400 hover:bg-emerald-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
-                                    :disabled="joinForm.processing || !canManageMembership"
+                                    :disabled="joinForm.processing || !canManageMembership || !canRequestAccess(group)"
                                     @click="requestAccess(group)"
                                 >
-                                    {{ activeJoinUuid === group.uuid && joinForm.processing ? 'Sending...' : 'Request_Access' }}
+                                    {{ activeJoinUuid === group.uuid && joinForm.processing ? 'Sending...' : (canRequestAccess(group) ? 'Request_Access' : 'Level_Locked') }}
                                 </button>
                             </div>
                         </div>
@@ -279,6 +304,7 @@ const leaveGroup = (group) => {
                                     </td>
                                     <td class="py-3 px-2 text-yellow-300">
                                         {{ group.users_count || 0 }}/{{ group.max_members || 0 }}
+                                        <p class="mt-1 text-[8px] text-cyan-200">Min LVL {{ groupMinLevel(group) }}</p>
                                     </td>
                                     <td class="py-3 px-2 text-yellow-300">
                                         {{ group.pending_requests_count || 0 }}
@@ -310,10 +336,10 @@ const leaveGroup = (group) => {
                                             v-else
                                             type="button"
                                             class="inline-block px-3 py-1 border border-emerald-700 text-emerald-400 hover:bg-emerald-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
-                                            :disabled="joinForm.processing || !canManageMembership"
+                                            :disabled="joinForm.processing || !canManageMembership || !canRequestAccess(group)"
                                             @click="requestAccess(group)"
                                         >
-                                            {{ activeJoinUuid === group.uuid && joinForm.processing ? 'Sending...' : 'Request_Access' }}
+                                            {{ activeJoinUuid === group.uuid && joinForm.processing ? 'Sending...' : (canRequestAccess(group) ? 'Request_Access' : 'Level_Locked') }}
                                         </button>
                                     </td>
                                 </tr>

@@ -6,6 +6,7 @@ use App\Models\Guide;
 use App\Models\Quest;
 use App\Models\Submission;
 use App\Models\User;
+use App\Services\LevelingService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
@@ -100,7 +101,7 @@ class DashboardController extends Controller
                 // NOTE: Sort + perhitungan avg_grade harus konsisten dengan "grade average" di sisi user/profile:
                 // avg_grade = (sum latest grade per available quest) / (total available quests),
                 // di mana quest yang belum disubmit tetap masuk denominator (nilai 0).
-                $allStudents = $studentsQuery->get(['id', 'name', 'username', $levelColumn]);
+                $allStudents = $studentsQuery->get(['id', 'name', 'username', 'exp', $levelColumn]);
                 $userIds = $allStudents->pluck('id')->map(fn ($id) => (int) $id)->all();
 
                 if (empty($userIds)) {
@@ -281,7 +282,7 @@ class DashboardController extends Controller
                         'id' => (int) ($u->id ?? 0),
                         'name' => (string) ($u->name ?? ''),
                         'username' => (string) ($u->username ?? ''),
-                        'lvl' => (int) ($u->lvl ?? 1),
+                        'lvl' => LevelingService::levelFromExp((int) ($u->exp ?? 0)),
                         'avg_grade' => (float) ($u->avg_grade ?? 0),
                         'total_completed' => (int) ($u->total_completed ?? 0),
                         'class_averages' => is_array($u->class_averages ?? null) ? $u->class_averages : [],
@@ -329,10 +330,10 @@ class DashboardController extends Controller
                     ], 'grade')
                     ->orderBy('avg_grade_30d')
                     ->take(10)
-                    ->get(['id', 'name', 'username', $levelColumn])
-                    ->map(function ($user) use ($levelColumn) {
+                    ->get(['id', 'name', 'username', 'exp', $levelColumn])
+                    ->map(function ($user) {
                         $user->avg_grade_30d = round((float) ($user->avg_grade_30d ?? 0), 1);
-                        $user->lvl = (int) ($user->{$levelColumn} ?? 1);
+                        $user->lvl = LevelingService::levelFromExp((int) ($user->exp ?? 0));
                         return $user;
                     })
                     ->filter(fn ($user) => (int) ($user->graded_count_30d ?? 0) > 0 && (float) ($user->avg_grade_30d ?? 0) < 75)

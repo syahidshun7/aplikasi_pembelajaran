@@ -12,6 +12,7 @@ use App\Models\Guide; // Ganti dengan nama model materimu jika berbeda
 use App\Models\JobRole;
 use App\Models\Event;
 use App\Models\UserQuestUnlock;
+use App\Services\LevelingService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -217,6 +218,7 @@ class HomeController extends Controller
                 'name',
                 'description',
                 'max_members',
+                'min_level',
                 'job_id',
             ])
             
@@ -331,8 +333,13 @@ private function resolveLeaderboardData(
         return $players
             ->map(function ($player) {
                 $payload = $player->toArray();
-                $payload['level'] = (int) ($payload['level'] ?? ($payload['lvl'] ?? 1));
                 $payload['exp'] = (int) ($payload['exp'] ?? 0);
+                $progress = LevelingService::progress($payload['exp']);
+                $payload['level'] = $progress['level'];
+                $payload['level_title'] = $progress['title'];
+                $payload['level_progress_percent'] = $progress['progress_percent'];
+                $payload['exp_in_level'] = $progress['exp_in_level'];
+                $payload['exp_to_next_level'] = $progress['exp_needed'];
                 $payload['role'] = (string) ($payload['role'] ?? 'Adventurer');
                 return $payload;
             })
@@ -433,8 +440,13 @@ private function resolveLeaderboardData(
                 ->get()
                 ->map(function ($player) use ($classTotalQuests, $gradeSumByUser, $completedCountByUser) {
                     $payload = $player->toArray();
-                    $payload['level'] = (int) ($payload['level'] ?? ($payload['lvl'] ?? 1));
                     $payload['exp'] = (int) ($payload['exp'] ?? 0);
+                    $progress = LevelingService::progress($payload['exp']);
+                    $payload['level'] = $progress['level'];
+                    $payload['level_title'] = $progress['title'];
+                    $payload['level_progress_percent'] = $progress['progress_percent'];
+                    $payload['exp_in_level'] = $progress['exp_in_level'];
+                    $payload['exp_to_next_level'] = $progress['exp_needed'];
                     $payload['role'] = (string) ($payload['role'] ?? 'Adventurer');
 
                     $playerId = (int) ($payload['id'] ?? 0);

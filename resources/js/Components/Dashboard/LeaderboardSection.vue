@@ -199,7 +199,7 @@ const resolvePlayerScoreLabel = (player) => {
                         <h3 class="truncate text-[12px] uppercase text-white">{{ activeItems[0].username || activeItems[0].name }}</h3>
                         <p class="mt-2 text-[8px] uppercase text-slate-400">{{ activeItems[0].role || 'Adventurer' }}</p>
                         <div class="mt-4 flex flex-wrap items-center gap-2 text-[8px] uppercase">
-                            <span class="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-1 text-cyan-100">Level {{ activeItems[0].level || 1 }}</span>
+                            <span class="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-1 text-cyan-100">LVL {{ activeItems[0].level || 1 }} — {{ activeItems[0].level_title || 'Novice' }}</span>
                             <span class="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-emerald-100">{{ resolvePlayerScoreLabel(activeItems[0]) }}</span>
                         </div>
                     </div>
@@ -227,7 +227,7 @@ const resolvePlayerScoreLabel = (player) => {
                     <div class="min-w-0 flex-1">
                         <div class="flex items-center justify-between gap-2">
                             <span class="truncate text-[9px] uppercase text-white">{{ player.username || player.name }}</span>
-                            <span class="text-[8px] uppercase text-cyan-300">LVL {{ player.level || 1 }}</span>
+                            <span class="text-[8px] uppercase text-cyan-300">LVL {{ player.level || 1 }} — {{ player.level_title || 'Novice' }}</span>
                         </div>
                         <div class="mt-2 flex items-center justify-between gap-2 text-[7px] uppercase text-slate-500">
                             <span>{{ resolvePlayerScoreLabel(player) }}</span>

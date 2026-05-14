@@ -7,6 +7,8 @@ use App\Models\StudyGroup;
 use App\Models\StudyGroupJoinRequest;
 use App\Notifications\JoinGroupRequestRejectedNotification;
 use App\Models\User;
+use App\Services\LevelingService;
+use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -67,6 +69,7 @@ class AdminStudyGroupController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'max_members' => 'required|integer|min:1|max:50',
+            'min_level' => 'required|integer|min:1|max:100',
             'job_id' => 'required|exists:job_roles,id',
         ]);
 
@@ -76,9 +79,12 @@ class AdminStudyGroupController extends Controller
             'name' => $request->name,
             'description' => $request->description,
             'max_members' => $request->max_members,
+            'min_level' => (int) $request->min_level,
             'job_id' => (int) $request->job_id,
             'invite_code' => $this->generateUniqueInviteCode(),
         ]);
+
+        CacheVersion::bump('study_groups');
 
         return back()->with('message', 'NEW_PARTY_ESTABLISHED');
     }
@@ -93,6 +99,7 @@ class AdminStudyGroupController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'max_members' => 'required|integer|min:1|max:50',
+            'min_level' => 'required|integer|min:1|max:100',
             'job_id' => 'required|exists:job_roles,id',
         ]);
 
@@ -125,8 +132,11 @@ class AdminStudyGroupController extends Controller
             'name' => $request->name,
             'description' => $request->description,
             'max_members' => $request->max_members,
+            'min_level' => (int) $request->min_level,
             'job_id' => $newJobId,
         ]);
+
+        CacheVersion::bump('study_groups');
 
         if ($newJobId !== $oldJobId) {
             User::query()
@@ -152,10 +162,17 @@ class AdminStudyGroupController extends Controller
             ->get();
 
         $requests = $group->joinRequests()
-            ->with('user:id,name,username,email')
+            ->with('user:id,name,username,email,exp')
             ->where('status', 'pending')
             ->latest()
-            ->get();
+            ->get()
+            ->map(function ($requestItem) {
+                $userExp = (int) ($requestItem->user?->exp ?? 0);
+                $requestItem->user_level = LevelingService::levelFromExp($userExp);
+
+                return $requestItem;
+            })
+            ->values();
 
         return Inertia::render('StudyGroups/Admin/Detail', [
             'group' => $group,
@@ -180,6 +197,15 @@ class AdminStudyGroupController extends Controller
 
         if (! $isStaffMember && $activePlayerCount >= (int) $group->max_members) {
             return back()->withErrors(['group' => 'PARTY_FULL: Kapasitas player sudah penuh.']);
+        }
+
+        $requiredLevel = (int) ($group->min_level ?? 1);
+        $memberLevel = LevelingService::levelFromExp((int) ($member->exp ?? 0));
+
+        if ($memberLevel < $requiredLevel) {
+            return back()->withErrors([
+                'group' => "LEVEL_TOO_LOW: User ini butuh minimal Level {$requiredLevel} untuk join group ini (level sekarang: {$memberLevel}).",
+            ]);
         }
 
         $groupJobId = (int) ($group->job_id ?? 0);
@@ -212,6 +238,8 @@ class AdminStudyGroupController extends Controller
             'processed_by' => Auth::id(),
         ]);
 
+        CacheVersion::bump('study_groups');
+
         return back()->with('message', 'REQUEST_APPROVED_MEMBER_ADDED');
     }
 
@@ -235,6 +263,8 @@ class AdminStudyGroupController extends Controller
             'status' => 'rejected',
             'processed_by' => Auth::id(),
         ]);
+
+        CacheVersion::bump('study_groups');
 
         $requester = $joinRequest->user()->first();
         if ($requester) {
@@ -262,6 +292,8 @@ class AdminStudyGroupController extends Controller
                 'processed_by' => Auth::id(),
             ]);
 
+        CacheVersion::bump('study_groups');
+
         return back()->with('message', 'MEMBER_REMOVED_FROM_GROUP');
     }
 
@@ -279,6 +311,8 @@ class AdminStudyGroupController extends Controller
         // Pivot table otomatis terhapus jika di migration kamu pakai onDelete('cascade')
         $group->delete();
 
+        CacheVersion::bump('study_groups');
+
         return back()->with('message', 'PARTY_DISBANDED');
     }
 
@@ -294,6 +328,8 @@ class AdminStudyGroupController extends Controller
 
         $group->restore();
 
+        CacheVersion::bump('study_groups');
+
         return back()->with('message', 'PARTY_RESTORED');
     }
 
@@ -308,6 +344,8 @@ class AdminStudyGroupController extends Controller
             ->firstOrFail();
 
         $group->forceDelete();
+
+        CacheVersion::bump('study_groups');
 
         return back()->with('message', 'PARTY_PERMANENTLY_DELETED');
     }

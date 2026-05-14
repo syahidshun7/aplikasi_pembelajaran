@@ -2,6 +2,7 @@
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { computed, ref } from 'vue';
+import { toast } from '@/Utils/Alert';
 
 const props = defineProps({
     event: Object,
@@ -79,6 +80,19 @@ const submitSelfAttendance = () => {
         preserveScroll: true,
     });
 };
+
+const isPublicEvent = computed(() => !props.event?.study_group_id && !props.event?.study_group);
+const publicShareUrl = computed(() => isPublicEvent.value ? route('public.events.show', { uuid: props.event.uuid }) : '');
+
+const copyPublicLink = async () => {
+    if (!publicShareUrl.value) return;
+    try {
+        await navigator.clipboard.writeText(publicShareUrl.value);
+        toast.success('LINK_COPIED', 'Link publik event berhasil disalin.');
+    } catch {
+        toast.error('COPY_FAILED', 'Gagal menyalin link.');
+    }
+};
 </script>
 
 <template>
@@ -86,9 +100,16 @@ const submitSelfAttendance = () => {
 
     <AuthenticatedLayout>
         <div class="max-w-6xl mx-auto space-y-6">
-            <div class="rpg-panel border-blue-500/50">
-                <div class="flex items-center justify-between gap-3">
-                    <div class="min-w-0">
+            <div class="rpg-panel border-blue-500/50 relative">
+                <Link
+                    :href="route('lobby')"
+                    class="absolute right-3 top-3 z-20 text-[8px] uppercase leading-none text-slate-400 hover:text-white md:right-4 md:top-4"
+                >
+                    [Back_Home]
+                </Link>
+
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 pr-24 md:pr-28">
                         <h1 class="text-white text-sm md:text-lg uppercase">{{ event.title }}</h1>
                         <p class="text-[8px] text-slate-400 uppercase mt-2">
                             Meeting_{{ event.sequence_order }}
@@ -109,14 +130,20 @@ const submitSelfAttendance = () => {
                             </span>
                         </div>
                     </div>
-                    <Link :href="route('lobby')" class="text-[8px] text-slate-400 hover:text-white uppercase">
-                        [Back_Home]
-                    </Link>
                 </div>
                 <div class="mt-3">
                     <Link :href="route('events.user.index')" class="text-[8px] text-blue-300 hover:text-white uppercase">
                         [Back_Event_List]
                     </Link>
+                </div>
+                <div v-if="isPublicEvent" class="mt-3 border-t border-slate-800 pt-3">
+                    <button
+                        type="button"
+                        class="inline-flex items-center gap-2 border border-cyan-600 bg-cyan-900/30 px-3 py-2 text-[8px] uppercase text-cyan-200 hover:bg-cyan-500/40"
+                        @click="copyPublicLink"
+                    >
+                        Copy Public Link
+                    </button>
                 </div>
                 <div class="mt-4 border px-4 py-3" :class="String(userAttendance?.status || 'pending') === 'present' ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-700 bg-black/20'">
                     <p class="text-[8px] uppercase" :class="String(userAttendance?.status || 'pending') === 'present' ? 'text-emerald-300' : 'text-slate-300'">

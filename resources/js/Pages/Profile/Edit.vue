@@ -32,7 +32,12 @@ const isDashboardView = computed(() => props.profileView === 'dashboard');
 const userExp = computed(() => Number(userData.value?.exp ?? 0));
 const userGold = computed(() => Number(userData.value?.gold ?? 0));
 const userLvl = computed(() => Number(userData.value?.lvl ?? 1));
-const userExpProgress = computed(() => (userExp.value % 1000) / 10);
+const levelProgress = computed(() => userData.value?.level_progress || {});
+const userLevelTitle = computed(() => levelProgress.value?.title || 'Novice');
+const userExpProgress = computed(() => Number(levelProgress.value?.progress_percent ?? 0));
+const userExpInLevel = computed(() => Number(levelProgress.value?.exp_in_level ?? 0));
+const userExpNeeded = computed(() => Number(levelProgress.value?.exp_needed ?? 0));
+const userIsMaxLevel = computed(() => Boolean(levelProgress.value?.is_max_level));
 const userSkills = computed(() => {
     if (Array.isArray(userData.value?.skills)) {
         return userData.value.skills.filter(Boolean);
@@ -227,8 +232,9 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="flex flex-wrap justify-between gap-2 text-[8px] text-slate-400">
-                        <span>LVL. {{ userLvl }}</span>
-                        <span>EXP: {{ userExp % 1000 }} / 1000</span>
+                        <span>LVL. {{ userLvl }} — {{ userLevelTitle }}</span>
+                        <span v-if="!userIsMaxLevel">EXP: {{ userExpInLevel }} / {{ userExpNeeded }}</span>
+                        <span v-else>MAX LEVEL</span>
                     </div>
 
                     <div class="flex flex-wrap gap-2 text-[7px] uppercase text-slate-400">

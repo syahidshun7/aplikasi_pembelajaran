@@ -51,13 +51,14 @@ class CreationCollaborationRejectedNotification extends Notification implements 
                 (string) $this->creation->title,
                 $ownerName
             ),
-            'action_url' => route('hall.creations.show', ['creation' => (int) $this->creation->id]),
+            'action_url' => route('hall.creations.show', ['creation' => $this->creation->slug ?: (int) $this->creation->id]),
             'action_label' => 'View creation',
             'icon' => 'fi-rr-cross-circle',
             'accent' => 'amber',
             'resource' => [
                 'type' => 'creation',
                 'id' => (int) $this->creation->id,
+                'slug' => (string) ($this->creation->slug ?? ''),
             ],
             'meta' => [
                 'owner_id' => (int) $this->owner->id,

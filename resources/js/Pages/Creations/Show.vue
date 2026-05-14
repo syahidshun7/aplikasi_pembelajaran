@@ -626,7 +626,7 @@ onBeforeUnmount(() => {
                         <span>Lihat Karya</span>
                     </a>
                     <Link
-                        :href="route('hall.creations.review', { creation: creation.id })"
+                        :href="route('hall.creations.review', { creation: creation.slug || creation.id })"
                         class="creation-link-btn"
                         title="Lihat hasil review"
                     >
@@ -655,7 +655,7 @@ onBeforeUnmount(() => {
                     </button>
                     <Link
                         v-if="creation.can_edit"
-                        :href="route('profile.creations.edit', { creation: creation.id })"
+                        :href="route('profile.creations.edit', { creation: creation.slug || creation.id })"
                         class="icon-btn text-amber-300 hover:text-amber-100"
                         title="Edit"
                     >

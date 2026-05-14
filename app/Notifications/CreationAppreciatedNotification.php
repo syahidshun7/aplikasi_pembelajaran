@@ -48,13 +48,14 @@ class CreationAppreciatedNotification extends Notification implements ShouldQueu
             'event' => 'appreciated',
             'title' => 'Creation Appreciated',
             'message' => 'Your creation received a new appreciation',
-            'action_url' => route('hall.creations.show', ['creation' => (int) $creation->id]),
+            'action_url' => route('hall.creations.show', ['creation' => $creation->slug ?: (int) $creation->id]),
             'action_label' => 'View creation',
             'icon' => 'fi-rr-heart',
             'accent' => 'emerald',
             'resource' => [
                 'type' => 'creation',
                 'id' => (int) $creation->id,
+                'slug' => (string) ($creation->slug ?? ''),
             ],
             'meta' => [
                 'actor_id' => (int) $this->actor->id,

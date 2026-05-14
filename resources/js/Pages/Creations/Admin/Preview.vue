@@ -400,7 +400,7 @@ const displayDate = (value) => {
                     <Link :href="route('admin.creations.queue')" class="text-[8px] border border-slate-600 px-3 py-2 text-slate-300 hover:text-white">
                         BACK_TO_QUEUE
                     </Link>
-                    <Link :href="route('hall.creations.show', { creation: creation.id })" class="text-[8px] border border-slate-600 px-3 py-2 text-slate-300 hover:text-white">
+                    <Link :href="route('hall.creations.show', { creation: creation.slug || creation.id })" class="text-[8px] border border-slate-600 px-3 py-2 text-slate-300 hover:text-white">
                         OPEN_PUBLIC_VIEW
                     </Link>
                 </div>

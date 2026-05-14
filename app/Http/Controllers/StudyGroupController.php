@@ -5,6 +5,7 @@ use App\Events\JoinGroupRequested;
 use App\Models\StudyGroup;
 use App\Models\StudyGroupJoinRequest;
 use App\Models\User;
+use App\Services\LevelingService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
@@ -64,14 +65,20 @@ class StudyGroupController extends Controller
             $groupId = (int) $group->id;
             $payload['is_member'] = in_array($groupId, $userGroupIds, true);
             $payload['join_request_status'] = $groupRequestStatuses[$groupId] ?? null;
+            $payload['min_level'] = (int) ($group->min_level ?? 1);
             return $payload;
         });
+
+        $userLevel = $user
+            ? LevelingService::levelFromExp((int) ($user->exp ?? 0))
+            : 1;
 
         return Inertia::render('StudyGroups/Index', [
             'groups' => $groups,
             'filters' => [
                 'search' => $search,
             ],
+            'viewerLevel' => $userLevel,
         ]);
     }
 
@@ -108,6 +115,15 @@ class StudyGroupController extends Controller
         if ((int) $group->job_id !== (int) ($user->job_id ?? 0)) {
             // Jangan bocorkan detail mismatch jobs, tampilkan seperti group tidak ditemukan.
             return back()->withErrors(['study_group_uuid' => 'GROUP_NOT_FOUND: Party tidak ditemukan.']);
+        }
+
+        $userLevel = LevelingService::levelFromExp((int) ($user->exp ?? 0));
+        $minLevel = (int) ($group->min_level ?? 1);
+
+        if ($userLevel < $minLevel) {
+            return back()->withErrors([
+                'study_group_uuid' => "LEVEL_TOO_LOW: Kamu butuh minimal Level {$minLevel} untuk join party ini. Level kamu saat ini: {$userLevel}.",
+            ]);
         }
 
         if ($group->users()->where('user_id', $userId)->exists()) {

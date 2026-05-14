@@ -12,6 +12,7 @@ use App\Models\Quest;
 use App\Models\Submission;
 use App\Models\User;
 use App\Support\Cache\CacheVersion;
+use App\Services\LevelingService;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -205,6 +206,9 @@ class ProfileController extends Controller
             'detailUser:id,user_id,bio,experience,location,skills',
         ]);
 
+        $totalExp = (int) ($user->exp ?? 0);
+        $progress = LevelingService::progress($totalExp);
+
         return [
             'id'            => $user->id,
             'uuid'          => $user->uuid,
@@ -217,8 +221,9 @@ class ProfileController extends Controller
             'job_name'      => $user->job?->name,
             'job_emblem_path' => $user->job?->emblem_path,
             'gold'          => $user->gold ?? 0,
-            'lvl'           => $user->level ?? $user->lvl ?? 1,
-            'exp'           => $user->exp ?? 0,
+            'lvl'           => $progress['level'],
+            'exp'           => $totalExp,
+            'level_progress' => $progress,
             'role'          => $user->role,
             'bio'           => $user->detailUser?->bio,
             'experience'    => $user->detailUser?->experience,
@@ -414,6 +419,7 @@ class ProfileController extends Controller
             ->map(function (Creation $creation) use ($appreciatedIds, $user) {
                 return [
                     'id' => (int) $creation->id,
+                    'slug' => (string) ($creation->slug ?? ''),
                     'user_id' => (int) $creation->user_id,
                     'title' => (string) $creation->title,
                     'description' => (string) $creation->description,

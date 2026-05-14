@@ -27,6 +27,7 @@ use Illuminate\Auth\Events\Login;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event as EventFacade;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
@@ -63,6 +64,20 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Vite::prefetch(concurrency: 3);
+
+        // Route-model binding fallback for Creation: accept slug or numeric id.
+        // Legacy links/API calls still pass integer ids; new hall URLs use slug.
+        Route::bind('creation', function ($value) {
+            $query = Creation::query();
+
+            $model = ctype_digit((string) $value)
+                ? $query->where('id', (int) $value)->first()
+                : $query->where('slug', $value)->first();
+
+            abort_if($model === null, 404);
+
+            return $model;
+        });
 
         // Cache invalidation for home dashboard listings
         Quest::observe(HomeFeedObserver::class);

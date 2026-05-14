@@ -39,7 +39,7 @@ class CreationCollaborationRequestedNotification extends Notification implements
     {
         $request = $this->request->loadMissing([
             'requester:id,name,username',
-            'creation:id,title',
+            'creation:id,title,slug',
         ]);
 
         $requesterName = (string) ($request->requester?->username ?: $request->requester?->name ?: 'User');
@@ -54,7 +54,7 @@ class CreationCollaborationRequestedNotification extends Notification implements
                 $requesterName,
                 (string) ($request->creation?->title ?? 'your creation')
             ),
-            'action_url' => route('hall.creations.show', ['creation' => (int) $request->creation_id]),
+            'action_url' => route('hall.creations.show', ['creation' => $request->creation?->slug ?: (int) $request->creation_id]),
             'action_label' => 'Review request',
             'icon' => 'fi-rr-users',
             'accent' => 'cyan',
@@ -62,12 +62,14 @@ class CreationCollaborationRequestedNotification extends Notification implements
                 'type' => 'creation_collaboration_request',
                 'id' => (int) $request->id,
                 'creation_id' => (int) $request->creation_id,
+                'creation_slug' => (string) ($request->creation?->slug ?? ''),
             ],
             'meta' => [
                 'requester_id' => (int) ($request->requester_id ?? 0),
                 'requester_name' => $requesterName,
                 'requested_role' => (string) ($request->requested_role ?? ''),
                 'creation_title' => (string) ($request->creation?->title ?? ''),
+                'creation_slug' => (string) ($request->creation?->slug ?? ''),
                 'created_at' => $request->created_at?->toISOString() ?? now()->toISOString(),
             ],
         ]);

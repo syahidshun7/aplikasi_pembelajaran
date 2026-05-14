@@ -39,7 +39,7 @@ class CreationInsightAddedNotification extends Notification implements ShouldQue
     {
         $insight = $this->insight->loadMissing([
             'user:id,name,username',
-            'creation:id,title',
+            'creation:id,title,slug',
         ]);
 
         $actorName = (string) ($insight->user?->username ?: $insight->user?->name ?: 'Someone');
@@ -50,7 +50,7 @@ class CreationInsightAddedNotification extends Notification implements ShouldQue
             'event' => 'insight_added',
             'title' => 'Creation Insight',
             'message' => 'Someone left an insight on your creation',
-            'action_url' => route('hall.creations.show', ['creation' => (int) $insight->creation_id]),
+            'action_url' => route('hall.creations.show', ['creation' => $insight->creation?->slug ?: (int) $insight->creation_id]),
             'action_label' => 'View insight',
             'icon' => 'fi-rr-comment-alt',
             'accent' => 'amber',
@@ -58,6 +58,7 @@ class CreationInsightAddedNotification extends Notification implements ShouldQue
                 'type' => 'creation',
                 'id' => (int) $insight->creation_id,
                 'insight_id' => (int) $insight->id,
+                'slug' => (string) ($insight->creation?->slug ?? ''),
             ],
             'meta' => [
                 'actor_id' => (int) ($insight->user_id ?? 0),

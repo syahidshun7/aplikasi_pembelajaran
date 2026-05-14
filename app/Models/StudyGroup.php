@@ -17,7 +17,14 @@ class StudyGroup extends Model
         'description',
         'invite_code',
         'max_members',
+        'min_level',
         'job_id',
+    ];
+
+    protected $casts = [
+        'max_members' => 'integer',
+        'min_level' => 'integer',
+        'job_id' => 'integer',
     ];
 
     // 3. Beritahu Laravel kolom mana yang berisi UUID otomatis

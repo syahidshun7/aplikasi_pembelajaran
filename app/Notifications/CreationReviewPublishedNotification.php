@@ -56,7 +56,7 @@ class CreationReviewPublishedNotification extends Notification implements Should
                 (string) ($creation->title ?? 'your creation'),
                 $publisherName
             ),
-            'action_url' => route('hall.creations.review', ['creation' => (int) $creation->id]),
+            'action_url' => route('hall.creations.review', ['creation' => $creation->slug ?: (int) $creation->id]),
             'action_label' => 'View review result',
             'icon' => 'fi-rr-badge-check',
             'accent' => 'emerald',
@@ -64,6 +64,7 @@ class CreationReviewPublishedNotification extends Notification implements Should
                 'type' => 'creation_review',
                 'id' => (int) $review->id,
                 'creation_id' => (int) $creation->id,
+                'creation_slug' => (string) ($creation->slug ?? ''),
             ],
             'meta' => [
                 'publisher_id' => (int) ($this->publisher?->id ?? 0),
@@ -76,4 +77,3 @@ class CreationReviewPublishedNotification extends Notification implements Should
         ]);
     }
 }
-

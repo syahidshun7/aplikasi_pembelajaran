@@ -31,6 +31,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationDispatchController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicEventController;
 use App\Http\Controllers\QuestController;
 use App\Http\Controllers\RubricController;
 use App\Http\Controllers\RubricCriteriaController;
@@ -70,6 +71,7 @@ Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
 
 Route::get('/', [HomeController::class, 'index'])->name('lobby');
 Route::get('/landing', [HomeController::class, 'landing'])->name('landing');
+Route::get('/public/events/{uuid}', [PublicEventController::class, 'show'])->name('public.events.show');
 Route::get('/robots.txt', function () {
     $content = implode(PHP_EOL, [
         'User-agent: *',
@@ -134,6 +136,17 @@ if (app()->environment(['local', 'testing'])) {
 }
 
 Route::get('/hall-of-creations', [CreationPageController::class, 'hallIndex'])->name('hall.creations.index');
+
+// Backward-compat: old /hall-of-creations/{id} links -> redirect to slug URL
+Route::get('/hall-of-creations/{id}', function ($id) {
+    if (! ctype_digit((string) $id)) {
+        abort(404);
+    }
+    $creation = \App\Models\Creation::query()->find((int) $id);
+    abort_unless($creation && $creation->slug, 404);
+    return redirect()->route('hall.creations.show', ['creation' => $creation->slug], 301);
+})->whereNumber('id');
+
 Route::get('/hall-of-creations/{creation}', [CreationPageController::class, 'show'])->name('hall.creations.show');
 Route::get('/hall-of-creations/{creation}/review', [CreationPageController::class, 'showReview'])->name('hall.creations.review');
 

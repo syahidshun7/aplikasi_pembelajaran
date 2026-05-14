@@ -544,6 +544,47 @@
     opacity: 1 !important;
 }
 
+.swal2-popup .swal2-validation-message,
+.swal2-validation-message {
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 8px !important;
+    line-height: 1.6 !important;
+    text-transform: uppercase !important;
+    color: #fecaca !important;
+    background: rgba(127, 29, 29, 0.35) !important;
+    border: 2px solid #7f1d1d !important;
+    border-radius: 0 !important;
+    padding: 10px 12px !important;
+    margin: 12px auto 0 !important;
+    letter-spacing: 0.05em;
+}
+
+.swal2-popup .rpg-alert-validation,
+.rpg-alert-validation {
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 8px !important;
+    line-height: 1.6 !important;
+    text-transform: uppercase !important;
+    color: #fecaca !important;
+    background: rgba(127, 29, 29, 0.35) !important;
+    border: 2px solid #7f1d1d !important;
+    border-radius: 0 !important;
+    padding: 10px 12px !important;
+    margin: 12px auto 0 !important;
+    letter-spacing: 0.05em;
+}
+
+.swal2-popup .swal2-validation-message::before,
+.swal2-validation-message::before {
+    background: transparent !important;
+    color: #fca5a5 !important;
+    font-weight: 700;
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 9px !important;
+    margin-right: 8px !important;
+    content: '[!]' !important;
+}
+
 /* 3. Tombol (Tombol Biru Akan Hilang Di Sini) */
 .btn-pixel-alert {
     font-family: 'Press Start 2P', cursive !important;

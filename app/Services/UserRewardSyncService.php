@@ -7,6 +7,7 @@ use App\Models\ShopTransaction;
 use App\Models\Submission;
 use App\Models\User;
 use Illuminate\Support\Facades\Schema;
+use App\Services\LevelingService;
 
 class UserRewardSyncService
 {
@@ -61,10 +62,12 @@ class UserRewardSyncService
             'gold' => $newGold,
         ];
 
+        $calculatedLevel = LevelingService::levelFromExp($newExp);
+
         if (Schema::hasColumn('users', 'lvl')) {
-            $updateData['lvl'] = (int) floor($newExp / 1000) + 1;
+            $updateData['lvl'] = $calculatedLevel;
         } elseif (Schema::hasColumn('users', 'level')) {
-            $updateData['level'] = (int) floor($newExp / 1000) + 1;
+            $updateData['level'] = $calculatedLevel;
         }
 
         User::query()->whereKey($userId)->update($updateData);

@@ -333,6 +333,7 @@ class CreationApiController extends Controller
 
         return [
             'id' => (int) $creation->id,
+            'slug' => (string) ($creation->slug ?? ''),
             'user_id' => (int) $creation->user_id,
             'title' => (string) $creation->title,
             'description' => (string) $creation->description,

@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Services\DailyQuestService;
+use App\Services\LevelingService;
 use App\Support\Notifications\NotificationPresenter;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -31,30 +32,38 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $authUser = $request->user();
+        $levelProgress = $authUser
+            ? LevelingService::progress((int) ($authUser->exp ?? 0))
+            : null;
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user() ? [
-                    'id' => $request->user()->id,
-                    'name' => $request->user()->name,
-                    'username' => $request->user()->username,
-                    'email' => $request->user()->email,
-                    'email_verified_at' => $request->user()->email_verified_at,
-                    'role' => $request->user()->role,
-                    'staff_play_mode' => (bool) $request->user()->isStaffPlayMode(),
-                    'is_paid_member' => (bool) $request->user()->isPaidMember(),
-                    'can_access_dooplab' => (bool) $request->user()->canAccessDoopLab(),
-                    'player_mode_label' => $request->user()->isStaffPlayMode() ? 'STAFF_PLAY_MODE' : 'PLAYER_MODE',
-                    'player_mode_notice' => $request->user()->isStaffPlayMode()
+                'user' => $authUser ? [
+                    'id' => $authUser->id,
+                    'name' => $authUser->name,
+                    'username' => $authUser->username,
+                    'email' => $authUser->email,
+                    'email_verified_at' => $authUser->email_verified_at,
+                    'role' => $authUser->role,
+                    'staff_play_mode' => (bool) $authUser->isStaffPlayMode(),
+                    'is_paid_member' => (bool) $authUser->isPaidMember(),
+                    'can_access_dooplab' => (bool) $authUser->canAccessDoopLab(),
+                    'player_mode_label' => $authUser->isStaffPlayMode() ? 'STAFF_PLAY_MODE' : 'PLAYER_MODE',
+                    'player_mode_notice' => $authUser->isStaffPlayMode()
                         ? 'Mode preview aktif: reward, leaderboard, dan akses kelas student tidak dihitung.'
                         : null,
+                    'lvl' => $levelProgress['level'] ?? 1,
+                    'exp' => (int) ($authUser->exp ?? 0),
+                    'level_progress' => $levelProgress,
                 ] : null,
             ],
-            'notificationCenter' => $request->user()
-                ? fn () => NotificationPresenter::summary($request->user())
+            'notificationCenter' => $authUser
+                ? fn () => NotificationPresenter::summary($authUser)
                 : null,
-            'dailyQuestCenter' => $request->user()
-                ? fn () => app(DailyQuestService::class)->quickStatusForUser($request->user())
+            'dailyQuestCenter' => $authUser
+                ? fn () => app(DailyQuestService::class)->quickStatusForUser($authUser)
                 : null,
             'flash' => [
                 'message' => fn () => $request->session()->get('message'),
