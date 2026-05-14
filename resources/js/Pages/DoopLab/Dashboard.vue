@@ -525,7 +525,11 @@ onUnmounted(() => {
 
 <template>
     <AuthenticatedLayout>
-        <Head title="DoopLab Dashboard" />
+        <Head title="DOOPTECH | DoopLab Dashboard">
+            <meta head-key="description" name="description" content="Dashboard internal DoopLab oleh DOOPTECH." />
+            <meta head-key="robots" name="robots" content="noindex,nofollow,noarchive" />
+            <link head-key="canonical" rel="canonical" :href="route('landing')" />
+        </Head>
 
         <div class="nb-root">
             <div class="nb-aurora"></div>

@@ -113,17 +113,27 @@ class QuestController extends Controller
             ->map(fn ($id) => (int) $id)
             ->all();
 
+        $submissionStatusesByQuest = [];
         $submittedQuestIdSet = [];
         if (! empty($pageQuestIds)) {
-            $submittedQuestIds = Submission::query()
-                ->where('user_id', $userId)
-                ->whereIn('quest_id', $pageQuestIds)
-                ->select('quest_id')
-                ->distinct()
-                ->pluck('quest_id')
-                ->map(fn ($id) => (int) $id)
+            $latestSubmissions = Submission::query()
+                ->joinSub(
+                    Submission::query()
+                        ->where('user_id', $userId)
+                        ->whereIn('quest_id', $pageQuestIds)
+                        ->selectRaw('MAX(id) as id')
+                        ->groupBy('quest_id'),
+                    'latest',
+                    fn ($join) => $join->on('submissions.id', '=', 'latest.id')
+                )
+                ->get(['submissions.quest_id', 'submissions.status']);
+
+            $submissionStatusesByQuest = $latestSubmissions
+                ->pluck('status', 'quest_id')
+                ->mapWithKeys(fn ($status, $questId) => [(int) $questId => $status])
                 ->all();
-            $submittedQuestIdSet = array_fill_keys($submittedQuestIds, true);
+
+            $submittedQuestIdSet = array_fill_keys(array_keys($submissionStatusesByQuest), true);
         }
 
         $unlockedQuestIdSet = [];
@@ -138,16 +148,18 @@ class QuestController extends Controller
         }
 
         $quests->setCollection(
-            $quests->getCollection()->map(function ($quest) use ($submittedQuestIdSet, $unlockedQuestIdSet) {
+            $quests->getCollection()->map(function ($quest) use ($submittedQuestIdSet, $submissionStatusesByQuest, $unlockedQuestIdSet) {
                 $questId = (int) (is_array($quest) ? ($quest['id'] ?? 0) : ($quest->id ?? 0));
 
                 if (is_array($quest)) {
                     $quest['user_has_submitted'] = isset($submittedQuestIdSet[$questId]);
+                    $quest['user_submission_status'] = $submissionStatusesByQuest[$questId] ?? null;
                     $quest['user_has_unlock'] = isset($unlockedQuestIdSet[$questId]);
                     return $quest;
                 }
 
                 $quest->user_has_submitted = isset($submittedQuestIdSet[$questId]);
+                $quest->user_submission_status = $submissionStatusesByQuest[$questId] ?? null;
                 $quest->user_has_unlock = isset($unlockedQuestIdSet[$questId]);
                 return $quest;
             })

@@ -122,6 +122,21 @@ const resolvePlayerScoreLabel = (player) => {
 
     return `${Number(player?.__score ?? 0)} PTS`;
 };
+
+const resolveLevelTitleSymbol = (title) => {
+    const normalized = String(title || '').trim().toLowerCase();
+
+    const symbolMap = {
+        novice: '◇',
+        apprentice: '◈',
+        adept: '⬟',
+        expert: '★',
+        master: '♛',
+        legend: '✦',
+    };
+
+    return symbolMap[normalized] || '✦';
+};
 </script>
 
 <template>
@@ -212,24 +227,26 @@ const resolvePlayerScoreLabel = (player) => {
                     :key="player.id"
                     :is="hasProfileRoute(player) ? Link : 'div'"
                     :href="hasProfileRoute(player) ? route('profiles.show', { user: player.username }) : undefined"
-                    class="flex items-center gap-3 border border-slate-800 bg-[#0d1117] p-3 transition-all"
+                    class="flex items-center gap-3 overflow-hidden border border-slate-800 bg-[#0d1117] p-3 transition-all"
                     :class="hasProfileRoute(player) ? 'hover:border-cyan-500/60' : 'opacity-90'"
                 >
-                    <div class="flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-400/10 text-[9px] uppercase text-cyan-100">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-400/10 text-[9px] uppercase text-cyan-100">
                         #{{ index + 1 }}
                     </div>
 
-                    <div class="h-11 w-11 overflow-hidden rounded-[14px] border border-slate-700 bg-slate-800">
+                    <div class="h-11 w-11 shrink-0 overflow-hidden rounded-[14px] border border-slate-700 bg-slate-800">
                         <img v-if="player.profile_photo" :src="'/storage/' + player.profile_photo" loading="lazy" decoding="async" class="h-full w-full object-cover">
                         <img v-else :src="player.__dicebear_src" loading="lazy" decoding="async" class="h-full w-full">
                     </div>
 
                     <div class="min-w-0 flex-1">
-                        <div class="flex items-center justify-between gap-2">
-                            <span class="truncate text-[9px] uppercase text-white">{{ player.username || player.name }}</span>
-                            <span class="text-[8px] uppercase text-cyan-300">LVL {{ player.level || 1 }} — {{ player.level_title || 'Novice' }}</span>
+                        <div class="leaderboard-row-top flex min-w-0 items-start justify-between gap-2">
+                            <span class="min-w-0 truncate text-[9px] uppercase text-white">{{ player.username || player.name }}</span>
+                            <span class="text-[8px] uppercase text-cyan-300" :title="`LVL ${player.level || 1} - ${player.level_title || 'Novice'}`">
+                                LVL {{ player.level || 1 }} {{ resolveLevelTitleSymbol(player.level_title) }}
+                            </span>
                         </div>
-                        <div class="mt-2 flex items-center justify-between gap-2 text-[7px] uppercase text-slate-500">
+                        <div class="leaderboard-row-bottom mt-2 flex min-w-0 items-center justify-between gap-2 text-[7px] uppercase text-slate-500">
                             <span>{{ resolvePlayerScoreLabel(player) }}</span>
                             <span>{{ hasProfileRoute(player) ? 'Visit >' : 'Profile unavailable' }}</span>
                         </div>
@@ -277,5 +294,30 @@ const resolvePlayerScoreLabel = (player) => {
 
 .dashboard-empty-state__copy {
     @apply max-w-[280px] text-[9px] uppercase leading-relaxed text-slate-500;
+}
+
+.leaderboard-row-top span:last-child {
+    max-width: 48%;
+    text-align: right;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.leaderboard-row-bottom span:first-child {
+    flex-shrink: 0;
+}
+
+.leaderboard-row-bottom span:last-child {
+    min-width: 0;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+    .leaderboard-row-top span:last-child {
+        max-width: none;
+    }
 }
 </style>

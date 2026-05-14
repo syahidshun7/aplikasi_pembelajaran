@@ -263,40 +263,64 @@ const buildUserRoomCatalog = async (user) => {
     }).filter((room) => room.key !== '');
 
     const [dmRows] = await dbPool.execute(
-        `SELECT DISTINCT u.id,
+        `SELECT u.id,
                 u.name,
-                u.username
+                u.username,
+                MAX(m.id) AS last_message_id,
+                MAX(m.created_at) AS last_message_at
          FROM group_user gu_self
          INNER JOIN group_user gu_peer ON gu_peer.study_group_id = gu_self.study_group_id
          INNER JOIN users u ON u.id = gu_peer.user_id
          INNER JOIN study_groups sg ON sg.id = gu_self.study_group_id
+         LEFT JOIN messages m
+           ON m.room = CASE
+                WHEN u.id < ? THEN CONCAT('dm:', u.id, '-', ?)
+                ELSE CONCAT('dm:', ?, '-', u.id)
+           END
          WHERE gu_self.user_id = ?
            AND gu_self.deleted_at IS NULL
            AND gu_peer.deleted_at IS NULL
            AND gu_peer.user_id != ?
            AND u.deleted_at IS NULL
            AND sg.deleted_at IS NULL
-         ORDER BY COALESCE(NULLIF(u.username, ''), u.name) ASC
+         GROUP BY u.id, u.name, u.username
+         ORDER BY COALESCE(MAX(m.id), 0) DESC,
+                  COALESCE(NULLIF(u.username, ''), u.name) ASC
          LIMIT ${DM_CONTACT_LIMIT}`,
-        [user.id, user.id]
+        [user.id, user.id, user.id, user.id, user.id]
     );
 
-    const dmContacts = dmRows.map((row) => {
+    const dmDirectory = dmRows.map((row) => {
         const peerId = Number(row.id || 0);
         const peerName = normalizeText(row.name, 'User');
         const peerUsername = normalizeText(row.username);
+        const lastMessageId = Number(row.last_message_id || 0);
+        const hasHistory = Number.isInteger(lastMessageId) && lastMessageId > 0;
+
         return {
             user_id: peerId,
             name: peerName,
             username: peerUsername,
             label: peerUsername || peerName,
+            has_history: hasHistory,
+            last_message_id: hasHistory ? lastMessageId : null,
+            last_message_at: row.last_message_at || null,
         };
     }).filter((contact) => Number.isInteger(contact.user_id) && contact.user_id > 0);
+
+    const dmContacts = dmDirectory
+        .filter((contact) => contact.has_history)
+        .sort((a, b) => {
+            const left = Number(a.last_message_id || 0);
+            const right = Number(b.last_message_id || 0);
+            return right - left;
+        });
 
     return {
         job_room: jobRoom,
         class_rooms: classRooms,
         dm_contacts: dmContacts,
+        dm_directory: dmDirectory,
     };
 };
 
@@ -322,7 +346,10 @@ const resolveRoomAssignment = (catalog, requestData = {}) => {
             return null;
         }
 
-        const matchedContact = catalog.dm_contacts.find((contact) => contact.user_id === targetUserId);
+        const matchedContact = [
+            ...(Array.isArray(catalog.dm_contacts) ? catalog.dm_contacts : []),
+            ...(Array.isArray(catalog.dm_directory) ? catalog.dm_directory : []),
+        ].find((contact) => contact.user_id === targetUserId);
         if (!matchedContact) {
             return null;
         }
@@ -412,6 +439,7 @@ const buildCatalogPayload = (catalog) => ({
     job_room: catalog.job_room,
     class_rooms: catalog.class_rooms,
     dm_contacts: catalog.dm_contacts,
+    dm_directory: catalog.dm_directory,
 });
 
 const buildRoomOptionKey = ({ roomType, roomKey, senderUserId = null, recipientUserId = null }) => {

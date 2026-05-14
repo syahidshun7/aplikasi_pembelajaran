@@ -71,6 +71,18 @@ Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
 
 Route::get('/', [HomeController::class, 'index'])->name('lobby');
 Route::get('/landing', [HomeController::class, 'landing'])->name('landing');
+Route::get('/dooplab', function () {
+    if (! auth()->check()) {
+        return redirect()->route('landing', [], 301);
+    }
+
+    return Inertia::render('DoopLab/Index', [
+        'telemetryStats' => [
+            'total_member' => User::query()->where('role', User::ROLE_STUDENT)->count(),
+            'total_mentor' => User::query()->where('role', User::ROLE_MENTOR)->count(),
+        ],
+    ]);
+})->name('dooplab.index');
 Route::get('/public/events/{uuid}', [PublicEventController::class, 'show'])->name('public.events.show');
 Route::get('/robots.txt', function () {
     $content = implode(PHP_EOL, [
@@ -151,14 +163,6 @@ Route::get('/hall-of-creations/{creation}', [CreationPageController::class, 'sho
 Route::get('/hall-of-creations/{creation}/review', [CreationPageController::class, 'showReview'])->name('hall.creations.review');
 
 Route::middleware('auth')->group(function () {
-    Route::get('/dooplab', function () {
-        return Inertia::render('DoopLab/Index', [
-            'telemetryStats' => [
-                'total_member' => User::query()->where('role', User::ROLE_STUDENT)->count(),
-                'total_mentor' => User::query()->where('role', User::ROLE_MENTOR)->count(),
-            ],
-        ]);
-    })->name('dooplab.index');
     Route::get('/dooplab/dashboard', [DoopLabDashboardController::class, 'index'])->name('dooplab.dashboard');
     Route::post('/dooplab/todos', [DoopLabTodoController::class, 'store'])->name('dooplab.todos.store');
     Route::patch('/dooplab/todos/{todo}', [DoopLabTodoController::class, 'update'])->name('dooplab.todos.update');

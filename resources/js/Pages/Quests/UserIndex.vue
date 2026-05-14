@@ -37,6 +37,52 @@ const statusClass = (status) => {
     return 'text-cyan-400 border-cyan-900 bg-cyan-900/20';
 };
 
+const isLateUnsubmitted = (item) => {
+    if (item?.user_has_submitted || item?.user_has_unlock) {
+        return false;
+    }
+
+    const submissionStatus = String(item?.user_submission_status || '').trim();
+    if (submissionStatus !== '') {
+        return false;
+    }
+
+    const deadlineRaw = item?.deadline;
+    if (deadlineRaw) {
+        const deadline = new Date(deadlineRaw);
+        if (!Number.isNaN(deadline.getTime()) && deadline.getTime() <= Date.now()) {
+            return true;
+        }
+    }
+
+    const questStatus = String(item?.status || '').trim().toLowerCase();
+    return questStatus === 'done' || questStatus === 'completed';
+};
+
+const resolveUserQuestStatus = (item) => {
+    const status = String(item?.user_submission_status || '').trim();
+
+    if (status === 'Approved' || status === 'Rejected' || status === 'Pending') {
+        return status;
+    }
+
+    if (isLateUnsubmitted(item)) {
+        return 'Late';
+    }
+
+    return 'Not Submitted';
+};
+
+const userQuestStatusClass = (item) => {
+    const status = resolveUserQuestStatus(item);
+
+    if (status === 'Approved') return 'text-emerald-300 border-emerald-900 bg-emerald-900/20';
+    if (status === 'Rejected') return 'text-rose-300 border-rose-900 bg-rose-900/20';
+    if (status === 'Pending') return 'text-yellow-300 border-yellow-900 bg-yellow-900/20';
+    if (status === 'Late') return 'text-red-300 border-red-900 bg-red-900/20';
+    return 'text-slate-300 border-slate-700 bg-slate-900/30';
+};
+
 const questTypeClass = (questType) => {
     return String(questType || 'main') === 'optional'
         ? 'text-lime-300 border-lime-900 bg-lime-900/20'
@@ -165,6 +211,7 @@ const classLabelForQuest = (item) => {
                                     {{ String(item.quest_type || 'main') === 'optional' ? 'Optional Bonus' : 'Main Quest' }}
                                 </span>
                                 <span class="px-2 py-1 border text-[8px] uppercase border-slate-700 text-slate-300">{{ item.difficulty }}</span>
+                                <span class="px-2 py-1 border text-[8px] uppercase" :class="userQuestStatusClass(item)">{{ resolveUserQuestStatus(item) }}</span>
                                 <span class="px-2 py-1 border text-[8px] uppercase" :class="statusClass(item.status)">{{ item.status }}</span>
                             </div>
                             <p class="mt-2 text-slate-400 font-sans text-[11px]">{{ item.description || '-' }}</p>
@@ -213,9 +260,10 @@ const classLabelForQuest = (item) => {
                                     </td>
                                     <td class="py-3 px-2 text-slate-200 uppercase">{{ item.difficulty }}</td>
                                     <td class="py-3 px-2">
-                                        <span class="px-2 py-1 border text-[8px] uppercase" :class="statusClass(item.status)">
-                                            {{ item.status }}
+                                        <span class="px-2 py-1 border text-[8px] uppercase" :class="userQuestStatusClass(item)">
+                                            {{ resolveUserQuestStatus(item) }}
                                         </span>
+                                        <p class="mt-1 text-[7px] uppercase text-slate-500">Quest: {{ item.status }}</p>
                                     </td>
                                     <td class="py-3 px-2 text-yellow-500">{{ item.reward_gold || 0 }} G</td>
                                     <td class="py-3 px-2 text-right">

@@ -29,7 +29,11 @@ const canAccessDoopLab = computed(() => Boolean(page.props?.auth?.user?.can_acce
 
 <template>
     <AuthenticatedLayout>
-        <Head title="DoopLab | Experimental Zone" />
+        <Head title="DOOPTECH | DoopLab">
+            <meta head-key="description" name="description" content="DoopLab merupakan area internal eksperimen milik DOOPTECH. Untuk informasi publik, kunjungi DOOPTECH." />
+            <meta head-key="robots" name="robots" content="noindex,nofollow,noarchive" />
+            <link head-key="canonical" rel="canonical" :href="route('landing')" />
+        </Head>
 
         <div class="dooplab-root">
             

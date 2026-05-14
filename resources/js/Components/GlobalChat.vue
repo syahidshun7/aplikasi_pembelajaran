@@ -35,6 +35,7 @@ const roomCatalog = ref({
     job_room: null,
     class_rooms: [],
     dm_contacts: [],
+    dm_directory: [],
 });
 const roomOptions = ref([]);
 const selectedRoomKey = ref('');
@@ -47,6 +48,8 @@ const isUploadingImage = ref(false);
 const draftImageFile = ref(null);
 const draftImagePreviewUrl = ref('');
 const draftImageMeta = ref(null);
+const showNewDmModal = ref(false);
+const newDmSearch = ref('');
 
 const userName = ref('Anonymous');
 const userId = ref(null);
@@ -379,6 +382,7 @@ const applyRoomCatalog = (payload = {}) => {
             : null,
         class_rooms: Array.isArray(safeCatalog.class_rooms) ? safeCatalog.class_rooms : [],
         dm_contacts: Array.isArray(safeCatalog.dm_contacts) ? safeCatalog.dm_contacts : [],
+        dm_directory: Array.isArray(safeCatalog.dm_directory) ? safeCatalog.dm_directory : [],
     };
 
     const options = [];
@@ -438,9 +442,70 @@ const applyRoomCatalog = (payload = {}) => {
 
     const selectedDmExists = roomCatalog.value.dm_contacts.some(
         (contact) => String(contact?.user_id || '') === String(selectedDmUserId.value || '')
+    ) || roomCatalog.value.dm_directory.some(
+        (contact) => String(contact?.user_id || '') === String(selectedDmUserId.value || '')
     );
     if (!selectedDmExists) {
         selectedDmUserId.value = '';
+    }
+};
+
+const getDmLabel = (contact = {}) => {
+    const fallbackId = Number(contact?.user_id || 0);
+    return String(contact?.label || contact?.username || contact?.name || fallbackId || 'User').trim();
+};
+
+const ensureDmContactInInbox = (peerUserId, peerLabel = '') => {
+    const parsedPeerUserId = Number(peerUserId || 0);
+    if (!Number.isInteger(parsedPeerUserId) || parsedPeerUserId <= 0) {
+        return;
+    }
+
+    const safeLabel = String(peerLabel || '').trim();
+
+    const hasInboxContact = roomCatalog.value.dm_contacts.some(
+        (contact) => Number(contact?.user_id || 0) === parsedPeerUserId
+    );
+
+    if (hasInboxContact) {
+        return;
+    }
+
+    const directoryContact = roomCatalog.value.dm_directory.find(
+        (contact) => Number(contact?.user_id || 0) === parsedPeerUserId
+    );
+
+    const nextContact = directoryContact
+        ? { ...directoryContact, has_history: true }
+        : {
+            user_id: parsedPeerUserId,
+            label: safeLabel || String(parsedPeerUserId),
+            name: safeLabel || String(parsedPeerUserId),
+            username: '',
+            has_history: true,
+        };
+
+    roomCatalog.value = {
+        ...roomCatalog.value,
+        dm_contacts: [
+            nextContact,
+            ...roomCatalog.value.dm_contacts,
+        ],
+    };
+
+    const dmOptionKey = `dm:${parsedPeerUserId}`;
+    const hasOption = roomOptions.value.some((option) => option.key === dmOptionKey);
+
+    if (!hasOption) {
+        roomOptions.value = [
+            ...roomOptions.value,
+            {
+                key: dmOptionKey,
+                type: 'dm',
+                label: `DM: ${getDmLabel(nextContact)}`,
+                payload: { type: 'dm', user_id: parsedPeerUserId },
+            },
+        ];
     }
 };
 
@@ -509,6 +574,12 @@ const handleRoomActivity = (payload = {}) => {
 
     const targetOptionKey = getRoomOptionKeyFromActivityPayload(payload);
     if (targetOptionKey === '') return;
+
+    if (targetOptionKey.startsWith('dm:')) {
+        const peerUserId = Number(String(targetOptionKey).replace('dm:', '') || 0);
+        const peerLabel = String(payload.sender_user_name || '').trim();
+        ensureDmContactInInbox(peerUserId, peerLabel);
+    }
 
     if (targetOptionKey === getCurrentRoomOptionKey()) {
         return;
@@ -598,6 +669,10 @@ const handleRoomAssigned = (payload = {}) => {
 
     if (activeRoomType.value === 'dm') {
         selectedDmUserId.value = String(payload.room_key || selectedDmUserId.value || '');
+        ensureDmContactInInbox(
+            selectedDmUserId.value,
+            String(payload.room_label || '').replace(/^DM:\s*/i, '')
+        );
     }
 
     if (activeRoomType.value === 'job') {
@@ -739,6 +814,66 @@ const inactiveRoomUnreadCount = computed(() => {
         return sum + Math.floor(parsed);
     }, 0);
 });
+
+const dmDirectoryForNewChat = computed(() => {
+    const byUserId = new Map();
+
+    for (const contact of roomCatalog.value.dm_directory || []) {
+        const peerUserId = Number(contact?.user_id || 0);
+        if (!Number.isInteger(peerUserId) || peerUserId <= 0) continue;
+        if (peerUserId === Number(userId.value || 0)) continue;
+
+        byUserId.set(peerUserId, {
+            ...contact,
+            label: getDmLabel(contact),
+            hasHistory: Boolean(contact?.has_history),
+        });
+    }
+
+    return Array.from(byUserId.values()).sort((a, b) => a.label.localeCompare(b.label, 'id'));
+});
+
+const filteredDmDirectory = computed(() => {
+    const keyword = String(newDmSearch.value || '').trim().toLowerCase();
+    if (keyword === '') {
+        return dmDirectoryForNewChat.value;
+    }
+
+    return dmDirectoryForNewChat.value.filter((contact) => {
+        const label = String(contact.label || '').toLowerCase();
+        const username = String(contact.username || '').toLowerCase();
+        const name = String(contact.name || '').toLowerCase();
+        return label.includes(keyword) || username.includes(keyword) || name.includes(keyword);
+    });
+});
+
+const openNewDmModal = () => {
+    showNewDmModal.value = true;
+    newDmSearch.value = '';
+};
+
+const closeNewDmModal = () => {
+    showNewDmModal.value = false;
+    newDmSearch.value = '';
+};
+
+const startDmWithUser = (contact = {}) => {
+    if (roomSwitching.value || !isConnected.value) {
+        return;
+    }
+
+    const peerUserId = Number(contact?.user_id || 0);
+    if (!Number.isInteger(peerUserId) || peerUserId <= 0) {
+        return;
+    }
+
+    ensureDmContactInInbox(peerUserId, getDmLabel(contact));
+    closeNewDmModal();
+    requestRoomSwitch({
+        type: 'dm',
+        user_id: peerUserId,
+    });
+};
 
 const clearUnreadMarkers = () => {
     if (!messages.value.length) {
@@ -1174,16 +1309,13 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="rpg-panel border-cyan-500/40 flex h-full min-h-0 flex-col overflow-hidden bg-[#1a1c2c]/90 backdrop-blur-sm">
-        <div class="flex justify-between items-center mb-4 border-b border-cyan-900 pb-2 flex-shrink-0">
-            <h2 class="text-cyan-300 text-[10px] uppercase tracking-widest flex items-center gap-2">
-                <i class="fi fi-rr-comments text-[12px]"></i> Job_Chat
-            </h2>
-            <div class="flex items-center gap-2">
-                <span class="text-[8px] text-cyan-200 uppercase">Room:</span>
-                <div class="relative">
+        <div class="mb-4 border-b border-cyan-900 pb-2 flex-shrink-0">
+            <div class="flex w-full flex-wrap items-center justify-end gap-2 md:flex-nowrap">
+                <span class="text-[8px] text-cyan-200 uppercase shrink-0">Room:</span>
+                <div class="relative min-w-0 flex-1 md:flex-none">
                     <select
                         v-model="selectedRoomKey"
-                        class="bg-black border border-slate-700 px-2 py-1 text-[8px] uppercase text-cyan-300 outline-none min-w-[220px]"
+                        class="w-full bg-black border border-slate-700 px-2 py-1 text-[8px] uppercase text-cyan-300 outline-none md:min-w-[170px] lg:min-w-[220px]"
                         :disabled="roomSwitching || roomOptionsForDisplay.length === 0"
                     >
                         <option v-if="roomOptionsForDisplay.length === 0" value="">No_Room</option>
@@ -1198,13 +1330,58 @@ onBeforeUnmount(() => {
                         {{ inactiveRoomUnreadCount > 99 ? '99+' : inactiveRoomUnreadCount }}
                     </span>
                 </div>
+                <button
+                    type="button"
+                    class="w-full shrink-0 border border-emerald-500 px-2 py-1 text-[8px] uppercase text-emerald-300 transition-colors hover:bg-emerald-500 hover:text-black disabled:opacity-50 sm:w-auto"
+                    :disabled="roomSwitching || !isConnected || dmDirectoryForNewChat.length === 0"
+                    @click="openNewDmModal"
+                >
+                    New Chat
+                </button>
+            </div>
+        </div>
+
+        <div
+            v-if="showNewDmModal"
+            class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-3"
+            @click.self="closeNewDmModal"
+        >
+            <div class="w-full max-w-md border-2 border-cyan-500 bg-[#0b1220] p-3 shadow-[0_0_24px_rgba(34,211,238,0.35)]">
+            <div class="mb-2 flex items-center justify-between gap-2 border-b border-slate-700 pb-2">
+                <p class="text-[9px] uppercase text-cyan-200">Start New DM</p>
+                <button type="button" class="text-[8px] uppercase text-slate-400 hover:text-white" @click="closeNewDmModal">Close</button>
+            </div>
+
+                <input
+                    v-model="newDmSearch"
+                    type="text"
+                    class="mb-2 w-full border border-slate-700 bg-black px-2 py-1 text-[8px] uppercase text-cyan-300 outline-none"
+                    placeholder="Search user..."
+                >
+
+                <div class="max-h-60 overflow-y-auto custom-scroll space-y-1">
+                    <button
+                        v-for="contact in filteredDmDirectory"
+                        :key="`new-dm-${contact.user_id}`"
+                        type="button"
+                        class="flex w-full items-center justify-between border border-slate-700 bg-black/40 px-2 py-2 text-left text-[8px] uppercase text-cyan-200 transition-colors hover:border-cyan-400 hover:bg-cyan-500/10"
+                        @click="startDmWithUser(contact)"
+                    >
+                        <span class="min-w-0 truncate pr-2">{{ contact.label }}</span>
+                        <span v-if="contact.hasHistory" class="text-[7px] text-emerald-300">INBOX</span>
+                    </button>
+
+                    <p v-if="filteredDmDirectory.length === 0" class="py-4 text-center text-[8px] uppercase text-slate-500">
+                        No user found
+                    </p>
+                </div>
             </div>
         </div>
 
         <div class="border border-slate-800 bg-[#0d1117]/70 p-3 mb-3 flex-shrink-0">
-            <div class="flex items-center justify-between gap-2 mb-2 border-b border-slate-800 pb-2">
+            <div class="mb-2 flex flex-col gap-1 border-b border-slate-800 pb-2 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
                 <p class="text-[8px] uppercase text-emerald-300">Online_Users</p>
-                <p class="text-[8px] uppercase text-slate-500">You: {{ userName }} | {{ isConnected ? 'ON' : 'OFF' }}</p>
+                <p class="max-w-full truncate text-[8px] uppercase text-slate-500">You: {{ userName }} | {{ isConnected ? 'ON' : 'OFF' }}</p>
             </div>
             <p v-if="rateLimitNotice" class="text-[8px] uppercase text-amber-300 mb-2">{{ rateLimitNotice }}</p>
             <div class="max-h-[72px] overflow-y-auto custom-scroll">
@@ -1265,7 +1442,7 @@ onBeforeUnmount(() => {
                 </p>
             </div>
 
-            <div class="mt-3 pt-3 border-t border-slate-800 flex flex-shrink-0 items-end gap-2">
+            <div class="mt-3 border-t border-slate-800 pt-3 flex flex-shrink-0 flex-col gap-2 sm:flex-row sm:items-end">
                 <input
                     ref="imageInput"
                     type="file"
@@ -1273,7 +1450,7 @@ onBeforeUnmount(() => {
                     class="hidden"
                     @change="handleImageSelected"
                 >
-                <div class="relative flex-1">
+                <div class="relative w-full flex-1">
                     <div
                         v-if="draftImagePreviewUrl"
                         class="relative mb-2 inline-flex items-start gap-2 rounded-md border border-slate-700 bg-black/60 p-2"
@@ -1307,7 +1484,7 @@ onBeforeUnmount(() => {
                 </div>
                 <button
                     type="button"
-                    class="px-3 py-2 border-2 border-fuchsia-500 text-fuchsia-300 hover:bg-fuchsia-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
+                    class="w-full px-3 py-2 border-2 border-fuchsia-500 text-fuchsia-300 hover:bg-fuchsia-500 hover:text-black uppercase text-[8px] disabled:opacity-50 sm:w-auto"
                     :disabled="isUploadingImage || !isConnected"
                     @click="openImagePicker"
                 >
@@ -1315,7 +1492,7 @@ onBeforeUnmount(() => {
                 </button>
                 <button
                     type="button"
-                    class="px-3 py-2 border-2 border-cyan-500 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
+                    class="w-full px-3 py-2 border-2 border-cyan-500 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px] disabled:opacity-50 sm:w-auto"
                     :disabled="!isConnected || isUploadingImage"
                     @click="sendMessage"
                 >
