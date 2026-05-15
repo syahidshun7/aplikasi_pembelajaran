@@ -136,7 +136,7 @@ const lockNode = (node) => {
                         {{ canManage ? `Student: ${enrollment.student_name}` : `Mentor: ${enrollment.mentor_name}` }}
                     </p>
                 </div>
-                <Link :href="route('dooplab.roadmaps.enrollments.index')" class="px-3 py-2 border border-slate-700 text-slate-300 hover:text-white uppercase text-[8px]">Back</Link>
+                <Link :href="route('dooplab.dashboard')" class="px-3 py-2 border border-slate-700 text-slate-300 hover:text-white uppercase text-[8px]">Back</Link>
             </div>
 
             <div class="panel overflow-auto">

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DoopLabTodo;
 use App\Models\DoopLabTodoNote;
+use App\Models\Creation;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -55,6 +56,21 @@ class DoopLabTodoController extends Controller
 
                 $ownerUserId = (int) $targetUser->id;
                 $mentorUserId = (int) $user->id;
+
+                $creationId = (int) ($validated['creation_id'] ?? 0);
+                if ($creationId > 0) {
+                    $canAssignToCreation = Creation::query()
+                        ->whereKey($creationId)
+                        ->where('user_id', $ownerUserId)
+                        ->whereHas('collaborators', fn ($query) => $query->where('user_id', (int) $user->id))
+                        ->exists();
+
+                    if (! $canAssignToCreation) {
+                        throw ValidationException::withMessages([
+                            'creation_id' => 'Creation ini belum hire mentor tersebut atau bukan milik target member.',
+                        ]);
+                    }
+                }
             } else {
                 abort(403, 'Hanya mentor yang bisa membuat to-do mode mentor.');
             }

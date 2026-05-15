@@ -6,8 +6,10 @@ use App\Http\Requests\Creations\StoreCreationRequest;
 use App\Http\Requests\Creations\UpdateCreationRequest;
 use App\Models\Creation;
 use App\Models\CreationCategory;
+use App\Models\CreationCollaborationRequest;
 use App\Models\CreationCollaborator;
 use App\Models\CreationPhoto;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -223,6 +225,100 @@ class CreationApiController extends Controller
         return response()->json([
             'message' => 'Creation deleted successfully.',
         ]);
+    }
+
+    public function hireMentor(Request $request, Creation $creation): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user && $user->canAccessDoopLab(), 403, 'DOOPLAB_ACCESS_DENIED');
+
+        $ownerId = (int) $user->id;
+        $this->ensureOwner($creation, $ownerId);
+
+        $validated = $request->validate([
+            'mentor_user_id' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        $mentor = User::query()->findOrFail((int) $validated['mentor_user_id']);
+        if (! $mentor->isMentor()) {
+            throw ValidationException::withMessages([
+                'mentor_user_id' => ['User yang dipilih bukan mentor.'],
+            ]);
+        }
+
+        if ((int) $mentor->id === $ownerId) {
+            throw ValidationException::withMessages([
+                'mentor_user_id' => ['Owner tidak bisa hire diri sendiri sebagai mentor.'],
+            ]);
+        }
+
+        if ($creation->isCollaborator((int) $mentor->id)) {
+            throw ValidationException::withMessages([
+                'mentor_user_id' => ['Mentor ini sudah terhubung ke creation.'],
+            ]);
+        }
+
+        CreationCollaborationRequest::query()->updateOrCreate(
+            [
+                'creation_id' => (int) $creation->id,
+                'requester_id' => (int) $mentor->id,
+                'status' => CreationCollaborationRequest::STATUS_PENDING,
+            ],
+            [
+                'requested_role' => CreationCollaborator::ROLE_VIEWER,
+                'message' => 'MENTOR_INVITE_FROM_DOOPLAB',
+                'processed_by' => $ownerId,
+                'processed_at' => null,
+            ]
+        );
+
+        return response()->json([
+            'message' => 'Invite mentor terkirim. Menunggu accept dari mentor.',
+        ]);
+    }
+
+    public function acceptMentorInvite(Request $request, CreationCollaborationRequest $collaborationRequest): JsonResponse
+    {
+        $mentor = $request->user();
+        abort_unless($mentor && $mentor->isMentor(), 403, 'MENTOR_ONLY');
+        abort_unless((int) $collaborationRequest->requester_id === (int) $mentor->id, 403, 'INVITE_FORBIDDEN');
+        abort_unless((string) $collaborationRequest->status === CreationCollaborationRequest::STATUS_PENDING, 422, 'INVITE_NOT_PENDING');
+
+        CreationCollaborator::query()->updateOrCreate(
+            [
+                'creation_id' => (int) $collaborationRequest->creation_id,
+                'user_id' => (int) $mentor->id,
+            ],
+            [
+                'role' => (string) ($collaborationRequest->requested_role ?: CreationCollaborator::ROLE_VIEWER),
+                'added_by' => (int) ($collaborationRequest->processed_by ?: $collaborationRequest->creation?->user_id),
+                'joined_at' => now(),
+            ]
+        );
+
+        $collaborationRequest->update([
+            'status' => CreationCollaborationRequest::STATUS_APPROVED,
+            'processed_by' => (int) $mentor->id,
+            'processed_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'Invite mentor diterima.']);
+    }
+
+    public function rejectMentorInvite(Request $request, CreationCollaborationRequest $collaborationRequest): JsonResponse
+    {
+        $mentor = $request->user();
+        abort_unless($mentor && $mentor->isMentor(), 403, 'MENTOR_ONLY');
+        abort_unless((int) $collaborationRequest->requester_id === (int) $mentor->id, 403, 'INVITE_FORBIDDEN');
+        abort_unless((string) $collaborationRequest->status === CreationCollaborationRequest::STATUS_PENDING, 422, 'INVITE_NOT_PENDING');
+
+        $collaborationRequest->update([
+            'status' => CreationCollaborationRequest::STATUS_REJECTED,
+            'processed_by' => (int) $mentor->id,
+            'processed_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'Invite mentor ditolak.']);
     }
 
     private function ensureOwner(Creation $creation, int $userId): void

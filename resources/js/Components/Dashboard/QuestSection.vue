@@ -253,7 +253,7 @@ const partyLabelForQuest = (quest) => {
             </div>
         </article>
 
-        <div v-if="items.length > 0" class="grid gap-4 xl:grid-cols-2">
+        <div v-if="items.length > 0" class="grid gap-4 lg:grid-cols-2">
             <article
                 v-for="quest in items"
                 :key="quest.uuid"

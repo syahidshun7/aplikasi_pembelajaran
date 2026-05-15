@@ -245,9 +245,29 @@ class DoopLabDashboardController extends Controller
             ->values()
             ->all();
 
+        $mentoredCreationIds = $isMentor
+            ? CreationCollaborator::query()
+                ->where('user_id', $userId)
+                ->pluck('creation_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all()
+            : [];
+
+        $mentoredOwnerIds = ! empty($mentoredCreationIds)
+            ? Creation::query()
+                ->whereIn('id', $mentoredCreationIds)
+                ->pluck('user_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all()
+            : [];
+
         $assignableUsers = $isMentor
             ? User::query()
-                ->whereNotIn('role', User::staffRoles())
+                ->whereIn('id', $mentoredOwnerIds)
                 ->orderBy('name')
                 ->limit(250)
                 ->get(['id', 'name', 'username', 'role'])
@@ -262,20 +282,107 @@ class DoopLabDashboardController extends Controller
             : [];
 
 
-        $researchWorkspaces = (clone $myCreationsQuery)
+        $researchWorkspacesQuery = $isMentor
+            ? Creation::query()->whereIn('id', $mentoredCreationIds)->with(['user:id,name,username'])
+            : (clone $myCreationsQuery)->with(['user:id,name,username']);
+
+        $researchWorkspaces = $researchWorkspacesQuery
             ->latest('updated_at')
             ->limit(40)
-            ->get(['id', 'slug', 'title', 'status', 'progress', 'updated_at'])
+            ->get(['id', 'user_id', 'slug', 'title', 'status', 'progress', 'updated_at'])
             ->map(fn (Creation $creation) => [
                 'id' => (int) $creation->id,
+                'owner_user_id' => (int) $creation->user_id,
+                'owner_name' => (string) ($creation->user?->name ?? ''),
+                'owner_username' => (string) ($creation->user?->username ?? ''),
                 'slug' => (string) ($creation->slug ?? ''),
-                'title' => (string) ($creation->title ?? 'Untitled Workspace'),
+                'title' => (string) ($creation->title ?? 'Untitled Creation'),
                 'status' => (string) ($creation->status ?? 'crafting'),
                 'progress' => (int) ($creation->progress ?? 0),
                 'updated_at' => $creation->updated_at?->toIso8601String(),
             ])
             ->values()
             ->all();
+
+        $mentorInvites = $isMentor
+            ? CreationCollaborationRequest::query()
+                ->where('requester_id', $userId)
+                ->where('status', CreationCollaborationRequest::STATUS_PENDING)
+                ->where('message', 'MENTOR_INVITE_FROM_DOOPLAB')
+                ->with(['creation:id,title,user_id', 'creation.user:id,name,username'])
+                ->latest()
+                ->limit(20)
+                ->get()
+                ->map(fn (CreationCollaborationRequest $item) => [
+                    'id' => (int) $item->id,
+                    'creation_title' => (string) ($item->creation?->title ?? ''),
+                    'owner_name' => (string) ($item->creation?->user?->name ?? ''),
+                    'owner_username' => (string) ($item->creation?->user?->username ?? ''),
+                    'requested_role' => (string) ($item->requested_role ?? ''),
+                    'created_at' => optional($item->created_at)->toIso8601String(),
+                ])
+                ->values()
+                ->all()
+            : [];
+
+        $hireableCreations = $isMentor
+            ? []
+            : (clone $ownedCreationsQuery)
+                ->with([
+                    'collaborators.user:id,name,username,profile_photo',
+                    'collaborationRequests' => fn ($query) => $query
+                        ->where('message', 'MENTOR_INVITE_FROM_DOOPLAB')
+                        ->whereIn('status', [
+                            CreationCollaborationRequest::STATUS_PENDING,
+                            CreationCollaborationRequest::STATUS_REJECTED,
+                        ])
+                        ->with('requester:id,name,username,profile_photo'),
+                ])
+                ->latest('updated_at')
+                ->limit(40)
+                ->get(['id', 'slug', 'title', 'status', 'progress', 'updated_at'])
+                ->map(fn (Creation $creation) => [
+                    'id' => (int) $creation->id,
+                    'hired_mentor_ids' => $creation->collaborators
+                        ->pluck('user_id')
+                        ->map(fn ($id) => (int) $id)
+                        ->values()
+                        ->all(),
+                    'hired_mentors' => $creation->collaborators
+                        ->map(fn (CreationCollaborator $collaborator) => [
+                            'id' => (int) ($collaborator->user?->id ?? 0),
+                            'name' => (string) ($collaborator->user?->name ?? ''),
+                            'username' => (string) ($collaborator->user?->username ?? ''),
+                            'profile_photo' => (string) ($collaborator->user?->profile_photo ?? ''),
+                            'status' => 'connected',
+                            'role' => (string) ($collaborator->role ?? ''),
+                            'joined_at' => $collaborator->joined_at?->toIso8601String(),
+                        ])
+                        ->filter(fn (array $mentor) => $mentor['id'] > 0)
+                        ->values()
+                        ->all(),
+                    'mentor_invites' => $creation->collaborationRequests
+                        ->map(fn (CreationCollaborationRequest $invite) => [
+                            'id' => (int) $invite->id,
+                            'mentor_id' => (int) ($invite->requester?->id ?? 0),
+                            'name' => (string) ($invite->requester?->name ?? ''),
+                            'username' => (string) ($invite->requester?->username ?? ''),
+                            'profile_photo' => (string) ($invite->requester?->profile_photo ?? ''),
+                            'status' => (string) $invite->status,
+                            'requested_role' => (string) ($invite->requested_role ?? ''),
+                            'created_at' => optional($invite->created_at)->toIso8601String(),
+                        ])
+                        ->filter(fn (array $invite) => $invite['mentor_id'] > 0)
+                        ->values()
+                        ->all(),
+                    'slug' => (string) ($creation->slug ?? ''),
+                    'title' => (string) ($creation->title ?? 'Untitled Creation'),
+                    'status' => (string) ($creation->status ?? 'crafting'),
+                    'progress' => (int) ($creation->progress ?? 0),
+                    'updated_at' => $creation->updated_at?->toIso8601String(),
+                ])
+                ->values()
+                ->all();
 
         $learningPaths = DoopLabRoadmapEnrollment::query()
             ->where('user_id', $userId)
@@ -319,6 +426,8 @@ class DoopLabDashboardController extends Controller
             ],
             'todo_assignable_users' => $assignableUsers,
             'research_workspaces' => $researchWorkspaces,
+            'hireable_creations' => $hireableCreations,
+            'mentor_invites' => $mentorInvites,
             'learning_paths' => $learningPaths,
         ]);
     }

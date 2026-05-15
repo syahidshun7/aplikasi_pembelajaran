@@ -59,6 +59,9 @@ Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
     Route::get('/creations/{creation}', [CreationApiController::class, 'show'])->name('creations.show');
     Route::put('/creations/{creation}', [CreationApiController::class, 'update'])->name('creations.update');
     Route::delete('/creations/{creation}', [CreationApiController::class, 'destroy'])->name('creations.destroy');
+    Route::post('/creations/{creation}/hire-mentor', [CreationApiController::class, 'hireMentor'])->name('creations.hire-mentor');
+    Route::post('/creation-mentor-invites/{collaborationRequest}/accept', [CreationApiController::class, 'acceptMentorInvite'])->name('creations.mentor-invites.accept');
+    Route::post('/creation-mentor-invites/{collaborationRequest}/reject', [CreationApiController::class, 'rejectMentorInvite'])->name('creations.mentor-invites.reject');
 
     Route::post('/creations/{creation}/appreciate', [CreationInteractionController::class, 'appreciate'])->name('creations.appreciate.store');
     Route::delete('/creations/{creation}/appreciate', [CreationInteractionController::class, 'removeAppreciation'])->name('creations.appreciate.destroy');
@@ -75,7 +78,11 @@ Route::get('/', [HomeController::class, 'index'])->name('lobby');
 Route::get('/landing', [HomeController::class, 'landing'])->name('landing');
 Route::get('/dooplab', function () {
     if (! auth()->check()) {
-        return redirect()->route('landing', [], 301);
+        return redirect()->route('landing');
+    }
+
+    if (auth()->user()?->canAccessDoopLab()) {
+        return redirect()->route('dooplab.dashboard');
     }
 
     return Inertia::render('DoopLab/Index', [

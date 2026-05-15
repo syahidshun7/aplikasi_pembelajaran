@@ -2,6 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { toast } from '@/Utils/Alert';
 
 const props = defineProps({
     overview: { type: Object, default: () => ({}) },
@@ -13,10 +14,23 @@ const props = defineProps({
     todo_permissions: { type: Object, default: () => ({}) },
     todo_assignable_users: { type: Array, default: () => [] },
     research_workspaces: { type: Array, default: () => [] },
+    hireable_creations: { type: Array, default: () => [] },
+    mentor_invites: { type: Array, default: () => [] },
     learning_paths: { type: Array, default: () => [] },
 });
 
 const page = usePage();
+const DOOPLAB_DASHBOARD_STATE_KEY = 'dooplab.dashboard.ui-state';
+const safeReadDashboardState = () => {
+    if (typeof window === 'undefined') return {};
+
+    try {
+        return JSON.parse(window.localStorage.getItem(DOOPLAB_DASHBOARD_STATE_KEY) || '{}') || {};
+    } catch {
+        return {};
+    }
+};
+const initialDashboardState = safeReadDashboardState();
 const authUser = computed(() => page.props?.auth?.user ?? null);
 const canCreateMentorTodo = computed(() => Boolean(props.todo_permissions?.can_create_mentor));
 const canOpenRoadmapLab = computed(() => {
@@ -25,21 +39,92 @@ const canOpenRoadmapLab = computed(() => {
 });
 
 const allTodos = computed(() => Array.isArray(props.todos) ? props.todos : []);
+const mentors = computed(() => Array.isArray(props.mentors) ? props.mentors : []);
+const mentorInvites = computed(() => Array.isArray(props.mentor_invites) ? props.mentor_invites : []);
 const researchWorkspaces = computed(() => Array.isArray(props.research_workspaces) ? props.research_workspaces : []);
+const hireableCreations = computed(() => Array.isArray(props.hireable_creations) ? props.hireable_creations : []);
+const selectedHireCreation = computed(() => {
+    const creationId = Number(hireMentorForm.value.creation_id || 0);
+    return hireableCreations.value.find((creation) => Number(creation?.id || 0) === creationId) || null;
+});
+const availableHireMentors = computed(() => {
+    const unavailableMentorIds = new Set(
+        [
+            ...(selectedHireCreation.value?.hired_mentor_ids || []),
+            ...(selectedHireCreation.value?.mentor_invites || [])
+                .filter((invite) => String(invite?.status || '').toLowerCase() === 'pending')
+                .map((invite) => Number(invite?.mentor_id || 0)),
+        ]
+            .map((id) => Number(id || 0))
+            .filter((id) => id > 0)
+    );
+
+    return mentors.value.filter((mentor) => !unavailableMentorIds.has(Number(mentor?.id || 0)));
+});
+const selectedHireCreationMentors = computed(() => [
+    ...(Array.isArray(selectedHireCreation.value?.mentor_invites) ? selectedHireCreation.value.mentor_invites : [])
+        .map((invite) => ({
+            id: `invite-${invite.id}`,
+            name: invite.name,
+            username: invite.username,
+            profile_photo: invite.profile_photo,
+            status: String(invite.status || 'pending').toUpperCase(),
+        })),
+    ...(Array.isArray(selectedHireCreation.value?.hired_mentors) ? selectedHireCreation.value.hired_mentors : [])
+        .map((mentor) => ({
+            id: `connected-${mentor.id}`,
+            name: mentor.name,
+            username: mentor.username,
+            profile_photo: mentor.profile_photo,
+            status: 'CONNECTED',
+        })),
+]);
+const visibleResearchWorkspaces = computed(() => {
+    if (!canCreateMentorTodo.value || todoForm.assignment_mode !== 'mentor') {
+        return researchWorkspaces.value;
+    }
+
+    const ownerUserId = Number(todoForm.owner_user_id || 0);
+    if (ownerUserId <= 0) return [];
+
+    return researchWorkspaces.value.filter((workspace) => Number(workspace?.owner_user_id || 0) === ownerUserId);
+});
 const learningPaths = computed(() => Array.isArray(props.learning_paths) ? props.learning_paths : []);
-const todoSearch = ref('');
-const todoFilter = ref('all');
-const panelMode = ref('learning_paths');
+const todoSearch = ref(String(initialDashboardState.todoSearch || ''));
+const todoFilter = ref(['all', 'self', 'mentor'].includes(String(initialDashboardState.todoFilter || ''))
+    ? String(initialDashboardState.todoFilter)
+    : 'all');
+const panelMode = ref(['summary', 'todo', 'learning_paths', 'hire_mentor', 'mentor_invites'].includes(String(initialDashboardState.panelMode || ''))
+    ? String(initialDashboardState.panelMode)
+    : 'learning_paths');
 const showTodoModal = ref(false);
 const todoModalMode = ref('create');
 const editingTodoUuid = ref(null);
-const selectedTodoUuid = ref(null);
+const selectedTodoUuid = ref(initialDashboardState.selectedTodoUuid || null);
+const hireMentorForm = ref({
+    creation_id: initialDashboardState.hireCreationId || null,
+    mentor_user_id: null,
+});
+const hiringMentor = ref(false);
 const selectedTodo = computed(() => {
     const uuid = String(selectedTodoUuid.value || '');
     if (uuid === '') return null;
 
     return allTodos.value.find((item) => String(item?.uuid || '') === uuid) || null;
 });
+
+const persistDashboardState = () => {
+    if (typeof window === 'undefined') return;
+
+    window.localStorage.setItem(DOOPLAB_DASHBOARD_STATE_KEY, JSON.stringify({
+        panelMode: panelMode.value,
+        selectedTodoUuid: selectedTodoUuid.value,
+        todoFilter: todoFilter.value,
+        todoSearch: todoSearch.value,
+        hireCreationId: hireMentorForm.value.creation_id,
+        scrollY: window.scrollY || 0,
+    }));
+};
 
 const todoForm = useForm({
     title: '',
@@ -63,6 +148,7 @@ const selectedTodoChatStreamRef = ref(null);
 const todoChatPanelRef = ref(null);
 const currentTimeMs = ref(Date.now());
 let currentTimeTicker = null;
+let dashboardScrollHandler = null;
 
 const overviewChips = computed(() => [
     { label: 'SYSTEM_CORE', value: String(props.overview?.system_core || 'OFFLINE'), tone: 'danger' },
@@ -124,11 +210,16 @@ const todoCounters = computed(() => {
     return { total, pending, completed, self, mentor };
 });
 
+const canHireMentor = computed(() => {
+    const role = String(authUser.value?.role || '').toLowerCase();
+    return !['mentor', 'admin', 'super_admin'].includes(role);
+});
+
 const studioTiles = computed(() => ([
     {
         key: 'new_experiment',
         title: 'New Experiment',
-        description: 'Mulai workspace eksperimen baru',
+        description: 'Mulai creation eksperimen baru',
         routeName: 'profile.creations.create',
         icon: 'fi fi-rr-plus',
     },
@@ -432,6 +523,52 @@ const showLearningPaths = () => {
     });
 };
 
+const showMentorInvites = () => {
+    selectedTodoUuid.value = null;
+    panelMode.value = 'mentor_invites';
+    nextTick(() => {
+        if (typeof window !== 'undefined' && todoChatPanelRef.value?.scrollIntoView) {
+            todoChatPanelRef.value.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+};
+
+const showTodoList = () => {
+    selectedTodoUuid.value = null;
+    panelMode.value = 'summary';
+    nextTick(() => {
+        if (typeof window !== 'undefined' && todoChatPanelRef.value?.scrollIntoView) {
+            todoChatPanelRef.value.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+};
+
+const showHireMentor = () => {
+    selectedTodoUuid.value = null;
+    panelMode.value = 'hire_mentor';
+    nextTick(() => {
+        if (typeof window !== 'undefined' && todoChatPanelRef.value?.scrollIntoView) {
+            todoChatPanelRef.value.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+};
+
+const workPanelTitle = computed(() => {
+    if (selectedTodo.value) return selectedTodo.value.title || 'Untitled To-Do';
+    if (panelMode.value === 'learning_paths') return 'My Learning Path';
+    if (panelMode.value === 'hire_mentor') return 'Hire Mentor';
+    if (panelMode.value === 'mentor_invites') return 'Mentor Invites';
+    return 'To-Do List';
+});
+
+const workPanelSubtitle = computed(() => {
+    if (selectedTodo.value) return 'Catatan dan bukti pengerjaan ditampilkan di bawah.';
+    if (panelMode.value === 'learning_paths') return 'Roadmap mentoring yang ditugaskan untukmu.';
+    if (panelMode.value === 'hire_mentor') return 'Hubungkan mentor ke creation tanpa perlu publish terlebih dahulu.';
+    if (panelMode.value === 'mentor_invites') return 'Accept atau reject invite mentor dari pemilik creation.';
+    return 'Pilih to-do dari daftar untuk mulai mencatat progres.';
+});
+
 const selectedTodoNotes = computed(() => {
     if (!selectedTodo.value) return [];
 
@@ -467,6 +604,30 @@ watch(selectedTodoUuid, () => {
     });
 });
 
+watch([panelMode, selectedTodoUuid, todoFilter, todoSearch, () => hireMentorForm.value.creation_id], persistDashboardState);
+
+watch(allTodos, () => {
+    if (selectedTodoUuid.value && !selectedTodo.value) {
+        selectedTodoUuid.value = null;
+        panelMode.value = 'summary';
+    }
+});
+
+watch(() => [todoForm.assignment_mode, todoForm.owner_user_id], () => {
+    const creations = visibleResearchWorkspaces.value;
+    const selectedWorkspaceId = Number(todoForm.creation_id || 0);
+
+    if (selectedWorkspaceId > 0 && creations.some((creation) => Number(creation?.id || 0) === selectedWorkspaceId)) {
+        return;
+    }
+
+    todoForm.creation_id = Number(creations?.[0]?.id || 0) || null;
+});
+
+watch(() => hireMentorForm.value.creation_id, () => {
+    hireMentorForm.value.mentor_user_id = null;
+});
+
 watch(() => selectedTodoNotes.value.length, () => {
     nextTick(() => {
         const list = selectedTodoChatStreamRef.value;
@@ -492,6 +653,7 @@ const submitTodo = () => {
             milestone_type: todoForm.milestone_type,
         })).patch(route('dooplab.todos.update', targetUuid), {
             preserveScroll: true,
+            preserveState: true,
             onSuccess: () => {
                 closeTodoModal();
             },
@@ -516,10 +678,57 @@ const submitTodo = () => {
 
     todoForm.transform(() => payload).post(route('dooplab.todos.store'), {
         preserveScroll: true,
+        preserveState: true,
         onSuccess: () => {
             closeTodoModal();
         },
     });
+};
+
+const hireMentor = async () => {
+    const creationId = Number(hireMentorForm.value.creation_id || 0);
+    const mentorUserId = Number(hireMentorForm.value.mentor_user_id || 0);
+
+    if (!canHireMentor.value || creationId <= 0 || mentorUserId <= 0 || hiringMentor.value) {
+        return;
+    }
+
+    hiringMentor.value = true;
+
+    try {
+        await window.axios.post(
+            route('api.creations.hire-mentor', { creation: creationId }, false),
+            { mentor_user_id: mentorUserId }
+        );
+        hireMentorForm.value.mentor_user_id = null;
+        toast.success('INVITE_SENT', 'Invite terkirim. Menunggu mentor accept.');
+        router.reload({
+            preserveScroll: true,
+            preserveState: true,
+            only: ['research_workspaces', 'hireable_creations', 'recent_experiments', 'collaboration'],
+        });
+    } catch (error) {
+        toast.error('HIRE_FAILED', error?.response?.data?.errors?.mentor_user_id?.[0] || error?.response?.data?.message || 'Gagal hire mentor.');
+    } finally {
+        hiringMentor.value = false;
+    }
+};
+
+const respondMentorInvite = async (invite, decision) => {
+    const inviteId = Number(invite?.id || 0);
+    if (inviteId <= 0) return;
+
+    try {
+        await window.axios.post(route(`api.creations.mentor-invites.${decision}`, { collaborationRequest: inviteId }, false));
+        toast.success(decision === 'accept' ? 'INVITE_ACCEPTED' : 'INVITE_REJECTED', decision === 'accept' ? 'Creation sudah terhubung.' : 'Invite sudah ditolak.');
+        router.reload({
+            preserveScroll: true,
+            preserveState: true,
+            only: ['mentor_invites', 'research_workspaces', 'hireable_creations', 'todos'],
+        });
+    } catch (error) {
+        toast.error('ACTION_FAILED', error?.response?.data?.message || 'Gagal memproses invite.');
+    }
 };
 
 const toggleTodo = (todo) => {
@@ -527,6 +736,7 @@ const toggleTodo = (todo) => {
 
     router.patch(route('dooplab.todos.toggle', todo.uuid), {}, {
         preserveScroll: true,
+        preserveState: true,
     });
 };
 
@@ -539,6 +749,7 @@ const deleteTodo = (todo) => {
 
     router.delete(route('dooplab.todos.destroy', todo.uuid), {
         preserveScroll: true,
+        preserveState: true,
     });
 };
 
@@ -547,6 +758,7 @@ const submitTodoForReview = (todo) => {
 
     router.patch(route('dooplab.todos.submit-review', todo.uuid), {}, {
         preserveScroll: true,
+        preserveState: true,
     });
 };
 
@@ -565,6 +777,7 @@ const reviewTodoCheckpoint = (todo, decision) => {
         review_note: String(note || '').trim() || null,
     }, {
         preserveScroll: true,
+        preserveState: true,
     });
 };
 
@@ -597,6 +810,7 @@ const submitTodoNote = () => {
 
     todoNoteForm.post(route('dooplab.todos.notes.store', selectedTodo.value.uuid), {
         preserveScroll: true,
+        preserveState: true,
         forceFormData: true,
         onSuccess: () => {
             clearTodoNoteForm();
@@ -607,6 +821,22 @@ const submitTodoNote = () => {
 onMounted(() => {
     if (typeof window === 'undefined') return;
 
+    if (panelMode.value === 'hire_mentor' && !canHireMentor.value) {
+        panelMode.value = 'learning_paths';
+    }
+
+    if (panelMode.value === 'mentor_invites' && !canCreateMentorTodo.value) {
+        panelMode.value = 'learning_paths';
+    }
+
+    const restoredScrollY = Number(initialDashboardState.scrollY || 0);
+    if (restoredScrollY > 0) {
+        nextTick(() => window.scrollTo({ top: restoredScrollY, behavior: 'auto' }));
+    }
+
+    dashboardScrollHandler = () => persistDashboardState();
+    window.addEventListener('scroll', dashboardScrollHandler, { passive: true });
+
     currentTimeTicker = window.setInterval(() => {
         currentTimeMs.value = Date.now();
     }, 60000);
@@ -615,6 +845,10 @@ onMounted(() => {
 onUnmounted(() => {
     if (currentTimeTicker !== null && typeof window !== 'undefined') {
         window.clearInterval(currentTimeTicker);
+    }
+
+    if (dashboardScrollHandler !== null && typeof window !== 'undefined') {
+        window.removeEventListener('scroll', dashboardScrollHandler);
     }
 });
 </script>
@@ -643,20 +877,31 @@ onUnmounted(() => {
                     </div>
 
                     <div class="nb-actions">
-                        <Link :href="route('dooplab.index')" class="nb-btn nb-btn--ghost">Landing</Link>
-                        <Link :href="route('profile.creations.create')" class="nb-btn nb-btn--solid">Buat Notebook</Link>
+                        <Link :href="route('creations.index')" class="nb-btn nb-btn--solid">Buat Creation</Link>
                     </div>
                 </header>
 
                 <section class="nb-workbench">
                     <aside class="nb-panel nb-sources nb-todo-nav">
-                        <div class="panel-head panel-head--stacked">
-                            <div>
-                                <h2>To-Do</h2>
-                                <p class="panel-subtitle">Pilih item untuk lihat detail di panel tengah.</p>
-                            </div>
-                            <span class="todo-nav-count">{{ todoCounters.total }}</span>
-                        </div>
+                        <button
+                            v-if="canHireMentor"
+                            type="button"
+                            class="source-add-btn"
+                            @click="showHireMentor"
+                        >
+                            <i class="fi fi-rr-user-add"></i>
+                            Hire Mentor
+                        </button>
+
+                        <button
+                            v-if="canCreateMentorTodo"
+                            type="button"
+                            class="source-add-btn"
+                            @click="showMentorInvites"
+                        >
+                            <i class="fi fi-rr-envelope"></i>
+                            Mentor Invites ({{ mentorInvites.length }})
+                        </button>
 
                         <button
                             type="button"
@@ -667,134 +912,153 @@ onUnmounted(() => {
                             My Learning Path
                         </button>
 
-                        <button type="button" class="source-add-btn" @click="openTodoModal">
-                            <i class="fi fi-rr-plus"></i>
-                            Tambahkan to-do
+                        <button
+                            type="button"
+                            class="source-add-btn"
+                            :class="{ 'is-active': panelMode === 'summary' }"
+                            @click="showTodoList"
+                        >
+                            <i class="fi fi-rr-list-check"></i>
+                            To-Do List
                         </button>
 
-                        <label class="source-search">
-                            <i class="fi fi-rr-search"></i>
-                            <input
-                                v-model="todoSearch"
-                                type="text"
-                                placeholder="Cari to-do"
-                            >
-                        </label>
-
-                        <div class="todo-filters">
-                            <button
-                                type="button"
-                                :class="['todo-filter', todoFilter === 'all' ? 'is-active' : '']"
-                                @click="todoFilter = 'all'"
-                            >
-                                Semua ({{ todoCounters.total }})
-                            </button>
-                            <button
-                                type="button"
-                                :class="['todo-filter', todoFilter === 'self' ? 'is-active' : '']"
-                                @click="todoFilter = 'self'"
-                            >
-                                Self ({{ todoCounters.self }})
-                            </button>
-                            <button
-                                type="button"
-                                :class="['todo-filter', todoFilter === 'mentor' ? 'is-active' : '']"
-                                @click="todoFilter = 'mentor'"
-                            >
-                                Mentor ({{ todoCounters.mentor }})
-                            </button>
-                        </div>
-
-                        <nav class="todo-nav-list custom-scroll" aria-label="Daftar to-do">
-                            <div class="todo-nav-header">
-                                <span>To-Do Aktif</span>
-                                <span>{{ filteredTodoItems.length }}</span>
-                            </div>
-
-                            <p v-if="!filteredTodoItems.length" class="source-empty">
-                                Belum ada to-do. Klik "Tambahkan to-do" untuk mulai tracking progres.
-                            </p>
-
-                            <article
-                                v-for="item in filteredTodoItems"
-                                :key="item.uuid"
-                                class="todo-nav-item"
-                                :class="{
-                                    'is-completed': item.is_completed,
-                                    'is-active': String(selectedTodoUuid || '') === String(item.uuid || ''),
-                                }"
-                                role="button"
-                                tabindex="0"
-                                @click="openTodoDetail(item)"
-                                @keydown.enter.prevent="openTodoDetail(item)"
-                                @keydown.space.prevent="openTodoDetail(item)"
-                            >
-                                <button
-                                    class="todo-nav-check"
-                                    :class="{ 'is-done': item.is_completed }"
-                                    type="button"
-                                    :disabled="!item.can_toggle"
-                                    :title="item.can_toggle ? 'Toggle status to-do' : 'Tidak punya izin untuk centang item ini'"
-                                    @click.stop="item.can_toggle && toggleTodo(item)"
-                                >
-                                    <i v-if="item.is_completed" class="fi fi-rr-check"></i>
-                                </button>
-
-                                <span class="todo-nav-body">
-                                    <span class="todo-nav-title">{{ item.title }}</span>
-                                    <span class="todo-nav-sub">
-                                        <span class="todo-nav-meta">{{ item.owner?.name || '-' }}</span>
-                                        <span
-                                            class="todo-nav-deadline"
-                                            :class="todoDeadlineClass(item)"
-                                        >
-                                            <i class="fi fi-rr-clock-three"></i>
-                                            {{ todoDeadlineLabel(item) }}
-                                        </span>
-                                    </span>
-                                    <span class="todo-nav-tags">
-                                        <span class="todo-badge">{{ assignmentModeLabel(item.assignment_mode) }}</span>
-                                        <span class="todo-badge">{{ milestoneTypeLabel(item.milestone_type) }}</span>
-                                        <span class="todo-state" :class="workflowStatusClass(item.workflow_status)">
-                                            {{ workflowStatusLabel(item.workflow_status) }}
-                                        </span>
-                                    </span>
-                                </span>
-
-                                <i class="fi fi-rr-angle-small-right todo-nav-arrow"></i>
-                            </article>
-                        </nav>
                     </aside>
 
                     <main ref="todoChatPanelRef" class="nb-panel nb-chat">
                         <div class="panel-head panel-head--stacked">
                             <div>
-                                <h2>{{ selectedTodo ? 'Detail To-Do' : (panelMode === 'learning_paths' ? 'My Learning Path' : 'Ringkasan Kerja') }}</h2>
+                                <h2>{{ workPanelTitle }}</h2>
                                 <p class="panel-subtitle">
-                                    {{ selectedTodo ? 'Catatan dan bukti pengerjaan ditampilkan di bawah.' : (panelMode === 'learning_paths' ? 'Roadmap mentoring yang ditugaskan untukmu.' : 'Pilih to-do dari sidebar untuk mulai mencatat progres.') }}
+                                    {{ workPanelSubtitle }}
                                 </p>
                             </div>
+                            <button
+                                v-if="panelMode === 'summary' && !selectedTodo"
+                                type="button"
+                                class="source-add-btn todo-add-btn"
+                                @click="openTodoModal"
+                            >
+                                <i class="fi fi-rr-plus"></i>
+                                Tambahkan to-do
+                            </button>
+                            <button v-if="selectedTodo" type="button" class="chat-back-btn" @click="clearSelectedTodo">
+                                <i class="fi fi-rr-arrow-small-left"></i>
+                                Kembali
+                            </button>
                         </div>
 
-                        <template v-if="selectedTodo">
-                            <article class="chat-hero">
-                                <div class="chat-hero-tools">
-                                    <div class="chat-hero-icon">TODO</div>
-                                    <button type="button" class="chat-back-btn" @click="clearSelectedTodo">
-                                        <i class="fi fi-rr-arrow-small-left"></i>
-                                        Kembali ke ringkasan
-                                    </button>
-                                </div>
-                                <h3>{{ selectedTodo.title }}</h3>
-                                <p>{{ selectedTodo.description || 'Tidak ada deskripsi tambahan.' }}</p>
-                                <div class="chat-hero-meta">
-                                    <span :class="workflowStatusClass(selectedTodo.workflow_status)">
-                                        {{ workflowStatusLabel(selectedTodo.workflow_status) }}
-                                    </span>
-                                    <span v-if="selectedTodo.deadline">{{ todoDeadlineLabel(selectedTodo) }}</span>
-                                </div>
-                            </article>
+                        <template v-if="panelMode === 'todo_form'">
+                            <section class="todo-form-workspace custom-scroll">
+                                <form class="todo-panel-form" @submit.prevent="submitTodo">
+                                    <label class="todo-field">
+                                        <span>Judul</span>
+                                        <input v-model="todoForm.title" type="text" maxlength="160" required placeholder="Contoh: Review modul sistem">
+                                        <small v-if="todoForm.errors.title" class="todo-error">{{ todoForm.errors.title }}</small>
+                                    </label>
 
+                                    <label class="todo-field">
+                                        <span>Deskripsi (opsional)</span>
+                                        <textarea
+                                            v-model="todoForm.description"
+                                            rows="3"
+                                            maxlength="1000"
+                                            placeholder="Catatan singkat to-do"
+                                        ></textarea>
+                                        <small v-if="todoForm.errors.description" class="todo-error">{{ todoForm.errors.description }}</small>
+                                    </label>
+
+                                    <div class="todo-date-grid">
+                                        <label class="todo-field todo-field--date">
+                                            <span>Start At (opsional)</span>
+                                            <input v-model="todoForm.start_at" type="datetime-local">
+                                            <small class="todo-error todo-error--slot" :class="{ 'is-hidden': !todoForm.errors.start_at }">
+                                                {{ todoForm.errors.start_at || '\u00A0' }}
+                                            </small>
+                                        </label>
+
+                                        <label class="todo-field todo-field--date">
+                                            <span>Deadline (opsional)</span>
+                                            <input v-model="todoForm.deadline" type="datetime-local">
+                                            <small class="todo-error todo-error--slot" :class="{ 'is-hidden': !todoForm.errors.deadline }">
+                                                {{ todoForm.errors.deadline || '\u00A0' }}
+                                            </small>
+                                        </label>
+                                    </div>
+
+                                    <div class="todo-date-grid">
+                                        <label class="todo-field todo-field--date">
+                                            <span>Creation Riset</span>
+                                            <select v-model="todoForm.creation_id">
+                                                <option :value="null">Tanpa creation</option>
+                                                <option v-for="creation in visibleResearchWorkspaces" :key="creation.id" :value="creation.id">
+                                                    {{ creation.title }}<template v-if="creation.owner_name"> — {{ creation.owner_name }}</template>
+                                                </option>
+                                            </select>
+                                            <small v-if="todoForm.assignment_mode === 'mentor' && todoForm.owner_user_id && !visibleResearchWorkspaces.length" class="todo-field-note">
+                                                Member ini belum hire mentor ke creation.
+                                            </small>
+                                            <small v-if="todoForm.errors.creation_id" class="todo-error">{{ todoForm.errors.creation_id }}</small>
+                                        </label>
+
+                                        <label class="todo-field todo-field--date">
+                                            <span>Tipe Item</span>
+                                            <select v-model="todoForm.milestone_type">
+                                                <option value="task">Task</option>
+                                                <option value="milestone">Milestone</option>
+                                                <option value="checkpoint">Checkpoint</option>
+                                                <option value="logbook">Logbook</option>
+                                            </select>
+                                            <small v-if="todoForm.errors.milestone_type" class="todo-error">{{ todoForm.errors.milestone_type }}</small>
+                                        </label>
+                                    </div>
+
+                                    <label class="todo-checkbox-field">
+                                        <input v-model="todoForm.notify_deadline_email" type="checkbox">
+                                        <span>Berikan notifikasi deadline di email</span>
+                                    </label>
+                                    <small class="todo-field-note">
+                                        Jika tidak dicentang, pengingat deadline hanya muncul di notifikasi aplikasi.
+                                    </small>
+                                    <small v-if="todoForm.errors.notify_deadline_email" class="todo-error">{{ todoForm.errors.notify_deadline_email }}</small>
+
+                                    <label v-if="canCreateMentorTodo" class="todo-field">
+                                        <span>Jenis Penugasan</span>
+                                        <select v-model="todoForm.assignment_mode">
+                                            <option value="self">Self (saya centang sendiri)</option>
+                                            <option value="mentor">Mentor Assigned (untuk member)</option>
+                                        </select>
+                                        <small v-if="todoForm.errors.assignment_mode" class="todo-error">{{ todoForm.errors.assignment_mode }}</small>
+                                    </label>
+
+                                    <label
+                                        v-if="canCreateMentorTodo && todoForm.assignment_mode === 'mentor'"
+                                        class="todo-field"
+                                    >
+                                        <span>Target Member</span>
+                                        <select v-model="todoForm.owner_user_id" required>
+                                            <option :value="null">Pilih member</option>
+                                            <option
+                                                v-for="member in todo_assignable_users"
+                                                :key="member.id"
+                                                :value="member.id"
+                                            >
+                                                {{ member.name }} (@{{ member.username || '-' }})
+                                            </option>
+                                        </select>
+                                        <small v-if="todoForm.errors.owner_user_id" class="todo-error">{{ todoForm.errors.owner_user_id }}</small>
+                                    </label>
+
+                                    <div class="todo-modal-actions">
+                                        <button type="button" class="nb-btn nb-btn--ghost" @click="clearSelectedTodo">Batal</button>
+                                        <button type="submit" class="nb-btn nb-btn--solid" :disabled="todoForm.processing">
+                                            {{ todoForm.processing ? 'Menyimpan...' : 'Simpan To-Do' }}
+                                        </button>
+                                    </div>
+                                </form>
+                            </section>
+                        </template>
+
+                        <template v-else-if="selectedTodo">
                             <section ref="selectedTodoChatStreamRef" class="chat-stream custom-scroll">
                                 <article class="chat-bubble">
                                     <p class="chat-role">Catatan & Bukti</p>
@@ -831,7 +1095,12 @@ onUnmounted(() => {
 
                             <div class="chat-composer chat-composer--todo">
                                 <form class="todo-note-form" @submit.prevent="submitTodoNote">
-                                    <label class="todo-note-label">Tambahkan catatan</label>
+                                    <div class="todo-note-form-head">
+                                        <div>
+                                            <label class="todo-note-label">Tambahkan catatan</label>
+                                            <p class="todo-note-helper">Tulis progres, feedback mentor, atau lampirkan bukti pengerjaan.</p>
+                                        </div>
+                                    </div>
                                     <textarea
                                         v-model="todoNoteForm.note"
                                         rows="3"
@@ -842,24 +1111,28 @@ onUnmounted(() => {
                                     <small v-if="todoNoteForm.errors.note" class="todo-error">{{ todoNoteForm.errors.note }}</small>
 
                                     <div class="todo-note-upload-row">
-                                        <label class="todo-upload-btn">
-                                            <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" @change="onTodoNoteImageChange">
-                                            <i class="fi fi-rr-picture"></i>
-                                            Lampirkan gambar bukti
-                                        </label>
-                                        <button
-                                            v-if="todoNoteForm.image"
-                                            type="button"
-                                            class="todo-upload-remove"
-                                            @click="removeTodoNoteImage"
-                                        >
-                                            Hapus gambar
-                                        </button>
+                                        <div class="todo-note-upload-actions">
+                                            <label class="todo-upload-btn">
+                                                <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" @change="onTodoNoteImageChange">
+                                                <i class="fi fi-rr-picture"></i>
+                                                Lampirkan gambar bukti
+                                            </label>
+                                            <button
+                                                v-if="todoNoteForm.image"
+                                                type="button"
+                                                class="todo-upload-remove"
+                                                @click="removeTodoNoteImage"
+                                            >
+                                                <i class="fi fi-rr-trash"></i>
+                                                Hapus gambar
+                                            </button>
+                                        </div>
                                         <button
                                             type="submit"
                                             class="todo-note-submit"
                                             :disabled="todoNoteForm.processing || !selectedTodo.can_add_note"
                                         >
+                                            <i class="fi fi-rr-paper-plane"></i>
                                             {{ todoNoteForm.processing ? 'Mengirim...' : 'Kirim Catatan' }}
                                         </button>
                                     </div>
@@ -874,7 +1147,7 @@ onUnmounted(() => {
                                     </div>
                                 </form>
 
-                                <div class="todo-inline-actions">
+                                <div class="todo-inline-actions todo-inline-actions--separate">
                                     <div class="todo-inline-actions-left">
                                         <button
                                             v-if="selectedTodo.can_edit"
@@ -945,6 +1218,103 @@ onUnmounted(() => {
                             </div>
                         </template>
 
+                        <template v-else-if="panelMode === 'summary'">
+                            <section class="todo-list-workspace custom-scroll">
+                                <label class="source-search">
+                                    <i class="fi fi-rr-search"></i>
+                                    <input
+                                        v-model="todoSearch"
+                                        type="text"
+                                        placeholder="Cari to-do"
+                                    >
+                                </label>
+
+                                <div class="todo-filters">
+                                    <button
+                                        type="button"
+                                        :class="['todo-filter', todoFilter === 'all' ? 'is-active' : '']"
+                                        @click="todoFilter = 'all'"
+                                    >
+                                        Semua ({{ todoCounters.total }})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        :class="['todo-filter', todoFilter === 'self' ? 'is-active' : '']"
+                                        @click="todoFilter = 'self'"
+                                    >
+                                        Self ({{ todoCounters.self }})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        :class="['todo-filter', todoFilter === 'mentor' ? 'is-active' : '']"
+                                        @click="todoFilter = 'mentor'"
+                                    >
+                                        Mentor ({{ todoCounters.mentor }})
+                                    </button>
+                                </div>
+
+                                <nav class="todo-nav-list" aria-label="Daftar to-do">
+                                    <div class="todo-nav-header">
+                                        <span>To-Do Aktif</span>
+                                        <span>{{ filteredTodoItems.length }}</span>
+                                    </div>
+
+                                    <p v-if="!filteredTodoItems.length" class="source-empty">
+                                        Belum ada to-do. Klik "Tambahkan to-do" untuk mulai tracking progres.
+                                    </p>
+
+                                    <article
+                                        v-for="item in filteredTodoItems"
+                                        :key="item.uuid"
+                                        class="todo-nav-item"
+                                        :class="{
+                                            'is-completed': item.is_completed,
+                                            'is-active': String(selectedTodoUuid || '') === String(item.uuid || ''),
+                                        }"
+                                        role="button"
+                                        tabindex="0"
+                                        @click="openTodoDetail(item)"
+                                        @keydown.enter.prevent="openTodoDetail(item)"
+                                        @keydown.space.prevent="openTodoDetail(item)"
+                                    >
+                                        <button
+                                            class="todo-nav-check"
+                                            :class="{ 'is-done': item.is_completed }"
+                                            type="button"
+                                            :disabled="!item.can_toggle"
+                                            :title="item.can_toggle ? 'Toggle status to-do' : 'Tidak punya izin untuk centang item ini'"
+                                            @click.stop="item.can_toggle && toggleTodo(item)"
+                                        >
+                                            <i v-if="item.is_completed" class="fi fi-rr-check"></i>
+                                        </button>
+
+                                        <span class="todo-nav-body">
+                                            <span class="todo-nav-title">{{ item.title }}</span>
+                                            <span class="todo-nav-sub">
+                                                <span class="todo-nav-meta">{{ item.owner?.name || '-' }}</span>
+                                                <span
+                                                    class="todo-nav-deadline"
+                                                    :class="todoDeadlineClass(item)"
+                                                >
+                                                    <i class="fi fi-rr-clock-three"></i>
+                                                    {{ todoDeadlineLabel(item) }}
+                                                </span>
+                                            </span>
+                                            <span class="todo-nav-tags">
+                                                <span class="todo-badge">{{ assignmentModeLabel(item.assignment_mode) }}</span>
+                                                <span class="todo-badge">{{ milestoneTypeLabel(item.milestone_type) }}</span>
+                                                <span class="todo-state" :class="workflowStatusClass(item.workflow_status)">
+                                                    {{ workflowStatusLabel(item.workflow_status) }}
+                                                </span>
+                                            </span>
+                                        </span>
+
+                                        <i class="fi fi-rr-angle-small-right todo-nav-arrow"></i>
+                                    </article>
+                                </nav>
+                            </section>
+                        </template>
+
                         <template v-else-if="panelMode === 'learning_paths'">
                             <section class="learning-path-list custom-scroll">
                                 <p v-if="!learningPaths.length" class="source-empty">
@@ -973,6 +1343,87 @@ onUnmounted(() => {
                                         <i class="fi fi-rr-angle-small-right"></i>
                                     </span>
                                 </Link>
+                            </section>
+                        </template>
+
+                        <template v-else-if="panelMode === 'hire_mentor'">
+                            <section class="hire-mentor-workspace">
+                                <div class="hire-status-inline">
+                                    <span v-if="!selectedHireCreation" class="todo-field-note">Pilih creation untuk melihat status invite.</span>
+                                    <span v-else-if="!selectedHireCreationMentors.length" class="todo-field-note">Belum ada mentor di creation ini.</span>
+                                    <article
+                                        v-for="mentor in selectedHireCreationMentors"
+                                        :key="mentor.id"
+                                        class="hire-status-pill"
+                                        :class="`is-${String(mentor.status || '').toLowerCase()}`"
+                                    >
+                                        <span class="hire-status-avatar">
+                                            <img v-if="mentor.profile_photo" :src="`/storage/${mentor.profile_photo}`" :alt="mentor.name">
+                                            <span v-else>{{ String(mentor.name || 'M').slice(0, 1).toUpperCase() }}</span>
+                                        </span>
+                                        <span class="hire-status-info">
+                                            <strong>{{ mentor.name || 'Mentor' }}</strong>
+                                            <small>@{{ mentor.username || '-' }}</small>
+                                        </span>
+                                        <em>{{ mentor.status }}</em>
+                                    </article>
+                                </div>
+
+                                <form v-if="canHireMentor" class="hire-mentor-card" @submit.prevent="hireMentor">
+                                    <label class="todo-field">
+                                        <span>Creation</span>
+                                        <select v-model="hireMentorForm.creation_id" :disabled="hiringMentor || !hireableCreations.length" required>
+                                            <option :value="null">Pilih creation</option>
+                                            <option v-for="creation in hireableCreations" :key="creation.id" :value="creation.id">
+                                                {{ creation.title }}
+                                            </option>
+                                        </select>
+                                        <small v-if="!hireableCreations.length" class="todo-field-note">Belum ada creation yang bisa dihubungkan.</small>
+                                    </label>
+
+                                    <label class="todo-field">
+                                        <span>Mentor</span>
+                                        <select v-model="hireMentorForm.mentor_user_id" :disabled="hiringMentor || !availableHireMentors.length" required>
+                                            <option :value="null">Pilih mentor</option>
+                                            <option v-for="mentor in availableHireMentors" :key="mentor.id" :value="mentor.id">
+                                                {{ mentor.name }} — {{ mentor.job_name || 'Mentor' }}
+                                            </option>
+                                        </select>
+                                        <small v-if="!mentors.length" class="todo-field-note">Belum ada mentor aktif.</small>
+                                        <small v-else-if="selectedHireCreation && !availableHireMentors.length" class="todo-field-note">Semua mentor sudah terhubung ke creation ini.</small>
+                                    </label>
+
+                                    <button type="submit" class="nb-btn nb-btn--solid" :disabled="hiringMentor || !hireMentorForm.creation_id || !hireMentorForm.mentor_user_id">
+                                        {{ hiringMentor ? 'Menghubungkan...' : 'Hire Mentor' }}
+                                    </button>
+                                </form>
+
+                            </section>
+                        </template>
+
+                        <template v-else-if="panelMode === 'mentor_invites'">
+                            <section class="learning-path-list custom-scroll">
+                                <p v-if="!mentorInvites.length" class="source-empty">
+                                    Belum ada invite mentor yang perlu direspons.
+                                </p>
+
+                                <article v-for="invite in mentorInvites" :key="invite.id" class="learning-path-card">
+                                    <div class="learning-path-body">
+                                        <div class="learning-path-topline">
+                                            <span>Mentor Invite</span>
+                                            <strong>Status: PENDING</strong>
+                                        </div>
+                                        <h3>{{ invite.creation_title || 'Untitled Creation' }}</h3>
+                                        <div class="learning-path-meta">
+                                            <span>Owner: {{ invite.owner_name || '-' }} (@{{ invite.owner_username || '-' }})</span>
+                                        </div>
+                                    </div>
+
+                                    <span class="learning-path-cta">
+                                        <button type="button" class="nb-btn nb-btn--solid" @click="respondMentorInvite(invite, 'accept')">Accept</button>
+                                        <button type="button" class="nb-btn nb-btn--ghost" @click="respondMentorInvite(invite, 'reject')">Reject</button>
+                                    </span>
+                                </article>
                             </section>
                         </template>
 
@@ -1078,13 +1529,16 @@ onUnmounted(() => {
 
                         <div class="todo-date-grid">
                             <label class="todo-field todo-field--date">
-                                <span>Workspace Riset</span>
+                                <span>Creation Riset</span>
                                 <select v-model="todoForm.creation_id">
-                                    <option :value="null">Tanpa workspace</option>
-                                    <option v-for="workspace in researchWorkspaces" :key="workspace.id" :value="workspace.id">
-                                        {{ workspace.title }}
+                                    <option :value="null">Tanpa creation</option>
+                                    <option v-for="creation in visibleResearchWorkspaces" :key="creation.id" :value="creation.id">
+                                        {{ creation.title }}<template v-if="creation.owner_name"> — {{ creation.owner_name }}</template>
                                     </option>
                                 </select>
+                                <small v-if="todoModalMode === 'create' && todoForm.assignment_mode === 'mentor' && todoForm.owner_user_id && !visibleResearchWorkspaces.length" class="todo-field-note">
+                                    Member ini belum hire mentor ke creation.
+                                </small>
                                 <small v-if="todoForm.errors.creation_id" class="todo-error">{{ todoForm.errors.creation_id }}</small>
                             </label>
 
@@ -1399,6 +1853,13 @@ onUnmounted(() => {
     background: rgba(87, 214, 255, 0.14);
 }
 
+.todo-add-btn {
+    width: auto;
+    min-width: max-content;
+    margin-bottom: 0;
+    padding-inline: 16px;
+}
+
 .source-add-btn--link {
     text-decoration: none;
 }
@@ -1472,6 +1933,15 @@ onUnmounted(() => {
 }
 
 .todo-nav-list {
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.todo-list-workspace {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 0;
     min-height: 0;
     overflow-y: auto;
     padding-right: 6px;
@@ -1785,6 +2255,98 @@ onUnmounted(() => {
     gap: 14px;
     overflow-y: auto;
     padding-right: 6px;
+}
+
+.hire-mentor-workspace {
+    display: grid;
+    gap: 16px;
+}
+
+.hire-mentor-card {
+    display: grid;
+    gap: 14px;
+    max-width: 560px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(5, 12, 22, 0.58);
+}
+
+.hire-status-inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.hire-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid rgba(87, 246, 185, 0.38);
+    border-radius: 12px;
+    background: rgba(87, 246, 185, 0.08);
+    color: var(--green);
+    padding: 8px 10px;
+    text-transform: uppercase;
+}
+
+.hire-status-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.05);
+    color: #e8f6ff;
+    font-size: 12px;
+}
+
+.hire-status-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hire-status-info {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    color: #e8f6ff;
+}
+
+.hire-status-info strong {
+    font-size: 12px;
+    line-height: 1.1;
+}
+
+.hire-status-info small {
+    color: var(--text-dim);
+    font-size: 10px;
+    line-height: 1.1;
+    text-transform: none;
+}
+
+.hire-status-pill em {
+    margin-left: 4px;
+    color: currentColor;
+    font-size: 11px;
+    font-style: normal;
+}
+
+.hire-status-pill.is-pending {
+    border-color: rgba(248, 198, 92, 0.42);
+    background: rgba(248, 198, 92, 0.08);
+    color: var(--amber);
+}
+
+.hire-status-pill.is-rejected {
+    border-color: rgba(255, 127, 143, 0.42);
+    background: rgba(255, 127, 143, 0.08);
+    color: var(--danger);
 }
 
 .learning-path-card {
@@ -2397,7 +2959,14 @@ onUnmounted(() => {
 
 .todo-note-form {
     display: grid;
-    gap: 8px;
+    gap: 12px;
+}
+
+.todo-note-form-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
 }
 
 .todo-note-label {
@@ -2405,19 +2974,34 @@ onUnmounted(() => {
     color: #a7bbd6;
 }
 
+.todo-note-helper {
+    margin: 6px 0 0;
+    color: #8ea8bb;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
 .todo-note-textarea {
     width: 100%;
     border: 1px solid rgba(255, 255, 255, 0.16);
     background: rgba(255, 255, 255, 0.03);
     color: #e2eefb;
-    padding: 10px;
+    padding: 14px;
     resize: vertical;
-    min-height: 84px;
+    min-height: 112px;
     outline: none;
     font-size: 13px;
 }
 
 .todo-note-upload-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.todo-note-upload-actions {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -2428,7 +3012,8 @@ onUnmounted(() => {
     border: 1px solid rgba(255, 255, 255, 0.2);
     background: rgba(255, 255, 255, 0.06);
     color: #d6e7fd;
-    padding: 8px 10px;
+    min-height: 40px;
+    padding: 10px 14px;
     font-size: 12px;
     display: inline-flex;
     align-items: center;
@@ -2444,16 +3029,26 @@ onUnmounted(() => {
     border: 1px solid rgba(255, 127, 143, 0.35);
     background: rgba(255, 127, 143, 0.1);
     color: #ffc4cd;
-    padding: 8px 10px;
+    min-height: 40px;
+    padding: 10px 12px;
     font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .todo-note-submit {
     border: 1px solid rgba(87, 214, 255, 0.45);
     background: rgba(87, 214, 255, 0.14);
     color: #bff0ff;
-    padding: 8px 12px;
+    min-height: 40px;
+    padding: 10px 16px;
     font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-left: auto;
 }
 
 .todo-note-submit:disabled {
@@ -2779,7 +3374,7 @@ onUnmounted(() => {
     --text-muted: #8ea8bb;
     font-family: "Press Start 2P", monospace !important;
     font-size: 9px;
-    background: #0d1117 !important;
+    background: transparent !important;
     color: #cbd5e1;
 }
 
@@ -2799,7 +3394,7 @@ onUnmounted(() => {
 .metric-card {
     background-color: rgba(26, 28, 44, 0.92) !important;
     border: 4px solid var(--panel-border) !important;
-    box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.5) !important;
+    box-shadow: none !important;
     backdrop-filter: none !important;
 }
 
@@ -2892,7 +3487,7 @@ onUnmounted(() => {
     box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.5) !important;
 }
 .todo-modal-head h3 { font-size: 13px !important; color: #fff !important; }
-.todo-modal-form input,
+.todo-modal-form input:not([type="checkbox"]),
 .todo-modal-form textarea,
 .todo-modal-form select {
     font-size: 11px !important;
@@ -2909,7 +3504,15 @@ onUnmounted(() => {
 .todo-modal-form span { font-size: 10px !important; color: var(--text-muted) !important; text-transform: uppercase !important; letter-spacing: 1px !important; }
 .todo-modal-form .todo-checkbox-field span,
 .todo-modal-form .todo-field-note { text-transform: none !important; letter-spacing: 0 !important; font-size: 9px !important; }
-.todo-modal-form .todo-checkbox-field { font-size: 10px !important; }
+.todo-modal-form .todo-checkbox-field { font-size: 10px !important; cursor: pointer !important; }
+.todo-modal-form .todo-checkbox-field input[type="checkbox"] {
+    flex: 0 0 16px !important;
+    width: 16px !important;
+    height: 16px !important;
+    margin: 0 !important;
+    cursor: pointer !important;
+    accent-color: #57d6ff !important;
+}
 .todo-modal-actions button { font-size: 10px !important; padding: 10px 14px !important; }
 .todo-modal-close {
     border: 2px solid var(--panel-border) !important;
@@ -3095,17 +3698,32 @@ onUnmounted(() => {
 
 .todo-note-label {
     font-family: Inter, sans-serif !important;
-    font-size: 11px !important;
+    font-size: 13px !important;
     font-weight: 600 !important;
     color: #cbd5e1 !important;
+}
+
+.todo-note-helper {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+    color: var(--text-muted) !important;
 }
 
 .todo-note-textarea {
     font-family: Inter, sans-serif !important;
     font-size: 12px !important;
     line-height: 1.5 !important;
-    padding: 10px !important;
+    padding: 14px !important;
     border: 2px solid var(--panel-border) !important;
+}
+
+.todo-upload-btn,
+.todo-upload-remove,
+.todo-note-submit {
+    font-family: Inter, sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    border-width: 2px !important;
 }
 
 .todo-note-item { padding: 10px !important; }

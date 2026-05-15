@@ -178,6 +178,8 @@
     font-weight: 800;
     text-transform: uppercase;
     line-height: 1;
+    white-space: nowrap;
+    flex-shrink: 0;
 
     color: var(--accent);
     background:
@@ -336,6 +338,24 @@
 
   .nav-action:active {
     transform: translate(1px, 1px);
+  }
+
+  @media (min-width: 1024px) and (max-width: 1399px) {
+    .user-navbar-shell {
+      padding-left: 1.25rem !important;
+      padding-right: 1.25rem !important;
+    }
+
+    .user-navbar-brand-title {
+      font-size: 0.7rem !important;
+      letter-spacing: -0.06em !important;
+    }
+
+    .nav-action {
+      gap: 0.35rem;
+      padding: 0.5rem 0.68rem;
+      font-size: 7px;
+    }
   }
 
   .nav-action:focus-visible {

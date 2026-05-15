@@ -133,8 +133,7 @@ onBeforeUnmount(() => {
 
                     <Link :href="route('hall.creations.index')" class="nav-action nav-action--hall" @click="closeMobileMenu">
                         <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
-                        <span class="hidden xl:inline">Hall of Creations</span>
-                        <span class="xl:hidden">Hall</span>
+                        Hall of Creations
                     </Link>
 
                     <NotificationBell />
