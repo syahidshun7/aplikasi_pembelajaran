@@ -13,6 +13,8 @@ const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') &&
 const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
 const isStaffPlayMode = computed(() => Boolean(auth.value?.user?.staff_play_mode));
 const playerModeNotice = computed(() => String(auth.value?.user?.player_mode_notice || '').trim());
+const isDoopLabPage = computed(() => String(page.url || '').startsWith('/dooplab'));
+const showStaffPlayModeNotice = computed(() => isStaffPlayMode.value && !isDoopLabPage.value);
 </script>
 
 <template>
@@ -54,7 +56,7 @@ const playerModeNotice = computed(() => String(auth.value?.user?.player_mode_not
                 </Link>
             </div>
         </div>
-        <div v-if="isStaffPlayMode" class="relative z-20 px-4 md:px-8 pt-4">
+        <div v-if="showStaffPlayModeNotice" class="relative z-20 px-4 md:px-8 pt-4">
             <div class="border-2 border-cyan-400/60 bg-cyan-500/10 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div class="text-[9px] leading-relaxed text-cyan-100 uppercase tracking-wide">
                     {{ playerModeNotice || 'Mode preview aktif. Reward, leaderboard, dan akses kelas student tidak dihitung.' }}

@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\DoopLabRoadmap;
+use App\Models\DoopLabRoadmapEnrollment;
 use App\Models\DoopLabRoadmapNode;
+use App\Models\DoopLabRoadmapNodeProgress;
 use App\Models\DoopLabRoadmapSection;
 use App\Models\User;
 
@@ -92,3 +94,49 @@ it('mentor can create roadmap with section node and edge', function () {
     ]);
 });
 
+it('mentor can manage assigned student roadmap without changing blueprint', function () {
+    $mentor = User::factory()->create(['role' => User::ROLE_MENTOR]);
+    $student = User::factory()->create(['role' => User::ROLE_STUDENT]);
+
+    $roadmap = DoopLabRoadmap::query()->create([
+        'title' => 'Blueprint Path',
+        'created_by_user_id' => $mentor->id,
+        'is_published' => true,
+    ]);
+
+    $node = DoopLabRoadmapNode::query()->create([
+        'roadmap_id' => $roadmap->id,
+        'title' => 'Private Node Access',
+        'x' => 10,
+        'y' => 20,
+    ]);
+
+    $this->actingAs($mentor)
+        ->post(route('dooplab.roadmaps.enrollments.store'), [
+            'roadmap_uuid' => $roadmap->uuid,
+            'user_ids' => [$student->id],
+        ])
+        ->assertRedirect(route('dooplab.roadmaps.index'));
+
+    $enrollment = DoopLabRoadmapEnrollment::query()->where('roadmap_id', $roadmap->id)->where('user_id', $student->id)->firstOrFail();
+
+    $this->actingAs($mentor)
+        ->get(route('dooplab.roadmaps.enrollments.show', $enrollment->uuid))
+        ->assertOk();
+
+    $this->actingAs($mentor)
+        ->post(route('dooplab.roadmaps.enrollments.unlock', [$enrollment->uuid, $node->uuid]))
+        ->assertRedirect(route('dooplab.roadmaps.enrollments.show', $enrollment->uuid));
+
+    $this->assertDatabaseHas('dooplab_roadmap_node_progress', [
+        'enrollment_id' => $enrollment->id,
+        'node_id' => $node->id,
+        'status' => DoopLabRoadmapNodeProgress::STATUS_UNLOCKED,
+    ]);
+
+    $this->assertDatabaseHas('dooplab_roadmap_nodes', [
+        'id' => $node->id,
+        'roadmap_id' => $roadmap->id,
+        'title' => 'Private Node Access',
+    ]);
+});

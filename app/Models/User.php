@@ -174,6 +174,17 @@ public static function staffRoles(): array
     ];
 }
 
+public static function doopLabAccessRoles(): array
+{
+    return [
+        self::ROLE_SUPER_ADMIN,
+        self::ROLE_ADMIN,
+        self::ROLE_MENTOR,
+        self::ROLE_USER,
+        self::ROLE_STUDENT,
+    ];
+}
+
 public function hasRole(string|array $roles): bool
 {
     $currentRole = $this->normalizeRoleValue((string) $this->role);
@@ -220,6 +231,19 @@ public function isPaidMember(): bool
 
 public function canAccessDoopLab(): bool
 {
-    return $this->isStaff() || $this->isPaidMember();
+    if ($this->isStaff()) {
+        return true;
+    }
+
+    return $this->hasDoopLabKey();
+}
+
+public function hasDoopLabKey(): bool
+{
+    return UserInventory::query()
+        ->where('user_id', $this->id)
+        ->whereHas('item', fn ($q) => $q->where('code', 'dooplab_key'))
+        ->where('quantity', '>=', 1)
+        ->exists();
 }
 }

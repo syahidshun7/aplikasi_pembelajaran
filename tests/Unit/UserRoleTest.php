@@ -28,4 +28,15 @@ class UserRoleTest extends TestCase
         $this->assertTrue($user->isStaff());
         $this->assertTrue($user->isMentor());
     }
+
+    public function test_all_user_roles_can_access_dooplab(): void
+    {
+        foreach ([User::ROLE_SUPER_ADMIN, User::ROLE_ADMIN, User::ROLE_MENTOR, User::ROLE_USER, User::ROLE_STUDENT] as $role) {
+            $user = new User([
+                'role' => $role,
+            ]);
+
+            $this->assertTrue($user->canAccessDoopLab(), "Expected {$role} to access DoopLab.");
+        }
+    }
 }

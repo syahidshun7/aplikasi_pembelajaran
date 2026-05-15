@@ -56,9 +56,13 @@ class DoopLabRoadmap extends Model
         return $this->hasMany(DoopLabRoadmapNode::class, 'roadmap_id');
     }
 
+    public function textBlocks()
+    {
+        return $this->hasMany(DoopLabRoadmapTextBlock::class, 'roadmap_id');
+    }
+
     public function edges()
     {
         return $this->hasMany(DoopLabRoadmapEdge::class, 'roadmap_id');
     }
 }
-

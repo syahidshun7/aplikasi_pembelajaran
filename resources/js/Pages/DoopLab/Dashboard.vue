@@ -13,6 +13,7 @@ const props = defineProps({
     todo_permissions: { type: Object, default: () => ({}) },
     todo_assignable_users: { type: Array, default: () => [] },
     research_workspaces: { type: Array, default: () => [] },
+    learning_paths: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -25,8 +26,10 @@ const canOpenRoadmapLab = computed(() => {
 
 const allTodos = computed(() => Array.isArray(props.todos) ? props.todos : []);
 const researchWorkspaces = computed(() => Array.isArray(props.research_workspaces) ? props.research_workspaces : []);
+const learningPaths = computed(() => Array.isArray(props.learning_paths) ? props.learning_paths : []);
 const todoSearch = ref('');
 const todoFilter = ref('all');
+const panelMode = ref('learning_paths');
 const showTodoModal = ref(false);
 const todoModalMode = ref('create');
 const editingTodoUuid = ref(null);
@@ -149,13 +152,6 @@ const studioTiles = computed(() => ([
         description: 'Pantau notifikasi kolaborasi',
         routeName: 'notifications.index',
         icon: 'fi fi-rr-bell',
-    },
-    {
-        key: 'my_paths',
-        title: 'My Paths',
-        description: 'Buka roadmap mentoring milikmu',
-        routeName: 'dooplab.roadmaps.enrollments.index',
-        icon: 'fi fi-rr-road',
     },
     ...(canOpenRoadmapLab.value
         ? [{
@@ -412,6 +408,7 @@ const openTodoEditModal = (todo) => {
 };
 
 const openTodoDetail = (todo) => {
+    panelMode.value = 'todo';
     selectedTodoUuid.value = String(todo?.uuid || '');
     nextTick(() => {
         if (typeof window !== 'undefined' && todoChatPanelRef.value?.scrollIntoView) {
@@ -422,6 +419,17 @@ const openTodoDetail = (todo) => {
 
 const clearSelectedTodo = () => {
     selectedTodoUuid.value = null;
+    panelMode.value = 'summary';
+};
+
+const showLearningPaths = () => {
+    selectedTodoUuid.value = null;
+    panelMode.value = 'learning_paths';
+    nextTick(() => {
+        if (typeof window !== 'undefined' && todoChatPanelRef.value?.scrollIntoView) {
+            todoChatPanelRef.value.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
 };
 
 const selectedTodoNotes = computed(() => {
@@ -640,18 +648,6 @@ onUnmounted(() => {
                     </div>
                 </header>
 
-                <section class="nb-metrics">
-                    <article
-                        v-for="metric in dashboardMetrics"
-                        :key="metric.label"
-                        :class="['metric-card', `metric-card--${metric.tone}`]"
-                    >
-                        <span class="metric-label">{{ metric.label }}</span>
-                        <strong class="metric-value">{{ metric.value }}</strong>
-                        <small class="metric-hint">{{ metric.hint }}</small>
-                    </article>
-                </section>
-
                 <section class="nb-workbench">
                     <aside class="nb-panel nb-sources nb-todo-nav">
                         <div class="panel-head panel-head--stacked">
@@ -661,6 +657,15 @@ onUnmounted(() => {
                             </div>
                             <span class="todo-nav-count">{{ todoCounters.total }}</span>
                         </div>
+
+                        <button
+                            type="button"
+                            class="source-add-btn"
+                            @click="showLearningPaths"
+                        >
+                            <i class="fi fi-rr-road"></i>
+                            My Learning Path
+                        </button>
 
                         <button type="button" class="source-add-btn" @click="openTodoModal">
                             <i class="fi fi-rr-plus"></i>
@@ -764,9 +769,9 @@ onUnmounted(() => {
                     <main ref="todoChatPanelRef" class="nb-panel nb-chat">
                         <div class="panel-head panel-head--stacked">
                             <div>
-                                <h2>{{ selectedTodo ? 'Detail To-Do' : 'Ringkasan Kerja' }}</h2>
+                                <h2>{{ selectedTodo ? 'Detail To-Do' : (panelMode === 'learning_paths' ? 'My Learning Path' : 'Ringkasan Kerja') }}</h2>
                                 <p class="panel-subtitle">
-                                    {{ selectedTodo ? 'Catatan dan bukti pengerjaan ditampilkan di bawah.' : 'Pilih to-do dari sidebar untuk mulai mencatat progres.' }}
+                                    {{ selectedTodo ? 'Catatan dan bukti pengerjaan ditampilkan di bawah.' : (panelMode === 'learning_paths' ? 'Roadmap mentoring yang ditugaskan untukmu.' : 'Pilih to-do dari sidebar untuk mulai mencatat progres.') }}
                                 </p>
                             </div>
                         </div>
@@ -940,55 +945,38 @@ onUnmounted(() => {
                             </div>
                         </template>
 
-                        <template v-else>
-                            <article class="chat-hero">
-                                <div class="chat-hero-icon">LAB</div>
-                                <h3>DoopLab Operational Summary</h3>
-                                <p>Sinkronisasi eksperimen, mentor, dan antrian kolaborasi dalam satu notebook kerja.</p>
-                                <div class="chip-grid">
-                                    <span
-                                        v-for="chip in overviewChips"
-                                        :key="chip.label"
-                                        :class="`chip chip--${chip.tone}`"
-                                    >
-                                        {{ chip.label }}: {{ chip.value }}
+                        <template v-else-if="panelMode === 'learning_paths'">
+                            <section class="learning-path-list custom-scroll">
+                                <p v-if="!learningPaths.length" class="source-empty">
+                                    Belum ada learning path yang ditugaskan.
+                                </p>
+
+                                <Link
+                                    v-for="path in learningPaths"
+                                    :key="path.uuid"
+                                    :href="route('dooplab.roadmaps.enrollments.show', path.uuid)"
+                                    class="learning-path-card"
+                                >
+                                    <div class="learning-path-body">
+                                        <div class="learning-path-topline">
+                                            <span>Learning Path</span>
+                                            <strong>Status: {{ String(path.status || 'active').toUpperCase() }}</strong>
+                                        </div>
+                                        <h3>{{ path.roadmap?.title || 'Untitled Roadmap' }}</h3>
+                                        <div class="learning-path-meta">
+                                            <span>Mentor: {{ path.mentor_name || '-' }}</span>
+                                        </div>
+                                    </div>
+
+                                    <span class="learning-path-cta">
+                                        Open
+                                        <i class="fi fi-rr-angle-small-right"></i>
                                     </span>
-                                    <span class="chip chip--cyan">TODO_PENDING: {{ todoCounters.pending }}</span>
-                                    <span class="chip chip--green">TODO_DONE: {{ todoCounters.completed }}</span>
-                                </div>
-                            </article>
-
-                            <section class="chat-stream custom-scroll">
-                                <article class="chat-bubble">
-                                    <p class="chat-role">DoopLab Assistant</p>
-                                    <p class="chat-text">
-                                        Pipeline kamu saat ini: {{ pipelineSummary.map((item) => `${item.label} ${item.value}`).join(' | ') }}.
-                                    </p>
-                                </article>
-                                <article class="chat-bubble">
-                                    <p class="chat-role">System Insight</p>
-                                    <p class="chat-text">
-                                        {{ composerHint }}
-                                    </p>
-                                </article>
-                                <article class="chat-bubble">
-                                    <p class="chat-role">To-Do Insight</p>
-                                    <p class="chat-text">
-                                        Total to-do {{ todoCounters.total }}, pending {{ todoCounters.pending }}, selesai {{ todoCounters.completed }}.
-                                    </p>
-                                </article>
+                                </Link>
                             </section>
-
-                            <div class="chat-composer">
-                                <p class="composer-placeholder">Mulai mengetik rencana eksperimenmu...</p>
-                                <div class="composer-foot">
-                                    <span>{{ sourceItems.length }} sumber</span>
-                                    <Link :href="route('profile.creations')" class="composer-send">
-                                        <i class="fi fi-rr-arrow-right"></i>
-                                    </Link>
-                                </div>
-                            </div>
                         </template>
+
+                        <template v-else></template>
                     </main>
 
                     <aside class="nb-panel nb-studio">
@@ -1411,6 +1399,10 @@ onUnmounted(() => {
     background: rgba(87, 214, 255, 0.14);
 }
 
+.source-add-btn--link {
+    text-decoration: none;
+}
+
 .todo-nav-count {
     display: inline-flex;
     align-items: center;
@@ -1786,6 +1778,126 @@ onUnmounted(() => {
     color: #7fd6fb;
     font-size: 11px;
     line-height: 1.45;
+}
+
+.learning-path-list {
+    display: grid;
+    gap: 14px;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.learning-path-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    border: 2px solid var(--panel-border);
+    background: rgba(5, 10, 22, 0.72);
+    color: #eef6ff;
+    padding: 16px 18px;
+    text-decoration: none;
+    box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.58), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+    transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.learning-path-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: linear-gradient(180deg, var(--accent-cyan), transparent);
+    box-shadow: 0 0 18px rgba(87, 214, 255, 0.55);
+}
+
+.learning-path-card::after {
+    content: '';
+    position: absolute;
+    right: -40px;
+    top: -55px;
+    width: 150px;
+    height: 150px;
+    border: 1px solid rgba(87, 214, 255, 0.12);
+    transform: rotate(22deg);
+    pointer-events: none;
+}
+
+.learning-path-card:hover {
+    border-color: var(--accent-cyan);
+    background: rgba(5, 10, 22, 0.86);
+    transform: translate(-2px, -2px);
+}
+
+.learning-path-body {
+    min-width: 0;
+    z-index: 1;
+}
+
+.learning-path-topline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+}
+
+.learning-path-topline span,
+.learning-path-topline strong {
+    display: inline-flex;
+    margin: 0;
+    padding: 4px 7px;
+    border: 1px solid rgba(87, 214, 255, 0.32);
+    background: rgba(87, 214, 255, 0.08);
+    color: var(--accent-cyan);
+    font-size: 7px;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.learning-path-card h3 {
+    margin: 0;
+    font-size: 15px;
+    color: #ffffff;
+    line-height: 1.4;
+}
+
+.learning-path-card p {
+    margin: 8px 0 0;
+    color: #b9c7dc;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.learning-path-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.learning-path-meta span {
+    display: block;
+    margin: 0;
+    color: #d9e7ff;
+    font-size: 9px;
+    text-transform: uppercase;
+}
+
+.learning-path-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #0b1020;
+    background: var(--accent-cyan);
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5);
+    padding: 9px 11px;
+    font-size: 8px;
+    text-transform: uppercase;
+    z-index: 1;
 }
 
 .todo-state {
@@ -2470,7 +2582,7 @@ onUnmounted(() => {
 }
 
 .todo-modal-card {
-    width: min(640px, 100%);
+    width: min(860px, 100%);
     max-height: calc(100dvh - clamp(20px, 5.2vw, 36px));
     border: 4px solid #3d415f;
     background: #1a1c2c;
@@ -2485,8 +2597,8 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 14px;
-    padding-bottom: 12px;
+    margin-bottom: 18px;
+    padding-bottom: 16px;
     border-bottom: 2px solid #3d415f;
 }
 
@@ -2514,6 +2626,7 @@ onUnmounted(() => {
     gap: 14px;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     padding-right: 4px;
 }
 
@@ -2521,11 +2634,13 @@ onUnmounted(() => {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    margin-top: 4px;
+    margin-top: 8px;
+    padding-top: 4px;
 }
 .todo-field {
     display: grid;
     gap: 7px;
+    min-width: 0;
 }
 
 .todo-date-grid {
@@ -2550,6 +2665,8 @@ onUnmounted(() => {
 .todo-field textarea,
 .todo-field select {
     width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     border: 2px solid #3d415f;
     background: #0d1117;
     color: #cbd5e1;
@@ -2557,6 +2674,12 @@ onUnmounted(() => {
     outline: none;
     font-family: "Press Start 2P", monospace;
     font-size: 11px;
+}
+
+.todo-field input[type="datetime-local"] {
+    font-family: Inter, sans-serif;
+    font-size: 13px;
+    line-height: 1.2;
 }
 
 .todo-field textarea {
@@ -2619,6 +2742,15 @@ onUnmounted(() => {
 }
 
 @media (max-width: 620px) {
+    .learning-path-card {
+        grid-template-columns: 1fr;
+    }
+
+    .learning-path-cta {
+        grid-column: 1 / -1;
+        justify-content: center;
+    }
+
     .todo-modal {
         padding: 8px;
     }
@@ -2760,7 +2892,6 @@ onUnmounted(() => {
     box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.5) !important;
 }
 .todo-modal-head h3 { font-size: 13px !important; color: #fff !important; }
-.todo-modal-form label,
 .todo-modal-form input,
 .todo-modal-form textarea,
 .todo-modal-form select {
@@ -2770,6 +2901,10 @@ onUnmounted(() => {
     background: #0d1117 !important;
     color: #cbd5e1 !important;
     padding: 12px !important;
+}
+.todo-modal-form input[type="datetime-local"] {
+    font-family: Inter, sans-serif !important;
+    font-size: 13px !important;
 }
 .todo-modal-form span { font-size: 10px !important; color: var(--text-muted) !important; text-transform: uppercase !important; letter-spacing: 1px !important; }
 .todo-modal-form .todo-checkbox-field span,

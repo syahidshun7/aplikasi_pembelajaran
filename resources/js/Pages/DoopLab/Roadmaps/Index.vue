@@ -35,9 +35,11 @@ const hasActiveRoadmap = computed(() => Boolean(activeRoadmap.value?.uuid));
 
 const draftSections = ref([]);
 const draftNodes = ref([]);
+const draftTextBlocks = ref([]);
 
 const sections = computed(() => draftSections.value);
 const nodes = computed(() => draftNodes.value);
+const textBlocks = computed(() => draftTextBlocks.value);
 const edges = computed(() => Array.isArray(activeRoadmap.value?.edges) ? activeRoadmap.value.edges : []);
 
 const boardRef = ref(null);
@@ -46,6 +48,7 @@ const showCreateForm = ref(false);
 const layoutSaving = ref(false);
 const dirtySectionUuids = ref(new Set());
 const dirtyNodeUuids = ref(new Set());
+const dirtyTextBlockUuids = ref(new Set());
 const inlineTitleDraft = ref(null);
 const selectedItem = ref(null);
 const hoveredEdgeUuid = ref('');
@@ -54,6 +57,7 @@ const connectFromUuid = ref('');
 const resourcePicker = ref({ type: 'guide', id: '' });
 
 const colorPresets = [
+    { bg: 'transparent', text: '#e6f6ff', label: 'Clear' },
     { bg: '#dbeafe', text: '#1e3a8a' },
     { bg: '#bfdbfe', text: '#1e3a8a' },
     { bg: '#bbf7d0', text: '#14532d' },
@@ -71,7 +75,7 @@ const colorPresets = [
 ];
 
 const hasPendingLayoutChanges = computed(() => {
-    return dirtySectionUuids.value.size > 0 || dirtyNodeUuids.value.size > 0;
+    return dirtySectionUuids.value.size > 0 || dirtyNodeUuids.value.size > 0 || dirtyTextBlockUuids.value.size > 0;
 });
 
 const clampValue = (value, min, max) => {
@@ -97,14 +101,16 @@ const nodeMap = computed(() => {
 const boardWidth = computed(() => {
     const sectionMax = sections.value.map((section) => Number(section.x || 0) + Number(section.width || 0));
     const nodeMax = nodes.value.map((node) => Number(node.x || 0) + Number(node.width || 0));
-    const maxValue = Math.max(1000, ...sectionMax, ...nodeMax);
+    const textMax = textBlocks.value.map((textBlock) => Number(textBlock.x || 0) + Number(textBlock.width || 0));
+    const maxValue = Math.max(1000, ...sectionMax, ...nodeMax, ...textMax);
     return maxValue + 120;
 });
 
 const boardHeight = computed(() => {
     const sectionMax = sections.value.map((section) => Number(section.y || 0) + Number(section.height || 0));
     const nodeMax = nodes.value.map((node) => Number(node.y || 0) + Number(node.height || 0));
-    const maxValue = Math.max(680, ...sectionMax, ...nodeMax);
+    const textMax = textBlocks.value.map((textBlock) => Number(textBlock.y || 0) + Number(textBlock.height || 0));
+    const maxValue = Math.max(680, ...sectionMax, ...nodeMax, ...textMax);
     return maxValue + 120;
 });
 
@@ -185,6 +191,19 @@ const nodeForm = useForm({
 });
 const nodeEditUuid = ref('');
 
+const textBlockForm = useForm({
+    content: '',
+    x: 120,
+    y: 120,
+    width: 320,
+    height: 120,
+    bg_color: 'transparent',
+    text_color: '#e6f6ff',
+    sort_order: 0,
+    workspace: 1,
+});
+const textBlockEditUuid = ref('');
+
 const edgeForm = useForm({
     from_node_uuid: '',
     to_node_uuid: '',
@@ -263,6 +282,11 @@ const unassignUser = (enrollmentUuid) => {
         preserveState: true,
         preserveScroll: true,
     });
+};
+
+const manageEnrollment = (enrollmentUuid) => {
+    if (!enrollmentUuid) return;
+    router.get(route('dooplab.roadmaps.enrollments.show', enrollmentUuid));
 };
 
 const selectedStudentOverview = computed(() => {
@@ -452,6 +476,69 @@ const deleteNode = (nodeUuid) => {
     });
 };
 
+const startEditTextBlock = (textBlock) => {
+    textBlockEditUuid.value = String(textBlock.uuid || '');
+    textBlockForm.content = String(textBlock.content || '');
+    textBlockForm.x = Number(textBlock.x || 120);
+    textBlockForm.y = Number(textBlock.y || 120);
+    textBlockForm.width = Number(textBlock.width || 320);
+    textBlockForm.height = Number(textBlock.height || 120);
+    textBlockForm.bg_color = String(textBlock.bg_color || 'transparent');
+    textBlockForm.text_color = String(textBlock.text_color || '#e6f6ff');
+    textBlockForm.sort_order = Number(textBlock.sort_order || 0);
+};
+
+const resetTextBlockForm = () => {
+    textBlockEditUuid.value = '';
+    textBlockForm.reset();
+    textBlockForm.content = '';
+    textBlockForm.x = 120;
+    textBlockForm.y = 120;
+    textBlockForm.width = 320;
+    textBlockForm.height = 120;
+    textBlockForm.bg_color = 'transparent';
+    textBlockForm.text_color = '#e6f6ff';
+    textBlockForm.sort_order = 0;
+    textBlockForm.workspace = 1;
+};
+
+const submitTextBlock = () => {
+    if (!hasActiveRoadmap.value) return;
+    if (textBlockEditUuid.value !== '') {
+        textBlockForm.patch(route('dooplab.roadmaps.text-blocks.update', textBlockEditUuid.value), {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => resetTextBlockForm(),
+        });
+        return;
+    }
+
+    textBlockForm.post(route('dooplab.roadmaps.text-blocks.store', activeRoadmap.value.uuid), {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => resetTextBlockForm(),
+    });
+};
+
+const deleteTextBlock = (textBlockUuid) => {
+    const targetUuid = String(textBlockUuid || '');
+    if (!targetUuid) return;
+
+    draftTextBlocks.value = draftTextBlocks.value.filter((item) => String(item.uuid) !== targetUuid);
+    if (dirtyTextBlockUuids.value.has(targetUuid)) {
+        const next = new Set(dirtyTextBlockUuids.value);
+        next.delete(targetUuid);
+        dirtyTextBlockUuids.value = next;
+    }
+
+    router.delete(route('dooplab.roadmaps.text-blocks.destroy', targetUuid), {
+        data: { workspace: 1 },
+        preserveState: true,
+        preserveScroll: true,
+        only: ['activeRoadmap', 'roadmaps'],
+    });
+};
+
 const submitEdge = () => {
     if (!hasActiveRoadmap.value) return;
     edgeForm.post(route('dooplab.roadmaps.edges.store', activeRoadmap.value.uuid), {
@@ -513,6 +600,19 @@ const cloneNode = (node) => ({
     sort_order: Number(node?.sort_order || 0),
 });
 
+const cloneTextBlock = (textBlock) => ({
+    ...textBlock,
+    content: String(textBlock?.content || ''),
+    x: Number(textBlock?.x || 0),
+    y: Number(textBlock?.y || 0),
+    width: Number(textBlock?.width || 320),
+    height: Number(textBlock?.height || 120),
+    font_size: Number(textBlock?.font_size || 16),
+    text_align: String(textBlock?.text_align || 'left'),
+    text_valign: String(textBlock?.text_valign || 'top'),
+    sort_order: Number(textBlock?.sort_order || 0),
+});
+
 const findSectionUuidById = (sectionId) => {
     const matched = sections.value.find((item) => Number(item.id) === Number(sectionId || 0));
     return String(matched?.uuid || '');
@@ -529,17 +629,24 @@ const markLayoutDirty = (type, uuid) => {
         return;
     }
 
+    if (type === 'text') {
+        const next = new Set(dirtyTextBlockUuids.value);
+        next.add(normalizedUuid);
+        dirtyTextBlockUuids.value = next;
+        return;
+    }
+
     const next = new Set(dirtyNodeUuids.value);
     next.add(normalizedUuid);
     dirtyNodeUuids.value = next;
 };
 
 const updateItemFontSize = (type, uuid, delta) => {
-    const sourceList = type === 'section' ? draftSections.value : draftNodes.value;
+    const sourceList = type === 'section' ? draftSections.value : (type === 'text' ? draftTextBlocks.value : draftNodes.value);
     const target = sourceList.find((item) => String(item.uuid) === String(uuid || ''));
     if (!target) return;
 
-    const defaultSize = type === 'section' ? 20 : 28;
+    const defaultSize = type === 'section' ? 20 : (type === 'text' ? 16 : 28);
     const currentSize = Number(target.font_size || defaultSize);
     const nextSize = clampValue(currentSize + Number(delta || 0), 8, 120);
 
@@ -550,7 +657,7 @@ const updateItemFontSize = (type, uuid, delta) => {
 };
 
 const updateItemAlign = (type, uuid, prop, value) => {
-    const sourceList = type === 'section' ? draftSections.value : draftNodes.value;
+    const sourceList = type === 'section' ? draftSections.value : (type === 'text' ? draftTextBlocks.value : draftNodes.value);
     const target = sourceList.find((item) => String(item.uuid) === String(uuid || ''));
     if (!target) return;
 
@@ -615,8 +722,14 @@ const isInlineEditing = (type, uuid) => {
     return inlineTitleDraft.value.type === type && inlineTitleDraft.value.uuid === String(uuid || '');
 };
 
+const getItemLabel = (item) => {
+    if (!item) return '';
+    if (selectedItem.value?.type === 'text') return `Text: ${String(item.content || '').slice(0, 36) || '(empty)'}`;
+    return `${selectedItem.value?.type === 'section' ? 'Sec' : 'Node'}: ${item.title || '(untitled)'}`;
+};
+
 const applyItemColor = (type, uuid, palette) => {
-    const sourceList = type === 'section' ? draftSections.value : draftNodes.value;
+    const sourceList = type === 'section' ? draftSections.value : (type === 'text' ? draftTextBlocks.value : draftNodes.value);
     const target = sourceList.find((item) => String(item.uuid) === String(uuid || ''));
     if (!target) return;
 
@@ -702,7 +815,9 @@ const isItemSelected = (type, uuid) => {
 
 const selectedItemRecord = computed(() => {
     if (!selectedItem.value) return null;
-    const sourceList = selectedItem.value.type === 'section' ? draftSections.value : draftNodes.value;
+    const sourceList = selectedItem.value.type === 'section'
+        ? draftSections.value
+        : (selectedItem.value.type === 'text' ? draftTextBlocks.value : draftNodes.value);
     return sourceList.find((item) => String(item.uuid) === String(selectedItem.value.uuid)) || null;
 });
 
@@ -712,7 +827,7 @@ const startInlineTitleEdit = (type, item) => {
     inlineTitleDraft.value = {
         type,
         uuid: String(item.uuid),
-        value: String(item.title || ''),
+        value: type === 'text' ? String(item.content || '') : String(item.title || ''),
     };
 };
 
@@ -724,15 +839,19 @@ const commitInlineTitleEdit = () => {
     if (!inlineTitleDraft.value) return;
 
     const draft = inlineTitleDraft.value;
-    const sourceList = draft.type === 'section' ? draftSections.value : draftNodes.value;
+    const sourceList = draft.type === 'section' ? draftSections.value : (draft.type === 'text' ? draftTextBlocks.value : draftNodes.value);
     const target = sourceList.find((item) => String(item.uuid) === String(draft.uuid));
 
     if (target) {
         const nextTitle = String(draft.value || '').trim();
-        const currentTitle = String(target.title || '');
+        const currentTitle = draft.type === 'text' ? String(target.content || '') : String(target.title || '');
 
         if (nextTitle !== '' && nextTitle !== currentTitle) {
-            target.title = nextTitle;
+            if (draft.type === 'text') {
+                target.content = nextTitle;
+            } else {
+                target.title = nextTitle;
+            }
             markLayoutDirty(draft.type, target.uuid);
         }
     }
@@ -743,6 +862,7 @@ const commitInlineTitleEdit = () => {
 const clearLayoutDirty = () => {
     dirtySectionUuids.value = new Set();
     dirtyNodeUuids.value = new Set();
+    dirtyTextBlockUuids.value = new Set();
 };
 
 const persistSectionPosition = (section) => {
@@ -797,6 +917,31 @@ const persistNodePosition = (node) => {
     });
 };
 
+const persistTextBlockPosition = (textBlock) => {
+    return new Promise((resolve, reject) => {
+        router.patch(route('dooplab.roadmaps.text-blocks.update', textBlock.uuid), {
+            content: textBlock.content,
+            x: Number(textBlock.x || 0),
+            y: Number(textBlock.y || 0),
+            width: Number(textBlock.width || 320),
+            height: Number(textBlock.height || 120),
+            bg_color: textBlock.bg_color,
+            text_color: textBlock.text_color,
+            font_size: Number(textBlock.font_size || 16),
+            text_align: String(textBlock.text_align || 'left'),
+            text_valign: String(textBlock.text_valign || 'top'),
+            sort_order: Number(textBlock.sort_order || 0),
+            workspace: 1,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => resolve(),
+            onError: (errors) => reject(errors),
+            onCancel: () => reject(new Error('cancelled')),
+        });
+    });
+};
+
 const saveLayoutChanges = async () => {
     if (!hasActiveRoadmap.value || !hasPendingLayoutChanges.value || layoutSaving.value) return;
 
@@ -804,6 +949,7 @@ const saveLayoutChanges = async () => {
 
     const sectionUuids = [...dirtySectionUuids.value];
     const nodeUuids = [...dirtyNodeUuids.value];
+    const textBlockUuids = [...dirtyTextBlockUuids.value];
 
     try {
         for (const uuid of sectionUuids) {
@@ -816,6 +962,12 @@ const saveLayoutChanges = async () => {
             const node = draftNodes.value.find((item) => String(item.uuid) === uuid);
             if (!node) continue;
             await persistNodePosition(node);
+        }
+
+        for (const uuid of textBlockUuids) {
+            const textBlock = draftTextBlocks.value.find((item) => String(item.uuid) === uuid);
+            if (!textBlock) continue;
+            await persistTextBlockPosition(textBlock);
         }
 
         clearLayoutDirty();
@@ -859,6 +1011,14 @@ const onDragMove = (event) => {
             return;
         }
 
+        if (dragState.value.type === 'text') {
+            const item = draftTextBlocks.value.find((textBlock) => String(textBlock.uuid) === dragState.value.uuid);
+            if (!item) return;
+            item.width = nextWidth;
+            item.height = nextHeight;
+            return;
+        }
+
         const item = draftNodes.value.find((node) => String(node.uuid) === dragState.value.uuid);
         if (!item) return;
         item.width = nextWidth;
@@ -881,6 +1041,14 @@ const onDragMove = (event) => {
 
     if (dragState.value.type === 'section') {
         const item = draftSections.value.find((section) => String(section.uuid) === dragState.value.uuid);
+        if (!item) return;
+        item.x = nextX;
+        item.y = nextY;
+        return;
+    }
+
+    if (dragState.value.type === 'text') {
+        const item = draftTextBlocks.value.find((textBlock) => String(textBlock.uuid) === dragState.value.uuid);
         if (!item) return;
         item.x = nextX;
         item.y = nextY;
@@ -926,6 +1094,19 @@ const onDragEnd = (event) => {
         return;
     }
 
+    if (currentDrag.type === 'text') {
+        const item = draftTextBlocks.value.find((textBlock) => String(textBlock.uuid) === currentDrag.uuid);
+        if (!item) return;
+        if (currentDrag.mode === 'resize') {
+            if (Number(item.width) === Number(currentDrag.originWidth) && Number(item.height) === Number(currentDrag.originHeight)) return;
+            markLayoutDirty('text', item.uuid);
+            return;
+        }
+        if (Number(item.x) === Number(currentDrag.originX) && Number(item.y) === Number(currentDrag.originY)) return;
+        markLayoutDirty('text', item.uuid);
+        return;
+    }
+
     const item = draftNodes.value.find((node) => String(node.uuid) === currentDrag.uuid);
     if (!item) return;
     if (currentDrag.mode === 'resize') {
@@ -943,8 +1124,8 @@ const startDrag = (type, item, event, mode = 'move') => {
     if (!event.isPrimary) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
 
-    const itemWidth = Number(item.width || (type === 'section' ? 500 : 180));
-    const itemHeight = Number(item.height || (type === 'section' ? 260 : 72));
+    const itemWidth = Number(item.width || (type === 'section' ? 500 : (type === 'text' ? 320 : 180)));
+    const itemHeight = Number(item.height || (type === 'section' ? 260 : (type === 'text' ? 120 : 72)));
     const boardSize = getBoardDimensions();
     const maxX = Math.max(0, boardSize.width - Math.round(itemWidth));
     const maxY = Math.max(0, boardSize.height - Math.round(itemHeight));
@@ -974,10 +1155,10 @@ const startDrag = (type, item, event, mode = 'move') => {
         startClientY: Number(event.clientY || 0),
         originX: Number(item.x || 0),
         originY: Number(item.y || 0),
-        originWidth: Number(item.width || (type === 'section' ? 500 : 180)),
-        originHeight: Number(item.height || (type === 'section' ? 260 : 72)),
+        originWidth: Number(item.width || (type === 'section' ? 500 : (type === 'text' ? 320 : 180))),
+        originHeight: Number(item.height || (type === 'section' ? 260 : (type === 'text' ? 120 : 72))),
         minWidth: type === 'section' ? 200 : 120,
-        minHeight: type === 'section' ? 160 : 50,
+        minHeight: type === 'section' ? 160 : (type === 'text' ? 60 : 50),
         maxWidth,
         maxHeight,
         maxX,
@@ -1000,9 +1181,13 @@ watch(activeRoadmap, () => {
     const incomingNodes = Array.isArray(activeRoadmap.value?.nodes)
         ? activeRoadmap.value.nodes.map(cloneNode)
         : [];
+    const incomingTextBlocks = Array.isArray(activeRoadmap.value?.text_blocks)
+        ? activeRoadmap.value.text_blocks.map(cloneTextBlock)
+        : [];
 
     const dirtySecUuids = dirtySectionUuids.value;
     const dirtyNdUuids = dirtyNodeUuids.value;
+    const dirtyTxtUuids = dirtyTextBlockUuids.value;
 
     draftSections.value = incomingSections.map((incoming) => {
         if (dirtySecUuids.has(String(incoming.uuid))) {
@@ -1043,8 +1228,29 @@ watch(activeRoadmap, () => {
         return incoming;
     });
 
+    draftTextBlocks.value = incomingTextBlocks.map((incoming) => {
+        if (dirtyTxtUuids.has(String(incoming.uuid))) {
+            const existing = draftTextBlocks.value.find((t) => String(t.uuid) === String(incoming.uuid));
+            if (existing) {
+                return {
+                    ...incoming,
+                    content: existing.content,
+                    x: existing.x,
+                    y: existing.y,
+                    width: existing.width,
+                    height: existing.height,
+                    font_size: existing.font_size,
+                    text_align: existing.text_align,
+                    text_valign: existing.text_valign,
+                };
+            }
+        }
+        return incoming;
+    });
+
     resetSectionForm();
     resetNodeForm();
+    resetTextBlockForm();
     inlineTitleDraft.value = null;
     selectedItem.value = null;
     edgeForm.reset();
@@ -1164,43 +1370,24 @@ onUnmounted(() => {
                 </div>
             </div>
             <div v-else class="space-y-4">
-                <div class="panel toolbar-panel space-y-3">
-                    <div class="toolbar-head">
-                        <div class="toolbar-state">
+                <div class="panel space-y-2">
+                    <div class="visual-preview-head">
+                        <h2 class="title">Visual Preview</h2>
+                        <div class="visual-preview-actions">
+                            <span v-if="hasPendingLayoutChanges" class="visual-save-state">Unsaved Layout</span>
                             <button class="btn-secondary" type="button" @click="backToRoadmapTable">Kembali</button>
-                            <span v-if="hasPendingLayoutChanges" class="text-[8px] text-amber-300 uppercase">Unsaved Layout</span>
                             <button
                                 type="button"
-                                class="btn-primary"
+                                class="btn-primary btn-save-icon"
                                 :disabled="!hasPendingLayoutChanges || layoutSaving"
+                                title="Save Layout"
                                 @click="saveLayoutChanges"
                             >
-                            {{ layoutSaving ? 'Saving...' : 'Save Layout' }}
-                        </button>
-                        <form class="workspace-toolbar__form" @submit.prevent="submitEnrollment">
-                            <select v-model="enrollForm.user_ids" multiple class="field field--mini enroll-multi">
-                                <option v-for="user in assignableUsers" :key="`assign-${user.id}`" :value="user.id">
-                                    {{ user.name }} ({{ user.email }})
-                                </option>
-                            </select>
-                            <button class="btn-primary" :disabled="enrollForm.processing || !enrollForm.user_ids.length" type="submit">Assign</button>
-                        </form>
-                        <div v-if="enrolledUsers.length" class="enrolled-list">
-                            <span
-                                v-for="item in enrolledUsers"
-                                :key="item.enrollment_uuid"
-                                class="enrolled-list__tag"
-                            >
-                                {{ item.name }}
-                                <button type="button" :title="`Unassign ${item.email}`" @click="unassignUser(item.enrollment_uuid)">×</button>
-                            </span>
+                                <span aria-hidden="true">&#128190;</span>
+                                {{ layoutSaving ? 'Saving...' : 'Save' }}
+                            </button>
                         </div>
                     </div>
-                </div>
-            </div>
-
-                <div class="panel space-y-2">
-                    <h2 class="title">Visual Preview</h2>
                     <div class="workspace-toolbar">
                         <form class="workspace-toolbar__form" @submit.prevent="submitSection">
                             <input v-model="sectionForm.title" type="text" required placeholder="Section title" class="field field--mini">
@@ -1215,6 +1402,11 @@ onUnmounted(() => {
                             </select>
                             <button class="btn-primary" :disabled="nodeForm.processing" type="submit">{{ nodeEditUuid ? 'Upd' : '+Node' }}</button>
                             <button v-if="nodeEditUuid" class="btn-secondary" type="button" @click="resetNodeForm">x</button>
+                        </form>
+                        <form class="workspace-toolbar__form" @submit.prevent="submitTextBlock">
+                            <textarea v-model="textBlockForm.content" required placeholder="Text area" class="field field--mini text-block-input" rows="1"></textarea>
+                            <button class="btn-primary" :disabled="textBlockForm.processing" type="submit">{{ textBlockEditUuid ? 'Upd' : '+Text' }}</button>
+                            <button v-if="textBlockEditUuid" class="btn-secondary" type="button" @click="resetTextBlockForm">x</button>
                         </form>
                         <div class="workspace-toolbar__form">
                             <button
@@ -1235,7 +1427,7 @@ onUnmounted(() => {
                         <div class="workspace-ribbon__group">
                             <span class="workspace-ribbon__label">Selected</span>
                             <span class="workspace-ribbon__pill" v-if="selectedItemRecord">
-                                {{ selectedItem.type === 'section' ? 'Sec' : 'Node' }}: {{ selectedItemRecord.title || '(untitled)' }}
+                                {{ getItemLabel(selectedItemRecord) }}
                             </span>
                             <span class="workspace-ribbon__pill workspace-ribbon__pill--muted" v-else>
                                 Klik item di canvas
@@ -1245,7 +1437,7 @@ onUnmounted(() => {
                         <div class="workspace-ribbon__group" v-if="selectedItemRecord">
                             <span class="workspace-ribbon__label">Font</span>
                             <button type="button" class="btn-secondary" @click="updateItemFontSize(selectedItem.type, selectedItem.uuid, -2)">A-</button>
-                            <span class="workspace-ribbon__value">{{ selectedItemRecord.font_size || (selectedItem.type === 'section' ? 20 : 28) }}px</span>
+                            <span class="workspace-ribbon__value">{{ selectedItemRecord.font_size || (selectedItem.type === 'section' ? 20 : (selectedItem.type === 'text' ? 16 : 28)) }}px</span>
                             <button type="button" class="btn-secondary" @click="updateItemFontSize(selectedItem.type, selectedItem.uuid, 2)">A+</button>
                         </div>
                         <div class="workspace-ribbon__group" v-if="selectedItemRecord">
@@ -1267,8 +1459,9 @@ onUnmounted(() => {
                                 :key="`ribbon-color-${idx}`"
                                 type="button"
                                 class="color-dot"
-                                :style="{ background: preset.bg }"
-                                :title="preset.bg"
+                                :class="{ 'color-dot--clear': preset.bg === 'transparent' }"
+                                :style="{ background: preset.bg === 'transparent' ? 'transparent' : preset.bg }"
+                                :title="preset.label || preset.bg"
                                 @click="applyItemColor(selectedItem.type, selectedItem.uuid, preset)"
                             />
                         </div>
@@ -1404,6 +1597,51 @@ onUnmounted(() => {
                         </div>
 
                         <div
+                            v-for="textBlock in textBlocks"
+                            :key="textBlock.uuid"
+                            class="text-block-box"
+                            :class="{ 'is-dragging': isDragging('text', textBlock.uuid), 'is-selected': isItemSelected('text', textBlock.uuid) }"
+                            :style="{
+                                left: `${textBlock.x}px`,
+                                top: `${textBlock.y}px`,
+                                width: `${textBlock.width}px`,
+                                height: `${textBlock.height}px`,
+                                background: textBlock.bg_color,
+                                color: textBlock.text_color,
+                                justifyContent: resolveVerticalJustify(textBlock.text_valign, 'top'),
+                            }"
+                            @click.stop="selectItem('text', textBlock)"
+                            @pointerdown="startDrag('text', textBlock, $event)"
+                        >
+                            <p
+                                v-if="!isInlineEditing('text', textBlock.uuid)"
+                                class="text-block-content"
+                                @dblclick.stop="startInlineTitleEdit('text', textBlock)"
+                                @pointerdown.stop
+                                :style="{ fontSize: `${textBlock.font_size || 16}px`, textAlign: textBlock.text_align || 'left' }"
+                            >
+                                {{ textBlock.content }}
+                            </p>
+                            <textarea
+                                v-else
+                                v-model="inlineTitleDraft.value"
+                                maxlength="3000"
+                                class="inline-title-input text-block-textarea"
+                                autofocus
+                                :style="{ fontSize: `${textBlock.font_size || 16}px`, textAlign: textBlock.text_align || 'left' }"
+                                @pointerdown.stop
+                                @click.stop
+                                @blur="commitInlineTitleEdit"
+                                @keydown.esc.prevent="cancelInlineTitleEdit"
+                            ></textarea>
+                            <div class="item-actions" @pointerdown.stop>
+                                <button type="button" class="item-actions__edit" @click="startEditTextBlock(textBlock)">Edit</button>
+                                <button type="button" class="item-actions__del" @click="deleteTextBlock(textBlock.uuid)">Del</button>
+                            </div>
+                            <div class="resize-handle" @pointerdown.stop="startDrag('text', textBlock, $event, 'resize')"></div>
+                        </div>
+
+                        <div
                             v-for="node in nodes"
                             :key="node.uuid"
                             class="node-box"
@@ -1536,7 +1774,10 @@ onUnmounted(() => {
                 <div v-if="selectedStudentOverview?.enrollments?.length" class="space-y-2">
                     <div v-for="enr in selectedStudentOverview.enrollments" :key="enr.enrollment_uuid" class="modal-enroll-row">
                         <span>{{ enr.roadmap_title }}</span>
-                        <button type="button" class="btn-danger" @click="unassignUser(enr.enrollment_uuid)">Unassign</button>
+                        <div class="flex gap-2">
+                            <button type="button" class="btn-secondary" @click="manageEnrollment(enr.enrollment_uuid)">Manage</button>
+                            <button type="button" class="btn-danger" @click="unassignUser(enr.enrollment_uuid)">Unassign</button>
+                        </div>
                     </div>
                 </div>
                 <p v-else class="text-[8px] text-slate-400 uppercase">Belum ada roadmap di-assign.</p>
@@ -1674,6 +1915,37 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 0.3rem;
+}
+
+.text-block-input {
+    min-width: 220px;
+    height: 39px;
+    resize: none;
+}
+
+.visual-preview-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.visual-preview-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.visual-save-state {
+    color: #fcd34d;
+    font-size: 8px;
+    text-transform: uppercase;
+}
+
+.btn-save-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
 }
 
 .workspace-ribbon {
@@ -1975,16 +2247,69 @@ onUnmounted(() => {
     z-index: 2;
 }
 
+.text-block-box {
+    position: absolute;
+    border-radius: 0;
+    border: 1px solid transparent;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+    z-index: 1;
+    white-space: pre-wrap;
+}
+
+.text-block-box:hover {
+    border-color: rgba(87, 214, 255, 0.28);
+    background-color: rgba(2, 8, 23, 0.12);
+}
+
+.text-block-content {
+    width: 100%;
+    margin: 0;
+    line-height: 1.45;
+    font-family: Inter, sans-serif;
+    font-weight: 700;
+    text-shadow: 0 1px 0 rgba(2, 8, 23, 0.22);
+    cursor: text;
+    pointer-events: auto;
+}
+
+.text-block-textarea {
+    width: 100%;
+    min-height: 100%;
+    border: 1px solid rgba(87, 214, 255, 0.5);
+    background: rgba(2, 8, 23, 0.78) !important;
+    color: inherit !important;
+    resize: none;
+    line-height: 1.45;
+    border-radius: 0;
+    box-shadow: inset 0 0 0 1px rgba(87, 214, 255, 0.12);
+    caret-color: #facc15;
+    text-shadow: none;
+}
+
+.text-block-textarea::selection {
+    background: rgba(87, 214, 255, 0.35);
+    color: #f8fafc;
+}
+
 .section-box.is-dragging,
-.node-box.is-dragging {
+.node-box.is-dragging,
+.text-block-box.is-dragging {
     cursor: grabbing;
     box-shadow: 0 10px 22px rgba(15, 23, 42, 0.22);
 }
 
 .section-box.is-selected,
-.node-box.is-selected {
+.node-box.is-selected,
+.text-block-box.is-selected {
     outline: 2px solid rgba(34, 211, 238, 0.9);
     outline-offset: 1px;
+    border-color: rgba(87, 214, 255, 0.45);
 }
 
 .node-box.is-connect-target {
@@ -2008,7 +2333,8 @@ onUnmounted(() => {
 }
 
 .section-box:hover .item-actions,
-.node-box:hover .item-actions {
+.node-box:hover .item-actions,
+.text-block-box:hover .item-actions {
     opacity: 1;
 }
 
@@ -2016,16 +2342,21 @@ onUnmounted(() => {
     font-family: Inter, sans-serif;
     font-size: 9px;
     padding: 2px 6px;
-    border: 1px solid rgba(15, 23, 42, 0.35);
-    background: rgba(255, 255, 255, 0.85);
-    color: #0f172a;
+    border: 1px solid rgba(87, 214, 255, 0.45);
+    background: rgba(2, 8, 23, 0.92);
+    color: #67e8f9;
     cursor: pointer;
     border-radius: 4px;
 }
 
+.item-actions__edit {
+    color: #67e8f9 !important;
+    border-color: rgba(87, 214, 255, 0.55) !important;
+}
+
 .item-actions__del {
-    color: #b91c1c !important;
-    border-color: rgba(185, 28, 28, 0.5) !important;
+    color: #fca5a5 !important;
+    border-color: rgba(239, 68, 68, 0.6) !important;
 }
 
 .color-dot {
@@ -2035,6 +2366,26 @@ onUnmounted(() => {
     border-radius: 4px;
     cursor: pointer;
     padding: 0;
+}
+
+.color-dot--clear {
+    position: relative;
+    border-color: rgba(87, 214, 255, 0.55);
+    background:
+        linear-gradient(45deg, rgba(148, 163, 184, 0.16) 25%, transparent 25% 50%, rgba(148, 163, 184, 0.16) 50% 75%, transparent 75%),
+        rgba(2, 8, 23, 0.45) !important;
+    background-size: 8px 8px !important;
+}
+
+.color-dot--clear::after {
+    content: '';
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    top: 7px;
+    height: 1px;
+    background: #f87171;
+    transform: rotate(-35deg);
 }
 
 .resize-handle {
@@ -2052,8 +2403,21 @@ onUnmounted(() => {
     touch-action: none;
 }
 
+.text-block-box .resize-handle {
+    right: 2px;
+    bottom: 2px;
+    width: 22px;
+    height: 22px;
+    border: 0;
+    background:
+        linear-gradient(135deg, transparent 0 52%, rgba(103, 232, 249, 0.95) 52% 58%, transparent 58% 66%, rgba(103, 232, 249, 0.95) 66% 72%, transparent 72% 80%, rgba(103, 232, 249, 0.95) 80% 86%, transparent 86%);
+    box-shadow: none;
+}
+
 .section-box:hover .resize-handle,
-.node-box:hover .resize-handle {
+.node-box:hover .resize-handle,
+.text-block-box:hover .resize-handle,
+.text-block-box.is-selected .resize-handle {
     opacity: 1;
 }
 
@@ -2317,6 +2681,20 @@ onUnmounted(() => {
     gap: 8px;
 }
 
+.visual-preview-head {
+    margin-bottom: 8px;
+}
+
+.visual-preview-actions .btn-secondary,
+.visual-preview-actions .btn-primary {
+    padding: 7px 10px;
+}
+
+.btn-save-icon span {
+    font-size: 12px;
+    line-height: 1;
+}
+
 .roadmap-board {
     border: 1px solid rgba(87, 214, 255, 0.18);
     border-radius: 0;
@@ -2325,9 +2703,14 @@ onUnmounted(() => {
 }
 
 .section-box,
-.node-box {
+.node-box,
+.text-block-box {
     transition: box-shadow 0.14s ease, transform 0.14s ease;
     border-radius: 0 !important;
+}
+
+.section-box,
+.node-box {
     box-shadow: 3px 3px 0 rgba(1, 6, 14, 0.7) !important;
 }
 

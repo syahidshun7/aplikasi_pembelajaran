@@ -66,12 +66,6 @@ const canAccessDoopLab = computed(() => Boolean(page.props?.auth?.user?.can_acce
                                         </div>
                                     </div>
                                 
-                                <div class="hologram-rings">
-                                    <div class="ring r1"></div>
-                                    <div class="ring r2"></div>
-                                    <div class="scan-beam"></div>
-                                </div>
-
                                 <div class="data-particles">
                                     <span class="p1">101</span>
                                     <span class="p2">RUN</span>
@@ -103,7 +97,7 @@ const canAccessDoopLab = computed(() => Boolean(page.props?.auth?.user?.can_acce
                                         UNLOCK DOOPLAB ->
                                     </Link>
                                     <p v-if="!canAccessDoopLab" class="unlock-note font-sans">
-                                        Akses eksperimen penuh tersedia untuk member DoopLab.
+                                        Beli "Kunci DoopLab" di Shop untuk membuka akses penuh.
                                     </p>
                                 </div>
                             </div>
@@ -265,23 +259,6 @@ const canAccessDoopLab = computed(() => Boolean(page.props?.auth?.user?.can_acce
     z-index: 12;
 }
 
-.hologram-rings { position: absolute; inset: -42px; z-index: 5; }
-.ring {
-    position: absolute; inset: 0; border-radius: 50%;
-    border: 1px solid rgba(88, 245, 229, 0.48);
-    box-shadow: 0 0 18px rgba(88, 245, 229, 0.28);
-    animation: rotate-hologram 12s linear infinite;
-}
-.r1 { transform: rotateX(65deg) rotateY(10deg); }
-.r2 { transform: rotateX(-65deg) rotateY(-10deg); border-style: dashed; }
-.scan-beam {
-    position: absolute; top: 0; left: -26px; right: -26px; height: 6px;
-    background: rgba(88, 245, 229, 0.65);
-    filter: blur(4px) drop-shadow(0 0 8px var(--neon-teal));
-    animation: scan-up-down 5s ease-in-out infinite;
-    z-index: 4;
-}
-
 /* Floating Data Particles */
 .data-particles { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
 .data-particles span { position: absolute; font-size: 6px; color: var(--neon-teal); opacity: 0.42; }
@@ -379,7 +356,6 @@ const canAccessDoopLab = computed(() => Boolean(page.props?.auth?.user?.can_acce
     .lab-logo-shell { width: 206px; height: 206px; border-radius: 36px; }
     .lab-logo-plate { inset: 20px; border-radius: 26px; }
     .lab-logo-core { width: 208px; height: 146px; }
-    .hologram-rings { inset: -30px; }
 }
 
 @media (max-width: 520px) {
@@ -388,7 +364,6 @@ const canAccessDoopLab = computed(() => Boolean(page.props?.auth?.user?.can_acce
     .lab-logo-shell { width: 186px; height: 186px; border-radius: 32px; }
     .lab-logo-plate { inset: 18px; border-radius: 22px; }
     .lab-logo-core { width: 188px; height: 132px; }
-    .hologram-rings { inset: -26px; }
 }
 </style>
 

@@ -173,6 +173,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/dooplab/roadmaps/{roadmap}/sections', [DoopLabRoadmapController::class, 'storeSection'])->name('dooplab.roadmaps.sections.store');
     Route::patch('/dooplab/roadmap-sections/{section}', [DoopLabRoadmapController::class, 'updateSection'])->name('dooplab.roadmaps.sections.update');
     Route::delete('/dooplab/roadmap-sections/{section}', [DoopLabRoadmapController::class, 'destroySection'])->name('dooplab.roadmaps.sections.destroy');
+    Route::post('/dooplab/roadmaps/{roadmap}/text-blocks', [DoopLabRoadmapController::class, 'storeTextBlock'])->name('dooplab.roadmaps.text-blocks.store');
+    Route::patch('/dooplab/roadmap-text-blocks/{textBlock}', [DoopLabRoadmapController::class, 'updateTextBlock'])->name('dooplab.roadmaps.text-blocks.update');
+    Route::delete('/dooplab/roadmap-text-blocks/{textBlock}', [DoopLabRoadmapController::class, 'destroyTextBlock'])->name('dooplab.roadmaps.text-blocks.destroy');
     Route::post('/dooplab/roadmaps/{roadmap}/nodes', [DoopLabRoadmapController::class, 'storeNode'])->name('dooplab.roadmaps.nodes.store');
     Route::patch('/dooplab/roadmap-nodes/{node}', [DoopLabRoadmapController::class, 'updateNode'])->name('dooplab.roadmaps.nodes.update');
     Route::delete('/dooplab/roadmap-nodes/{node}', [DoopLabRoadmapController::class, 'destroyNode'])->name('dooplab.roadmaps.nodes.destroy');

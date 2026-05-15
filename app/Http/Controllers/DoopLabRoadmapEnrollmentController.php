@@ -54,11 +54,13 @@ class DoopLabRoadmapEnrollmentController extends Controller
 
         $isOwner = (int) $enrollment->user_id === (int) $user->id;
         $isMentor = (int) $enrollment->mentor_user_id === (int) $user->id;
-        abort_unless($isOwner || $isMentor || $user->isAdmin(), 403, 'ROADMAP_ENROLLMENT_FORBIDDEN');
+        $canManage = $isMentor || $user->isAdmin();
+        abort_unless($isOwner || $canManage, 403, 'ROADMAP_ENROLLMENT_FORBIDDEN');
 
         $enrollment->load([
             'roadmap.sections',
             'roadmap.nodes.resources',
+            'roadmap.textBlocks',
             'roadmap.edges.fromNode:id,uuid',
             'roadmap.edges.toNode:id,uuid',
             'user:id,name',
@@ -75,6 +77,7 @@ class DoopLabRoadmapEnrollmentController extends Controller
             'status' => (string) $enrollment->status,
             'is_owner' => $isOwner,
             'is_mentor' => $isMentor,
+            'can_manage' => $canManage,
             'mentor_name' => (string) ($enrollment->mentor?->name ?? ''),
             'student_name' => (string) ($enrollment->user?->name ?? ''),
             'roadmap' => [
@@ -122,6 +125,19 @@ class DoopLabRoadmapEnrollmentController extends Controller
                         ],
                     ];
                 })->values()->all() ?? [],
+                'text_blocks' => $enrollment->roadmap?->textBlocks?->map(fn ($textBlock) => [
+                    'uuid' => (string) $textBlock->uuid,
+                    'content' => (string) ($textBlock->content ?? ''),
+                    'x' => (int) $textBlock->x,
+                    'y' => (int) $textBlock->y,
+                    'width' => (int) $textBlock->width,
+                    'height' => (int) $textBlock->height,
+                    'bg_color' => (string) ($textBlock->bg_color ?? 'transparent'),
+                    'text_color' => (string) ($textBlock->text_color ?? '#e6f6ff'),
+                    'font_size' => (int) ($textBlock->font_size ?? 16),
+                    'text_align' => (string) ($textBlock->text_align ?? 'left'),
+                    'text_valign' => (string) ($textBlock->text_valign ?? 'top'),
+                ])->values()->all() ?? [],
                 'edges' => $enrollment->roadmap?->edges?->filter(fn ($edge) => $edge->fromNode && $edge->toNode)
                     ->map(fn ($edge) => [
                         'uuid' => (string) $edge->uuid,
@@ -143,7 +159,7 @@ class DoopLabRoadmapEnrollmentController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user && $user->isMentor(), 403, 'ROADMAP_ENROLLMENT_MENTOR_ONLY');
+        abort_unless($user && ($user->isMentor() || $user->isAdmin()), 403, 'ROADMAP_ENROLLMENT_MENTOR_ONLY');
 
         $validated = $request->validate([
             'roadmap_uuid' => ['required', 'string'],
@@ -166,7 +182,7 @@ class DoopLabRoadmapEnrollmentController extends Controller
             $this->ensureProgressRows($enrollment->fresh(['roadmap.nodes']));
         }
 
-        return redirect()->route('dooplab.roadmaps.index', ['roadmap' => $roadmap->uuid, 'workspace' => 1]);
+        return redirect()->route('dooplab.roadmaps.index');
     }
 
     public function destroy(Request $request, DoopLabRoadmapEnrollment $enrollment): RedirectResponse
@@ -174,10 +190,9 @@ class DoopLabRoadmapEnrollmentController extends Controller
         $user = $request->user();
         abort_unless($user && ((int) $enrollment->mentor_user_id === (int) $user->id || $user->isAdmin()), 403);
 
-        $roadmap = $enrollment->roadmap;
         $enrollment->delete();
 
-        return redirect()->route('dooplab.roadmaps.index', ['roadmap' => $roadmap?->uuid ?? '', 'workspace' => 1]);
+        return redirect()->route('dooplab.roadmaps.index');
     }
 
     public function submit(Request $request, DoopLabRoadmapEnrollment $enrollment, string $nodeUuid): RedirectResponse
@@ -217,7 +232,7 @@ class DoopLabRoadmapEnrollmentController extends Controller
     public function review(Request $request, DoopLabRoadmapEnrollment $enrollment, string $nodeUuid): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user && (int) $enrollment->mentor_user_id === (int) $user->id, 403);
+        abort_unless($user && ((int) $enrollment->mentor_user_id === (int) $user->id || $user->isAdmin()), 403);
 
         $validated = $request->validate([
             'decision' => ['required', 'string', 'in:approved,revision'],

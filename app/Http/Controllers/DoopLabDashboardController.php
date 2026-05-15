@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Creation;
 use App\Models\CreationCollaborator;
 use App\Models\CreationCollaborationRequest;
+use App\Models\DoopLabRoadmapEnrollment;
 use App\Models\DoopLabTodo;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -276,6 +277,25 @@ class DoopLabDashboardController extends Controller
             ->values()
             ->all();
 
+        $learningPaths = DoopLabRoadmapEnrollment::query()
+            ->where('user_id', $userId)
+            ->with(['roadmap:id,uuid,title,description', 'mentor:id,name'])
+            ->latest('updated_at')
+            ->get()
+            ->map(fn (DoopLabRoadmapEnrollment $enrollment) => [
+                'uuid' => (string) $enrollment->uuid,
+                'status' => (string) $enrollment->status,
+                'roadmap' => [
+                    'uuid' => (string) ($enrollment->roadmap?->uuid ?? ''),
+                    'title' => (string) ($enrollment->roadmap?->title ?? ''),
+                    'description' => (string) ($enrollment->roadmap?->description ?? ''),
+                ],
+                'mentor_name' => (string) ($enrollment->mentor?->name ?? ''),
+                'updated_at' => $enrollment->updated_at?->toIso8601String(),
+            ])
+            ->values()
+            ->all();
+
         return Inertia::render('DoopLab/Dashboard', [
             'overview' => [
                 'system_core' => 'OFFLINE',
@@ -299,6 +319,7 @@ class DoopLabDashboardController extends Controller
             ],
             'todo_assignable_users' => $assignableUsers,
             'research_workspaces' => $researchWorkspaces,
+            'learning_paths' => $learningPaths,
         ]);
     }
 }

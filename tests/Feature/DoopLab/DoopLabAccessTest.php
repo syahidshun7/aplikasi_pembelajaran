@@ -4,7 +4,7 @@ use App\Models\User;
 
 test('guest is redirected to login when opening dooplab', function () {
     $this->get(route('dooplab.index'))
-        ->assertRedirect(route('login'));
+        ->assertRedirect(route('landing'));
 });
 
 test('non paid member can open dooplab landing', function () {

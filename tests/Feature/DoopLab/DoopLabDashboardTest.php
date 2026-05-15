@@ -5,18 +5,21 @@ use Inertia\Testing\AssertableInertia;
 
 test('guest is redirected to login when opening dooplab dashboard', function () {
     $this->get(route('dooplab.dashboard'))
-        ->assertRedirect(route('login'));
+        ->assertUnauthorized();
 });
 
-test('non paid member is redirected to dooplab landing when opening dashboard', function () {
+test('regular user can open dooplab dashboard', function () {
     $user = User::factory()->create([
         'role' => User::ROLE_USER,
     ]);
 
     $this->actingAs($user)
         ->get(route('dooplab.dashboard'))
-        ->assertRedirect(route('dooplab.index'))
-        ->assertSessionHas('message', 'ACCESS_DENIED: DOOPLAB_DASHBOARD_PREMIUM_ONLY');
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('DoopLab/Dashboard')
+            ->has('learning_paths')
+        );
 });
 
 test('paid member can open dooplab dashboard', function () {
@@ -37,5 +40,6 @@ test('paid member can open dooplab dashboard', function () {
             ->has('todos')
             ->has('todo_permissions')
             ->has('todo_assignable_users')
+            ->has('learning_paths')
         );
 });

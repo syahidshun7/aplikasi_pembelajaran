@@ -7,6 +7,7 @@ use App\Models\DoopLabRoadmapEdge;
 use App\Models\DoopLabRoadmapEnrollment;
 use App\Models\DoopLabRoadmapNode;
 use App\Models\DoopLabRoadmapSection;
+use App\Models\DoopLabRoadmapTextBlock;
 use App\Models\Guide;
 use App\Models\Quest;
 use App\Models\User;
@@ -115,7 +116,7 @@ class DoopLabRoadmapController extends Controller
                 ->values()
                 ->all() : [],
             'studentsOverview' => DoopLabRoadmapEnrollment::query()
-                ->where('mentor_user_id', (int) $user->id)
+                ->when(! $user->isAdmin(), fn ($query) => $query->where('mentor_user_id', (int) $user->id))
                 ->with(['user:id,name,email,role', 'roadmap:id,uuid,title'])
                 ->get()
                 ->groupBy('user_id')
@@ -279,6 +280,96 @@ class DoopLabRoadmapController extends Controller
         $this->assertCanManageRoadmap($user, $roadmap);
 
         $section->delete();
+        $roadmap->update(['updated_by_user_id' => (int) $user->id]);
+
+        return redirect()->route('dooplab.roadmaps.index', $this->workspaceParams($request, $roadmap->uuid));
+    }
+
+    public function storeTextBlock(Request $request, DoopLabRoadmap $roadmap): RedirectResponse
+    {
+        $user = $request->user();
+        $this->assertCanManageRoadmap($user, $roadmap);
+
+        $validated = $request->validate([
+            'content' => ['required', 'string', 'max:3000'],
+            'x' => ['nullable', 'integer', 'min:0', 'max:8000'],
+            'y' => ['nullable', 'integer', 'min:0', 'max:8000'],
+            'width' => ['nullable', 'integer', 'min:120', 'max:2400'],
+            'height' => ['nullable', 'integer', 'min:60', 'max:1600'],
+            'bg_color' => ['nullable', 'string', 'max:20'],
+            'text_color' => ['nullable', 'string', 'max:20'],
+            'font_size' => ['nullable', 'integer', 'min:8', 'max:120'],
+            'text_align' => ['nullable', 'string', 'in:left,center,right'],
+            'text_valign' => ['nullable', 'string', 'in:top,middle,bottom'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
+        ]);
+
+        DoopLabRoadmapTextBlock::query()->create([
+            'roadmap_id' => (int) $roadmap->id,
+            'content' => trim((string) $validated['content']),
+            'x' => (int) ($validated['x'] ?? 120),
+            'y' => (int) ($validated['y'] ?? 120),
+            'width' => (int) ($validated['width'] ?? 320),
+            'height' => (int) ($validated['height'] ?? 120),
+            'bg_color' => $this->normalizeColor((string) ($validated['bg_color'] ?? 'transparent'), 'transparent'),
+            'text_color' => $this->normalizeColor((string) ($validated['text_color'] ?? '#e6f6ff'), '#e6f6ff'),
+            'font_size' => (int) ($validated['font_size'] ?? 16),
+            'text_align' => (string) ($validated['text_align'] ?? 'left'),
+            'text_valign' => (string) ($validated['text_valign'] ?? 'top'),
+            'sort_order' => (int) ($validated['sort_order'] ?? 0),
+        ]);
+
+        $roadmap->update(['updated_by_user_id' => (int) $user->id]);
+
+        return redirect()->route('dooplab.roadmaps.index', $this->workspaceParams($request, $roadmap->uuid));
+    }
+
+    public function updateTextBlock(Request $request, DoopLabRoadmapTextBlock $textBlock): RedirectResponse
+    {
+        $user = $request->user();
+        $roadmap = $textBlock->roadmap;
+        $this->assertCanManageRoadmap($user, $roadmap);
+
+        $validated = $request->validate([
+            'content' => ['required', 'string', 'max:3000'],
+            'x' => ['nullable', 'integer', 'min:0', 'max:8000'],
+            'y' => ['nullable', 'integer', 'min:0', 'max:8000'],
+            'width' => ['nullable', 'integer', 'min:120', 'max:2400'],
+            'height' => ['nullable', 'integer', 'min:60', 'max:1600'],
+            'bg_color' => ['nullable', 'string', 'max:20'],
+            'text_color' => ['nullable', 'string', 'max:20'],
+            'font_size' => ['nullable', 'integer', 'min:8', 'max:120'],
+            'text_align' => ['nullable', 'string', 'in:left,center,right'],
+            'text_valign' => ['nullable', 'string', 'in:top,middle,bottom'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
+        ]);
+
+        $textBlock->update([
+            'content' => trim((string) $validated['content']),
+            'x' => (int) ($validated['x'] ?? $textBlock->x),
+            'y' => (int) ($validated['y'] ?? $textBlock->y),
+            'width' => (int) ($validated['width'] ?? $textBlock->width),
+            'height' => (int) ($validated['height'] ?? $textBlock->height),
+            'bg_color' => $this->normalizeColor((string) ($validated['bg_color'] ?? $textBlock->bg_color), 'transparent'),
+            'text_color' => $this->normalizeColor((string) ($validated['text_color'] ?? $textBlock->text_color), '#e6f6ff'),
+            'font_size' => (int) ($validated['font_size'] ?? $textBlock->font_size),
+            'text_align' => (string) ($validated['text_align'] ?? $textBlock->text_align),
+            'text_valign' => (string) ($validated['text_valign'] ?? $textBlock->text_valign),
+            'sort_order' => (int) ($validated['sort_order'] ?? $textBlock->sort_order),
+        ]);
+
+        $roadmap->update(['updated_by_user_id' => (int) $user->id]);
+
+        return redirect()->route('dooplab.roadmaps.index', $this->workspaceParams($request, $roadmap->uuid));
+    }
+
+    public function destroyTextBlock(Request $request, DoopLabRoadmapTextBlock $textBlock): RedirectResponse
+    {
+        $user = $request->user();
+        $roadmap = $textBlock->roadmap;
+        $this->assertCanManageRoadmap($user, $roadmap);
+
+        $textBlock->delete();
         $roadmap->update(['updated_by_user_id' => (int) $user->id]);
 
         return redirect()->route('dooplab.roadmaps.index', $this->workspaceParams($request, $roadmap->uuid));
@@ -485,6 +576,7 @@ class DoopLabRoadmapController extends Controller
                 'sections' => fn ($q) => $q->orderBy('sort_order')->orderBy('id'),
                 'nodes' => fn ($q) => $q->orderBy('sort_order')->orderBy('id'),
                 'nodes.resources',
+                'textBlocks' => fn ($q) => $q->orderBy('sort_order')->orderBy('id'),
                 'edges.fromNode:id,uuid',
                 'edges.toNode:id,uuid',
             ]);
@@ -550,6 +642,24 @@ class DoopLabRoadmapController extends Controller
                 ])
                 ->values()
                 ->all(),
+            'text_blocks' => $roadmap->textBlocks
+                ->map(fn (DoopLabRoadmapTextBlock $textBlock) => [
+                    'id' => (int) $textBlock->id,
+                    'uuid' => (string) $textBlock->uuid,
+                    'content' => (string) ($textBlock->content ?? ''),
+                    'x' => (int) $textBlock->x,
+                    'y' => (int) $textBlock->y,
+                    'width' => (int) $textBlock->width,
+                    'height' => (int) $textBlock->height,
+                    'bg_color' => (string) ($textBlock->bg_color ?? 'transparent'),
+                    'text_color' => (string) ($textBlock->text_color ?? '#e6f6ff'),
+                    'font_size' => (int) ($textBlock->font_size ?? 16),
+                    'text_align' => (string) ($textBlock->text_align ?? 'left'),
+                    'text_valign' => (string) ($textBlock->text_valign ?? 'top'),
+                    'sort_order' => (int) $textBlock->sort_order,
+                ])
+                ->values()
+                ->all(),
             'edges' => $roadmap->edges
                 ->filter(fn (DoopLabRoadmapEdge $edge) => $edge->fromNode && $edge->toNode)
                 ->map(fn (DoopLabRoadmapEdge $edge) => [
@@ -591,6 +701,10 @@ class DoopLabRoadmapController extends Controller
         $trimmed = trim($value);
         if ($trimmed === '') {
             return $fallback;
+        }
+
+        if (strtolower($trimmed) === 'transparent') {
+            return 'transparent';
         }
 
         if (preg_match('/^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/', $trimmed) !== 1) {

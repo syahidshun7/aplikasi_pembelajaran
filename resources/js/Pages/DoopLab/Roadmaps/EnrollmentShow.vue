@@ -10,9 +10,11 @@ const props = defineProps({
 const roadmap = computed(() => props.enrollment?.roadmap || {});
 const sections = computed(() => roadmap.value.sections || []);
 const nodes = computed(() => roadmap.value.nodes || []);
+const textBlocks = computed(() => roadmap.value.text_blocks || []);
 const edges = computed(() => roadmap.value.edges || []);
 const isOwner = computed(() => Boolean(props.enrollment?.is_owner));
 const isMentor = computed(() => Boolean(props.enrollment?.is_mentor));
+const canManage = computed(() => Boolean(props.enrollment?.can_manage));
 
 const selectedNode = ref(null);
 
@@ -22,13 +24,15 @@ const nodeMap = computed(() => {
 
 const boardWidth = computed(() => {
     const maxX = Math.max(1000, ...nodes.value.map((n) => Number(n.x || 0) + Number(n.width || 0)),
-        ...sections.value.map((s) => Number(s.x || 0) + Number(s.width || 0)));
+        ...sections.value.map((s) => Number(s.x || 0) + Number(s.width || 0)),
+        ...textBlocks.value.map((t) => Number(t.x || 0) + Number(t.width || 0)));
     return maxX + 120;
 });
 
 const boardHeight = computed(() => {
     const maxY = Math.max(680, ...nodes.value.map((n) => Number(n.y || 0) + Number(n.height || 0)),
-        ...sections.value.map((s) => Number(s.y || 0) + Number(s.height || 0)));
+        ...sections.value.map((s) => Number(s.y || 0) + Number(s.height || 0)),
+        ...textBlocks.value.map((t) => Number(t.y || 0) + Number(t.height || 0)));
     return maxY + 120;
 });
 
@@ -104,14 +108,20 @@ const unlockNode = (node) => {
     router.post(route('dooplab.roadmaps.enrollments.unlock', {
         enrollment: props.enrollment.uuid,
         nodeUuid: node.uuid,
-    }), {}, { preserveScroll: true });
+    }), {}, {
+        preserveScroll: true,
+        onSuccess: () => { selectedNode.value = null; },
+    });
 };
 
 const lockNode = (node) => {
     router.post(route('dooplab.roadmaps.enrollments.lock', {
         enrollment: props.enrollment.uuid,
         nodeUuid: node.uuid,
-    }), {}, { preserveScroll: true });
+    }), {}, {
+        preserveScroll: true,
+        onSuccess: () => { selectedNode.value = null; },
+    });
 };
 </script>
 
@@ -123,7 +133,7 @@ const lockNode = (node) => {
                 <div>
                     <h1 class="text-sm md:text-lg uppercase tracking-wider">{{ roadmap.title }}</h1>
                     <p class="text-[8px] text-slate-400 uppercase mt-1">
-                        {{ isMentor ? `Student: ${enrollment.student_name}` : `Mentor: ${enrollment.mentor_name}` }}
+                        {{ canManage ? `Student: ${enrollment.student_name}` : `Mentor: ${enrollment.mentor_name}` }}
                     </p>
                 </div>
                 <Link :href="route('dooplab.roadmaps.enrollments.index')" class="px-3 py-2 border border-slate-700 text-slate-300 hover:text-white uppercase text-[8px]">Back</Link>
@@ -160,6 +170,23 @@ const lockNode = (node) => {
                     </div>
 
                     <div
+                        v-for="textBlock in textBlocks"
+                        :key="`txt-${textBlock.uuid}`"
+                        class="text-block-box"
+                        :style="{
+                            left: `${textBlock.x}px`,
+                            top: `${textBlock.y}px`,
+                            width: `${textBlock.width}px`,
+                            height: `${textBlock.height}px`,
+                            background: textBlock.bg_color,
+                            color: textBlock.text_color,
+                            justifyContent: resolveVerticalJustify(textBlock.text_valign, 'top'),
+                        }"
+                    >
+                        <p class="text-block-content" :style="{ fontSize: `${textBlock.font_size || 16}px`, textAlign: textBlock.text_align || 'left' }">{{ textBlock.content }}</p>
+                    </div>
+
+                    <div
                         v-for="node in nodes"
                         :key="node.uuid"
                         class="node-box"
@@ -183,44 +210,65 @@ const lockNode = (node) => {
                 </div>
             </div>
 
-            <div v-if="selectedNode" class="panel space-y-3">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-[10px] text-cyan-300 uppercase">{{ selectedNode.title }}</h3>
-                    <button class="text-[8px] text-slate-400 uppercase" @click="selectedNode = null">Close</button>
-                </div>
-                <p class="text-[9px] text-slate-300">Status: {{ getNodeStatusLabel(selectedNode) }}</p>
+            <Teleport to="body">
+                <div v-if="selectedNode" class="node-modal-backdrop" @click.self="selectedNode = null">
+                    <div class="node-modal-card">
+                        <div class="node-modal-head">
+                            <div>
+                                <p>Selected Node</p>
+                                <h3>{{ selectedNode.title }}</h3>
+                            </div>
+                            <button type="button" class="node-modal-close" @click="selectedNode = null">×</button>
+                        </div>
 
-                <div v-if="selectedNode.resource_meta" class="text-[9px]">
-                    <a :href="selectedNode.resource_meta.href" target="_blank" class="text-cyan-400 underline">
-                        {{ selectedNode.resource_meta.type === 'guide' ? '📖' : '⚔️' }} {{ selectedNode.resource_meta.label }}
-                    </a>
-                </div>
+                        <div class="node-modal-status">
+                            <span class="node-status-badge" :style="{ background: getNodeStatusColor(selectedNode) }">{{ getNodeStatusLabel(selectedNode) }}</span>
+                        </div>
 
-                <div v-if="selectedNode.progress?.mentor_note" class="text-[9px] text-amber-300">
-                    Mentor: {{ selectedNode.progress.mentor_note }}
-                </div>
+                        <div v-if="selectedNode.resource_meta_list?.length" class="node-modal-resource-list">
+                            <p>Materi & Quest</p>
+                            <div class="node-modal-resource-grid">
+                                <a
+                                    v-for="resource in selectedNode.resource_meta_list"
+                                    :key="`${resource.type}-${resource.href}`"
+                                    :href="resource.href"
+                                    target="_blank"
+                                    class="node-modal-resource-link"
+                                >
+                                    <span aria-hidden="true">{{ resource.type === 'guide' ? '📖' : '⚔️' }}</span>
+                                    {{ resource.label }}
+                                </a>
+                            </div>
+                        </div>
 
-                <div v-if="isOwner && (selectedNode.progress?.status === 'unlocked' || selectedNode.progress?.status === 'revision')" class="space-y-2">
-                    <textarea v-model="submitForm.student_note" placeholder="Catatan (opsional)" class="field w-full h-16 resize-none" />
-                    <button class="btn-primary" :disabled="submitForm.processing" @click="submitNode(selectedNode)">Submit</button>
-                </div>
+                        <div v-if="selectedNode.progress?.mentor_note" class="node-modal-note">
+                            Mentor note: {{ selectedNode.progress.mentor_note }}
+                        </div>
 
-                <div v-if="isMentor && selectedNode.progress?.status === 'submitted'" class="space-y-2">
-                    <textarea v-model="reviewForm.mentor_note" placeholder="Feedback (opsional)" class="field w-full h-16 resize-none" />
-                    <div class="flex gap-2">
-                        <button class="btn-primary" :disabled="reviewForm.processing" @click="reviewForm.decision = 'approved'; reviewNode(selectedNode)">Approve</button>
-                        <button class="btn-danger" :disabled="reviewForm.processing" @click="reviewForm.decision = 'revision'; reviewNode(selectedNode)">Revisi</button>
+                        <div v-if="isOwner && (selectedNode.progress?.status === 'unlocked' || selectedNode.progress?.status === 'revision')" class="node-modal-form">
+                            <textarea v-model="submitForm.student_note" placeholder="Catatan submit (opsional)" class="field h-20 resize-none" />
+                            <button class="btn-primary" :disabled="submitForm.processing" type="button" @click="submitNode(selectedNode)">Submit Node</button>
+                        </div>
+
+                        <div v-if="canManage && selectedNode.progress?.status === 'submitted'" class="node-modal-form">
+                            <textarea v-model="reviewForm.mentor_note" placeholder="Feedback mentor (opsional)" class="field h-20 resize-none" />
+                            <div class="node-modal-actions">
+                                <button class="btn-primary" :disabled="reviewForm.processing" type="button" @click="reviewForm.decision = 'approved'; reviewNode(selectedNode)">Approve</button>
+                                <button class="btn-danger" :disabled="reviewForm.processing" type="button" @click="reviewForm.decision = 'revision'; reviewNode(selectedNode)">Revisi</button>
+                            </div>
+                        </div>
+
+                        <div v-if="canManage && selectedNode.progress?.status === 'locked'" class="node-modal-actions">
+                            <button class="btn-primary" type="button" @click="unlockNode(selectedNode)">Unlock Node</button>
+                        </div>
+
+                        <div v-if="canManage && selectedNode.progress?.status === 'unlocked'" class="node-modal-actions">
+                            <button class="btn-danger" type="button" @click="lockNode(selectedNode)">Relock Node</button>
+                        </div>
                     </div>
                 </div>
+            </Teleport>
 
-                <div v-if="isMentor && selectedNode.progress?.status === 'locked'" class="space-y-2">
-                    <button class="btn-primary" @click="unlockNode(selectedNode)">Unlock Node</button>
-                </div>
-
-                <div v-if="isMentor && selectedNode.progress?.status === 'unlocked'" class="space-y-2">
-                    <button class="btn-danger" @click="lockNode(selectedNode)">Relock Node</button>
-                </div>
-            </div>
         </div>
     </AuthenticatedLayout>
 </template>
@@ -241,6 +289,177 @@ const lockNode = (node) => {
     font-size: 11px;
     font-family: Inter, sans-serif;
     border-radius: 0;
+}
+.node-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background:
+        radial-gradient(circle at 50% 24%, rgba(87, 214, 255, 0.1), transparent 30%),
+        rgba(2, 6, 23, 0.82);
+    backdrop-filter: blur(3px);
+}
+
+.node-modal-card {
+    width: min(520px, 100%);
+    position: relative;
+    border: 2px solid rgba(87, 214, 255, 0.45);
+    background: #07101d;
+    box-shadow:
+        8px 8px 0 rgba(1, 6, 14, 0.95),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.035),
+        0 0 30px rgba(87, 214, 255, 0.16);
+    padding: 1.1rem;
+    color: #e6f6ff;
+}
+
+.node-modal-card::before,
+.node-modal-card::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    pointer-events: none;
+}
+
+.node-modal-card::before {
+    top: -2px;
+    left: -2px;
+    border-top: 4px solid #67e8f9;
+    border-left: 4px solid #67e8f9;
+}
+
+.node-modal-card::after {
+    right: -2px;
+    bottom: -2px;
+    border-right: 4px solid #facc15;
+    border-bottom: 4px solid #facc15;
+}
+
+.node-modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 2px solid rgba(87, 214, 255, 0.28);
+    padding-bottom: 0.85rem;
+    margin-bottom: 0.85rem;
+}
+
+.node-modal-head p {
+    margin: 0 0 0.4rem;
+    color: #facc15;
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.node-modal-head h3 {
+    margin: 0;
+    color: #e6f6ff;
+    font-size: 12px;
+    line-height: 1.7;
+    text-shadow: 2px 2px 0 rgba(87, 214, 255, 0.18);
+    text-transform: uppercase;
+}
+
+.node-modal-close {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    border: 2px solid rgba(87, 214, 255, 0.45);
+    background: #020617;
+    color: #67e8f9;
+    font-size: 16px;
+    line-height: 1;
+    box-shadow: 3px 3px 0 rgba(1, 6, 14, 0.95);
+    transition: transform 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.node-modal-close:hover {
+    transform: translate(-1px, -1px);
+    border-color: #facc15;
+    color: #facc15;
+}
+
+.node-modal-status,
+.node-modal-resource-list,
+.node-modal-note,
+.node-modal-form,
+.node-modal-actions {
+    margin-top: 0.75rem;
+}
+
+.node-modal-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.node-status-badge {
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 3px 3px 0 rgba(1, 6, 14, 0.9);
+    color: #020617 !important;
+    padding: 0.32rem 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.node-modal-resource-list p {
+    margin: 0 0 0.45rem;
+    color: #facc15;
+    font-size: 8px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.node-modal-resource-grid {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.node-modal-resource-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    max-width: 100%;
+    border: 1px solid rgba(87, 214, 255, 0.35);
+    background: rgba(87, 214, 255, 0.06);
+    color: #67e8f9;
+    font-size: 8px;
+    line-height: 1.8;
+    padding: 0.45rem 0.55rem;
+    text-decoration: none;
+    text-transform: uppercase;
+    box-shadow: 3px 3px 0 rgba(1, 6, 14, 0.9);
+}
+
+.node-modal-resource-link:hover {
+    border-color: #facc15;
+    color: #fde68a;
+}
+
+.node-modal-note {
+    border-left: 3px solid #facc15;
+    background: rgba(250, 204, 21, 0.08);
+    color: #fde68a;
+    font-size: 8px;
+    line-height: 1.8;
+    padding: 0.65rem 0.75rem;
+}
+
+.node-modal-form {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.node-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
 }
 .btn-primary {
     border: 1px solid #22d3ee;
@@ -296,6 +515,25 @@ const lockNode = (node) => {
     font-family: Inter, sans-serif;
     width: 100%;
 }
+.text-block-box {
+    position: absolute;
+    border-radius: 0;
+    border: 1px solid transparent;
+    box-shadow: none;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    z-index: 1;
+    white-space: pre-wrap;
+}
+.text-block-content {
+    width: 100%;
+    margin: 0;
+    line-height: 1.45;
+    font-family: Inter, sans-serif;
+    font-weight: 700;
+    text-shadow: 0 1px 0 rgba(2, 8, 23, 0.22);
+}
 .node-box {
     position: absolute;
     border-radius: 0;
@@ -350,4 +588,37 @@ p, span, a, button, textarea { font-size: 8px; }
 .section-title { font-size: 11px !important; }
 .node-title { font-size: 12px !important; }
 .node-status-badge { font-size: 7px !important; }
+
+.node-modal-card {
+    font-size: 11px !important;
+}
+
+.node-modal-head p {
+    font-size: 10px !important;
+}
+
+.node-modal-head h3 {
+    font-size: 16px !important;
+}
+
+.node-modal-card p,
+.node-modal-card span,
+.node-modal-card a,
+.node-modal-card button,
+.node-modal-card textarea {
+    font-size: 11px !important;
+}
+
+.node-modal-resource-list p,
+.node-modal-resource-link {
+    font-size: 11px !important;
+}
+
+.node-modal-card .node-status-badge {
+    font-size: 10px !important;
+}
+
+.node-modal-close {
+    font-size: 18px !important;
+}
 </style>
