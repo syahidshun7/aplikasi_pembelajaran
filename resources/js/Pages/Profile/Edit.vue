@@ -396,24 +396,24 @@ onBeforeUnmount(() => {
                             </h2>
                             <div class="py-2">
                                 <div class="job-card border border-indigo-400/50 bg-[#0d1117] p-2 shadow-[4px_4px_0_rgba(0,0,0,0.45)]">
-                                    <div class="text-[6px] uppercase tracking-widest text-indigo-300 mb-2">USER_JOB_CARD</div>
-                                    <div class="border border-indigo-500/40 bg-black/40 h-[120px] overflow-hidden flex items-center justify-center">
+                                    <div class="text-[7px] sm:text-[6px] leading-relaxed uppercase tracking-widest text-indigo-300 mb-2">USER_JOB_CARD</div>
+                                    <div class="border border-indigo-500/40 bg-black/40 h-[190px] sm:h-[150px] overflow-hidden flex items-center justify-center">
                                         <img
                                             v-if="userData.job_emblem_path"
                                             :src="`/storage/${userData.job_emblem_path}`"
                                             :alt="`${userData.job_name} emblem`"
-                                            class="w-full h-full object-cover"
+                                            class="w-full h-full object-cover object-center"
                                         >
                                         <img
                                             v-else
                                             src="/images/logo.png"
                                             alt="default job"
-                                            class="w-12 h-12 object-contain opacity-80"
+                                            class="w-16 h-16 sm:w-12 sm:h-12 object-contain opacity-80"
                                         >
                                     </div>
                                     <div class="mt-2 border border-indigo-500/40 bg-indigo-900/20 px-2 py-2">
                                         <p class="text-[6px] text-slate-400 uppercase mb-1">JOBS_PATH</p>
-                                        <p class="text-[8px] text-white uppercase leading-snug">
+                                        <p class="text-[9px] sm:text-[8px] text-white uppercase leading-relaxed break-words">
                                             {{ userData.job_name || 'UNASSIGNED_JOB' }}
                                         </p>
                                     </div>
@@ -577,24 +577,24 @@ onBeforeUnmount(() => {
                             </h2>
                             <div class="py-2">
                                 <div class="job-card border border-indigo-400/50 bg-[#0d1117] p-2 shadow-[4px_4px_0_rgba(0,0,0,0.45)]">
-                                    <div class="text-[6px] uppercase tracking-widest text-indigo-300 mb-2">USER_JOB_CARD</div>
-                                    <div class="border border-indigo-500/40 bg-black/40 h-[120px] overflow-hidden flex items-center justify-center">
+                                    <div class="text-[7px] sm:text-[6px] leading-relaxed uppercase tracking-widest text-indigo-300 mb-2">USER_JOB_CARD</div>
+                                    <div class="border border-indigo-500/40 bg-black/40 h-[190px] sm:h-[150px] overflow-hidden flex items-center justify-center">
                                         <img
                                             v-if="userData.job_emblem_path"
                                             :src="`/storage/${userData.job_emblem_path}`"
                                             :alt="`${userData.job_name} emblem`"
-                                            class="w-full h-full object-cover"
+                                            class="w-full h-full object-cover object-center"
                                         >
                                         <img
                                             v-else
                                             src="/images/logo.png"
                                             alt="default job"
-                                            class="w-12 h-12 object-contain opacity-80"
+                                            class="w-16 h-16 sm:w-12 sm:h-12 object-contain opacity-80"
                                         >
                                     </div>
                                     <div class="mt-2 border border-indigo-500/40 bg-indigo-900/20 px-2 py-2">
                                         <p class="text-[6px] text-slate-400 uppercase mb-1">JOBS_PATH</p>
-                                        <p class="text-[8px] text-white uppercase leading-snug">
+                                        <p class="text-[9px] sm:text-[8px] text-white uppercase leading-relaxed break-words">
                                             {{ userData.job_name || 'UNASSIGNED_JOB' }}
                                         </p>
                                     </div>

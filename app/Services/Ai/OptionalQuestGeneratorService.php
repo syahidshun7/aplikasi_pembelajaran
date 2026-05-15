@@ -139,6 +139,7 @@ class OptionalQuestGeneratorService
     public function generateFromTheme(array $payload): array
     {
         $theme = trim((string) ($payload['theme'] ?? ''));
+        $aiNote = trim((string) ($payload['ai_note'] ?? ''));
         $questionType = (string) ($payload['question_type'] ?? 'mixed');
         $questionCount = max(3, min(30, (int) ($payload['question_count'] ?? 10)));
         $difficulty = (string) ($payload['difficulty'] ?? 'C-Rank');
@@ -158,6 +159,7 @@ class OptionalQuestGeneratorService
                 'role' => 'user',
                 'content' => $this->buildThemePrompt([
                     'theme' => $theme,
+                    'ai_note' => $aiNote,
                     'question_type' => $questionType,
                     'question_count' => $questionCount,
                     'difficulty' => $difficulty,
@@ -288,9 +290,14 @@ class OptionalQuestGeneratorService
                 ? '{"question_text": "string", "question_type": "essay", "weight": 1}'
                 : '{"question_text": "string", "question_type": "multiple_choice|essay", "options": ["string"], "answer_key": "string", "weight": 1}');
 
+        $importantNote = trim((string) ($input['ai_note'] ?? ''));
+
         return implode("\n", [
             'Buat 1 OPTIONAL quest lengkap dengan task bank dan daftar soal berdasarkan input:',
             json_encode($input, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
+            $importantNote !== ''
+                ? 'Catatan penting (WAJIB diprioritaskan): '.$importantNote
+                : 'Catatan penting (WAJIB diprioritaskan): -',
             '',
             'Output JSON schema:',
             '{',
@@ -305,6 +312,7 @@ class OptionalQuestGeneratorService
             '- Jangan menyertakan indeks huruf (A,B,C) di answer_key; isi teks opsi.',
             '- Untuk essay: biarkan options kosong dan answer_key kosong.',
             '- Jika question_type=mixed, campurkan rasio seimbang.',
+            '- Jika ada catatan penting, jadikan itu prioritas utama saat menyusun tingkat kesulitan dan gaya soal.',
         ]);
     }
 

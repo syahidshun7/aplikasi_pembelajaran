@@ -157,6 +157,8 @@ class DoopLabDashboardController extends Controller
             ->with([
                 'owner:id,name,username',
                 'mentor:id,name,username',
+                'creation:id,title,slug,status,progress',
+                'reviewedBy:id,name,username',
                 'notes' => fn ($query) => $query
                     ->with('author:id,name,username,role,profile_photo')
                     ->latest('created_at')
@@ -183,9 +185,14 @@ class DoopLabDashboardController extends Controller
                     'deadline' => $todo->deadline?->toIso8601String(),
                     'notify_deadline_email' => (bool) $todo->notify_deadline_email,
                     'assignment_mode' => (string) ($todo->assignment_mode ?? DoopLabTodo::MODE_SELF),
+                    'milestone_type' => (string) ($todo->milestone_type ?? DoopLabTodo::MILESTONE_TASK),
+                    'workflow_status' => (string) ($todo->workflow_status ?? DoopLabTodo::STATUS_TODO),
                     'is_completed' => (bool) $todo->is_completed,
                     'completed_at' => $todo->completed_at?->toIso8601String(),
                     'created_at' => $todo->created_at?->toIso8601String(),
+                    'review_requested_at' => $todo->review_requested_at?->toIso8601String(),
+                    'reviewed_at' => $todo->reviewed_at?->toIso8601String(),
+                    'review_note' => (string) ($todo->review_note ?? ''),
                     'owner' => [
                         'id' => (int) ($todo->owner?->id ?? 0),
                         'name' => (string) ($todo->owner?->name ?? ''),
@@ -196,11 +203,25 @@ class DoopLabDashboardController extends Controller
                         'name' => (string) ($todo->mentor?->name ?? ''),
                         'username' => (string) ($todo->mentor?->username ?? ''),
                     ],
+                    'creation' => [
+                        'id' => (int) ($todo->creation?->id ?? 0),
+                        'title' => (string) ($todo->creation?->title ?? ''),
+                        'slug' => (string) ($todo->creation?->slug ?? ''),
+                        'status' => (string) ($todo->creation?->status ?? ''),
+                        'progress' => (int) ($todo->creation?->progress ?? 0),
+                    ],
+                    'reviewed_by' => [
+                        'id' => (int) ($todo->reviewedBy?->id ?? 0),
+                        'name' => (string) ($todo->reviewedBy?->name ?? ''),
+                        'username' => (string) ($todo->reviewedBy?->username ?? ''),
+                    ],
                     'can_toggle' => $todo->canToggleBy($user),
                     'can_edit' => $todo->canEditBy($user),
                     'can_delete' => $todo->canDeleteBy($user),
                     'can_add_note' => $todo->canCommentBy($user),
                     'is_mentor_assigned' => $todo->isMentorAssigned(),
+                    'can_submit_review' => $todo->canSubmitCheckpointBy($user),
+                    'can_review' => $todo->canReviewCheckpointBy($user),
                     'notes' => $todo->notes
                         ->map(fn ($note) => [
                             'id' => (int) $note->id,
@@ -239,6 +260,22 @@ class DoopLabDashboardController extends Controller
                 ->all()
             : [];
 
+
+        $researchWorkspaces = (clone $myCreationsQuery)
+            ->latest('updated_at')
+            ->limit(40)
+            ->get(['id', 'slug', 'title', 'status', 'progress', 'updated_at'])
+            ->map(fn (Creation $creation) => [
+                'id' => (int) $creation->id,
+                'slug' => (string) ($creation->slug ?? ''),
+                'title' => (string) ($creation->title ?? 'Untitled Workspace'),
+                'status' => (string) ($creation->status ?? 'crafting'),
+                'progress' => (int) ($creation->progress ?? 0),
+                'updated_at' => $creation->updated_at?->toIso8601String(),
+            ])
+            ->values()
+            ->all();
+
         return Inertia::render('DoopLab/Dashboard', [
             'overview' => [
                 'system_core' => 'OFFLINE',
@@ -261,6 +298,7 @@ class DoopLabDashboardController extends Controller
                 'can_create_mentor' => $isMentor,
             ],
             'todo_assignable_users' => $assignableUsers,
+            'research_workspaces' => $researchWorkspaces,
         ]);
     }
 }

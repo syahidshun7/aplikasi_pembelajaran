@@ -12,13 +12,19 @@ const props = defineProps({
     todos: { type: Array, default: () => [] },
     todo_permissions: { type: Object, default: () => ({}) },
     todo_assignable_users: { type: Array, default: () => [] },
+    research_workspaces: { type: Array, default: () => [] },
 });
 
 const page = usePage();
 const authUser = computed(() => page.props?.auth?.user ?? null);
 const canCreateMentorTodo = computed(() => Boolean(props.todo_permissions?.can_create_mentor));
+const canOpenRoadmapLab = computed(() => {
+    const role = String(authUser.value?.role || '').toLowerCase();
+    return ['mentor', 'admin', 'super_admin'].includes(role);
+});
 
 const allTodos = computed(() => Array.isArray(props.todos) ? props.todos : []);
+const researchWorkspaces = computed(() => Array.isArray(props.research_workspaces) ? props.research_workspaces : []);
 const todoSearch = ref('');
 const todoFilter = ref('all');
 const showTodoModal = ref(false);
@@ -40,6 +46,8 @@ const todoForm = useForm({
     notify_deadline_email: false,
     assignment_mode: 'self',
     owner_user_id: null,
+    creation_id: null,
+    milestone_type: 'task',
 });
 
 const todoNoteForm = useForm({
@@ -142,6 +150,22 @@ const studioTiles = computed(() => ([
         routeName: 'notifications.index',
         icon: 'fi fi-rr-bell',
     },
+    {
+        key: 'my_paths',
+        title: 'My Paths',
+        description: 'Buka roadmap mentoring milikmu',
+        routeName: 'dooplab.roadmaps.enrollments.index',
+        icon: 'fi fi-rr-road',
+    },
+    ...(canOpenRoadmapLab.value
+        ? [{
+            key: 'roadmap_lab',
+            title: 'Roadmap Lab',
+            description: 'Editor visual roadmap mentor',
+            routeName: 'dooplab.roadmaps.index',
+            icon: 'fi fi-rr-route',
+        }]
+        : []),
 ]));
 
 const pipelineSummary = computed(() => ([
@@ -208,6 +232,36 @@ const formatDate = (value) => {
 
 const assignmentModeLabel = (mode) => {
     return String(mode || '') === 'mentor' ? 'MENTOR' : 'SELF';
+};
+
+const milestoneTypeLabel = (type) => {
+    const normalized = String(type || 'task');
+    if (normalized === 'milestone') return 'MILESTONE';
+    if (normalized === 'checkpoint') return 'CHECKPOINT';
+    if (normalized === 'logbook') return 'LOGBOOK';
+    return 'TASK';
+};
+
+const workflowStatusLabel = (status) => {
+    const normalized = String(status || 'todo');
+    if (normalized === 'ongoing') return 'ONGOING';
+    if (normalized === 'blocked') return 'BLOCKED';
+    if (normalized === 'pending_review') return 'PENDING_REVIEW';
+    if (normalized === 'approved') return 'APPROVED';
+    if (normalized === 'rejected') return 'REJECTED';
+    if (normalized === 'done') return 'DONE';
+    return 'TODO';
+};
+
+const workflowStatusClass = (status) => {
+    const normalized = String(status || 'todo');
+    if (normalized === 'ongoing') return 'is-ongoing';
+    if (normalized === 'blocked') return 'is-blocked';
+    if (normalized === 'pending_review') return 'is-pending-review';
+    if (normalized === 'approved') return 'is-approved';
+    if (normalized === 'rejected') return 'is-rejected';
+    if (normalized === 'done') return 'is-done';
+    return 'is-pending';
 };
 
 const authorRoleLabel = (role) => {
@@ -325,6 +379,8 @@ const openTodoModal = () => {
     todoForm.notify_deadline_email = false;
     todoForm.assignment_mode = 'self';
     todoForm.owner_user_id = null;
+    todoForm.creation_id = Number(researchWorkspaces.value?.[0]?.id || 0) || null;
+    todoForm.milestone_type = 'task';
     todoForm.clearErrors();
     showTodoModal.value = true;
 };
@@ -349,6 +405,8 @@ const openTodoEditModal = (todo) => {
     todoForm.notify_deadline_email = Boolean(todo?.notify_deadline_email);
     todoForm.assignment_mode = String(todo?.assignment_mode || 'self');
     todoForm.owner_user_id = Number(todo?.owner?.id || 0) || null;
+    todoForm.creation_id = Number(todo?.creation?.id || 0) || null;
+    todoForm.milestone_type = String(todo?.milestone_type || 'task');
     todoForm.clearErrors();
     showTodoModal.value = true;
 };
@@ -422,6 +480,8 @@ const submitTodo = () => {
             start_at: toIsoOrNull(todoForm.start_at),
             deadline: toIsoOrNull(todoForm.deadline),
             notify_deadline_email: Boolean(todoForm.notify_deadline_email),
+            creation_id: todoForm.creation_id || null,
+            milestone_type: todoForm.milestone_type,
         })).patch(route('dooplab.todos.update', targetUuid), {
             preserveScroll: true,
             onSuccess: () => {
@@ -438,6 +498,8 @@ const submitTodo = () => {
         start_at: toIsoOrNull(todoForm.start_at),
         deadline: toIsoOrNull(todoForm.deadline),
         notify_deadline_email: Boolean(todoForm.notify_deadline_email),
+        creation_id: todoForm.creation_id || null,
+        milestone_type: todoForm.milestone_type,
         assignment_mode: canCreateMentorTodo.value ? todoForm.assignment_mode : 'self',
         owner_user_id: (canCreateMentorTodo.value && todoForm.assignment_mode === 'mentor')
             ? todoForm.owner_user_id
@@ -468,6 +530,32 @@ const deleteTodo = (todo) => {
     }
 
     router.delete(route('dooplab.todos.destroy', todo.uuid), {
+        preserveScroll: true,
+    });
+};
+
+const submitTodoForReview = (todo) => {
+    if (!todo?.can_submit_review) return;
+
+    router.patch(route('dooplab.todos.submit-review', todo.uuid), {}, {
+        preserveScroll: true,
+    });
+};
+
+const reviewTodoCheckpoint = (todo, decision) => {
+    if (!todo?.can_review) return;
+
+    const note = window.prompt(
+        decision === 'approve'
+            ? 'Catatan approval (opsional):'
+            : 'Alasan reject/revisi (opsional):',
+        '',
+    );
+
+    router.patch(route('dooplab.todos.review', todo.uuid), {
+        decision,
+        review_note: String(note || '').trim() || null,
+    }, {
         preserveScroll: true,
     });
 };
@@ -661,8 +749,9 @@ onUnmounted(() => {
                                     </span>
                                     <span class="todo-nav-tags">
                                         <span class="todo-badge">{{ assignmentModeLabel(item.assignment_mode) }}</span>
-                                        <span class="todo-state" :class="item.is_completed ? 'is-done' : 'is-pending'">
-                                            {{ item.is_completed ? 'DONE' : 'PENDING' }}
+                                        <span class="todo-badge">{{ milestoneTypeLabel(item.milestone_type) }}</span>
+                                        <span class="todo-state" :class="workflowStatusClass(item.workflow_status)">
+                                            {{ workflowStatusLabel(item.workflow_status) }}
                                         </span>
                                     </span>
                                 </span>
@@ -694,22 +783,14 @@ onUnmounted(() => {
                                 <h3>{{ selectedTodo.title }}</h3>
                                 <p>{{ selectedTodo.description || 'Tidak ada deskripsi tambahan.' }}</p>
                                 <div class="chat-hero-meta">
-                                    <span>{{ selectedTodo.owner?.name || '-' }}</span>
-                                    <span>{{ todoDeadlineLabel(selectedTodo) }}</span>
-                                    <span>{{ assignmentModeLabel(selectedTodo.assignment_mode) }}</span>
-                                    <span :class="selectedTodo.is_completed ? 'is-done' : 'is-pending'">
-                                        {{ selectedTodo.is_completed ? 'DONE' : 'PENDING' }}
+                                    <span :class="workflowStatusClass(selectedTodo.workflow_status)">
+                                        {{ workflowStatusLabel(selectedTodo.workflow_status) }}
                                     </span>
+                                    <span v-if="selectedTodo.deadline">{{ todoDeadlineLabel(selectedTodo) }}</span>
                                 </div>
                             </article>
 
                             <section ref="selectedTodoChatStreamRef" class="chat-stream custom-scroll">
-                                <article class="chat-bubble">
-                                    <p class="chat-role">Akses</p>
-                                    <p class="chat-text">
-                                        {{ todoAccessHint(selectedTodo) }}
-                                    </p>
-                                </article>
                                 <article class="chat-bubble">
                                     <p class="chat-role">Catatan & Bukti</p>
                                     <p v-if="!selectedTodoNotes.length" class="note-empty">
@@ -813,6 +894,36 @@ onUnmounted(() => {
                                     </div>
 
                                     <div class="todo-inline-actions-right">
+                                        <button
+                                            v-if="selectedTodo.can_submit_review"
+                                            type="button"
+                                            class="todo-icon-btn"
+                                            title="Submit checkpoint ke mentor"
+                                            aria-label="Submit checkpoint ke mentor"
+                                            @click="submitTodoForReview(selectedTodo)"
+                                        >
+                                            <i class="fi fi-rr-paper-plane"></i>
+                                        </button>
+                                        <button
+                                            v-if="selectedTodo.can_review && selectedTodo.workflow_status === 'pending_review'"
+                                            type="button"
+                                            class="todo-icon-btn todo-icon-btn--success"
+                                            title="Approve checkpoint"
+                                            aria-label="Approve checkpoint"
+                                            @click="reviewTodoCheckpoint(selectedTodo, 'approve')"
+                                        >
+                                            <i class="fi fi-rr-badge-check"></i>
+                                        </button>
+                                        <button
+                                            v-if="selectedTodo.can_review && selectedTodo.workflow_status === 'pending_review'"
+                                            type="button"
+                                            class="todo-icon-btn todo-icon-btn--danger"
+                                            title="Reject checkpoint"
+                                            aria-label="Reject checkpoint"
+                                            @click="reviewTodoCheckpoint(selectedTodo, 'reject')"
+                                        >
+                                            <i class="fi fi-rr-cross-circle"></i>
+                                        </button>
                                         <button
                                             type="button"
                                             class="todo-icon-btn"
@@ -929,8 +1040,9 @@ onUnmounted(() => {
                     </aside>
                 </section>
             </div>
+        </div>
 
-            <div v-if="showTodoModal" class="todo-modal" role="dialog" aria-modal="true">
+        <Teleport to="body"><div v-if="showTodoModal" class="todo-modal" role="dialog" aria-modal="true">
                 <div class="todo-modal-card">
                     <div class="todo-modal-head">
                         <h3>{{ todoModalMode === 'edit' ? 'Edit To-Do' : 'Buat To-Do Baru' }}</h3>
@@ -975,6 +1087,33 @@ onUnmounted(() => {
                             </label>
                         </div>
 
+
+                        <div class="todo-date-grid">
+                            <label class="todo-field todo-field--date">
+                                <span>Workspace Riset</span>
+                                <select v-model="todoForm.creation_id">
+                                    <option :value="null">Tanpa workspace</option>
+                                    <option v-for="workspace in researchWorkspaces" :key="workspace.id" :value="workspace.id">
+                                        {{ workspace.title }}
+                                    </option>
+                                </select>
+                                <small v-if="todoForm.errors.creation_id" class="todo-error">{{ todoForm.errors.creation_id }}</small>
+                            </label>
+
+                            <label class="todo-field todo-field--date">
+                                <span>Tipe Item</span>
+                                <select v-model="todoForm.milestone_type">
+                                    <option value="task">Task</option>
+                                    <option value="milestone">Milestone</option>
+                                    <option value="checkpoint">Checkpoint</option>
+                                    <option value="logbook">Logbook</option>
+                                </select>
+                                <small v-if="todoForm.errors.milestone_type" class="todo-error">{{ todoForm.errors.milestone_type }}</small>
+                            </label>
+                        </div>
+
+
+
                         <label class="todo-checkbox-field">
                             <input v-model="todoForm.notify_deadline_email" type="checkbox">
                             <span>Berikan notifikasi deadline di email</span>
@@ -988,12 +1127,15 @@ onUnmounted(() => {
                             <span>Jenis Penugasan</span>
                             <select v-model="todoForm.assignment_mode">
                                 <option value="self">Self (saya centang sendiri)</option>
-                                <option value="mentor">Mentor Assigned (mentor yang centang)</option>
+                                <option value="mentor">Mentor Assigned (untuk member)</option>
                             </select>
                             <small v-if="todoForm.errors.assignment_mode" class="todo-error">{{ todoForm.errors.assignment_mode }}</small>
                         </label>
 
-                        <label v-if="todoModalMode === 'create' && canCreateMentorTodo && todoForm.assignment_mode === 'mentor'" class="todo-field">
+                        <label
+                            v-if="todoModalMode === 'create' && canCreateMentorTodo && todoForm.assignment_mode === 'mentor'"
+                            class="todo-field"
+                        >
                             <span>Target Member</span>
                             <select v-model="todoForm.owner_user_id" required>
                                 <option :value="null">Pilih member</option>
@@ -1017,7 +1159,7 @@ onUnmounted(() => {
                     </form>
                 </div>
             </div>
-        </div>
+        </Teleport>
     </AuthenticatedLayout>
 </template>
 
@@ -1668,6 +1810,36 @@ onUnmounted(() => {
     background: rgba(87, 246, 185, 0.1);
 }
 
+.todo-state.is-ongoing {
+    color: #bdefff;
+    border-color: rgba(87, 214, 255, 0.5);
+    background: rgba(87, 214, 255, 0.12);
+}
+
+.todo-state.is-blocked {
+    color: #ffd1d8;
+    border-color: rgba(255, 127, 143, 0.55);
+    background: rgba(255, 127, 143, 0.12);
+}
+
+.todo-state.is-pending-review {
+    color: #ffe8b9;
+    border-color: rgba(248, 198, 92, 0.55);
+    background: rgba(248, 198, 92, 0.12);
+}
+
+.todo-state.is-approved {
+    color: #c8ffea;
+    border-color: rgba(87, 246, 185, 0.58);
+    background: rgba(87, 246, 185, 0.14);
+}
+
+.todo-state.is-rejected {
+    color: #ffc8d0;
+    border-color: rgba(255, 127, 143, 0.58);
+    background: rgba(255, 127, 143, 0.14);
+}
+
 .chat-hero {
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -1962,131 +2134,11 @@ onUnmounted(() => {
     font-size: 12px;
 }
 
-.todo-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 80;
-    background: rgba(6, 10, 17, 0.72);
-    backdrop-filter: blur(2px);
-    display: grid;
-    place-items: center;
-    padding: 16px;
-}
 
-.todo-modal-card {
-    width: min(560px, 100%);
-    border: 1px solid rgba(87, 214, 255, 0.3);
-    background: linear-gradient(170deg, rgba(12, 18, 30, 0.98), rgba(16, 26, 40, 0.98));
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45), inset 0 0 30px rgba(87, 214, 255, 0.08);
-    padding: 14px;
-}
 
-.todo-modal-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-}
 
-.todo-modal-head h3 {
-    margin: 0;
-    font-family: 'Inter', sans-serif;
-    font-size: 16px;
-    font-weight: 700;
-    color: #d3e8ff;
-}
 
-.todo-modal-close {
-    width: 30px;
-    height: 30px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: transparent;
-    color: #dce9fb;
-}
 
-.todo-modal-form {
-    display: grid;
-    gap: 10px;
-}
-
-.todo-field {
-    display: grid;
-    gap: 7px;
-}
-
-.todo-date-grid {
-    display: grid;
-    align-items: start;
-    gap: 10px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.todo-field--date {
-    align-content: start;
-}
-
-.todo-field span {
-    font-size: 12px;
-    color: #9fb6d3;
-}
-
-.todo-field input,
-.todo-field textarea,
-.todo-field select {
-    width: 100%;
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    background: rgba(255, 255, 255, 0.03);
-    color: #e2eefb;
-    padding: 10px;
-    outline: none;
-    font-size: 13px;
-}
-
-.todo-field textarea {
-    resize: vertical;
-}
-
-.todo-checkbox-field {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #cfe3fa;
-    font-size: 12px;
-}
-
-.todo-checkbox-field input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    accent-color: #57d6ff;
-}
-
-.todo-field-note {
-    margin: -2px 0 0;
-    color: #8ea2bd;
-    font-size: 11px;
-}
-
-.todo-error {
-    color: #ff9aa8;
-    font-size: 12px;
-}
-
-.todo-error--slot {
-    display: block;
-    min-height: 34px;
-    line-height: 1.35;
-}
-
-.todo-error--slot.is-hidden {
-    visibility: hidden;
-}
-
-.todo-modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 4px;
-}
 
 .chat-composer--todo {
     display: grid;
@@ -2353,6 +2405,8 @@ onUnmounted(() => {
         grid-template-columns: 1fr;
     }
 
+
+
     .nb-todo-nav {
         max-height: 360px;
     }
@@ -2384,12 +2438,574 @@ onUnmounted(() => {
         flex-direction: column;
     }
 
-    .todo-date-grid {
-        grid-template-columns: 1fr;
+    .todo-inline-actions {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .todo-inline-actions-right {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
     }
 
     .composer-foot {
         font-size: 16px;
     }
+}
+</style>
+
+<style>
+.todo-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(6, 10, 17, 0.72);
+    backdrop-filter: blur(2px);
+    display: grid;
+    align-items: start;
+    justify-items: center;
+    overflow-y: auto;
+    padding: clamp(10px, 2.6vw, 18px);
+}
+
+.todo-modal-card {
+    width: min(640px, 100%);
+    max-height: calc(100dvh - clamp(20px, 5.2vw, 36px));
+    border: 4px solid #3d415f;
+    background: #1a1c2c;
+    box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.5);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.todo-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #3d415f;
+}
+
+.todo-modal-head h3 {
+    margin: 0;
+    font-family: "Press Start 2P", monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.todo-modal-close {
+    width: 32px;
+    height: 32px;
+    border: 2px solid #3d415f;
+    background: #0d1117;
+    color: #cbd5e1;
+    font-size: 14px;
+    display: grid;
+    place-items: center;
+}
+
+.todo-modal-form {
+    display: grid;
+    gap: 14px;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.todo-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+}
+.todo-field {
+    display: grid;
+    gap: 7px;
+}
+
+.todo-date-grid {
+    display: grid;
+    align-items: start;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.todo-field--date {
+    align-content: start;
+}
+
+.todo-field span {
+    font-size: 10px;
+    color: #8ea8bb;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.todo-field input,
+.todo-field textarea,
+.todo-field select {
+    width: 100%;
+    border: 2px solid #3d415f;
+    background: #0d1117;
+    color: #cbd5e1;
+    padding: 12px;
+    outline: none;
+    font-family: "Press Start 2P", monospace;
+    font-size: 11px;
+}
+
+.todo-field textarea {
+    resize: vertical;
+}
+
+.todo-checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #cbd5e1;
+    font-size: 10px;
+}
+
+.todo-checkbox-field input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #57d6ff;
+}
+
+.todo-field-note {
+    margin: -2px 0 0;
+    color: #8ea8bb;
+    font-size: 9px;
+}
+
+.todo-error {
+    color: #ff9aa8;
+    font-size: 9px;
+}
+
+.todo-error--slot {
+    display: block;
+    min-height: 34px;
+    line-height: 1.35;
+}
+
+.todo-error--slot.is-hidden {
+    visibility: hidden;
+}
+
+@media (max-width: 920px) {
+    .todo-modal {
+        padding: 12px;
+    }
+
+    .todo-modal-card {
+        width: min(100%, 680px);
+        max-height: calc(100dvh - 24px);
+    }
+
+    .todo-modal-actions {
+        flex-wrap: wrap;
+        justify-content: stretch;
+    }
+
+    .todo-modal-actions .nb-btn {
+        flex: 1 1 180px;
+    }
+}
+
+@media (max-width: 620px) {
+    .todo-modal {
+        padding: 8px;
+    }
+
+    .todo-modal-card {
+        max-height: calc(100dvh - 16px);
+        padding: 12px;
+    }
+
+    .todo-modal-head h3 {
+        font-size: 14px;
+    }
+
+    .todo-date-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+</style>
+
+<style scoped>
+/* ===== DoopLab Pixel Theme — Dooptech Home Style ===== */
+.nb-root {
+    --panel: #1a1c2c;
+    --panel-border: #3d415f;
+    --text-muted: #8ea8bb;
+    font-family: "Press Start 2P", monospace !important;
+    font-size: 9px;
+    background: #0d1117 !important;
+    color: #cbd5e1;
+}
+
+.nb-root *,
+.nb-root *::before,
+.nb-root *::after {
+    border-radius: 0 !important;
+}
+
+/* Panels — rpg-panel style */
+.nb-topbar,
+.nb-panel,
+.studio-tile,
+.todo-note-item,
+.chat-composer,
+.todo-modal-card,
+.metric-card {
+    background-color: rgba(26, 28, 44, 0.92) !important;
+    border: 4px solid var(--panel-border) !important;
+    box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.5) !important;
+    backdrop-filter: none !important;
+}
+
+/* Buttons — btn-pixel style */
+.nb-btn,
+.source-add-btn,
+.todo-filter,
+.todo-icon-btn,
+.todo-modal-actions button {
+    border-bottom-width: 4px !important;
+    border-right-width: 4px !important;
+    border-color: var(--panel-border) !important;
+    background: rgba(26, 28, 44, 0.95) !important;
+    color: #cbd5e1 !important;
+    font-family: "Press Start 2P", monospace !important;
+    font-size: 7px !important;
+    text-transform: uppercase !important;
+    font-weight: bold !important;
+    padding: 8px 12px !important;
+    box-shadow: none !important;
+    transition: all 0.15s !important;
+}
+
+.nb-btn:active,
+.source-add-btn:active,
+.todo-filter:active,
+.todo-icon-btn:active,
+.todo-modal-actions button:active {
+    transform: translate(4px, 4px) !important;
+    border-bottom-width: 0 !important;
+    border-right-width: 0 !important;
+}
+
+.nb-btn--solid {
+    background: #009999 !important;
+    border-color: #006666 !important;
+    color: #fff !important;
+}
+
+.nb-btn--ghost {
+    background: transparent !important;
+    border-color: var(--panel-border) !important;
+    color: #57d6ff !important;
+}
+
+.nb-btn--ghost:hover {
+    background: rgba(87, 214, 255, 0.08) !important;
+}
+
+.todo-filter.is-active {
+    background: #009999 !important;
+    border-color: #006666 !important;
+    color: #fff !important;
+}
+
+/* Typography */
+.nb-eyebrow { font-size: 8px !important; color: #57d6ff !important; letter-spacing: 2px !important; }
+.nb-title { font-size: 14px !important; line-height: 1.4 !important; color: #fff !important; }
+.nb-subtitle { font-size: 10px !important; color: var(--text-muted) !important; }
+
+.nb-panel h1, .nb-panel h2, .nb-panel h3, .nb-panel h4 { font-size: 11px !important; color: #fff !important; }
+.nb-panel p, .nb-panel span, .nb-panel li, .nb-panel a,
+.nb-panel small, .nb-panel label { font-size: 10px; color: #cbd5e1; }
+
+/* Metrics */
+.metric-label { font-size: 9px !important; color: #57d6ff !important; text-transform: uppercase !important; letter-spacing: 1px !important; }
+.metric-value { font-size: 13px !important; color: #fff !important; }
+.metric-hint { font-size: 9px !important; color: var(--text-muted) !important; }
+
+/* Studio tiles */
+.studio-tile {
+    border-width: 2px !important;
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5) !important;
+}
+.studio-tile:hover { border-color: #009999 !important; }
+.studio-title { font-size: 10px !important; }
+.studio-desc { font-size: 9px !important; color: var(--text-muted) !important; }
+.studio-icon { font-size: 12px !important; }
+
+/* Mentor zone */
+.mentor-zone-head { font-size: 10px !important; }
+.mentor-empty, .mentor-info span { font-size: 9px !important; color: var(--text-muted) !important; }
+.mentor-info p { font-size: 10px !important; }
+.mentor-avatar { font-size: 10px !important; }
+
+/* Todo modal */
+.todo-modal-card {
+    background: #1a1c2c !important;
+    border: 4px solid #3d415f !important;
+    box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.5) !important;
+}
+.todo-modal-head h3 { font-size: 13px !important; color: #fff !important; }
+.todo-modal-form label,
+.todo-modal-form input,
+.todo-modal-form textarea,
+.todo-modal-form select {
+    font-size: 11px !important;
+    font-family: "Press Start 2P", monospace !important;
+    border: 2px solid var(--panel-border) !important;
+    background: #0d1117 !important;
+    color: #cbd5e1 !important;
+    padding: 12px !important;
+}
+.todo-modal-form span { font-size: 10px !important; color: var(--text-muted) !important; text-transform: uppercase !important; letter-spacing: 1px !important; }
+.todo-modal-form .todo-checkbox-field span,
+.todo-modal-form .todo-field-note { text-transform: none !important; letter-spacing: 0 !important; font-size: 9px !important; }
+.todo-modal-form .todo-checkbox-field { font-size: 10px !important; }
+.todo-modal-actions button { font-size: 10px !important; padding: 10px 14px !important; }
+.todo-modal-close {
+    border: 2px solid var(--panel-border) !important;
+    background: #0d1117 !important;
+    font-size: 14px !important;
+    width: 32px !important;
+    height: 32px !important;
+}
+
+/* Todo notes */
+.todo-note-item {
+    border-width: 2px !important;
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5) !important;
+}
+.todo-note-author p { font-size: 10px !important; }
+.todo-note-author span { font-size: 9px !important; }
+.todo-note-text { font-size: 11px !important; }
+.todo-note-label { font-size: 9px !important; }
+.todo-note-avatar { font-size: 9px !important; }
+.note-empty { font-size: 10px !important; color: var(--text-muted) !important; }
+
+/* Todo icon buttons */
+.todo-icon-btn {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 12px !important;
+}
+
+/* Composer */
+.composer-placeholder,
+.composer-foot { font-size: 10px !important; }
+
+/* Search & filters */
+.source-search input {
+    font-family: "Press Start 2P", monospace !important;
+    font-size: 10px !important;
+    border: 2px solid var(--panel-border) !important;
+    background: #0d1117 !important;
+    color: #cbd5e1 !important;
+}
+
+.todo-nav-count {
+    font-size: 11px !important;
+    border: 2px solid var(--panel-border) !important;
+}
+
+/* Todo nav list - pixel font override */
+.todo-nav-header,
+.source-list-title {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+}
+
+.todo-nav-item {
+    font-family: Inter, sans-serif !important;
+    border-radius: 0 !important;
+    border: 2px solid var(--panel-border) !important;
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5) !important;
+}
+
+.todo-nav-title {
+    font-family: Inter, sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    line-height: 1.4 !important;
+}
+
+.todo-nav-meta {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+    font-style: italic !important;
+}
+
+.todo-nav-deadline {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+}
+
+.todo-nav-tags {
+    font-family: Inter, sans-serif !important;
+    font-size: 9px !important;
+}
+
+.todo-nav-tags span {
+    font-family: Inter, sans-serif !important;
+    font-size: 9px !important;
+}
+
+.todo-nav-arrow {
+    font-size: 12px !important;
+}
+
+.todo-nav-check {
+    border-radius: 0 !important;
+    border: 2px solid var(--panel-border) !important;
+}
+
+.todo-filter {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+}
+
+.source-add-btn {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+}
+
+/* Detail To-Do panel: smaller and non-pixel */
+.panel-head h2 {
+    font-family: Inter, sans-serif !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+}
+
+.panel-subtitle {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+}
+
+.chat-hero {
+    font-family: Inter, sans-serif !important;
+    border: 2px solid var(--panel-border) !important;
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5) !important;
+    padding: 14px !important;
+}
+
+.chat-hero-icon {
+    font-family: Inter, sans-serif !important;
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    height: 22px !important;
+}
+
+.chat-back-btn {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    padding: 6px 10px !important;
+}
+
+.chat-hero h3 {
+    font-family: Inter, sans-serif !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    margin: 0 0 6px !important;
+}
+
+.chat-hero p {
+    font-family: Inter, sans-serif !important;
+    font-size: 12px !important;
+    line-height: 1.55 !important;
+}
+
+.chat-hero-meta {
+    font-family: Inter, sans-serif !important;
+    font-size: 10px !important;
+}
+
+.chat-hero-meta span {
+    font-size: 10px !important;
+    padding: 3px 8px !important;
+}
+
+.chat-bubble {
+    font-family: Inter, sans-serif !important;
+    border: 2px solid var(--panel-border) !important;
+}
+
+.chat-role {
+    font-family: Inter, sans-serif !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.5px !important;
+}
+
+.chat-text {
+    font-family: Inter, sans-serif !important;
+    font-size: 12px !important;
+    line-height: 1.55 !important;
+}
+
+.todo-note-label {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #cbd5e1 !important;
+}
+
+.todo-note-textarea {
+    font-family: Inter, sans-serif !important;
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+    padding: 10px !important;
+    border: 2px solid var(--panel-border) !important;
+}
+
+.todo-note-item { padding: 10px !important; }
+.todo-note-author p { font-family: Inter, sans-serif !important; font-size: 12px !important; font-weight: 600 !important; }
+.todo-note-author span { font-family: Inter, sans-serif !important; font-size: 10px !important; }
+.todo-note-text { font-family: Inter, sans-serif !important; font-size: 12px !important; line-height: 1.55 !important; }
+.note-empty { font-family: Inter, sans-serif !important; font-size: 11px !important; }
+
+.composer-placeholder { font-family: Inter, sans-serif !important; font-size: 12px !important; }
+.composer-foot { font-family: Inter, sans-serif !important; font-size: 11px !important; }
+.chip { font-family: Inter, sans-serif !important; font-size: 10px !important; padding: 4px 9px !important; }
+
+/* Scrollbar */
+.nb-root ::-webkit-scrollbar { width: 6px; }
+.nb-root ::-webkit-scrollbar-track { background: #0d1117; }
+.nb-root ::-webkit-scrollbar-thumb { background: #009999; border: 1px solid #1a1c2c; }
+
+/* Mobile readability */
+@media (max-width: 768px) {
+    .todo-modal-card { padding: 16px !important; }
+    .todo-modal-head h3 { font-size: 12px !important; }
+    .todo-modal-form label,
+    .todo-modal-form input,
+    .todo-modal-form textarea,
+    .todo-modal-form select { font-size: 12px !important; padding: 12px !important; }
+    .todo-modal-form span { font-size: 11px !important; }
+    .todo-modal-actions button { font-size: 11px !important; }
+    .nb-title { font-size: 14px !important; }
+    .nb-subtitle { font-size: 10px !important; }
+    .nb-btn { font-size: 9px !important; }
+    .metric-value { font-size: 14px !important; }
+    .metric-label { font-size: 9px !important; }
+    .metric-hint { font-size: 9px !important; }
+    .nb-panel p, .nb-panel span, .nb-panel li, .nb-panel a,
+    .nb-panel small, .nb-panel label { font-size: 10px !important; }
+    .nb-panel h1, .nb-panel h2, .nb-panel h3, .nb-panel h4 { font-size: 11px !important; }
 }
 </style>

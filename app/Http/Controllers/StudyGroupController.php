@@ -6,12 +6,16 @@ use App\Models\StudyGroup;
 use App\Models\StudyGroupJoinRequest;
 use App\Models\User;
 use App\Services\LevelingService;
+use App\Services\StudyGroupAccessService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 
 class StudyGroupController extends Controller
 {
+    public function __construct(private readonly StudyGroupAccessService $groupAccessService)
+    {
+    }
     // Lihat daftar semua party
     public function index(Request $request)
     {
@@ -60,12 +64,15 @@ class StudyGroupController extends Controller
             ->paginate(12)
             ->withQueryString();
 
-        $groups->getCollection()->transform(function (StudyGroup $group) use ($userGroupIds, $groupRequestStatuses) {
+        $viewerHasLevelGatePass = $this->groupAccessService->hasPaidLevelGatePass($user);
+
+        $groups->getCollection()->transform(function (StudyGroup $group) use ($userGroupIds, $groupRequestStatuses, $user, $viewerHasLevelGatePass) {
             $payload = $group->toArray();
             $groupId = (int) $group->id;
             $payload['is_member'] = in_array($groupId, $userGroupIds, true);
             $payload['join_request_status'] = $groupRequestStatuses[$groupId] ?? null;
             $payload['min_level'] = (int) ($group->min_level ?? 1);
+            $payload['has_level_gate_pass'] = $viewerHasLevelGatePass || $this->groupAccessService->hasPaidLevelGatePass($user, $group);
             return $payload;
         });
 
@@ -79,6 +86,7 @@ class StudyGroupController extends Controller
                 'search' => $search,
             ],
             'viewerLevel' => $userLevel,
+            'viewerHasLevelGatePass' => $viewerHasLevelGatePass,
         ]);
     }
 
@@ -119,8 +127,9 @@ class StudyGroupController extends Controller
 
         $userLevel = LevelingService::levelFromExp((int) ($user->exp ?? 0));
         $minLevel = (int) ($group->min_level ?? 1);
+        $hasLevelGatePass = $this->groupAccessService->hasPaidLevelGatePass($user, $group);
 
-        if ($userLevel < $minLevel) {
+        if ($userLevel < $minLevel && ! $hasLevelGatePass) {
             return back()->withErrors([
                 'study_group_uuid' => "LEVEL_TOO_LOW: Kamu butuh minimal Level {$minLevel} untuk join party ini. Level kamu saat ini: {$userLevel}.",
             ]);

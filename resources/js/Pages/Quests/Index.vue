@@ -59,6 +59,7 @@ const aiScopeForm = useForm({
     job_id: '',
     study_group_id: '',
     theme: '',
+    ai_note: '',
     question_type: 'mixed',
     question_count: 10,
     difficulty: 'C-Rank',
@@ -381,6 +382,7 @@ const generateThemePreview = async () => {
     try {
         const payload = {
             theme: aiScopeForm.theme.trim(),
+            ai_note: aiScopeForm.ai_note.trim() || null,
             question_type: aiScopeForm.question_type,
             question_count: Number(aiScopeForm.question_count || 10),
             difficulty: aiScopeForm.difficulty,
@@ -680,6 +682,20 @@ const commitThemeBundle = async () => {
                                 <div class="md:col-span-2">
                                     <label class="block mb-1 text-[7px] text-slate-300 uppercase">Tema / Topik</label>
                                     <input v-model="aiScopeForm.theme" type="text" maxlength="500" placeholder="Contoh: HTTP Protocol, Laravel Routing, OOP Dasar..." class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none text-[9px]" />
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block mb-1 text-[7px] text-amber-300 uppercase">Catatan Penting ke AI (Input Tambahan)</label>
+                                    <textarea
+                                        v-model="aiScopeForm.ai_note"
+                                        rows="3"
+                                        maxlength="1000"
+                                        placeholder="Contoh: Buat lebih sulit untuk level advance, fokus ke analisis, hindari soal terlalu basic."
+                                        class="w-full bg-black border-2 border-amber-700 p-2 text-amber-200 outline-none text-[9px] font-sans"
+                                    ></textarea>
+                                    <div class="mt-1 flex items-center justify-between gap-2">
+                                        <p class="text-[7px] text-amber-400 uppercase">PRIORITAS_TINGGI: catatan ini dipakai sebagai arahan penting saat AI generate.</p>
+                                        <span class="text-[7px] text-slate-500">{{ aiScopeForm.ai_note.length }}/1000</span>
+                                    </div>
                                 </div>
                                 <div>
                                     <label class="block mb-1 text-[7px] text-slate-300 uppercase">Tipe Soal</label>

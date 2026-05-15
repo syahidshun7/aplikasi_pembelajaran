@@ -11,6 +11,10 @@ const props = defineProps({
         type: Number,
         default: 1,
     },
+    viewerHasLevelGatePass: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const form = useForm({
@@ -70,6 +74,8 @@ const memberBadgeClass = (group) => {
 const memberBadgeText = (group) => {
     if (group.is_member) return 'Member';
     if (group.join_request_status === 'pending') return 'Pending_Request';
+    const isLevelEnough = Number(props.viewerLevel || 1) >= groupMinLevel(group);
+    if (!isLevelEnough && canRequestAccess(group)) return 'Unlocked_By_Pass';
     if (!canRequestAccess(group)) return 'Level_Locked';
     return 'Open_Access';
 };
@@ -80,7 +86,9 @@ const groupMinLevel = (group) => {
 };
 
 const canRequestAccess = (group) => {
-    return Number(props.viewerLevel || 1) >= groupMinLevel(group);
+    const levelPass = Number(props.viewerLevel || 1) >= groupMinLevel(group);
+    const paidPass = Boolean(group?.has_level_gate_pass || props.viewerHasLevelGatePass);
+    return levelPass || paidPass;
 };
 
 const requestAccess = (group) => {
@@ -236,6 +244,12 @@ const leaveGroup = (group) => {
                                 <span class="px-2 py-1 border text-[8px] uppercase border-cyan-800 bg-cyan-900/20 text-cyan-200">
                                     Min LVL: {{ groupMinLevel(group) }}
                                 </span>
+                                <span
+                                    v-if="Number(viewerLevel || 1) < groupMinLevel(group) && canRequestAccess(group)"
+                                    class="px-2 py-1 border text-[8px] uppercase border-fuchsia-800 bg-fuchsia-900/20 text-fuchsia-200"
+                                >
+                                    Pass Unlock Active
+                                </span>
                                 <span class="px-2 py-1 border text-[8px] uppercase border-yellow-900 bg-yellow-900/20 text-yellow-300">
                                     Pending: {{ group.pending_requests_count || 0 }}
                                 </span>
@@ -305,6 +319,12 @@ const leaveGroup = (group) => {
                                     <td class="py-3 px-2 text-yellow-300">
                                         {{ group.users_count || 0 }}/{{ group.max_members || 0 }}
                                         <p class="mt-1 text-[8px] text-cyan-200">Min LVL {{ groupMinLevel(group) }}</p>
+                                        <p
+                                            v-if="Number(viewerLevel || 1) < groupMinLevel(group) && canRequestAccess(group)"
+                                            class="mt-1 text-[8px] text-fuchsia-300"
+                                        >
+                                            Pass Unlock Active
+                                        </p>
                                     </td>
                                     <td class="py-3 px-2 text-yellow-300">
                                         {{ group.pending_requests_count || 0 }}

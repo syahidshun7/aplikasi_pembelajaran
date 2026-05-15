@@ -40,6 +40,8 @@ const form = useForm({
     title: '',
     description: '',
     study_group_id: null,
+    content_source: 'file',
+    google_docs_url: '',
     file: null,
 });
 const mentorCannotSubmitGuide = computed(() => isMentor.value && !form.study_group_id);
@@ -59,6 +61,18 @@ const getOldFileName = computed(() => {
     }
     return null;
 });
+
+const getOldGoogleDocsUrl = computed(() => {
+    if (isEditing.value && editId.value) {
+        const currentItem = guideItems.value.find(item => item.uuid === editId.value);
+        if (currentItem && currentItem.google_docs_embed_url) {
+            return currentItem.google_docs_embed_url;
+        }
+    }
+    return null;
+});
+
+const isGoogleDocsSource = computed(() => form.content_source === 'google_docs');
 
 const guideItems = computed(() => {
     if (Array.isArray(props.materi)) return props.materi;
@@ -107,12 +121,23 @@ const handleFileUpload = (e) => {
     form.file = e.target.files[0];
 };
 
+const handleContentSourceChange = () => {
+    if (isGoogleDocsSource.value) {
+        form.file = null;
+        return;
+    }
+
+    form.google_docs_url = '';
+};
+
 const startEdit = (item) => {
     isEditing.value = true;
     editId.value = item.uuid;
     form.title = item.title;
     form.description = item.description || '';
     form.study_group_id = item.study_group_id ?? null;
+    form.content_source = item.google_docs_embed_url ? 'google_docs' : 'file';
+    form.google_docs_url = item.google_docs_embed_url || '';
     form.file = null;
     showFormModal.value = true;
     
@@ -127,6 +152,9 @@ const cancelEdit = () => {
     editId.value = null;
     form.reset();
     form.study_group_id = isMentor.value ? firstStudyGroupId.value : null;
+    form.content_source = 'file';
+    form.google_docs_url = '';
+    form.file = null;
     showFormModal.value = false;
 };
 
@@ -332,6 +360,37 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                             </div>
 
                             <div>
+                                <label class="block mb-2 text-white">CONTENT_SOURCE:</label>
+                                <select
+                                    v-model="form.content_source"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-cyan-400 outline-none text-cyan-300 uppercase"
+                                    @change="handleContentSourceChange"
+                                >
+                                    <option value="file">-- FILE_UPLOAD --</option>
+                                    <option value="google_docs">-- GOOGLE_DOCS_EMBED --</option>
+                                </select>
+                                <p class="mt-2 text-[7px] text-slate-500 uppercase">
+                                    Pilih upload file biasa atau tempel link Google Docs/Drive untuk preview iframe.
+                                </p>
+                            </div>
+
+                            <div v-if="isGoogleDocsSource">
+                                <label class="block mb-2 text-indigo-400">GOOGLE_DOCS_URL:</label>
+                                <input
+                                    v-model="form.google_docs_url"
+                                    type="url"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-indigo-400 outline-none text-indigo-300"
+                                    placeholder="https://docs.google.com/document/d/..."
+                                >
+                                <div v-if="isEditing && getOldGoogleDocsUrl" class="mt-3 pt-3 border-t border-slate-800">
+                                    <p class="text-[7px] text-slate-500 uppercase tracking-tighter">
+                                        Current_Embed_URL:
+                                        <span class="text-yellow-500 italic break-all">{{ getOldGoogleDocsUrl }}</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div v-else>
                                 <label class="block mb-2 text-indigo-400">ATTACHMENT_PROTOCOL:</label>
                                 <div
                                     class="bg-black/40 border-2 border-dashed border-slate-700 p-4 text-center relative">
@@ -419,8 +478,11 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                                             {{ item.study_group_id ? `PARTY: ${item.study_group?.name || 'UNKNOWN'}` : 'GLOBAL_GUIDE' }}
                                         </div>
                                     </div>
-                                    <div v-if="item.file_path" class="text-indigo-400 text-[7px] animate-pulse">
-                                        [DOC_ATTACHED]
+                                    <div
+                                        v-if="item.file_path || item.google_docs_embed_url"
+                                        class="text-indigo-400 text-[7px] animate-pulse"
+                                    >
+                                        {{ item.google_docs_embed_url ? '[GOOGLE_DOCS_EMBED]' : '[DOC_ATTACHED]' }}
                                     </div>
                                 </div>
 

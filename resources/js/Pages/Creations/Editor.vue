@@ -189,6 +189,41 @@ const hasMeaningfulContent = () => {
     return String(form.title || '').trim() !== '' || plainText !== '';
 };
 
+const injectResearchTemplate = () => {
+    const template = [
+        '<h2>DoopLab Research Workspace</h2>',
+        '<p><strong>Latar Belakang:</strong> Jelaskan masalah penelitian yang ingin diselesaikan.</p>',
+        '<p><strong>Tujuan Penelitian:</strong> Tuliskan tujuan utama dan tujuan spesifik.</p>',
+        '<p><strong>Output Akhir:</strong> Sebutkan bentuk output (laporan, prototipe, dataset, presentasi).</p>',
+        '<h3>Roadmap Penelitian</h3>',
+        '<ul>',
+        '<li>Milestone 1 - Definisi masalah & studi literatur</li>',
+        '<li>Milestone 2 - Desain metode & eksperimen</li>',
+        '<li>Milestone 3 - Implementasi & pengumpulan data</li>',
+        '<li>Milestone 4 - Evaluasi hasil & revisi</li>',
+        '<li>Milestone 5 - Finalisasi output</li>',
+        '</ul>',
+        '<h3>Timeline</h3>',
+        '<p>Mulai: [isi tanggal] | Target selesai: [isi tanggal]</p>',
+        '<h3>Research Logbook (Harian)</h3>',
+        '<p><strong>Tanggal:</strong> [isi]</p>',
+        '<p><strong>Progress hari ini:</strong> [isi]</p>',
+        '<p><strong>Hambatan:</strong> [isi]</p>',
+        '<p><strong>Next step:</strong> [isi]</p>',
+    ].join('');
+
+    const current = String(form.content || '').trim();
+    const isEmpty = current === '' || current === '<p></p>';
+
+    form.content = isEmpty
+        ? template
+        : `${current}<hr>${template}`;
+
+    if (String(form.title || '').trim() === '') {
+        form.title = 'Research Workspace';
+    }
+};
+
 const canResizeWorkspace = () => (
     typeof window !== 'undefined' && window.matchMedia('(min-width: 1100px)').matches
 );
@@ -900,6 +935,13 @@ onBeforeUnmount(() => {
                         <div class="creation-title-meta">
                             <span>{{ titleCount }}/255</span>
                             <span>{{ form.publication_status === 'publish' ? 'Published' : 'Draft' }}</span>
+                            <button
+                                type="button"
+                                class="creation-template-btn"
+                                @click="injectResearchTemplate"
+                            >
+                                Use DoopLab Research Template
+                            </button>
                         </div>
                     </div>
 

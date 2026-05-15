@@ -391,3 +391,39 @@ const canAccessDoopLab = computed(() => Boolean(page.props?.auth?.user?.can_acce
     .hologram-rings { inset: -26px; }
 }
 </style>
+
+<style scoped>
+/* DoopLab pixel/square typography override */
+.dooplab-root {
+    font-family: "Press Start 2P", Inter, sans-serif !important;
+    font-size: 10px;
+}
+
+.dooplab-root *,
+.dooplab-root *::before,
+.dooplab-root *::after {
+    border-radius: 0 !important;
+}
+
+.hero-shell,
+.module-card,
+.tele-chip,
+.btn-premium-hologram,
+.lab-logo-shell,
+.card-icon-box {
+    box-shadow: 4px 4px 0 rgba(1, 6, 14, 0.85) !important;
+}
+
+.eyebrow { font-size: 7px !important; }
+.title { font-size: clamp(14px, 2.2vw, 18px) !important; line-height: 1.35 !important; }
+.subtitle,
+.description,
+.unlock-note,
+.card-desc { font-size: 9px !important; line-height: 1.6 !important; }
+
+.btn-premium-hologram { font-size: 8px !important; padding: 10px 14px !important; }
+.section-title { font-size: 10px !important; }
+.card-title { font-size: 8px !important; }
+.tele-label { font-size: 6px !important; }
+.tele-val { font-size: 8px !important; }
+</style>

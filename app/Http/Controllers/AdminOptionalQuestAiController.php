@@ -98,6 +98,7 @@ class AdminOptionalQuestAiController extends Controller
     {
         $validated = $request->validate([
             'theme' => ['required', 'string', 'max:500'],
+            'ai_note' => ['nullable', 'string', 'max:1000'],
             'question_type' => ['required', 'in:multiple_choice,essay,mixed'],
             'question_count' => ['required', 'integer', 'min:3', 'max:30'],
             'difficulty' => ['required', 'in:C-Rank,B-Rank,A-Rank,S-Rank'],

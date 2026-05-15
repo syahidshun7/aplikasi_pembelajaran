@@ -12,11 +12,23 @@ const normalizedDescription = computed(() => {
     return String(raw).replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
 });
 
+const hasGoogleDocsEmbed = computed(() => !!props.guide?.google_docs_embed_url);
 const hasAttachment = computed(() => !!props.guide?.file_path);
+const hasAnyResource = computed(() => hasGoogleDocsEmbed.value || hasAttachment.value);
+
+const googleDocsEmbedUrl = computed(() => {
+    if (!hasGoogleDocsEmbed.value) return null;
+    return props.guide.google_docs_embed_url;
+});
 
 const attachmentUrl = computed(() => {
     if (!hasAttachment.value) return null;
     return `/storage/${props.guide.file_path}`;
+});
+
+const primaryResourceUrl = computed(() => {
+    if (hasGoogleDocsEmbed.value) return googleDocsEmbedUrl.value;
+    return attachmentUrl.value;
 });
 
 const isPdfAttachment = computed(() => {
@@ -142,7 +154,16 @@ const guideClassLabel = computed(() => {
                     <div class="border-2 border-slate-800 bg-black/30 p-4 md:p-6 space-y-4">
                         <h3 class="text-[9px] uppercase text-indigo-300">Attachment</h3>
 
-                        <div v-if="hasAttachment" class="space-y-4">
+                        <div v-if="hasAnyResource" class="space-y-4">
+                            <div v-if="hasGoogleDocsEmbed" class="border border-slate-700 p-2 bg-[#0d1117]">
+                                <iframe
+                                    :src="googleDocsEmbedUrl"
+                                    class="w-full h-[70vh] min-h-[420px]"
+                                    title="Google Docs preview"
+                                    allowfullscreen
+                                />
+                            </div>
+
                             <div v-if="isImageAttachment" class="border border-slate-700 p-2 bg-[#0d1117]">
                                 <img :src="attachmentUrl" :alt="guide.title" class="max-h-[420px] w-full object-contain">
                             </div>
@@ -161,11 +182,11 @@ const guideClassLabel = computed(() => {
 
                             <div class="flex justify-end">
                                 <a
-                                    :href="attachmentUrl"
+                                    :href="primaryResourceUrl"
                                     target="_blank"
                                     class="inline-flex items-center justify-center px-3 py-2 border border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white uppercase text-[8px]"
                                 >
-                                    Open_File
+                                    {{ hasGoogleDocsEmbed ? 'Open_Google_Docs' : 'Open_File' }}
                                 </a>
                             </div>
                         </div>

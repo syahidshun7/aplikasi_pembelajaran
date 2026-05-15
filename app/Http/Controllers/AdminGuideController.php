@@ -8,6 +8,7 @@ use App\Models\StudyGroup;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class AdminGuideController extends Controller
@@ -75,13 +76,26 @@ class AdminGuideController extends Controller
         'title' => 'required|string|max:255',
         'description' => 'nullable|string',
         'study_group_id' => 'nullable|exists:study_groups,id',
+        'content_source' => 'nullable|in:file,google_docs',
+        'google_docs_url' => 'nullable|string|max:2048|url',
         'file' => 'nullable|file|mimes:pdf,jpg,png,zip|max:10240',
     ]);
 
     $this->assertMentorCanManageStudyGroupId((int) $request->input('study_group_id'));
 
+    $contentSource = (string) $request->input('content_source', 'file');
+    $googleDocsEmbedUrl = $this->normalizeGoogleDocsEmbedUrl((string) $request->input('google_docs_url', ''));
+
+    if ($contentSource === 'google_docs' && empty($googleDocsEmbedUrl)) {
+        throw ValidationException::withMessages([
+            'google_docs_url' => 'Google Docs URL wajib diisi saat source dipilih sebagai embed.',
+        ]);
+    }
+
+    $useGoogleDocsSource = $contentSource === 'google_docs' && !empty($googleDocsEmbedUrl);
+
     $filePath = null;
-    if ($request->hasFile('file')) {
+    if (! $useGoogleDocsSource && $request->hasFile('file')) {
         $filePath = $request->file('file')->store('guides', 'public');
     }
 
@@ -90,7 +104,8 @@ class AdminGuideController extends Controller
         'title'       => $request->title,
         'description' => $request->description,
         'study_group_id' => $request->study_group_id,
-        'file_path'   => $filePath, 
+        'file_path'   => $filePath,
+        'google_docs_embed_url' => $useGoogleDocsSource ? $googleDocsEmbedUrl : null,
     ]);
 
     return back()->with('message', 'New Scroll has been inscribed in the library!');
@@ -109,10 +124,23 @@ class AdminGuideController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'study_group_id' => 'nullable|exists:study_groups,id',
+            'content_source' => 'nullable|in:file,google_docs',
+            'google_docs_url' => 'nullable|string|max:2048|url',
             'file' => 'nullable|file|mimes:pdf,jpg,png,zip|max:10240',
         ]);
 
         $this->assertMentorCanManageStudyGroupId((int) $request->input('study_group_id'));
+
+        $contentSource = (string) $request->input('content_source', 'file');
+        $googleDocsEmbedUrl = $this->normalizeGoogleDocsEmbedUrl((string) $request->input('google_docs_url', ''));
+
+        if ($contentSource === 'google_docs' && empty($googleDocsEmbedUrl)) {
+            throw ValidationException::withMessages([
+                'google_docs_url' => 'Google Docs URL wajib diisi saat source dipilih sebagai embed.',
+            ]);
+        }
+
+        $useGoogleDocsSource = $contentSource === 'google_docs' && !empty($googleDocsEmbedUrl);
 
         $data = [
             'title'       => $request->title,
@@ -120,12 +148,21 @@ class AdminGuideController extends Controller
             'study_group_id' => $request->study_group_id,
         ];
 
-        if ($request->hasFile('file')) {
-            // Hapus file lama dari storage jika user mengunggah file baru
+        if ($useGoogleDocsSource) {
             if ($guide->file_path) {
                 Storage::disk('public')->delete($guide->file_path);
             }
-            $data['file_path'] = $request->file('file')->store('guides', 'public');
+            $data['file_path'] = null;
+            $data['google_docs_embed_url'] = $googleDocsEmbedUrl;
+        } else {
+            $data['google_docs_embed_url'] = null;
+
+            if ($request->hasFile('file')) {
+                if ($guide->file_path) {
+                    Storage::disk('public')->delete($guide->file_path);
+                }
+                $data['file_path'] = $request->file('file')->store('guides', 'public');
+            }
         }
 
         $guide->update($data);
@@ -218,5 +255,60 @@ class AdminGuideController extends Controller
             ->exists();
 
         abort_unless($isAllowed, 403, 'MENTOR_CANNOT_MANAGE_GUIDE_OUTSIDE_JOB');
+    }
+
+    private function normalizeGoogleDocsEmbedUrl(string $url): ?string
+    {
+        $trimmedUrl = trim($url);
+        if ($trimmedUrl === '') {
+            return null;
+        }
+
+        $parts = parse_url($trimmedUrl);
+        if (! is_array($parts)) {
+            throw ValidationException::withMessages([
+                'google_docs_url' => 'Format Google Docs URL tidak valid.',
+            ]);
+        }
+
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $path = (string) ($parts['path'] ?? '');
+        parse_str((string) ($parts['query'] ?? ''), $query);
+
+        if ($host === 'docs.google.com') {
+            if (preg_match('#^/(document|spreadsheets|presentation)/d/([^/]+)#', $path, $matches) === 1) {
+                $docType = $matches[1];
+                $docId = $matches[2];
+
+                if ($docType === 'presentation') {
+                    return "https://docs.google.com/presentation/d/{$docId}/embed";
+                }
+
+                return "https://docs.google.com/{$docType}/d/{$docId}/preview";
+            }
+
+            throw ValidationException::withMessages([
+                'google_docs_url' => 'Google Docs URL harus berupa link Document, Spreadsheet, atau Presentation yang valid.',
+            ]);
+        }
+
+        if ($host === 'drive.google.com') {
+            if (preg_match('#^/file/d/([^/]+)#', $path, $matches) === 1) {
+                return "https://drive.google.com/file/d/{$matches[1]}/preview";
+            }
+
+            $openId = (string) ($query['id'] ?? '');
+            if ($path === '/open' && $openId !== '') {
+                return "https://drive.google.com/file/d/{$openId}/preview";
+            }
+
+            throw ValidationException::withMessages([
+                'google_docs_url' => 'Google Drive URL harus berupa link file yang valid.',
+            ]);
+        }
+
+        throw ValidationException::withMessages([
+            'google_docs_url' => 'Hanya URL Google Docs/Google Drive yang didukung untuk embed.',
+        ]);
     }
 }

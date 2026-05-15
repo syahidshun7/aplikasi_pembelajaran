@@ -15,6 +15,8 @@ use App\Http\Controllers\AdminDailyQuestDefinitionController;
 use App\Http\Controllers\AdminCreationReviewController;
 use App\Http\Controllers\AdminOptionalQuestAiController;
 use App\Http\Controllers\DoopLabDashboardController;
+use App\Http\Controllers\DoopLabRoadmapController;
+use App\Http\Controllers\DoopLabRoadmapEnrollmentController;
 use App\Http\Controllers\DoopLabTodoController;
 use App\Http\Controllers\ChatImageUploadController;
 use App\Models\User;
@@ -164,9 +166,31 @@ Route::get('/hall-of-creations/{creation}/review', [CreationPageController::clas
 
 Route::middleware('auth')->group(function () {
     Route::get('/dooplab/dashboard', [DoopLabDashboardController::class, 'index'])->name('dooplab.dashboard');
+    Route::get('/dooplab/roadmaps', [DoopLabRoadmapController::class, 'index'])->name('dooplab.roadmaps.index');
+    Route::post('/dooplab/roadmaps', [DoopLabRoadmapController::class, 'storeRoadmap'])->name('dooplab.roadmaps.store');
+    Route::patch('/dooplab/roadmaps/{roadmap}', [DoopLabRoadmapController::class, 'updateRoadmap'])->name('dooplab.roadmaps.update');
+    Route::delete('/dooplab/roadmaps/{roadmap}', [DoopLabRoadmapController::class, 'destroyRoadmap'])->name('dooplab.roadmaps.destroy');
+    Route::post('/dooplab/roadmaps/{roadmap}/sections', [DoopLabRoadmapController::class, 'storeSection'])->name('dooplab.roadmaps.sections.store');
+    Route::patch('/dooplab/roadmap-sections/{section}', [DoopLabRoadmapController::class, 'updateSection'])->name('dooplab.roadmaps.sections.update');
+    Route::delete('/dooplab/roadmap-sections/{section}', [DoopLabRoadmapController::class, 'destroySection'])->name('dooplab.roadmaps.sections.destroy');
+    Route::post('/dooplab/roadmaps/{roadmap}/nodes', [DoopLabRoadmapController::class, 'storeNode'])->name('dooplab.roadmaps.nodes.store');
+    Route::patch('/dooplab/roadmap-nodes/{node}', [DoopLabRoadmapController::class, 'updateNode'])->name('dooplab.roadmaps.nodes.update');
+    Route::delete('/dooplab/roadmap-nodes/{node}', [DoopLabRoadmapController::class, 'destroyNode'])->name('dooplab.roadmaps.nodes.destroy');
+    Route::post('/dooplab/roadmaps/{roadmap}/edges', [DoopLabRoadmapController::class, 'storeEdge'])->name('dooplab.roadmaps.edges.store');
+    Route::delete('/dooplab/roadmap-edges/{edge}', [DoopLabRoadmapController::class, 'destroyEdge'])->name('dooplab.roadmaps.edges.destroy');
+    Route::get('/dooplab/my-paths', [DoopLabRoadmapEnrollmentController::class, 'index'])->name('dooplab.roadmaps.enrollments.index');
+    Route::get('/dooplab/enrollments/{enrollment}', [DoopLabRoadmapEnrollmentController::class, 'show'])->name('dooplab.roadmaps.enrollments.show');
+    Route::post('/dooplab/enrollments', [DoopLabRoadmapEnrollmentController::class, 'store'])->name('dooplab.roadmaps.enrollments.store');
+    Route::delete('/dooplab/enrollments/{enrollment}', [DoopLabRoadmapEnrollmentController::class, 'destroy'])->name('dooplab.roadmaps.enrollments.destroy');
+    Route::post('/dooplab/enrollments/{enrollment}/nodes/{nodeUuid}/submit', [DoopLabRoadmapEnrollmentController::class, 'submit'])->name('dooplab.roadmaps.enrollments.submit');
+    Route::post('/dooplab/enrollments/{enrollment}/nodes/{nodeUuid}/review', [DoopLabRoadmapEnrollmentController::class, 'review'])->name('dooplab.roadmaps.enrollments.review');
+    Route::post('/dooplab/enrollments/{enrollment}/nodes/{nodeUuid}/unlock', [DoopLabRoadmapEnrollmentController::class, 'unlock'])->name('dooplab.roadmaps.enrollments.unlock');
+    Route::post('/dooplab/enrollments/{enrollment}/nodes/{nodeUuid}/lock', [DoopLabRoadmapEnrollmentController::class, 'lock'])->name('dooplab.roadmaps.enrollments.lock');
     Route::post('/dooplab/todos', [DoopLabTodoController::class, 'store'])->name('dooplab.todos.store');
     Route::patch('/dooplab/todos/{todo}', [DoopLabTodoController::class, 'update'])->name('dooplab.todos.update');
     Route::patch('/dooplab/todos/{todo}/toggle', [DoopLabTodoController::class, 'toggle'])->name('dooplab.todos.toggle');
+    Route::patch('/dooplab/todos/{todo}/submit-review', [DoopLabTodoController::class, 'submitForReview'])->name('dooplab.todos.submit-review');
+    Route::patch('/dooplab/todos/{todo}/review', [DoopLabTodoController::class, 'reviewCheckpoint'])->name('dooplab.todos.review');
     Route::delete('/dooplab/todos/{todo}', [DoopLabTodoController::class, 'destroy'])->name('dooplab.todos.destroy');
     Route::post('/dooplab/todos/{todo}/notes', [DoopLabTodoController::class, 'storeNote'])->name('dooplab.todos.notes.store');
 

@@ -38,6 +38,18 @@ const shortText = (text, max = 130) => {
     return `${value.slice(0, max)}...`;
 };
 
+const guideResourceUrl = (item) => {
+    if (item?.google_docs_embed_url) return item.google_docs_embed_url;
+    if (item?.file_path) return `/storage/${item.file_path}`;
+    return null;
+};
+
+const guideResourceLabel = (item) => {
+    if (item?.google_docs_embed_url) return 'Open_Google_Docs';
+    if (item?.file_path) return 'Open_File';
+    return 'No_File';
+};
+
 const hashGroupKey = (value) => {
     const normalized = String(value || 'global');
     let hash = 0;
@@ -154,11 +166,11 @@ const toneStyleForGuide = (item) => {
                                 >
                                     Detail
                                 </Link>
-                                <a v-if="item.file_path"
-                                   :href="'/storage/' + item.file_path"
+                                <a v-if="guideResourceUrl(item)"
+                                   :href="guideResourceUrl(item)"
                                    target="_blank"
                                    class="inline-block px-3 py-1 border border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white uppercase text-[8px]">
-                                    Open_File
+                                    {{ guideResourceLabel(item) }}
                                 </a>
                             </div>
                         </div>
@@ -202,12 +214,12 @@ const toneStyleForGuide = (item) => {
                                         Detail
                                     </Link>
                                     <a
-                                        v-if="item.file_path"
-                                        :href="'/storage/' + item.file_path"
+                                        v-if="guideResourceUrl(item)"
+                                        :href="guideResourceUrl(item)"
                                         target="_blank"
                                         class="inline-block px-3 py-1 border border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white uppercase text-[8px]"
                                     >
-                                        Open_File
+                                        {{ guideResourceLabel(item) }}
                                     </a>
                                     <span v-else class="text-slate-600 uppercase text-[8px]">No_File</span>
                                 </td>

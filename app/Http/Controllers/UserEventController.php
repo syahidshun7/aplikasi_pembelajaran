@@ -97,7 +97,7 @@ class UserEventController extends Controller
             'job:id,name',
             'images:id,event_id,path,sort_order',
             'guides' => function ($q) use ($event) {
-                $q->select('guides.id', 'guides.uuid', 'guides.title', 'guides.description', 'guides.file_path', 'guides.study_group_id')
+                $q->select('guides.id', 'guides.uuid', 'guides.title', 'guides.description', 'guides.file_path', 'guides.google_docs_embed_url', 'guides.study_group_id')
                     ->with('studyGroup:id,name');
             },
             'quests' => function ($q) use ($event) {
