@@ -126,6 +126,7 @@ const goToPage = (url) => {
 const typeClass = (type) => {
     if (type === 'multiple_choice') return 'text-yellow-400 border-yellow-800 bg-yellow-900/20';
     if (type === 'mixed') return 'text-purple-300 border-purple-800 bg-purple-900/20';
+    if (type === 'game_escape') return 'text-emerald-300 border-emerald-800 bg-emerald-900/20';
     return 'text-cyan-400 border-cyan-800 bg-cyan-900/20';
 };
 
@@ -195,6 +196,7 @@ watch([isMentor, firstJobId], () => {
                                         <option value="essay">ESSAY</option>
                                         <option value="multiple_choice">MULTIPLE_CHOICE</option>
                                         <option value="mixed">MIXED</option>
+                                        <option value="game_escape">GAME_ESCAPE</option>
                                     </select>
                                     <p v-if="form.errors.assessment_type" class="mt-2 text-red-400 text-[8px]">{{ form.errors.assessment_type }}</p>
                                 </div>

@@ -117,6 +117,7 @@ class SubmissionController extends Controller
                 'grade' => $submission->grade,
                 'earned_exp' => (int) ($submission->earned_exp ?? 0),
                 'earned_gold' => (int) ($submission->earned_gold ?? 0),
+                'scores_detail' => $submission->scores_detail,
             ],
         ]);
     }
@@ -194,6 +195,11 @@ class SubmissionController extends Controller
             'task_answers' => ['required', 'array', 'min:1'],
             'task_answers.*' => ['nullable', 'string'],
             'content' => ['nullable', 'string'],
+            'game_payload' => ['nullable', 'array'],
+            'game_payload.elapsed_seconds' => ['nullable', 'integer', 'min:0', 'max:7200'],
+            'game_payload.started_at' => ['nullable', 'string', 'max:100'],
+            'game_payload.finished_at' => ['nullable', 'string', 'max:100'],
+            'game_payload.attempts' => ['nullable', 'array'],
         ]);
 
         $answers = $this->normalizeSubmittedAnswers(
@@ -202,6 +208,29 @@ class SubmissionController extends Controller
         );
 
         $this->validateTaskBankAnswersOrFail($quest, $questions, $answers);
+
+        if ($this->isGameEscapeTaskBankQuest($quest)) {
+            $this->deleteSubmissionFileIfExists($submission->file_path);
+            $evaluation = $this->evaluateGameEscapeAnswers($quest, $answers, (array) ($validated['game_payload'] ?? []));
+
+            if ($this->isStaffPlayModeUser()) {
+                $evaluation['earned_exp'] = 0;
+                $evaluation['earned_gold'] = 0;
+                $evaluation['scores_detail']['staff_play_mode'] = true;
+                $evaluation['feedback'] .= ' STAFF_PLAY_MODE: reward tidak dihitung ke economy utama.';
+            }
+
+            $submission->content = $request->input('content') ?: '[AUTO_CHECK_GAME_ESCAPE_SUBMISSION]';
+            $submission->file_path = null;
+            $submission->status = 'Approved';
+            $submission->grade = $evaluation['grade'];
+            $submission->feedback = $evaluation['feedback'];
+            $submission->earned_exp = $evaluation['earned_exp'];
+            $submission->earned_gold = $evaluation['earned_gold'];
+            $submission->scores_detail = $evaluation['scores_detail'];
+
+            return true;
+        }
 
         if ($this->isMultipleChoiceTaskBankQuest($quest)) {
             $this->deleteSubmissionFileIfExists($submission->file_path);
@@ -361,6 +390,26 @@ class SubmissionController extends Controller
         return ! $containsNonMcq;
     }
 
+    private function isGameEscapeTaskBankQuest(Quest $quest): bool
+    {
+        if (! $quest->taskBank || (string) $quest->taskBank->assessment_type !== 'game_escape') {
+            return false;
+        }
+
+        $quest->loadMissing(['taskBank.questions' => function ($query) {
+            $query->where('is_active', true);
+        }]);
+
+        $questions = $quest->taskBank?->questions ?? collect();
+        if ($questions->isEmpty()) {
+            return false;
+        }
+
+        return ! $questions->contains(function ($question) {
+            return (string) ($question->question_type ?? '') !== 'game_stage';
+        });
+    }
+
     private function isSubmissionEvaluated(Submission $submission): bool
     {
         return in_array((string) $submission->status, ['Approved', 'Rejected'], true);
@@ -500,6 +549,118 @@ class SubmissionController extends Controller
         ];
     }
 
+    private function evaluateGameEscapeAnswers(Quest $quest, array $answers, array $gamePayload = []): array
+    {
+        $questions = ($quest->taskBank?->questions ?? collect())
+            ->filter(fn ($question) => (string) ($question->question_type ?? '') === 'game_stage')
+            ->values();
+
+        if ($questions->isEmpty()) {
+            throw ValidationException::withMessages([
+                'task_answers' => 'Quest game_escape membutuhkan minimal 1 stage aktif.',
+            ]);
+        }
+
+        $totalStages = $questions->count();
+        $clearedStages = 0;
+        $perStage = [];
+
+        foreach ($questions as $question) {
+            $qUuid = (string) $question->uuid;
+            $playerAnswer = trim((string) ($answers[$qUuid] ?? ''));
+            $config = is_array($question->options_json) ? $question->options_json : [];
+
+            $acceptedAnswers = collect($config['accepted_answers'] ?? [])
+                ->map(fn ($value) => $this->normalizeEscapeAnswer((string) $value))
+                ->filter(fn ($value) => $value !== '')
+                ->values()
+                ->all();
+
+            if ($acceptedAnswers === []) {
+                $fallback = trim((string) ($question->answer_key ?? ''));
+                if ($fallback !== '') {
+                    $acceptedAnswers = [$this->normalizeEscapeAnswer($fallback)];
+                }
+            }
+
+            $normalizedPlayerAnswer = $this->normalizeEscapeAnswer($playerAnswer);
+            $isCleared = $normalizedPlayerAnswer !== '' && in_array($normalizedPlayerAnswer, $acceptedAnswers, true);
+            if ($isCleared) {
+                $clearedStages++;
+            }
+
+            $perStage[$qUuid] = [
+                'prompt' => (string) ($question->question_text ?? ''),
+                'answer' => $playerAnswer,
+                'is_cleared' => $isCleared,
+                'accepted_answers_count' => count($acceptedAnswers),
+            ];
+        }
+
+        $baseScore = (int) round(($clearedStages / max(1, $totalStages)) * 100);
+        $elapsedSeconds = max(0, (int) ($gamePayload['elapsed_seconds'] ?? 0));
+        $speedBonus = 0;
+        if ($elapsedSeconds > 0 && $elapsedSeconds <= 300) {
+            $speedBonus = 12;
+        } elseif ($elapsedSeconds > 300 && $elapsedSeconds <= 600) {
+            $speedBonus = 6;
+        }
+
+        $grade = max(0, min(100, $baseScore + $speedBonus));
+        $rank = $this->resolveEscapeRank($grade);
+        $portion = $grade / 100;
+
+        $questGold = (int) ($quest->reward_gold ?? 0);
+        $questExp = (int) ($quest->reward_exp ?? 0);
+        if ($questExp <= 0) {
+            $questExp = $questGold;
+        }
+
+        $earnedGold = (int) floor($questGold * $portion);
+        $earnedExp = (int) floor($questExp * $portion);
+
+        return [
+            'grade' => $grade,
+            'earned_gold' => $earnedGold,
+            'earned_exp' => $earnedExp,
+            'feedback' => sprintf(
+                'GAME_ESCAPE_RESULT: %d/%d stage clear. Base %d%% + speed bonus %d = %d%%. Reward +%d EXP / +%d GOLD.',
+                $clearedStages,
+                $totalStages,
+                $baseScore,
+                $speedBonus,
+                $grade,
+                $earnedExp,
+                $earnedGold
+            ),
+            'scores_detail' => [
+                'source' => 'task_bank_game_escape_auto_check',
+                'assessment_type' => 'game_escape',
+                'rank' => $rank,
+                'total_stages' => $totalStages,
+                'cleared_stages' => $clearedStages,
+                'base_score' => $baseScore,
+                'speed_bonus' => $speedBonus,
+                'elapsed_seconds' => $elapsedSeconds,
+                'answers' => $answers,
+                'game_payload' => $gamePayload,
+                'stages' => $perStage,
+            ],
+        ];
+    }
+
+    private function resolveEscapeRank(int $score): string
+    {
+        if ($score >= 95) return 'SS';
+        if ($score >= 90) return 'S';
+        if ($score >= 80) return 'A';
+        if ($score >= 70) return 'B';
+        if ($score >= 60) return 'C';
+        if ($score >= 50) return 'D';
+
+        return 'F';
+    }
+
     private function authorizeQuestAccessForCurrentUser(Quest $quest): void
     {
         if (! $quest->study_group_id) {
@@ -535,5 +696,14 @@ class SubmissionController extends Controller
         }
 
         return 'Quest ini sedang tidak aktif.';
+    }
+
+    private function normalizeEscapeAnswer(string $value): string
+    {
+        $normalized = mb_strtolower(trim($value));
+        $normalized = preg_replace('/\s*-\s*/u', '-', $normalized) ?? $normalized;
+        $normalized = preg_replace('/\s+/u', ' ', $normalized) ?? $normalized;
+
+        return trim($normalized);
     }
 }

@@ -35,6 +35,25 @@ const actionLabel = computed(() => {
 const actionButtonClass = computed(() => {
     return props.submission?.status === 'Pending' ? 'btn-pixel-yellow' : 'btn-pixel-red';
 });
+
+const gameSummary = computed(() => {
+    const detail = props.submission?.scores_detail;
+    if (!detail || detail.assessment_type !== 'game_escape') return null;
+    return {
+        totalStages: Number(detail.total_stages || 0),
+        clearedStages: Number(detail.cleared_stages || 0),
+        elapsedSeconds: Number(detail.elapsed_seconds || 0),
+        speedBonus: Number(detail.speed_bonus || 0),
+    };
+});
+
+const gameElapsedLabel = computed(() => {
+    if (!gameSummary.value) return '-';
+    const total = Math.max(0, gameSummary.value.elapsedSeconds);
+    const mm = String(Math.floor(total / 60)).padStart(2, '0');
+    const ss = String(total % 60).padStart(2, '0');
+    return `${mm}:${ss}`;
+});
 </script>
 
 <template>
@@ -85,6 +104,15 @@ const actionButtonClass = computed(() => {
                            }">
                             {{ submission.status }}
                         </p>
+                    </div>
+
+                    <div v-if="gameSummary" class="rpg-panel border-emerald-500/40 bg-emerald-900/10">
+                        <h2 class="text-white text-[8px] mb-4 border-b border-slate-700 pb-2">GAME_ESCAPE_SUMMARY</h2>
+                        <div class="space-y-3">
+                            <p class="text-[8px] text-emerald-300">STAGE_CLEAR: {{ gameSummary.clearedStages }} / {{ gameSummary.totalStages }}</p>
+                            <p class="text-[8px] text-cyan-300">TIME: {{ gameElapsedLabel }}</p>
+                            <p class="text-[8px] text-yellow-300">SPEED_BONUS: +{{ gameSummary.speedBonus }}</p>
+                        </div>
                     </div>
                 </div>
 

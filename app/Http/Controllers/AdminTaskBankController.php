@@ -69,7 +69,7 @@ class AdminTaskBankController extends Controller
             'name' => ['required', 'string', 'max:255', 'unique:task_banks,name'],
             'description' => ['nullable', 'string'],
             'job_role_id' => ['nullable', 'exists:job_roles,id'],
-            'assessment_type' => ['required', Rule::in(['essay', 'multiple_choice', 'mixed'])],
+            'assessment_type' => ['required', Rule::in(['essay', 'multiple_choice', 'mixed', 'game_escape'])],
             'is_active' => ['required', 'boolean'],
         ]);
 
@@ -92,7 +92,7 @@ class AdminTaskBankController extends Controller
             'name' => ['required', 'string', 'max:255', 'unique:task_banks,name,' . $taskBank->id],
             'description' => ['nullable', 'string'],
             'job_role_id' => ['nullable', 'exists:job_roles,id'],
-            'assessment_type' => ['required', Rule::in(['essay', 'multiple_choice', 'mixed'])],
+            'assessment_type' => ['required', Rule::in(['essay', 'multiple_choice', 'mixed', 'game_escape'])],
             'is_active' => ['required', 'boolean'],
         ]);
 
@@ -140,15 +140,17 @@ class AdminTaskBankController extends Controller
             'importResult' => $request->session()->get('task_bank_import_result'),
             'importTemplate' => [
                 'download_url' => asset('examples/task-bank-import-template.json'),
+                'escape_room_download_url' => asset('examples/task-bank-escape-room-template.json'),
                 'fields' => [
                     ['name' => 'pertanyaan', 'required' => true, 'description' => 'Teks soal / pertanyaan utama.'],
-                    ['name' => 'tipe_soal', 'required' => false, 'description' => 'Isi `multiple_choice` atau `essay`. Jika kosong akan mengikuti tipe task bank.'],
+                    ['name' => 'tipe_soal', 'required' => false, 'description' => 'Isi `multiple_choice`, `essay`, atau `game_stage`. Jika kosong akan mengikuti tipe task bank.'],
                     ['name' => 'opsi', 'required' => false, 'description' => 'Wajib untuk soal pilihan ganda. Bisa object berkey `A/B/C/D` atau array string.'],
                     ['name' => 'jawaban', 'required' => false, 'description' => 'Untuk pilihan ganda isi huruf opsi benar seperti `A`, atau isi teks opsi yang benar.'],
                     ['name' => 'bobot', 'required' => false, 'description' => 'Bobot nilai, default `1`.'],
                     ['name' => 'urutan', 'required' => false, 'description' => 'Nomor urut soal, default mengikuti urutan data JSON.'],
                     ['name' => 'is_active', 'required' => false, 'description' => 'Status aktif soal, default `true`.'],
                     ['name' => 'kategori', 'required' => false, 'description' => 'Opsional untuk membantu penyusunan file JSON. Saat ini tidak disimpan karena schema bank soal belum punya kolom kategori.'],
+                    ['name' => 'stage', 'required' => false, 'description' => 'Opsional untuk penanda urutan stage Escape Room. Gunakan bersama `urutan` agar alur puzzle konsisten.'],
                 ],
                 'sample' => $this->taskBankImportJsonTemplate(),
             ],
@@ -164,7 +166,7 @@ class AdminTaskBankController extends Controller
 
         $validated = $request->validate([
             'question_text' => ['required', 'string'],
-            'question_type' => ['required', Rule::in(['essay', 'multiple_choice'])],
+            'question_type' => ['required', Rule::in(['essay', 'multiple_choice', 'game_stage'])],
             'options' => ['nullable', 'array'],
             'options.*' => ['nullable', 'string', 'max:255'],
             'answer_key' => ['nullable', 'string', 'max:255'],
@@ -316,7 +318,7 @@ class AdminTaskBankController extends Controller
 
         $validated = $request->validate([
             'question_text' => ['required', 'string'],
-            'question_type' => ['required', Rule::in(['essay', 'multiple_choice'])],
+            'question_type' => ['required', Rule::in(['essay', 'multiple_choice', 'game_stage'])],
             'options' => ['nullable', 'array'],
             'options.*' => ['nullable', 'string', 'max:255'],
             'answer_key' => ['nullable', 'string', 'max:255'],
@@ -366,6 +368,36 @@ class AdminTaskBankController extends Controller
                     'answer_key' => 'Jawaban benar harus salah satu dari opsi.',
                 ]);
             }
+        } elseif ($questionType === 'game_stage') {
+            $gameConfigRaw = $validated['options'][0] ?? '';
+            $decoded = json_decode((string) $gameConfigRaw, true);
+            if (! is_array($decoded)) {
+                throw ValidationException::withMessages([
+                    'options' => 'Untuk game_stage, isi opsi pertama dengan JSON konfigurasi stage yang valid.',
+                ]);
+            }
+
+            $acceptedAnswers = $decoded['accepted_answers'] ?? [];
+            if (! is_array($acceptedAnswers) || count($acceptedAnswers) < 1) {
+                throw ValidationException::withMessages([
+                    'options' => 'Konfigurasi game_stage wajib punya accepted_answers minimal satu.',
+                ]);
+            }
+
+            $decoded['accepted_answers'] = collect($acceptedAnswers)
+                ->map(fn ($value) => trim((string) $value))
+                ->filter(fn ($value) => $value !== '')
+                ->values()
+                ->all();
+
+            if ($decoded['accepted_answers'] === []) {
+                throw ValidationException::withMessages([
+                    'options' => 'accepted_answers tidak boleh kosong.',
+                ]);
+            }
+
+            $options = $decoded;
+            $validated['answer_key'] = (string) $decoded['accepted_answers'][0];
         } else {
             $options = [];
             $validated['answer_key'] = null;
@@ -374,7 +406,9 @@ class AdminTaskBankController extends Controller
         return [
             'question_text' => $validated['question_text'],
             'question_type' => $questionType,
-            'options_json' => ! empty($options) ? $options : null,
+            'options_json' => $questionType === 'game_stage'
+                ? $options
+                : (! empty($options) ? $options : null),
             'answer_key' => $validated['answer_key'] ?? null,
             'weight' => (int) $validated['weight'],
             'sort_order' => (int) ($validated['sort_order'] ?? 1),
@@ -421,6 +455,12 @@ class AdminTaskBankController extends Controller
             ]);
         }
 
+        if ($taskBankType === 'game_escape' && $questionType !== 'game_stage') {
+            throw ValidationException::withMessages([
+                'import_file' => "Soal #{$humanIndex}: task bank game_escape hanya menerima tipe game_stage.",
+            ]);
+        }
+
         $fingerprint = $this->questionFingerprint($questionText);
         if (isset($seenFingerprints[$fingerprint])) {
             throw ValidationException::withMessages([
@@ -437,6 +477,8 @@ class AdminTaskBankController extends Controller
 
         if ($questionType === 'multiple_choice') {
             [$options, $answerKey] = $this->normalizeImportedMultipleChoiceData($row, $humanIndex);
+        } elseif ($questionType === 'game_stage') {
+            [$options, $answerKey] = $this->normalizeImportedGameStageData($row, $humanIndex);
         }
 
         $seenFingerprints[$fingerprint] = true;
@@ -457,13 +499,16 @@ class AdminTaskBankController extends Controller
         $rawType = trim((string) ($row['tipe_soal'] ?? $row['question_type'] ?? ''));
         if ($rawType !== '') {
             $normalized = str_replace(['-', ' '], '_', strtolower($rawType));
-            if (in_array($normalized, ['essay', 'multiple_choice'], true)) {
+            if (in_array($normalized, ['essay', 'multiple_choice', 'game_stage'], true)) {
                 return $normalized;
             }
         }
 
         $taskBankType = (string) ($taskBank->assessment_type ?? 'essay');
-        if (in_array($taskBankType, ['essay', 'multiple_choice'], true)) {
+        if (in_array($taskBankType, ['essay', 'multiple_choice', 'game_escape'], true)) {
+            if ($taskBankType === 'game_escape') {
+                return 'game_stage';
+            }
             return $taskBankType;
         }
 
@@ -528,6 +573,48 @@ class AdminTaskBankController extends Controller
         throw ValidationException::withMessages([
             'import_file' => "Soal #{$humanIndex}: field `jawaban` harus sesuai label opsi (mis. A/B/C/D) atau isi opsi yang valid.",
         ]);
+    }
+
+    private function normalizeImportedGameStageData(array $row, int $humanIndex): array
+    {
+        $prompt = trim((string) ($row['prompt'] ?? $row['clue'] ?? $row['pertanyaan'] ?? ''));
+        if ($prompt === '') {
+            throw ValidationException::withMessages([
+                'import_file' => "Soal #{$humanIndex}: game_stage wajib punya `prompt` atau `clue`.",
+            ]);
+        }
+
+        $acceptedAnswersRaw = $row['accepted_answers'] ?? $row['jawaban_valid'] ?? null;
+        if (! is_array($acceptedAnswersRaw)) {
+            $singleAnswer = trim((string) ($row['jawaban'] ?? $row['answer'] ?? ''));
+            $acceptedAnswersRaw = $singleAnswer !== '' ? [$singleAnswer] : [];
+        }
+
+        $acceptedAnswers = collect($acceptedAnswersRaw)
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
+            ->values()
+            ->all();
+
+        if ($acceptedAnswers === []) {
+            throw ValidationException::withMessages([
+                'import_file' => "Soal #{$humanIndex}: game_stage wajib punya minimal 1 accepted_answers.",
+            ]);
+        }
+
+        $maxAttempts = $row['max_attempts'] ?? 3;
+        if (! is_numeric($maxAttempts) || (int) $maxAttempts < 1 || (int) $maxAttempts > 10) {
+            throw ValidationException::withMessages([
+                'import_file' => "Soal #{$humanIndex}: max_attempts harus angka 1-10.",
+            ]);
+        }
+
+        return [[
+            'prompt' => $prompt,
+            'accepted_answers' => $acceptedAnswers,
+            'max_attempts' => (int) $maxAttempts,
+            'hint' => trim((string) ($row['hint'] ?? '')),
+        ], (string) $acceptedAnswers[0]];
     }
 
     private function normalizePositiveInt(mixed $value, int $min, int $max, string $errorMessage): int
