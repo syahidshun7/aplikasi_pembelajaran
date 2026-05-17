@@ -25,7 +25,7 @@ return new class extends Migration
             $table->string('status', 32)->default('pending');
             $table->timestamp('completed_at')->nullable();
             $table->timestamp('claimed_at')->nullable();
-            $table->timestamp('expires_at');
+            $table->dateTime('expires_at');
             $table->json('meta')->nullable();
             $table->timestamps();
 

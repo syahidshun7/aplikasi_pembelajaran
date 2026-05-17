@@ -42,6 +42,7 @@ const importErrors = computed(() => Array.isArray(props.importResult?.errors) ? 
 const importTemplateJson = computed(() => JSON.stringify(props.importTemplate?.sample || [], null, 2));
 
 const isMcq = computed(() => form.question_type === 'multiple_choice');
+const isGameStage = computed(() => form.question_type === 'game_stage');
 
 const startEdit = (row) => {
     isEditing.value = true;
@@ -101,12 +102,16 @@ const submit = () => {
 
     const answerKey = isMcq.value
         ? (typeof form.correct_option_index === 'number' ? (normalizedOptions[form.correct_option_index] || '') : '')
-        : '';
+        : null;
+
+    const payloadOptions = isGameStage.value
+        ? [String(form.options?.[0] || '').trim()]
+        : cleanedOptions;
 
     const payload = {
         question_text: form.question_text,
         question_type: form.question_type,
-        options: cleanedOptions,
+        options: payloadOptions,
         answer_key: answerKey,
         weight: form.weight,
         sort_order: form.sort_order,
@@ -157,6 +162,7 @@ const goToPage = (url) => {
 
 const typeClass = (type) => {
     if (type === 'multiple_choice') return 'text-yellow-400 border-yellow-800 bg-yellow-900/20';
+    if (type === 'game_stage') return 'text-emerald-300 border-emerald-800 bg-emerald-900/20';
     return 'text-cyan-400 border-cyan-800 bg-cyan-900/20';
 };
 
@@ -287,7 +293,9 @@ const submitImport = () => {
                             <div class="mt-5 border border-slate-700 bg-black/20 p-3">
                                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                                     <p class="text-[8px] uppercase text-white">FORMAT_REFERENCE</p>
-                                    <a :href="importTemplate?.download_url" target="_blank" class="text-[8px] uppercase text-cyan-300 hover:text-white">[Download_JSON_Template]</a>
+                                    <div class="flex flex-wrap gap-2">
+                                        <a :href="importTemplate?.download_url" target="_blank" class="text-[8px] uppercase text-cyan-300 hover:text-white">[Download_JSON_Template]</a>
+                                    </div>
                                 </div>
 
                                 <div class="mt-3 space-y-2">
@@ -333,6 +341,7 @@ const submitImport = () => {
                                         <select v-model="form.question_type" class="w-full bg-black border-2 border-slate-700 p-2 text-yellow-300 uppercase outline-none focus:border-yellow-400">
                                             <option value="essay">ESSAY</option>
                                             <option value="multiple_choice">MULTIPLE_CHOICE</option>
+                                            <option value="game_stage">GAME_STAGE</option>
                                         </select>
                                     </div>
                                     <div>
@@ -387,6 +396,18 @@ const submitImport = () => {
                                     </div>
                                     <p class="mt-2 text-[8px] text-slate-400 uppercase">Pilih jawaban benar dengan radio di kiri opsi.</p>
                                     <p v-if="form.errors.options" class="mt-2 text-red-400 text-[8px]">{{ form.errors.options }}</p>
+                                </div>
+                                <div v-else-if="isGameStage">
+                                    <label class="block mb-2 text-white uppercase">GAME_STAGE_CONFIG_JSON:</label>
+                                    <textarea
+                                        v-model="form.options[0]"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 text-[12px] font-sans text-slate-200 focus:border-emerald-400 focus:ring-0"
+                                        style="resize: vertical; min-height: 140px;"
+                                        placeholder='{"prompt":"...","accepted_answers":["kode"],"hint":"...","max_attempts":3}'
+                                    ></textarea>
+                                    <p class="mt-2 text-[8px] text-slate-400 uppercase">
+                                        Untuk GAME_STAGE, isi JSON config. accepted_answers minimal 1 item.
+                                    </p>
                                 </div>
                                 <p v-if="form.errors.answer_key" class="mt-2 text-red-400 text-[8px]">{{ form.errors.answer_key }}</p>
 
