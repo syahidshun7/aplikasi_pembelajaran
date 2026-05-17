@@ -1,6 +1,7 @@
 <script setup>
 import { Link, usePage, router } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
 import { toast } from '@/Utils/Alert';
 
 // 1. Ambil data page props
@@ -8,6 +9,7 @@ const page = usePage();
 
 // 2. Definisikan variabel auth yang menyebabkan error tadi
 const auth = computed(() => page.props.auth || {});
+const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
 
 const handleLogout = () => {
     toast.confirm('QUIT GAME?', 'Are you sure you want to exit?')
@@ -20,13 +22,8 @@ const handleLogout = () => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-[#0d1117] font-['Press_Start_2P'] selection:bg-[#009999] relative overflow-x-hidden text-[#4ed4d4] bg-cover bg-center bg-no-repeat bg-fixed"
-        style="background-image: url('/images/bg-loby.png');">
-        
-        <div class="absolute inset-0 bg-black/60 z-0"></div>
-
-        <div class="fixed inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-40 bg-[length:100%_2px,3px_100%] opacity-20">
-        </div>
+    <div class="min-h-screen font-['Press_Start_2P'] selection:bg-[#009999] relative isolate overflow-x-hidden text-[#4ed4d4]">
+        <AppBackgroundLayer overlay-class="bg-black/60" />
 
         <nav class="bg-[#1a1c2c]/90 backdrop-blur-sm border-b-4 border-[#3d415f] p-4 md:px-8 flex justify-between items-center shadow-2xl sticky top-0 z-50">
             <div class="flex items-center gap-4">
@@ -35,19 +32,19 @@ const handleLogout = () => {
                         <img src="/images/logo.png" alt="Logo" class="w-7 h-7 object-contain pixelated">
                     </div>
                     <h1 class="text-[#009999] text-[8px] md:text-sm tracking-tighter uppercase group-hover:text-[#4ed4d4]">
-                        Lobby_Room_01
+                        DOOPTECH
                     </h1>
                 </Link>
             </div>
 
             <div class="flex gap-2 md:gap-4 items-center">
                 <template v-if="auth.user">
-                    <Link v-if="auth.user.role === 'admin'" :href="route('admin.dashboard')"
+                    <Link v-if="isStaff" :href="route('admin.dashboard')"
                         class="text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors">
                         Admin
                     </Link>
 
-                    <Link :href="route('profile.edit')"
+                    <Link :href="route('profile.dashboard')"
                         class="text-[8px] bg-[#3d415f]/80 text-white px-3 py-2 btn-pixel border-[#1a1c2c] uppercase font-bold hover:bg-slate-600 transition-colors">
                         Profile
                     </Link>

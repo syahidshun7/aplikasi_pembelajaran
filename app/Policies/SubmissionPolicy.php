@@ -13,12 +13,12 @@ class SubmissionPolicy
     public function view(User $user, Submission $submission): bool
     {
         // 1. Jika dia Admin, izinkan akses ke semua submission
-        if ($user->role === 'admin') {
+        if ($user->isStaff()) {
             return true;
         }
 
         // 2. Jika user biasa, cek apakah ID-nya sama dengan pemilik submission
-        return $user->id === $submission->user_id;
+       return (string) $user->id === (string) $submission->user_id;
     }
 
     /**
@@ -27,6 +27,6 @@ class SubmissionPolicy
     public function update(User $user, Submission $submission): bool
     {
         // Biasanya di industri, hanya admin yang boleh mengedit status tugas
-        return $user->role === 'admin';
+        return $user->isStaff();
     }
 }

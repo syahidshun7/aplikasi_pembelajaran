@@ -17,6 +17,13 @@ class ProfileUpdateRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'username' => ['required', 'string', 'lowercase', 'max:255', 'unique:users,username,' . $this->user()->id],
+            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
+            'job_id' => ['nullable', 'exists:job_roles,id'],
+            'bio' => ['nullable', 'string', 'max:2000'],
+            'experience' => ['nullable', 'string', 'max:255'],
+            'location' => ['nullable', 'string', 'max:255'],
+            'skills_text' => ['nullable', 'string', 'max:1000'],
             'email' => [
                 'required',
                 'string',

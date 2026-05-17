@@ -10,7 +10,9 @@ test('email verification screen can be rendered', function () {
 
     $response = $this->actingAs($user)->get('/verify-email');
 
-    $response->assertStatus(200);
+    $response
+        ->assertRedirect(route('lobby', absolute: false))
+        ->assertSessionHas('status', 'email-verification-required');
 });
 
 test('email can be verified', function () {
@@ -28,7 +30,7 @@ test('email can be verified', function () {
 
     Event::assertDispatched(Verified::class);
     expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
-    $response->assertRedirect(route('dashboard', absolute: false).'?verified=1');
+    $response->assertRedirect(route('lobby', ['verified' => 1], absolute: false));
 });
 
 test('email is not verified with invalid hash', function () {

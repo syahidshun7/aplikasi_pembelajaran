@@ -1,73 +1,83 @@
 <script setup>
-import { Link, usePage, router } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import Swal from 'sweetalert2';
-import { toast } from '@/Utils/Alert'; // Satukan import di atas
+import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
+import FloatingChat from '@/Components/FloatingChat.vue';
+import UserNavbar from '@/Components/UserNavbar.vue';
+
 const page = usePage();
 const auth = computed(() => page.props.auth);
-
-const handleLogout = () => {
-    toast.confirm('QUIT GAME?', 'Are you sure you want to exit?')
-        .then((result) => {
-            if (result.isConfirmed) {
-                // Gunakan route() langsung, Inertia/Ziggy akan menanganinya
-                router.post(route('logout'));
-            }
-        });
-};
-
+const showFloatingChat = computed(() => Boolean(auth.value?.user));
+const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
+const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
+const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
+const isStaffPlayMode = computed(() => Boolean(auth.value?.user?.staff_play_mode));
+const playerModeNotice = computed(() => String(auth.value?.user?.player_mode_notice || '').trim());
+const isDoopLabPage = computed(() => String(page.url || '').startsWith('/dooplab'));
+const showStaffPlayModeNotice = computed(() => isStaffPlayMode.value && !isDoopLabPage.value);
 </script>
 
 <template>
-    <div class="min-h-screen bg-[#0d1117] font-['Press_Start_2P'] selection:bg-[#009999] relative overflow-x-hidden text-[#4ed4d4] bg-cover bg-center bg-no-repeat bg-fixed"
-        style="background-image: url('/images/bg-loby.png');">
-        <div class="absolute inset-0 bg-black/70 z-0"></div>
+    <Head>
+        <meta head-key="robots" name="robots" content="noindex,nofollow" />
+    </Head>
 
-        <div
-            class="fixed inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-40 bg-[length:100%_2px,3px_100%] opacity-10">
-        </div>
+    <div
+        data-app-surface="user"
+        class="user-theme-root min-h-screen font-['Press_Start_2P'] selection:bg-[var(--accent)] relative isolate overflow-x-hidden flex flex-col"
+    >
+        <AppBackgroundLayer />
 
-        <nav
-            class="bg-[#1a1c2c]/90 backdrop-blur-sm border-b-4 border-[#3d415f] p-4 md:px-8 flex justify-between items-center shadow-2xl sticky top-0 z-50">
-            <div class="flex items-center gap-4">
-                <Link :href="route('lobby')" class="flex items-center gap-4 group">
-                    <div
-                        class="w-10 h-10 bg-[#0a0c10] flex items-center justify-center border-b-4 border-r-4 border-[#4ed4d4] overflow-hidden group-hover:scale-110 transition-transform">
-                        <img src="/images/logo.png" alt="Logo" class="w-7 h-7 object-contain pixelated">
-                    </div>
-                    <h1
-                        class="text-[#009999] text-[8px] md:text-sm tracking-tighter uppercase group-hover:text-[#4ed4d4]">
-                        Lobby_Room_01
-                    </h1>
+        <UserNavbar />
+
+        <div v-if="isEmailUnverified" class="relative z-20 px-4 md:px-8 pt-4">
+            <div class="border-2 border-amber-400/60 bg-amber-500/10 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div class="text-[9px] leading-relaxed text-amber-100 uppercase tracking-wide">
+                    Email belum terverifikasi. Buka profile untuk kirim ulang verifikasi, lalu cek inbox/spam.
+                </div>
+                <Link
+                    :href="profileVerificationHref"
+                    class="text-[8px] bg-amber-300 text-black px-3 py-2 btn-pixel border-amber-700 uppercase font-bold hover:bg-amber-200 transition-colors text-center"
+                >
+                    Buka Profile
                 </Link>
             </div>
-
-            <div class="flex gap-4 items-center">
-                <template v-if="auth.user">
-                    <Link v-if="auth.user.role === 'admin'" :href="route('admin.dashboard')"
-                        class="text-[8px] bg-purple-600/80 text-white px-3 py-2 btn-pixel border-purple-900 uppercase font-bold hover:bg-purple-500 transition-colors">
-                        Admin
-                    </Link>
-
-                    <Link :href="route('profile.edit')"
-                        class="text-[8px] bg-[#3d415f]/80 text-white px-3 py-2 btn-pixel border-[#1a1c2c] uppercase font-bold hover:bg-slate-600 transition-colors">
-                        Profile
-                    </Link>
-
-                    <button @click="handleLogout"
-                        class="text-[8px] bg-red-900/80 text-white px-3 py-2 btn-pixel border-red-950 uppercase font-bold hover:bg-red-700 transition-colors">
-                        [X]
-                    </button>
-                </template>
+        </div>
+        <div v-else-if="isEmailVerifiedSuccess" class="relative z-20 px-4 md:px-8 pt-4">
+            <div class="border-2 border-emerald-400/60 bg-emerald-500/15 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div class="text-[9px] leading-relaxed text-emerald-100 uppercase tracking-wide">
+                    Verifikasi email berhasil. Semua fitur akun sekarang sudah terbuka.
+                </div>
+                <Link
+                    :href="route('lobby')"
+                    class="text-[8px] bg-emerald-300 text-black px-3 py-2 btn-pixel border-emerald-700 uppercase font-bold hover:bg-emerald-200 transition-colors text-center"
+                >
+                    Ke Home User
+                </Link>
             </div>
-        </nav>
+        </div>
+        <div v-if="showStaffPlayModeNotice" class="relative z-20 px-4 md:px-8 pt-4">
+            <div class="border-2 border-cyan-400/60 bg-cyan-500/10 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div class="text-[9px] leading-relaxed text-cyan-100 uppercase tracking-wide">
+                    {{ playerModeNotice || 'Mode preview aktif. Reward, leaderboard, dan akses kelas student tidak dihitung.' }}
+                </div>
+                <Link
+                    :href="route('admin.dashboard')"
+                    class="text-[8px] bg-cyan-300 text-black px-3 py-2 btn-pixel border-cyan-700 uppercase font-bold hover:bg-cyan-200 transition-colors text-center"
+                >
+                    Kembali ke Admin
+                </Link>
+            </div>
+        </div>
 
-        <main class="relative z-10 p-4 md:p-8 animate-in fade-in zoom-in-95 duration-500">
+        <main class="relative z-10 p-4 md:p-8 animate-in fade-in zoom-in-95 duration-500 flex-1">
             <slot />
         </main>
-        <footer class="p-8 text-center bg-[#1a1c2c]/50 backdrop-blur-md border-t-2 border-white/10 mt-auto">
-            <p class="text-[8px] text-white/50 uppercase tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
+        <footer class="user-theme-footer mt-auto border-t-2 p-6 text-center backdrop-blur-md md:p-8">
+            <p class="user-theme-muted break-words text-[7px] uppercase tracking-[0.18em] sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
         </footer>
+
+        <FloatingChat v-if="showFloatingChat" />
     </div>
 </template>
 

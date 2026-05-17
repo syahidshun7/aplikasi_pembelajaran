@@ -1,48 +1,357 @@
 <?php
 
 namespace App\Http\Controllers;
+
+use App\Models\Guide;
 use App\Models\Quest;
+use App\Models\Submission;
 use App\Models\User;
+use App\Services\LevelingService;
+use App\Support\Cache\CacheVersion;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
-
-
-use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-  public function index()
-{
-  // 1. Ambil Statistik Umum
-    $stats = [
-        // 'total_materi' => \App\Models\Materi::count(),
-        'total_students' => \App\Models\User::where('role', 'student')->count(),
-        'pending_verdicts' => \App\Models\Submission::where('status', 'Pending')->count(),
-    ];
+    public function index()
+    {
+        $authUser = auth()->user();
+        $isMentor = (bool) $authUser?->isMentor();
+        $mentorJobId = (int) ($authUser?->job_id ?? 0);
 
-    // 2. Query User yang memiliki rata-rata Grade > 75
-    // Asumsi: tabel submissions punya kolom 'grade' dan 'user_id'
-    $topUsers = \App\Models\User::where('role', 'student')
-        ->withCount(['submissions as total_completed' => function ($query) {
-            $query->whereIn('status', ['Approved', 'Rejected']);
-        }])
-        ->get()
-        ->map(function ($user) {
-            // Hitung rata-rata grade dari submission yang sudah dinilai
-            $avg = $user->submissions()->whereIn('status', ['Approved', 'Rejected'])->avg('grade');
-            $user->avg_grade = round($avg ?? 0, 1);
-            return $user;
-        })
-        ->filter(fn($user) => $user->avg_grade > 75) // Filter Grade > 75
-        ->sortByDesc('avg_grade')
-        ->values();
+        if ($isMentor && $mentorJobId <= 0) {
+            abort(403, 'MENTOR_JOB_REQUIRED');
+        }
 
-    return Inertia::render('Admin/Dashboard', [
-        'stats' => $stats,
-        'topUsers' => $topUsers,
-        'recentLogs' => [
-            "Admin session started at " . now()->format('H:i'),
-            "Elite Performers Monitor updated.",
-        ]
-    ]);
-}
+        $levelColumn = Schema::hasColumn('users', 'lvl') ? 'lvl' : 'level';
+
+        $guideQuery = Guide::query();
+        $studentQuery = User::query()->whereNotIn('role', User::staffRoles());
+        $pendingSubmissionQuery = Submission::query()->where('status', 'Pending');
+        $gradedSubmissionQuery = Submission::query()->whereIn('status', ['Approved', 'Rejected']);
+
+        if ($isMentor) {
+            $guideQuery->whereHas('studyGroup', function ($q) use ($mentorJobId) {
+                $q->where('job_id', $mentorJobId);
+            });
+
+            $studentQuery->where('job_id', $mentorJobId);
+
+            $pendingSubmissionQuery->whereHas('quest', function ($q) use ($mentorJobId) {
+                $q->where(function ($w) use ($mentorJobId) {
+                    $w->whereHas('studyGroup', function ($sq) use ($mentorJobId) {
+                        $sq->where('job_id', $mentorJobId);
+                    })->orWhereHas('taskBank', function ($tq) use ($mentorJobId) {
+                        $tq->where('job_role_id', $mentorJobId);
+                    });
+                });
+            });
+
+            $gradedSubmissionQuery->whereHas('quest', function ($q) use ($mentorJobId) {
+                $q->where(function ($w) use ($mentorJobId) {
+                    $w->whereHas('studyGroup', function ($sq) use ($mentorJobId) {
+                        $sq->where('job_id', $mentorJobId);
+                    })->orWhereHas('taskBank', function ($tq) use ($mentorJobId) {
+                        $tq->where('job_role_id', $mentorJobId);
+                    });
+                });
+            });
+        }
+
+        $dashboardCacheVersion = CacheVersion::get('dashboard');
+        $scopeKey = $isMentor ? ('mentor_job.' . $mentorJobId) : 'global';
+
+        $stats = Cache::remember(
+            "dashboard.stats.v{$dashboardCacheVersion}.{$scopeKey}",
+            now()->addMinutes(3),
+            function () use ($guideQuery, $studentQuery, $pendingSubmissionQuery, $gradedSubmissionQuery) {
+                $avgGrade30d = (float) (clone $gradedSubmissionQuery)
+                    ->where('created_at', '>=', now()->subDays(30))
+                    ->avg('grade');
+
+                $graded7dCount = (int) (clone $gradedSubmissionQuery)
+                    ->where('created_at', '>=', now()->subDays(7))
+                    ->count();
+
+                return [
+                    'total_materi' => (int) $guideQuery->count(),
+                    'total_students' => (int) $studentQuery->count(),
+                    'pending_verdicts' => (int) $pendingSubmissionQuery->count(),
+                    'avg_grade_30d' => round($avgGrade30d, 1),
+                    'graded_7d' => $graded7dCount,
+                ];
+            }
+        );
+
+        $page = LengthAwarePaginator::resolveCurrentPage();
+        $studentsCachePayload = Cache::remember(
+            "dashboard.students.v{$dashboardCacheVersion}.{$scopeKey}.page.{$page}",
+            now()->addMinutes(3),
+            function () use ($isMentor, $mentorJobId, $levelColumn, $page) {
+                $studentsQuery = User::query()
+                    ->whereNotIn('role', User::staffRoles());
+
+                if ($isMentor) {
+                    $studentsQuery->where('job_id', $mentorJobId);
+                }
+
+                // NOTE: Sort + perhitungan avg_grade harus konsisten dengan "grade average" di sisi user/profile:
+                // avg_grade = (sum latest grade per available quest) / (total available quests),
+                // di mana quest yang belum disubmit tetap masuk denominator (nilai 0).
+                $allStudents = $studentsQuery->get(['id', 'name', 'username', 'exp', $levelColumn]);
+                $userIds = $allStudents->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+                if (empty($userIds)) {
+                    return [
+                        'items' => [],
+                        'total' => 0,
+                        'per_page' => 10,
+                    ];
+                }
+
+                $publicQuestCount = (int) Quest::query()
+                    ->whereNull('study_group_id')
+                    ->publishedForAverage()
+                    ->count();
+
+                $groupQuestCountByGroupId = Quest::query()
+                    ->whereNotNull('study_group_id')
+                    ->publishedForAverage()
+                    ->selectRaw('study_group_id, COUNT(*) as cnt')
+                    ->groupBy('study_group_id')
+                    ->pluck('cnt', 'study_group_id')
+                    ->map(fn ($v) => (int) $v)
+                    ->all();
+
+                $groupNamesByGroupId = DB::table('study_groups')
+                    ->whereIn('id', array_keys($groupQuestCountByGroupId))
+                    ->pluck('name', 'id')
+                    ->map(fn ($name) => (string) $name)
+                    ->all();
+
+                $userGroupIdsMap = DB::table('group_user')
+                    ->whereIn('user_id', $userIds)
+                    ->whereNull('deleted_at')
+                    ->select('user_id', 'study_group_id')
+                    ->distinct()
+                    ->get()
+                    ->groupBy('user_id')
+                    ->map(fn ($rows) => $rows->pluck('study_group_id')->map(fn ($id) => (int) $id)->values()->all())
+                    ->all();
+
+                $totalCompletedByUser = Submission::query()
+                    ->whereIn('user_id', $userIds)
+                    ->whereIn('status', ['Approved', 'Rejected'])
+                    ->selectRaw('user_id, COUNT(*) as cnt')
+                    ->groupBy('user_id')
+                    ->pluck('cnt', 'user_id')
+                    ->map(fn ($v) => (int) $v)
+                    ->all();
+
+                $latestGradesByUser = [];
+                $latestSubmissions = Submission::query()
+                    ->joinSub(
+                        Submission::query()
+                            ->whereIn('user_id', $userIds)
+                            ->selectRaw('MAX(id) as id')
+                            ->groupBy('user_id', 'quest_id'),
+                        'latest',
+                        fn ($join) => $join->on('submissions.id', '=', 'latest.id')
+                    )
+                    ->leftJoin('quests', 'quests.id', '=', 'submissions.quest_id')
+                    ->get(['submissions.user_id', 'submissions.grade', 'submissions.status', 'quests.study_group_id']);
+
+                foreach ($latestSubmissions as $submission) {
+                    $uid = (int) $submission->user_id;
+                    $latestGradesByUser[$uid][] = [
+                        'study_group_id' => is_null($submission->study_group_id) ? null : (int) $submission->study_group_id,
+                        'grade' => (int) ($submission->grade ?? 0),
+                        'status' => (string) ($submission->status ?? ''),
+                    ];
+                }
+
+                $allStudents->transform(function ($user) use ($levelColumn, $publicQuestCount, $groupQuestCountByGroupId, $groupNamesByGroupId, $userGroupIdsMap, $totalCompletedByUser, $latestGradesByUser) {
+                    $uid = (int) $user->id;
+
+                    $groupIds = $userGroupIdsMap[$uid] ?? [];
+                    $groupIdSet = [];
+                    foreach ($groupIds as $gid) {
+                        $groupIdSet[(int) $gid] = true;
+                    }
+
+                    $totalAvailableQuests = (int) $publicQuestCount;
+                    foreach ($groupIdSet as $gid => $_) {
+                        $totalAvailableQuests += (int) ($groupQuestCountByGroupId[(int) $gid] ?? 0);
+                    }
+
+                    $gradeSum = 0;
+                    $userLatestGrades = $latestGradesByUser[$uid] ?? [];
+                    $gradeSumByGroup = [];
+                    $completedByGroup = [];
+                    foreach ($userLatestGrades as $row) {
+                        $groupId = $row['study_group_id'] ?? null;
+                        $groupKey = is_null($groupId) ? 0 : (int) $groupId;
+                        $isAccessible = is_null($groupId) || isset($groupIdSet[(int) $groupId]);
+                        if ($isAccessible) {
+                            $grade = (int) ($row['grade'] ?? 0);
+                            $gradeSum += $grade;
+                            $gradeSumByGroup[$groupKey] = (int) ($gradeSumByGroup[$groupKey] ?? 0) + $grade;
+
+                            if (in_array((string) ($row['status'] ?? ''), ['Approved', 'Rejected'], true)) {
+                                $completedByGroup[$groupKey] = (int) ($completedByGroup[$groupKey] ?? 0) + 1;
+                            }
+                        }
+                    }
+
+                    $user->avg_grade = $totalAvailableQuests > 0
+                        ? round($gradeSum / $totalAvailableQuests, 1)
+                        : 0;
+
+                    $user->total_completed = (int) ($totalCompletedByUser[$uid] ?? 0);
+                    // Dashboard.vue reads `user.lvl`
+                    $user->lvl = (int) ($user->{$levelColumn} ?? 1);
+
+                    $classAverages = [];
+
+                    if ($publicQuestCount > 0) {
+                        $classAverages[] = [
+                            'study_group_id' => null,
+                            'class_name' => 'General',
+                            'average_grade' => round(((int) ($gradeSumByGroup[0] ?? 0)) / $publicQuestCount, 1),
+                            'total_quests' => (int) $publicQuestCount,
+                            'completed_quests' => (int) ($completedByGroup[0] ?? 0),
+                        ];
+                    }
+
+                    foreach ($groupIdSet as $groupId => $_) {
+                        $totalGroupQuests = (int) ($groupQuestCountByGroupId[(int) $groupId] ?? 0);
+                        if ($totalGroupQuests <= 0) {
+                            continue;
+                        }
+
+                        $classAverages[] = [
+                            'study_group_id' => (int) $groupId,
+                            'class_name' => (string) ($groupNamesByGroupId[(int) $groupId] ?? "Class {$groupId}"),
+                            'average_grade' => round(((int) ($gradeSumByGroup[(int) $groupId] ?? 0)) / $totalGroupQuests, 1),
+                            'total_quests' => $totalGroupQuests,
+                            'completed_quests' => (int) ($completedByGroup[(int) $groupId] ?? 0),
+                        ];
+                    }
+
+                    usort($classAverages, function (array $a, array $b): int {
+                        $aIsGeneral = is_null($a['study_group_id']);
+                        $bIsGeneral = is_null($b['study_group_id']);
+
+                        if ($aIsGeneral !== $bIsGeneral) {
+                            return $aIsGeneral ? -1 : 1;
+                        }
+
+                        return strcmp((string) ($a['class_name'] ?? ''), (string) ($b['class_name'] ?? ''));
+                    });
+
+                    $user->class_averages = $classAverages;
+
+                    return $user;
+                });
+
+                $sortedStudents = $allStudents
+                    ->sort(function ($a, $b) {
+                        $cmp = ((float) ($b->avg_grade ?? 0)) <=> ((float) ($a->avg_grade ?? 0));
+                        if ($cmp !== 0) {
+                            return $cmp;
+                        }
+
+                        $cmp = ((int) ($b->total_completed ?? 0)) <=> ((int) ($a->total_completed ?? 0));
+                        if ($cmp !== 0) {
+                            return $cmp;
+                        }
+
+                        return strcmp((string) ($a->name ?? ''), (string) ($b->name ?? ''));
+                    })
+                    ->values();
+
+                $perPage = 10;
+                $total = $sortedStudents->count();
+                $items = $sortedStudents->slice(($page - 1) * $perPage, $perPage)->values();
+
+                return [
+                    'items' => $items->map(fn ($u) => [
+                        'id' => (int) ($u->id ?? 0),
+                        'name' => (string) ($u->name ?? ''),
+                        'username' => (string) ($u->username ?? ''),
+                        'lvl' => LevelingService::levelFromExp((int) ($u->exp ?? 0)),
+                        'avg_grade' => (float) ($u->avg_grade ?? 0),
+                        'total_completed' => (int) ($u->total_completed ?? 0),
+                        'class_averages' => is_array($u->class_averages ?? null) ? $u->class_averages : [],
+                    ])->all(),
+                    'total' => (int) $total,
+                    'per_page' => (int) $perPage,
+                ];
+            }
+        );
+
+        $students = new LengthAwarePaginator(
+            $studentsCachePayload['items'] ?? [],
+            (int) ($studentsCachePayload['total'] ?? 0),
+            (int) ($studentsCachePayload['per_page'] ?? 10),
+            $page,
+            [
+                'path' => LengthAwarePaginator::resolveCurrentPath(),
+                'query' => request()->query(),
+            ]
+        );
+
+        $helpUsersQuery = User::query()
+            ->whereNotIn('role', User::staffRoles());
+
+        if ($isMentor) {
+            $helpUsersQuery->where('job_id', $mentorJobId);
+        }
+
+        $helpUsers = Cache::remember(
+            "dashboard.help_users.v{$dashboardCacheVersion}.{$scopeKey}",
+            now()->addMinutes(3),
+            function () use ($helpUsersQuery, $levelColumn) {
+                return $helpUsersQuery
+                    ->withCount([
+                        'submissions as graded_count_30d' => function ($query) {
+                            $query->whereIn('status', ['Approved', 'Rejected'])
+                                ->where('created_at', '>=', now()->subDays(30));
+                        },
+                    ])
+                    ->withAvg([
+                        'submissions as avg_grade_30d' => function ($query) {
+                            $query->whereIn('status', ['Approved', 'Rejected'])
+                                ->where('created_at', '>=', now()->subDays(30));
+                        },
+                    ], 'grade')
+                    ->orderBy('avg_grade_30d')
+                    ->take(10)
+                    ->get(['id', 'name', 'username', 'exp', $levelColumn])
+                    ->map(function ($user) {
+                        $user->avg_grade_30d = round((float) ($user->avg_grade_30d ?? 0), 1);
+                        $user->lvl = LevelingService::levelFromExp((int) ($user->exp ?? 0));
+                        return $user;
+                    })
+                    ->filter(fn ($user) => (int) ($user->graded_count_30d ?? 0) > 0 && (float) ($user->avg_grade_30d ?? 0) < 75)
+                    ->values()
+                    ->map(fn ($u) => $u->toArray())
+                    ->all();
+            }
+        );
+
+        return Inertia::render('Dashboard', [
+            'stats' => $stats,
+            'students' => $students,
+            'helpUsers' => $helpUsers,
+            'scope' => [
+                'role' => (string) ($authUser?->role ?? ''),
+                'job_id' => $isMentor ? $mentorJobId : null,
+                'job_name' => $isMentor ? (string) ($authUser?->job?->name ?? '') : null,
+            ],
+        ]);
+    }
 }

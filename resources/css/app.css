@@ -1,5 +1,6 @@
 /* 1. Import Font */
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@import '@flaticon/flaticon-uicons/css/all/all.css';
 
 @tailwind base;
 @tailwind components;
@@ -7,19 +8,447 @@
 
 /* 2. Base Fixes */
 @layer base {
+  :root {
+    --bg: #0a0c10;
+    --text: #e6f8ff;
+    --panel: #1a1c2c;
+    --accent: #4ed4d4;
+    --panel-border: #3d415f;
+    --text-muted: #8ea8bb;
+    --panel-soft: rgba(26, 28, 44, 0.72);
+  }
+
+  [data-app-surface='user'] {
+    --bg: #0a0c10;
+    --text: #e6f8ff;
+    --panel: #1a1c2c;
+    --accent: #4ed4d4;
+    --panel-border: #3d415f;
+    --text-muted: #8ea8bb;
+    --panel-soft: rgba(26, 28, 44, 0.72);
+    color-scheme: dark;
+  }
+
+  [data-app-surface='user'][data-theme='light'] {
+    --bg: #eff7ff;
+    --text: #122335;
+    --panel: #ffffff;
+    --accent: #0a8fa1;
+    --panel-border: #b8cfe0;
+    --text-muted: #526a80;
+    --panel-soft: rgba(255, 255, 255, 0.88);
+    color-scheme: light;
+  }
+
+  [data-app-surface='user'].user-theme-root {
+    background-color: var(--bg);
+    color: var(--text);
+  }
+
+  [data-app-surface='user'] .user-theme-panel {
+    background-color: var(--panel);
+  }
+
+  [data-app-surface='user'] .user-theme-footer {
+    background-color: var(--panel-soft);
+    border-top-color: rgba(148, 163, 184, 0.2);
+    color: var(--text);
+  }
+
+  [data-app-surface='user'] .user-theme-muted {
+    color: var(--text-muted);
+  }
+
   /* Memastikan font global jika kamu mau seluruh aplikasi pakai font ini */
+  html {
+    color-scheme: dark;
+  }
+
   body {
     font-family: 'Press Start 2P', cursive;
+  }
+
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='submit']):not([type='button']):not([type='reset']),
+  textarea,
+  select {
+    color-scheme: dark;
+  }
+
+  [data-app-surface='user'][data-theme='light'] input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='submit']):not([type='button']):not([type='reset']),
+  [data-app-surface='user'][data-theme='light'] textarea,
+  [data-app-surface='user'][data-theme='light'] select {
+    color-scheme: light;
+  }
+
+  select option,
+  select optgroup {
+    background-color: #0d1117;
+    color: #a5f3fc;
+  }
+
+  select option:checked,
+  select option:hover,
+  select option:focus {
+    background: linear-gradient(0deg, #164e63, #164e63);
+    color: #ecfeff;
+  }
+
+  [data-app-surface='user'][data-theme='light'] select option,
+  [data-app-surface='user'][data-theme='light'] select optgroup {
+    background-color: #f8fbff;
+    color: #122335;
+  }
+
+  [data-app-surface='user'][data-theme='light'] select option:checked,
+  [data-app-surface='user'][data-theme='light'] select option:hover,
+  [data-app-surface='user'][data-theme='light'] select option:focus {
+    background: linear-gradient(0deg, #d8ecff, #d8ecff);
+    color: #0b1f33;
+  }
+
+  /* Paksa tampilan autofill tetap selaras dengan dark auth theme */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus {
+    -webkit-text-fill-color: #f8fafc !important;
+    caret-color: #f8fafc !important;
+    -webkit-box-shadow: 0 0 0 1000px #000 inset !important;
+    box-shadow: 0 0 0 1000px #000 inset !important;
+    transition: background-color 9999s ease-in-out 0s;
   }
 }
 
 /* 3. Custom Layer RPG Components */
 @layer components {
+  .user-page-shell {
+    @apply mx-auto w-full max-w-7xl;
+  }
+
   .rpg-panel {
     @apply bg-[#1a1c2c] border-4 border-[#3d4153] p-4 relative;
     outline: 2px solid #10121d;
     box-shadow: inset 0 0 0 2px #292c3d;
   }
+
+  /* Shared navbar actions (used by AuthenticatedLayout + home) */
+  .nav-dock {
+    display: inline-flex;
+    align-items: stretch;
+    padding: 2px;
+    background: linear-gradient(
+      180deg,
+      rgba(8, 11, 18, 0.28) 0%,
+      rgba(13, 16, 24, 0.40) 100%
+    );
+    box-shadow:
+      0 12px 28px rgba(0, 0, 0, 0.22);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .nav-dock {
+    background: linear-gradient(
+      180deg,
+      rgba(214, 229, 242, 0.96) 0%,
+      rgba(194, 213, 229, 0.98) 100%
+    );
+    border: 1px solid rgba(70, 101, 125, 0.52);
+    box-shadow:
+      inset 0 1px 0 rgba(242, 248, 255, 0.62),
+      0 10px 18px rgba(10, 38, 58, 0.16);
+  }
+
+  .nav-action {
+    --accent: #4ed4d4;
+    --accent-rgb: 78, 212, 212;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+
+    padding: 0.55rem 0.9rem;
+    min-height: 34px;
+
+    font-size: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    flex-shrink: 0;
+
+    color: var(--accent);
+    background:
+      linear-gradient(
+        180deg,
+        rgba(11, 15, 23, 0.98) 0%,
+        rgba(5, 8, 14, 0.94) 100%
+      );
+    border-top: 1px solid rgba(var(--accent-rgb), 0.32);
+    border-bottom: 1px solid rgba(var(--accent-rgb), 0.18);
+
+    position: relative;
+    user-select: none;
+    overflow: visible;
+
+    transition:
+      background-color 140ms ease,
+      color 140ms ease,
+      transform 120ms ease,
+      box-shadow 140ms ease,
+      text-shadow 140ms ease,
+      filter 140ms ease;
+
+    text-shadow: 0 0 12px var(--accent);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+      inset 0 0 18px rgba(var(--accent-rgb), 0.05),
+      0 0 0 1px rgba(var(--accent-rgb), 0.18);
+
+    /* Keep the neon alive, but stable enough to stay readable at rest. */
+    --flicker-dur: 18s;
+    --flicker-delay: 0s;
+    --wander-dur: 9s;
+    animation: navLampFlicker var(--flicker-dur) infinite;
+    animation-delay: var(--flicker-delay);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .nav-action {
+    background: linear-gradient(
+      180deg,
+      rgba(244, 250, 255, 0.98) 0%,
+      rgba(226, 238, 248, 0.99) 58%,
+      rgba(208, 224, 238, 0.98) 100%
+    );
+    border-top: 1px solid rgba(var(--accent-rgb), 0.52);
+    border-bottom: 1px solid rgba(20, 46, 65, 0.36);
+    text-shadow:
+      0 1px 0 rgba(242, 248, 255, 0.58),
+      0 0 5px rgba(var(--accent-rgb), 0.22);
+    box-shadow:
+      inset 0 0 0 1px rgba(246, 251, 255, 0.72),
+      inset 0 -8px 14px rgba(var(--accent-rgb), 0.05),
+      0 0 0 1px rgba(84, 112, 133, 0.26);
+  }
+
+  /* Dividers only when items are inside the dock */
+  .nav-dock .nav-action + .nav-action {
+    border-left: 1px solid rgba(61, 65, 95, 0.55);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .nav-dock .nav-action + .nav-action {
+    border-left: 1px solid rgba(123, 146, 166, 0.52);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .nav-action::before {
+    opacity: 0.14;
+    filter: drop-shadow(0 0 5px var(--accent)) blur(0.1px);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .nav-dock .nav-action::after {
+    opacity: 0.50;
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  /* Moving "lamp hotspot" inside the button (the light moves, not the button) */
+  .nav-action::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    pointer-events: none;
+    opacity: 0.26;
+    background:
+      radial-gradient(
+        10px 8px at 20% 45%,
+        rgba(255, 255, 255, 0.22) 0%,
+        rgba(255, 255, 255, 0.10) 35%,
+        rgba(255, 255, 255, 0.00) 70%
+      ),
+      radial-gradient(
+        16px 12px at 70% 60%,
+        rgba(255, 255, 255, 0.14) 0%,
+        rgba(255, 255, 255, 0.06) 40%,
+        rgba(255, 255, 255, 0.00) 75%
+      );
+    /* Use drop-shadow to tint the hotspot with each button's accent color */
+    filter: drop-shadow(0 0 7px var(--accent)) blur(0.2px);
+    animation: navLampWander var(--wander-dur) infinite linear;
+    animation-delay: var(--flicker-delay);
+    z-index: 0;
+  }
+
+  .nav-dock .nav-action::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 4px;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0.48;
+    transform: translateY(2px);
+    transition: opacity 140ms ease, transform 140ms ease;
+    box-shadow: 0 0 10px var(--accent);
+    z-index: 0;
+  }
+
+  .nav-action > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .nav-action:hover {
+    background:
+      linear-gradient(
+        180deg,
+        rgba(13, 18, 27, 1) 0%,
+        rgba(7, 10, 16, 0.96) 100%
+      );
+    color: var(--accent);
+    text-shadow: 0 0 16px var(--accent);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+      inset 0 0 22px rgba(var(--accent-rgb), 0.12),
+      0 0 16px rgba(var(--accent-rgb), 0.20);
+    filter: saturate(1.1);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .nav-action:hover {
+    background: linear-gradient(
+      180deg,
+      rgba(248, 252, 255, 1) 0%,
+      rgba(228, 240, 250, 0.98) 62%,
+      rgba(206, 223, 238, 0.98) 100%
+    );
+    box-shadow:
+      inset 0 0 0 1px rgba(246, 252, 255, 0.76),
+      inset 0 0 16px rgba(var(--accent-rgb), 0.11),
+      0 0 10px rgba(var(--accent-rgb), 0.18);
+    filter: saturate(1.08);
+  }
+
+  .nav-action:hover::after {
+    opacity: 0.85;
+    transform: translateY(0);
+  }
+
+  .nav-action:active {
+    transform: translate(1px, 1px);
+  }
+
+  @media (min-width: 1024px) and (max-width: 1399px) {
+    .user-navbar-shell {
+      padding-left: 1.25rem !important;
+      padding-right: 1.25rem !important;
+    }
+
+    .user-navbar-brand-title {
+      font-size: 0.7rem !important;
+      letter-spacing: -0.06em !important;
+    }
+
+    .nav-action {
+      gap: 0.35rem;
+      padding: 0.5rem 0.68rem;
+      font-size: 7px;
+    }
+  }
+
+  .nav-action:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    box-shadow: 0 0 22px var(--accent);
+    text-shadow: 0 0 12px var(--accent);
+  }
+
+  .nav-action--admin { --accent: #c084fc; }
+  .nav-action--admin { --accent-rgb: 192, 132, 252; }
+  .nav-action--profile { --accent: #67e8f9; }
+  .nav-action--profile { --accent-rgb: 103, 232, 249; }
+  .nav-action--shop { --accent: #facc15; }
+  .nav-action--shop { --accent-rgb: 250, 204, 21; }
+  .nav-action--dooplab { --accent: #22d3ee; }
+  .nav-action--dooplab { --accent-rgb: 34, 211, 238; }
+  .nav-action--hall { --accent: #4ade80; }
+  .nav-action--hall { --accent-rgb: 74, 222, 128; }
+  .nav-action--notifications { --accent: #f97316; }
+  .nav-action--notifications { --accent-rgb: 249, 115, 22; }
+  .nav-action--theme { --accent: #60a5fa; }
+  .nav-action--theme { --accent-rgb: 96, 165, 250; }
+  .nav-action--logout { --accent: #fb7185; }
+  .nav-action--logout { --accent-rgb: 251, 113, 133; }
+
+  [data-app-surface='user'][data-theme='light'] .nav-action--admin { --accent: #8c4cd3; --accent-rgb: 140, 76, 211; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--profile { --accent: #0d7b95; --accent-rgb: 13, 123, 149; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--shop { --accent: #a77600; --accent-rgb: 167, 118, 0; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--dooplab { --accent: #0f86ab; --accent-rgb: 15, 134, 171; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--hall { --accent: #1a9154; --accent-rgb: 26, 145, 84; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--notifications { --accent: #cf6c09; --accent-rgb: 207, 108, 9; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--theme { --accent: #2c66d3; --accent-rgb: 44, 102, 211; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--logout { --accent: #d9485f; --accent-rgb: 217, 72, 95; }
+
+  [data-app-surface='user'][data-theme='light'] .user-navbar-shell {
+    background: linear-gradient(
+      180deg,
+      rgba(224, 237, 248, 0.96) 0%,
+      rgba(202, 219, 234, 0.98) 100%
+    ) !important;
+    border-bottom-color: #62849d !important;
+    box-shadow:
+      inset 0 1px 0 rgba(242, 248, 255, 0.62),
+      0 10px 22px rgba(8, 34, 54, 0.16);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .user-navbar-brand-logo {
+    background: linear-gradient(180deg, #0d151b 0%, #070e13 100%) !important;
+    border-color: #20a7c6 !important;
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+      0 0 0 1px rgba(23, 127, 153, 0.34);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .user-navbar-brand-logo img {
+    filter: contrast(1.1) saturate(1.02);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .user-navbar-brand-title {
+    color: #0b6f88 !important;
+    opacity: 1 !important;
+    text-shadow:
+      0 1px 0 rgba(242, 248, 255, 0.56),
+      0 0 4px rgba(11, 111, 136, 0.12);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .user-navbar-mobile-toggle {
+    background: linear-gradient(180deg, #edf6fd 0%, #d8e8f4 100%) !important;
+    border-color: #6f8da3 !important;
+    color: #0f7390 !important;
+    box-shadow:
+      inset 0 1px 0 rgba(242, 248, 255, 0.58),
+      0 0 0 1px rgba(108, 136, 158, 0.20);
+  }
+
+  [data-app-surface='user'][data-theme='light'] .user-navbar-mobile-shell {
+    background: linear-gradient(180deg, rgba(228, 239, 249, 0.98) 0%, rgba(206, 222, 236, 0.98) 100%) !important;
+    border-color: #7090a8 !important;
+    box-shadow:
+      inset 0 1px 0 rgba(242, 248, 255, 0.60),
+      0 12px 22px rgba(8, 35, 56, 0.18);
+  }
+
+  /* Stagger timings so they don't flicker in sync */
+  .nav-action--admin { --flicker-delay: -2.7s; --flicker-dur: 22s; --wander-dur: 10s; }
+  .nav-action--profile { --flicker-delay: -6.1s; --flicker-dur: 19s; --wander-dur: 9s; }
+  .nav-action--shop { --flicker-delay: -9.3s; --flicker-dur: 24s; --wander-dur: 11s; }
+  .nav-action--dooplab { --flicker-delay: -3.6s; --flicker-dur: 20s; --wander-dur: 8s; }
+  .nav-action--hall { --flicker-delay: -7.4s; --flicker-dur: 21s; --wander-dur: 10s; }
+  .nav-action--notifications { --flicker-delay: -1.9s; --flicker-dur: 23s; --wander-dur: 8s; }
+  .nav-action--theme { --flicker-delay: -5.2s; --flicker-dur: 20s; --wander-dur: 9s; }
+  .nav-action--logout { --flicker-delay: -4.8s; --flicker-dur: 20s; --wander-dur: 9s; }
 
   .xp-bar-fill {
     background: repeating-linear-gradient(
@@ -51,6 +480,36 @@
   }
 }
 
+/* Keep a living neon shimmer without making the button look off. */
+@keyframes navLampFlicker {
+  0% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 12px var(--accent); }
+  38% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 12px var(--accent); }
+  42% { filter: brightness(0.96) saturate(0.98); text-shadow: 0 0 10px var(--accent); }
+  45% { filter: brightness(1.05) saturate(1.04); text-shadow: 0 0 15px var(--accent); }
+  49% { filter: brightness(0.98) saturate(1.00); text-shadow: 0 0 11px var(--accent); }
+  72% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 12px var(--accent); }
+  77% { filter: brightness(0.97) saturate(0.99); text-shadow: 0 0 10px var(--accent); }
+  80% { filter: brightness(1.04) saturate(1.03); text-shadow: 0 0 14px var(--accent); }
+  100% { filter: brightness(1.00) saturate(1.00); text-shadow: 0 0 12px var(--accent); }
+}
+
+/* The hotspot still moves, but it should never make the button feel empty. */
+@keyframes navLampWander {
+  0% { transform: translate(0px, 0px); opacity: 0.22; }
+  12% { transform: translate(4px, -1px); opacity: 0.26; }
+  24% { transform: translate(2px, 1px); opacity: 0.18; }
+  38% { transform: translate(7px, 0px); opacity: 0.30; }
+  51% { transform: translate(-1px, 2px); opacity: 0.20; }
+  66% { transform: translate(6px, 1px); opacity: 0.28; }
+  82% { transform: translate(3px, -1px); opacity: 0.22; }
+  100% { transform: translate(0px, 0px); opacity: 0.24; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-action { animation: none !important; }
+  .nav-action::before { animation: none !important; opacity: 0.14; }
+}
+
 /* --- RPG SWEETALERT OVERRIDE --- */
 
 /* 1. Box Popup Utama */
@@ -75,6 +534,75 @@
     line-height: 1.6 !important;
     text-transform: uppercase !important;
     color: #94a3b8 !important; /* Slate 400 */
+}
+
+.swal2-textarea.rpg-alert-textarea {
+    width: 100% !important;
+    min-height: 130px !important;
+    margin: 0.5rem 0 0 !important;
+    padding: 0.75rem !important;
+    border: 2px solid #3d415f !important;
+    border-radius: 0 !important;
+    background: #0d1117 !important;
+    color: #a5f3fc !important;
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 8px !important;
+    line-height: 1.6 !important;
+    text-transform: uppercase !important;
+    box-shadow: none !important;
+    resize: vertical !important;
+}
+
+.swal2-textarea.rpg-alert-textarea:focus {
+    border-color: #22d3ee !important;
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.2) !important;
+    outline: none !important;
+}
+
+.swal2-textarea.rpg-alert-textarea::placeholder {
+    color: #64748b !important;
+    opacity: 1 !important;
+}
+
+.swal2-popup .swal2-validation-message,
+.swal2-validation-message {
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 8px !important;
+    line-height: 1.6 !important;
+    text-transform: uppercase !important;
+    color: #fecaca !important;
+    background: rgba(127, 29, 29, 0.35) !important;
+    border: 2px solid #7f1d1d !important;
+    border-radius: 0 !important;
+    padding: 10px 12px !important;
+    margin: 12px auto 0 !important;
+    letter-spacing: 0.05em;
+}
+
+.swal2-popup .rpg-alert-validation,
+.rpg-alert-validation {
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 8px !important;
+    line-height: 1.6 !important;
+    text-transform: uppercase !important;
+    color: #fecaca !important;
+    background: rgba(127, 29, 29, 0.35) !important;
+    border: 2px solid #7f1d1d !important;
+    border-radius: 0 !important;
+    padding: 10px 12px !important;
+    margin: 12px auto 0 !important;
+    letter-spacing: 0.05em;
+}
+
+.swal2-popup .swal2-validation-message::before,
+.swal2-validation-message::before {
+    background: transparent !important;
+    color: #fca5a5 !important;
+    font-weight: 700;
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 9px !important;
+    margin-right: 8px !important;
+    content: '[!]' !important;
 }
 
 /* 3. Tombol (Tombol Biru Akan Hilang Di Sini) */
@@ -122,4 +650,28 @@
 .rpg-actions {
     margin-top: 20px !important;
     gap: 10px !important;
+}
+
+/* Global custom scrollbar (re-use across admin tables & panels) */
+.custom-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 #0d1117;
+}
+
+.custom-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+    background: #0d1117;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 999px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+    background: #2dd4bf;
 }

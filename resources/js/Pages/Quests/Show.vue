@@ -1,30 +1,192 @@
 <script setup>
-import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue'; // Tambahkan ref
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import Swal from 'sweetalert2';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+
 const props = defineProps({
     quest: Object,
     hasSubmitted: Boolean,
-    existingSubmission: Object
+    existingSubmission: Object,
+    isLate: Boolean,
+    hasQuestUnlock: Boolean,
+    canSubmit: Boolean,
+    timeKeyQty: Number,
+    isStaffPlayMode: Boolean,
+});
+const existingStatus = computed(() => props.existingSubmission?.status || null);
+const canResubmitPending = computed(() => props.hasSubmitted && props.canSubmit && existingStatus.value === 'Pending');
+const canResubmitRejected = computed(() => props.hasSubmitted && props.canSubmit && existingStatus.value === 'Rejected');
+
+const taskAnswersFromSubmission = computed(() => {
+    const answers = props.existingSubmission?.scores_detail?.answers;
+    return answers && typeof answers === 'object' ? answers : {};
 });
 
 const form = useForm({
     content: props.existingSubmission?.content || '',
     file: null,
-    _method: props.hasSubmitted ? 'PUT' : 'POST',
+    task_answers: { ...(taskAnswersFromSubmission.value || {}) },
 });
 
-// Helper untuk mengambil nama file saja dari path storage
-const getFileName = (path) => {
-    return path ? path.split('/').pop() : 'No file attached';
+const unlockForm = useForm({});
+const page = usePage();
+
+const questDraftStorageKey = computed(() => {
+    const questKey = String(props.quest?.uuid || props.quest?.id || 'quest');
+    const userKey = String(page.props?.auth?.user?.id || 'guest');
+    return `quest-draft:${userKey}:${questKey}`;
+});
+
+let draftSaveTimer = null;
+
+const clearDraft = () => {
+    if (typeof window === 'undefined') return;
+    try {
+        window.localStorage.removeItem(questDraftStorageKey.value);
+    } catch (_) {
+        // ignore
+    }
+};
+
+const persistDraft = () => {
+    if (typeof window === 'undefined') return;
+
+    if (draftSaveTimer) {
+        clearTimeout(draftSaveTimer);
+    }
+
+    draftSaveTimer = window.setTimeout(() => {
+        try {
+            window.localStorage.setItem(questDraftStorageKey.value, JSON.stringify({
+                content: form.content || '',
+                task_answers: { ...(form.task_answers || {}) },
+            }));
+        } catch (_) {
+            // ignore quota / privacy mode
+        }
+    }, 150);
+};
+
+const loadDraftFromStorage = () => {
+    if (typeof window === 'undefined') return;
+
+    try {
+        const raw = window.localStorage.getItem(questDraftStorageKey.value);
+        if (!raw) return;
+
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return;
+
+        if (typeof parsed.content === 'string') {
+            form.content = parsed.content;
+        }
+
+        if (parsed.task_answers && typeof parsed.task_answers === 'object' && !Array.isArray(parsed.task_answers)) {
+            form.task_answers = {
+                ...(form.task_answers || {}),
+                ...parsed.task_answers,
+            };
+        }
+    } catch (_) {
+        // ignore corrupted draft
+    }
+};
+
+watch(() => form.content, persistDraft);
+watch(() => form.task_answers, persistDraft, { deep: true });
+
+onMounted(() => {
+    loadDraftFromStorage();
+});
+
+onBeforeUnmount(() => {
+    if (draftSaveTimer) {
+        clearTimeout(draftSaveTimer);
+        draftSaveTimer = null;
+    }
+});
+
+const taskBankType = computed(() => props.quest?.task_bank?.assessment_type || null);
+const isAllMcq = computed(() => {
+    if (!isStructuredTaskBankQuest.value) return false;
+    return taskQuestions.value.length > 0 && taskQuestions.value.every((q) => q.question_type === 'multiple_choice');
+});
+const isStructuredTaskBankQuest = computed(() => {
+    return !!props.quest?.task_bank && ['multiple_choice', 'mixed', 'essay'].includes(taskBankType.value);
+});
+const isAutoCheckedTaskBankQuest = computed(() => taskBankType.value === 'multiple_choice' && isAllMcq.value);
+const taskQuestions = computed(() => props.quest?.task_bank?.questions || []);
+const unansweredCount = computed(() => {
+    if (!isStructuredTaskBankQuest.value) return 0;
+    return taskQuestions.value.filter((question) => {
+        const value = form.task_answers?.[question.uuid];
+        return !value || String(value).trim() === '';
+    }).length;
+});
+
+const hashGroupKey = (value) => {
+    const normalized = String(value || 'global');
+    let hash = 0;
+    for (let index = 0; index < normalized.length; index += 1) {
+        hash = ((hash << 5) - hash) + normalized.charCodeAt(index);
+        hash |= 0;
+    }
+    return Math.abs(hash);
+};
+
+const toneForGroup = (groupKey) => {
+    if (!groupKey || groupKey === 'global') {
+        return {
+            border: '#2d65cf',
+            bg: 'rgba(22, 47, 93, 0.16)',
+            accent: '#8cc4ff',
+        };
+    }
+    const hash = hashGroupKey(groupKey);
+    let hue = Math.floor((hash * 137.508) % 360);
+    if (hue >= 185 && hue <= 225) {
+        hue = (hue + 92) % 360;
+    }
+    const saturation = 66 + (hash % 8);
+    const borderLightness = 56 + ((hash >> 3) % 7);
+    const accentLightness = 74 + ((hash >> 5) % 8);
+    return {
+        border: `hsl(${hue} ${saturation}% ${borderLightness}%)`,
+        bg: `hsl(${hue} ${Math.max(60, saturation - 6)}% 20% / 0.16)`,
+        accent: `hsl(${hue} ${Math.min(90, saturation + 10)}% ${accentLightness}%)`,
+    };
+};
+
+const questToneStyle = computed(() => {
+    const toneKey = props.quest?.study_group_id ?? props.quest?.study_group?.id ?? props.quest?.study_group?.name ?? 'global';
+    const tone = toneForGroup(String(toneKey));
+    return {
+        '--quest-tone-border': tone.border,
+        '--quest-tone-bg': tone.bg,
+        '--quest-tone-accent': tone.accent,
+    };
+});
+
+const questClassLabel = computed(() => {
+    if (!props.quest?.study_group_id) {
+        return 'Global';
+    }
+    const name = String(props.quest?.study_group?.name || '').trim();
+    return name !== '' ? name : `#${props.quest.study_group_id}`;
+});
+
+const answerFor = (question) => {
+    const uuid = String(question?.uuid || '');
+    if (!uuid) return '';
+    const raw = taskAnswersFromSubmission.value?.[uuid];
+    return raw === undefined || raw === null ? '' : String(raw);
 };
 
 const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Validasi Ukuran (5MB = 5 * 1024 * 1024 bytes)
     if (file.size > 5 * 1024 * 1024) {
         Swal.fire({
             title: 'FILE_TOO_LARGE',
@@ -34,16 +196,46 @@ const handleFileChange = (e) => {
             color: '#ef4444',
             confirmButtonColor: '#7f1d1d',
         });
-        e.target.value = ''; // Reset input
+        e.target.value = '';
+        form.file = null;
         return;
     }
-
     form.file = file;
 };
 
 const submitReport = () => {
+    if (!props.canSubmit) {
+        Swal.fire({
+            title: 'SUBMISSION_LOCKED',
+            text: 'Kamu sudah submit. Submission tidak bisa diulang.',
+            icon: 'info',
+            background: '#161b22',
+            color: '#4ed4d4',
+            confirmButtonColor: '#1e293b',
+        });
+        return;
+    }
+
+    if (isStructuredTaskBankQuest.value && unansweredCount.value > 0) {
+        Swal.fire({
+            title: 'ANSWER_INCOMPLETE',
+            text: `Masih ada ${unansweredCount.value} soal yang belum dijawab.`,
+            icon: 'warning',
+            background: '#161b22',
+            color: '#4ed4d4',
+            confirmButtonColor: '#a16207',
+        });
+        return;
+    }
+
     const title = props.hasSubmitted ? 'UPDATE REPORT?' : 'CONFIRM TRANSMISSION?';
-    const text = props.hasSubmitted ? 'This will overwrite your previous report.' : 'The Guild will review your report. Continue?';
+    const text = isAutoCheckedTaskBankQuest.value
+        ? 'Jawaban akan dinilai otomatis. Reward mengikuti skor akhir.'
+        : (isStructuredTaskBankQuest.value
+            ? 'Jawaban task bank akan dikirim untuk review admin.'
+            : (props.hasSubmitted
+                ? 'This will overwrite your previous report.'
+                : 'The Guild will review your report. Continue?'));
 
     Swal.fire({
         title: title,
@@ -54,25 +246,50 @@ const submitReport = () => {
         cancelButtonText: 'CANCEL',
         background: '#161b22',
         color: '#4ed4d4',
-        confirmButtonColor: props.hasSubmitted ? '#854d0e' : '#164e63', 
+        confirmButtonColor: props.hasSubmitted ? '#854d0e' : '#164e63',
         cancelButtonColor: '#7f1d1d',
         customClass: { popup: 'border-4 border-slate-700 font-mono' }
     }).then((result) => {
         if (result.isConfirmed) {
-            const url = props.hasSubmitted 
-                ? route('submissions.update', props.existingSubmission.uuid) 
-                : route('submissions.store', props.quest.uuid);
+            const url = route('submissions.store', props.quest.uuid);
 
             form.post(url, {
+                preserveScroll: true,
                 onSuccess: () => {
+                    clearDraft();
                     Swal.fire({
                         title: 'LOGGED!',
-                        text: 'YOUR REPORT HAS BEEN UPDATED.',
+                        text: 'Submission berhasil dikirim.',
                         icon: 'success',
                         background: '#161b22',
                         color: '#4ed4d4',
                     });
                 },
+                onError: () => {
+                    persistDraft();
+                },
+            });
+        }
+    });
+};
+
+const unlockLateQuest = () => {
+    Swal.fire({
+        title: 'USE_TIME_KEY?',
+        text: '1 Time Key akan dikonsumsi untuk membuka kembali quest ini.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'YES_USE_KEY',
+        cancelButtonText: 'CANCEL',
+        background: '#161b22',
+        color: '#4ed4d4',
+        confirmButtonColor: '#a16207',
+        cancelButtonColor: '#7f1d1d',
+        customClass: { popup: 'border-4 border-slate-700 font-mono' }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            unlockForm.post(route('quests.unlock-late', props.quest.uuid), {
+                preserveScroll: true,
             });
         }
     });
@@ -84,98 +301,312 @@ const submitReport = () => {
         <div class="min-h-screen p-2 md:p-12 font-['Press_Start_2P'] text-[#4ed4d4] flex justify-center items-start">
             <Head :title="'DETAILS - ' + quest.title" />
 
-            <div class="max-w-3xl w-full bg-[#161b22] border-4 border-slate-700 shadow-[10px_10px_0px_0px_rgba(0,0,0,0.5)] md:shadow-[20px_20px_0px_0px_rgba(0,0,0,0.5)] relative overflow-hidden">
-
-                <div class="hidden sm:flex absolute top-10 right-10 w-24 h-24 border-4 border-red-900/30 rounded-full items-center justify-center -rotate-12 select-none pointer-events-none text-red-900/30 text-[8px] text-center uppercase">
+            <div
+                class="quest-shell max-w-3xl w-full border-4 border-slate-700 shadow-[10px_10px_0px_0px_rgba(0,0,0,0.5)] md:shadow-[20px_20px_0px_0px_rgba(0,0,0,0.5)] relative overflow-hidden"
+                :style="questToneStyle"
+            >
+                <div
+                    class="hidden sm:flex absolute top-10 right-10 w-24 h-24 border-4 border-red-900/30 rounded-full items-center justify-center -rotate-12 select-none pointer-events-none text-red-900/30 text-[10px] text-center uppercase"
+                >
                     Official<br>Guild<br>Doc
                 </div>
 
                 <div class="p-4 md:p-8 border-b-4 border-slate-700 bg-slate-900/50">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-                        <Link :href="route('quests.index')" class="text-slate-500 hover:text-white text-[7px] md:text-[8px] underline uppercase">
-                            [ BACK_TO_BOARD ]
+                        <Link
+                            :href="route('lobby')"
+                            class="inline-flex items-center justify-center px-3 py-2 border-2 border-slate-700 bg-slate-900/40 text-slate-300 hover:text-white hover:border-cyan-400 text-[10px] sm:text-[11px] uppercase whitespace-nowrap"
+                        >
+                            [ BACK_TO_LOBBY ]
                         </Link>
-                        <span class="text-yellow-500 text-[7px] md:text-[8px] tracking-tighter">REF_ID: #{{ quest.uuid }}</span>
+                        <span class="text-yellow-500 text-[11px] sm:text-[12px]">REF_ID: #{{ quest.uuid.substring(0, 8) }}</span>
                     </div>
-                    <h1 class="text-sm md:text-2xl text-white uppercase tracking-tighter leading-tight break-words">
+                    <h1 class="text-lg md:text-2xl text-white uppercase tracking-tighter leading-tight break-words">
                         {{ quest.title }}
                     </h1>
                 </div>
 
                 <div class="p-4 md:p-8 space-y-6 md:space-y-8">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-8 border-b-2 border-slate-800 pb-6 md:pb-8 text-[8px] md:text-[10px]">
-                        <div class="flex justify-between sm:block border-b border-slate-800/50 sm:border-none pb-2 sm:pb-0">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-b-2 border-slate-800 pb-6 text-[12px]">
+                        <div>
                             <p class="text-slate-500 mb-2 uppercase">Danger_Level:</p>
                             <p class="text-red-500 font-bold uppercase">{{ quest.difficulty }}</p>
                         </div>
-                        <div class="flex justify-between sm:block pt-2 sm:pt-0">
+                        <div class="grid grid-cols-2 gap-2">
                             <p class="text-slate-500 mb-2 uppercase">Reward_Gold:</p>
                             <p class="text-yellow-400 font-bold">{{ quest.reward_gold }} GOLD</p>
+                            <p class="text-slate-500 mb-2 uppercase">Reward_EXP:</p>
+                            <p class="text-cyan-400 font-bold">{{ quest.reward_exp || quest.reward_gold }} EXP</p>
                         </div>
                     </div>
 
+                    <div class="pb-2 text-[11px] uppercase">
+                        <span class="text-slate-500">Class_Node:</span>
+                        <span class="quest-class-badge ml-2">{{ questClassLabel }}</span>
+                    </div>
+
+                    <div
+                        v-if="isStaffPlayMode"
+                        class="border border-cyan-500/50 bg-cyan-500/10 p-4 text-[10px] uppercase leading-relaxed text-cyan-100"
+                    >
+                        Staff play mode aktif. Kamu tetap bisa mengirim submission untuk preview flow, tetapi reward, leaderboard, dan penggunaan Time Key tidak dihitung ke mode pemain utama.
+                    </div>
+
                     <div class="space-y-4">
-                        <h3 class="text-[8px] md:text-[10px] text-cyan-400 uppercase tracking-widest underline italic">
-                            Mission_Objectives:
-                        </h3>
-                        <div class="bg-black/30 p-4 md:p-6 border-l-4 border-slate-700 leading-relaxed font-sans text-xs md:text-sm text-slate-300 whitespace-pre-wrap uppercase tracking-wide">
+                        <h3 class="text-[12px] text-cyan-400 uppercase tracking-widest underline italic">Quest_Objectives:</h3>
+                        <div
+                            class="bg-black/30 p-4 md:p-6 border-l-4 border-slate-700 leading-relaxed font-sans text-[14px] text-slate-300 whitespace-pre-wrap"
+                        >
                             {{ quest.description || 'NO ADDITIONAL DATA PROVIDED BY THE GUILD.' }}
                         </div>
                     </div>
 
-                    <div v-if="quest.status !== 'Done' && quest.status !== 'Completed'" 
-                        class="mt-8 md:mt-12 p-4 md:p-6 border-2 border-dashed border-cyan-900 bg-black/20">
-                        
-                        <h3 class="text-[7px] md:text-[10px] mb-6 uppercase tracking-widest" :class="props.hasSubmitted ? 'text-yellow-500' : 'text-white'">
-                            >> {{ props.hasSubmitted ? 'Edit_Existing_Report' : 'Submit_Mission_Report' }}
+                    <div
+                        v-if="isLate && !canSubmit && !hasSubmitted"
+                        class="mt-8 p-4 md:p-6 border-2 border-dashed border-yellow-700 bg-yellow-950/20"
+                    >
+                        <h3 class="mb-4 uppercase text-yellow-400 text-[10px] leading-relaxed tracking-normal break-all sm:text-[12px] sm:tracking-widest sm:break-normal">
+                            Quest_Locked_By_Deadline
                         </h3>
-                        
+                        <p class="text-[12px] text-slate-300 font-sans mb-4">
+                            Quest ini sudah lewat deadline. Gunakan item <span class="text-yellow-300 font-bold">Time Key</span>
+                            untuk membuka ulang quest ini.
+                        </p>
+                        <div class="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+                            <p class="text-[11px] text-slate-400 uppercase">Your_Time_Key: {{ timeKeyQty || 0 }}</p>
+                            <div class="flex gap-2">
+                                <Link
+                                    :href="route('shop.index')"
+                                    class="px-3 py-2 text-[10px] uppercase border-2 border-cyan-800 bg-cyan-900/30 text-cyan-300 hover:bg-cyan-700/40 transition-colors"
+                                >
+                                    Open_Shop
+                                </Link>
+                                <button
+                                    type="button"
+                                    class="px-3 py-2 text-[10px] uppercase border-2 border-yellow-700 bg-yellow-700/20 text-yellow-300 hover:bg-yellow-600/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    :disabled="unlockForm.processing || (timeKeyQty || 0) < 1 || isStaffPlayMode"
+                                    @click="unlockLateQuest"
+                                >
+                                    {{ isStaffPlayMode ? 'Preview Only' : (unlockForm.processing ? 'PROCESSING...' : 'Use_Time_Key') }}
+                                </button>
+                            </div>
+                        </div>
+                        <p v-if="page.props.errors?.unlock" class="mt-3 text-[10px] text-red-400 font-sans">
+                            {{ page.props.errors.unlock }}
+                        </p>
+                    </div>
+
+                    <div v-if="canSubmit" class="mt-8 p-4 md:p-6 border-2 border-dashed border-cyan-900 bg-black/20">
+                        <h3 class="text-[12px] mb-6 uppercase tracking-widest" :class="props.hasSubmitted ? 'text-yellow-500' : 'text-white'">
+                            >> {{ isStructuredTaskBankQuest
+                                ? (canResubmitRejected ? 'Re-Take_Task_Bank' : 'Task_Bank_Submission')
+                                : (canResubmitRejected
+                                    ? 'Re-Take_Rejected_Report'
+                                    : (canResubmitPending ? 'Re-Submit_Pending_Report' : (props.hasSubmitted ? 'Edit_Existing_Report' : 'Submit_Quest_Report'))) }}
+                        </h3>
+
                         <form @submit.prevent="submitReport" class="space-y-6">
-                            <div>
-                                <label class="block text-[7px] text-slate-500 mb-2 uppercase">Proof_of_Completion:</label>
-                                <textarea v-model="form.content" 
-                                    class="w-full bg-[#0d1117] border-2 p-3 md:p-4 text-white font-sans text-xs md:text-sm outline-none transition-all" 
-                                    :class="props.hasSubmitted ? 'border-yellow-900 focus:border-yellow-400' : 'border-slate-800 focus:border-cyan-400'"
-                                    rows="4" required></textarea>
+                            <div v-if="isStructuredTaskBankQuest" class="space-y-4">
+                                <div class="bg-slate-900/40 border border-cyan-900/50 p-3">
+                                    <p class="text-[10px] text-cyan-300 uppercase">
+                                        BANK: {{ quest.task_bank?.name || 'TASK_BANK' }} [{{ taskBankType || 'essay' }}]
+                                    </p>
+                                    <p class="text-[10px] text-slate-400 font-sans mt-1">
+                                        Jawab semua soal lalu submit. Submission akan diproses oleh sistem/admin.
+                                    </p>
+                                    <p v-if="taskBankType === 'multiple_choice' && !isAllMcq"
+                                        class="text-[10px] text-yellow-300 font-sans mt-2">
+                                        Detected essay question(s). Auto-check dinonaktifkan, submission akan masuk review manual.
+                                    </p>
+                                </div>
+
+                                <p v-if="form.errors.task_answers" class="text-[10px] text-red-400 font-sans">
+                                    {{ form.errors.task_answers }}
+                                </p>
+
+                                <div
+                                    v-for="(question, index) in taskQuestions"
+                                    :key="question.uuid"
+                                    class="bg-black/30 border border-slate-700 p-4 space-y-3"
+                                >
+                                    <p class="text-[10px] text-yellow-300 uppercase">
+                                        Q{{ index + 1 }} · WEIGHT {{ question.weight || 1 }}
+                                    </p>
+                                    <p class="text-[13px] text-slate-200 font-sans whitespace-pre-wrap">
+                                        {{ question.question_text }}
+                                    </p>
+
+                                    <div v-if="question.question_type === 'multiple_choice'" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <label
+                                            v-for="(option, optionIndex) in (question.options_json || [])"
+                                            :key="`${question.uuid}-${optionIndex}`"
+                                            class="flex items-center gap-2 border border-slate-700 px-3 py-2 cursor-pointer hover:border-cyan-500 transition-colors"
+                                        >
+                                            <input
+                                                v-model="form.task_answers[question.uuid]"
+                                                type="radio"
+                                                :name="`answer-${question.uuid}`"
+                                                :value="option"
+                                                class="accent-cyan-500"
+                                            >
+                                            <span class="text-[12px] text-slate-300 font-sans">{{ option }}</span>
+                                        </label>
+                                    </div>
+
+                                    <textarea
+                                        v-else
+                                        v-model="form.task_answers[question.uuid]"
+                                        rows="3"
+                                        class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[13px] outline-none transition-all focus:border-cyan-400"
+                                        placeholder="Tulis jawabanmu di sini..."
+                                    />
+
+                                    <p v-if="form.errors[`task_answers.${question.uuid}`]" class="text-[10px] text-red-400 font-sans">
+                                        {{ form.errors[`task_answers.${question.uuid}`] }}
+                                    </p>
+                                </div>
                             </div>
 
-                            <div>
-                                <label class="block text-[7px] text-slate-500 mb-2 uppercase">Evidence_Artifact:</label>
-                                
-                                <div v-if="props.hasSubmitted && props.existingSubmission.file_path" 
-                                    class="mb-3 p-3 bg-black/40 border border-yellow-900/50 flex items-center gap-3">
-                                    <div class="overflow-hidden">
-                                        <p class="text-[6px] text-slate-500 uppercase italic">Previously_Sent:</p>
-                                        <p class="text-[7px] text-yellow-500 truncate">{{ getFileName(props.existingSubmission.file_path) }}</p>
+                            <div v-else>
+                                <label class="block text-[12px] text-slate-500 mb-2 uppercase">Proof_of_Completion:</label>
+                                <textarea
+                                    v-model="form.content"
+                                    class="w-full bg-[#0d1117] border-2 p-3 text-white font-sans text-[14px] outline-none transition-all"
+                                    :class="props.hasSubmitted ? 'border-yellow-900 focus:border-yellow-400' : 'border-slate-800 focus:border-cyan-400'"
+                                    rows="4"
+                                    required
+                                ></textarea>
+                                <p v-if="form.errors.content" class="mt-2 text-[10px] text-red-400 font-sans">
+                                    {{ form.errors.content }}
+                                </p>
+                            </div>
+
+                            <div v-if="isStructuredTaskBankQuest" class="space-y-2">
+                                <label class="block text-[12px] text-slate-500 uppercase">
+                                    Additional_Notes: <span class="font-sans normal-case">Optional</span>
+                                </label>
+                                <textarea
+                                    v-model="form.content"
+                                    class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[13px] outline-none transition-all focus:border-cyan-400"
+                                    rows="3"
+                                    placeholder="Catatan tambahan untuk reviewer (opsional)."
+                                ></textarea>
+                                <p v-if="form.errors.content" class="text-[10px] text-red-400 font-sans">
+                                    {{ form.errors.content }}
+                                </p>
+                            </div>
+
+                            <div v-if="!isStructuredTaskBankQuest">
+                                <label class="block text-[12px] text-slate-500 mb-2 uppercase">Evidence_Artifact:</label>
+
+                                <div
+                                    v-if="props.hasSubmitted && props.existingSubmission?.file_path"
+                                    class="mb-4 p-3 bg-black/40 border border-yellow-900/50"
+                                >
+                                    <p class="text-[12px] text-slate-500 uppercase italic mb-2">Previously_Sent:</p>
+                                    <div class="flex flex-col gap-2">
+                                        <a
+                                            :href="'/storage/' + props.existingSubmission.file_path"
+                                            target="_blank"
+                                            class="text-center text-[12px] bg-blue-900/50 text-blue-300 px-3 py-2 border border-blue-700 hover:bg-blue-600 hover:text-white transition-all uppercase font-bold"
+                                        >
+                                            [ VIEW_CURRENT_FILE ]
+                                        </a>
                                     </div>
                                 </div>
 
-                                <input 
-                                    type="file" 
-                                    @change="handleFileChange" 
+                                <input
+                                    type="file"
+                                    @change="handleFileChange"
                                     accept="image/*,application/pdf"
-                                    class="text-[7px] text-slate-400 file:bg-slate-800 file:border-2 file:border-slate-700 file:text-white file:px-2 file:py-1 file:mr-2 file:uppercase cursor-pointer w-full border-2 border-slate-800 p-2 bg-[#0d1117]" 
+                                    class="text-[12px] text-slate-400 file:bg-slate-800 file:border-2 file:border-slate-700 file:text-white file:px-2 file:py-1 file:mr-2 file:uppercase cursor-pointer w-full border-2 border-slate-800 p-2 bg-[#0d1117]"
                                 />
-                                
-                                <div v-if="form.errors.file" class="text-red-500 text-[6px] mt-2 uppercase">
-                                    {{ form.errors.file }}
-                                </div>
+
+                                <div v-if="form.errors.file" class="text-red-500 text-[12px] mt-2 uppercase">{{ form.errors.file }}</div>
                             </div>
 
-                            <button type="submit" :disabled="form.processing" 
-                                :class="[
-                                    'w-full py-4 border-2 transition-all font-bold uppercase text-[8px] md:text-[10px] active:scale-95',
-                                    props.hasSubmitted 
-                                        ? 'bg-yellow-900/20 border-yellow-500 text-yellow-500' 
-                                        : 'bg-cyan-900/40 border-cyan-400 text-cyan-400'
-                                ]"
+                            <button
+                                type="submit"
+                                :disabled="form.processing"
+                                class="w-full py-4 border-2 transition-all font-bold uppercase text-[12px] active:scale-95"
+                                :class="isAutoCheckedTaskBankQuest
+                                    ? 'bg-cyan-800/40 border-cyan-300 text-cyan-200'
+                                    : (props.hasSubmitted ? 'bg-yellow-900/20 border-yellow-500 text-yellow-500' : 'bg-cyan-900/40 border-cyan-400 text-cyan-400')"
                             >
-                                {{ form.processing ? 'TRANSMITTING...' : (props.hasSubmitted ? 'UPDATE_REPORT' : 'EXECUTE_REPORT') }}
+                                {{ form.processing ? 'TRANSMITTING...' : 'SUBMIT' }}
                             </button>
                         </form>
                     </div>
 
-                    <div class="pt-6 border-t-2 border-slate-800 text-[6px] md:text-[8px] text-slate-600 flex flex-col sm:flex-row justify-between gap-2 italic uppercase">
+                    <div v-else class="mt-8 p-4 md:p-6 border-2 border-dashed border-slate-800 bg-black/20">
+                        <h3 class="text-[12px] mb-3 uppercase tracking-widest text-white">
+                            >> SUBMISSION_LOCKED
+                        </h3>
+                        <p class="text-[12px] text-slate-300 font-sans">
+                            Kamu sudah submit quest ini. Submission tidak bisa diulang.
+                        </p>
+                        <div v-if="existingSubmission?.uuid" class="mt-4 flex flex-col sm:flex-row gap-3">
+                            <Link
+                                :href="route('submissions.show', existingSubmission.uuid)"
+                                class="text-center text-[12px] bg-cyan-900/50 text-cyan-300 px-4 py-3 border border-cyan-700 hover:bg-cyan-500 hover:text-black transition-all uppercase font-bold"
+                            >
+                                [ VIEW_SUBMISSION ]
+                            </Link>
+                        </div>
+
+                        <div v-if="isStructuredTaskBankQuest && taskQuestions.length" class="mt-6 space-y-4">
+                            <div class="bg-slate-900/40 border border-cyan-900/50 p-3">
+                                <p class="text-[10px] text-cyan-300 uppercase">
+                                    BANK: {{ quest.task_bank?.name || 'TASK_BANK' }} [{{ taskBankType || 'essay' }}]
+                                </p>
+                                <p class="text-[10px] text-slate-400 font-sans mt-1">
+                                    Berikut jawaban yang kamu kirim (read-only).
+                                </p>
+                            </div>
+
+                            <div
+                                v-for="(question, index) in taskQuestions"
+                                :key="`locked-${question.uuid}`"
+                                class="bg-black/30 border border-slate-700 p-4 space-y-3"
+                            >
+                                <p class="text-[10px] text-yellow-300 uppercase">
+                                    Q{{ index + 1 }} · WEIGHT {{ question.weight || 1 }}
+                                </p>
+                                <p class="text-[13px] text-slate-200 font-sans whitespace-pre-wrap">
+                                    {{ question.question_text }}
+                                </p>
+
+                                <template v-if="question.question_type === 'multiple_choice'">
+                                    <p class="text-[10px] text-slate-400 font-sans uppercase">Selected_Answer:</p>
+                                    <p class="text-[13px] font-sans" :class="answerFor(question) ? 'text-cyan-300' : 'text-red-400'">
+                                        {{ answerFor(question) || 'NOT_ANSWERED' }}
+                                    </p>
+
+                                    <div v-if="Array.isArray(question.options_json) && question.options_json.length" class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                                        <div
+                                            v-for="(option, optionIndex) in question.options_json"
+                                            :key="`locked-${question.uuid}-${optionIndex}`"
+                                            class="border px-3 py-2 text-[12px] font-sans break-words"
+                                            :class="String(option) === String(answerFor(question)) ? 'border-cyan-500 bg-cyan-500/10 text-cyan-200' : 'border-slate-700 text-slate-400 bg-black/10'"
+                                        >
+                                            {{ option }}
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <template v-else>
+                                    <p class="text-[10px] text-slate-400 font-sans uppercase">Essay_Answer:</p>
+                                    <div class="bg-black/40 border border-slate-700 p-3 text-[13px] text-slate-200 font-sans whitespace-pre-wrap">
+                                        {{ answerFor(question) || 'NOT_ANSWERED' }}
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="pt-6 border-t-2 border-slate-800 text-[12px] text-slate-600 flex flex-col sm:flex-row justify-between gap-2 italic uppercase"
+                    >
                         <span>Issued: {{ new Date(quest.created_at).toLocaleDateString() }}</span>
                         <span :class="quest.status === 'Available' ? 'text-cyan-400' : 'text-yellow-500'">
                             Status: {{ quest.status || 'AVAILABLE' }}
@@ -186,21 +617,18 @@ const submitReport = () => {
         </div>
     </AuthenticatedLayout>
 </template>
+
 <style scoped>
-.font-sans {
-    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+.quest-shell {
+    background-color: #161b22;
+    border-color: color-mix(in srgb, var(--quest-tone-border) 54%, #334155 46%);
+    background-image: linear-gradient(180deg, var(--quest-tone-bg) 0%, rgba(22, 27, 34, 0.95) 100%);
 }
 
-/* Custom styling untuk scrollbar textarea agar senada */
-textarea::-webkit-scrollbar {
-    width: 8px;
-}
-
-textarea::-webkit-scrollbar-track {
-    background: #0d1117;
-}
-
-textarea::-webkit-scrollbar-thumb {
-    background: #1e293b;
+.quest-class-badge {
+    border: 1px solid color-mix(in srgb, var(--quest-tone-border) 58%, transparent 42%);
+    background: color-mix(in srgb, var(--quest-tone-bg) 72%, transparent 28%);
+    color: color-mix(in srgb, var(--quest-tone-accent) 90%, #f8fafc 10%);
+    padding: 0.18rem 0.5rem;
 }
 </style>

@@ -18,7 +18,7 @@ return new class extends Migration
         $table->text('description')->nullable();
         $table->enum('difficulty', ['C-Rank', 'B-Rank', 'A-Rank', 'S-Rank'])->default('C-Rank');
         $table->integer('reward_gold')->default(0);
-        $table->integer('reward_xp')->default(0);
+        $table->integer('reward_exp')->default(0);
         $table->enum('status', ['Available', 'In-Progress', 'Done'])->default('Available');
         $table->timestamps();
     });

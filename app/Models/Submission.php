@@ -3,20 +3,33 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str; // <-- 1. PASTIKAN ADA INI
 
 class Submission extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'uuid', // Tambahkan ini
-        'quest_id', 
-        'user_id', 
-        'content', 
-        'status', 
+        'quest_id',
+        'user_id',
+        'content',
+        'status',
+        'earned_exp',
+        'earned_gold',
+        'scores_detail',
         'admin_notes',
         'file_path',
-        'grade',    
-        'feedback', 
+        'grade',
+        'feedback',
+    ];
+
+    protected $casts = [
+        'grade' => 'integer',
+        'earned_exp' => 'integer',
+        'earned_gold' => 'integer',
+        'scores_detail' => 'array',
     ];
 
     protected static function booted()
