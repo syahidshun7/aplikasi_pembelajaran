@@ -71,6 +71,92 @@ test('multiple choice task bank submission auto-checks and syncs user rewards on
     expect((int) $user->exp)->toBe(1000);
 });
 
+test('word match reward follows correct answers and gives zero gold when no answer is correct', function () {
+    $user = User::factory()->create();
+
+    $taskBank = TaskBank::query()->create([
+        'name' => 'Word Match Bank',
+        'description' => 'Auto-check word match',
+        'assessment_type' => 'word_match',
+        'is_active' => true,
+    ]);
+
+    $question = $taskBank->questions()->create([
+        'question_text' => 'Lengkapi kalimat',
+        'question_type' => 'word_match',
+        'options_json' => [
+            'sentence' => 'Ibu kota Indonesia adalah ___',
+            'blanks' => ['Jakarta'],
+            'distractors' => ['Bandung', 'Surabaya'],
+        ],
+        'answer_key' => null,
+        'weight' => 1,
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => 'Word Match Quest',
+        'description' => 'Reward should be proportional',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+        'task_bank_id' => $taskBank->id,
+    ]);
+
+    $wrongPayload = [
+        'placed' => ['Bandung'],
+        'correct_count' => 0,
+        'total' => 1,
+        'timeout' => false,
+        'complete' => true,
+    ];
+
+    $wrongAttempt = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'task_answers' => [
+            $question->uuid => json_encode($wrongPayload),
+        ],
+    ]);
+    $wrongAttempt->assertSessionHasNoErrors();
+
+    $wrongSubmission = Submission::query()
+        ->where('quest_id', $quest->id)
+        ->where('user_id', $user->id)
+        ->latest('id')
+        ->first();
+    expect($wrongSubmission)->not->toBeNull();
+    expect((int) $wrongSubmission->grade)->toBe(0);
+    expect((int) $wrongSubmission->earned_gold)->toBe(0);
+    expect((int) $wrongSubmission->earned_exp)->toBe(0);
+
+    $perfectPayload = [
+        'placed' => ['Jakarta'],
+        'correct_count' => 1,
+        'total' => 1,
+        'timeout' => false,
+        'complete' => true,
+    ];
+
+    $perfectAttempt = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'task_answers' => [
+            $question->uuid => json_encode($perfectPayload),
+        ],
+    ]);
+    $perfectAttempt->assertSessionHasNoErrors();
+
+    $perfectSubmission = Submission::query()
+        ->where('quest_id', $quest->id)
+        ->where('user_id', $user->id)
+        ->latest('id')
+        ->first();
+    expect($perfectSubmission)->not->toBeNull();
+    expect((int) $perfectSubmission->grade)->toBe(100);
+    expect((int) $perfectSubmission->earned_gold)->toBe(500);
+    expect((int) $perfectSubmission->earned_exp)->toBe(500);
+});
+
 test('user cannot submit quest from study group they do not belong to', function () {
     $allowedUser = User::factory()->create();
     $blockedUser = User::factory()->create();

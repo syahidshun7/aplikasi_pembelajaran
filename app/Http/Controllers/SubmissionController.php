@@ -209,30 +209,7 @@ class SubmissionController extends Controller
 
         $this->validateTaskBankAnswersOrFail($quest, $questions, $answers);
 
-        if ($this->isGameEscapeTaskBankQuest($quest)) {
-            $this->deleteSubmissionFileIfExists($submission->file_path);
-            $evaluation = $this->evaluateGameEscapeAnswers($quest, $answers, (array) ($validated['game_payload'] ?? []));
-
-            if ($this->isStaffPlayModeUser()) {
-                $evaluation['earned_exp'] = 0;
-                $evaluation['earned_gold'] = 0;
-                $evaluation['scores_detail']['staff_play_mode'] = true;
-                $evaluation['feedback'] .= ' STAFF_PLAY_MODE: reward tidak dihitung ke economy utama.';
-            }
-
-            $submission->content = $request->input('content') ?: '[AUTO_CHECK_GAME_ESCAPE_SUBMISSION]';
-            $submission->file_path = null;
-            $submission->status = 'Approved';
-            $submission->grade = $evaluation['grade'];
-            $submission->feedback = $evaluation['feedback'];
-            $submission->earned_exp = $evaluation['earned_exp'];
-            $submission->earned_gold = $evaluation['earned_gold'];
-            $submission->scores_detail = $evaluation['scores_detail'];
-
-            return true;
-        }
-
-        if ($this->isMultipleChoiceTaskBankQuest($quest)) {
+        if ($this->isAutoCheckedTaskBankQuest($quest)) {
             $this->deleteSubmissionFileIfExists($submission->file_path);
             $evaluation = $this->evaluateTaskBankAnswers($quest, $answers);
 
@@ -326,6 +303,18 @@ class SubmissionController extends Controller
                 if (! in_array($answer, $options, true)) {
                     $errors["task_answers.{$qUuid}"] = 'Jawaban tidak valid untuk opsi soal ini.';
                 }
+            } elseif ($questionType === 'platforming') {
+                $decoded = json_decode($answer, true);
+                if (! is_array($decoded) || ! isset($decoded['answers'])) {
+                    $errors["task_answers.{$qUuid}"] = 'Selesaikan game platforming terlebih dahulu.';
+                }
+            } elseif ($questionType === 'word_match') {
+                $decoded = json_decode($answer, true);
+                // Allow incomplete if it's a timeout
+                $isTimeout = ! empty($decoded['timeout']);
+                if (! is_array($decoded) || (empty($decoded['complete']) && ! $isTimeout)) {
+                    $errors["task_answers.{$qUuid}"] = 'Lengkapi semua kata yang hilang terlebih dahulu.';
+                }
             }
         }
 
@@ -371,9 +360,14 @@ class SubmissionController extends Controller
         return (bool) $quest->taskBank;
     }
 
-    private function isMultipleChoiceTaskBankQuest(Quest $quest): bool
+    private function isAutoCheckedTaskBankQuest(Quest $quest): bool
     {
-        if (! $quest->taskBank || (string) $quest->taskBank->assessment_type !== 'multiple_choice') {
+        if (! $quest->taskBank) {
+            return false;
+        }
+
+        $type = (string) $quest->taskBank->assessment_type;
+        if (! in_array($type, ['multiple_choice', 'platforming', 'word_match'], true)) {
             return false;
         }
 
@@ -382,32 +376,12 @@ class SubmissionController extends Controller
         }]);
 
         $questions = $quest->taskBank?->questions ?? collect();
-        $containsNonMcq = $questions->contains(function ($question) {
-            return (string) ($question->question_type ?? '') !== 'multiple_choice';
+        $containsManualCheck = $questions->contains(function ($question) {
+            $qType = (string) ($question->question_type ?? '');
+            return ! in_array($qType, ['multiple_choice', 'platforming', 'word_match'], true);
         });
 
-        // Jika ada essay/practical di bank ini, auto-check dimatikan dan flow jadi manual review.
-        return ! $containsNonMcq;
-    }
-
-    private function isGameEscapeTaskBankQuest(Quest $quest): bool
-    {
-        if (! $quest->taskBank || (string) $quest->taskBank->assessment_type !== 'game_escape') {
-            return false;
-        }
-
-        $quest->loadMissing(['taskBank.questions' => function ($query) {
-            $query->where('is_active', true);
-        }]);
-
-        $questions = $quest->taskBank?->questions ?? collect();
-        if ($questions->isEmpty()) {
-            return false;
-        }
-
-        return ! $questions->contains(function ($question) {
-            return (string) ($question->question_type ?? '') !== 'game_stage';
-        });
+        return ! $containsManualCheck;
     }
 
     private function isSubmissionEvaluated(Submission $submission): bool
@@ -431,35 +405,52 @@ class SubmissionController extends Controller
 
     private function evaluateTaskBankAnswers(Quest $quest, array $answers): array
     {
-        $questions = ($quest->taskBank?->questions ?? collect())
-            ->filter(function ($question) {
-                return (string) ($question->question_type ?? '') === 'multiple_choice';
-            })
-            ->values();
+        $questions = $quest->taskBank?->questions ?? collect();
+        $assessmentType = (string) $quest->taskBank?->assessment_type;
 
         if ($questions->isEmpty()) {
             throw ValidationException::withMessages([
-                'task_answers' => 'Quest auto-check membutuhkan minimal 1 soal pilihan ganda aktif.',
+                'task_answers' => 'Quest auto-check membutuhkan minimal 1 soal aktif.',
             ]);
         }
 
-        $maxWeight = (int) $questions->sum(function ($question) {
-            return max(1, (int) ($question->weight ?? 1));
-        });
-
         $correctWeight = 0;
+        $maxWeight = 0;
         $correctCount = 0;
+        $totalQuestionsCount = 0;
 
-        foreach ($questions as $question) {
-            $qUuid = (string) $question->uuid;
-            $selected = (string) ($answers[$qUuid] ?? '');
+        if ($assessmentType === 'multiple_choice') {
+            $mcqQuestions = $questions->filter(function ($q) {
+                return (string) ($q->question_type ?? '') === 'multiple_choice';
+            });
+            $totalQuestionsCount = $mcqQuestions->count();
+            
+            $maxWeight = (int) $mcqQuestions->sum(function ($question) {
+                return max(1, (int) ($question->weight ?? 1));
+            });
 
-            $weight = max(1, (int) ($question->weight ?? 1));
-            $answerKey = trim((string) ($question->answer_key ?? ''));
+            foreach ($mcqQuestions as $question) {
+                $qUuid = (string) $question->uuid;
+                $selected = (string) ($answers[$qUuid] ?? '');
+                $weight = max(1, (int) ($question->weight ?? 1));
+                $answerKey = trim((string) ($question->answer_key ?? ''));
 
-            if ($selected !== '' && $answerKey !== '' && $selected === $answerKey) {
-                $correctWeight += $weight;
-                $correctCount++;
+                if ($selected !== '' && $answerKey !== '' && $selected === $answerKey) {
+                    $correctWeight += $weight;
+                    $correctCount++;
+                }
+            }
+        } elseif (in_array($assessmentType, ['platforming', 'word_match'], true)) {
+            $question = $questions->first();
+            if ($question) {
+                $qUuid = (string) $question->uuid;
+                $payload = json_decode((string) ($answers[$qUuid] ?? '{}'), true) ?: [];
+                
+                $correctCount = (int) ($payload['score'] ?? $payload['correct_count'] ?? 0);
+                $totalQuestionsCount = (int) ($payload['total'] ?? 1);
+                
+                $correctWeight = $correctCount;
+                $maxWeight = max(1, $totalQuestionsCount); // Prevent division by zero
             }
         }
 
@@ -484,15 +475,15 @@ class SubmissionController extends Controller
             'feedback' => sprintf(
                 'AUTO_CHECK_RESULT: %d/%d correct. Score %d%%. Reward +%d EXP / +%d GOLD.',
                 $correctCount,
-                $questions->count(),
+                max(1, $totalQuestionsCount),
                 $grade,
                 $earnedExp,
                 $earnedGold
             ),
             'scores_detail' => [
                 'source' => 'task_bank_auto_check',
-                'assessment_type' => 'multiple_choice',
-                'total_questions' => $questions->count(),
+                'assessment_type' => $assessmentType,
+                'total_questions' => max(1, $totalQuestionsCount),
                 'correct_questions' => $correctCount,
                 'max_weight' => $maxWeight,
                 'correct_weight' => $correctWeight,
@@ -549,117 +540,6 @@ class SubmissionController extends Controller
         ];
     }
 
-    private function evaluateGameEscapeAnswers(Quest $quest, array $answers, array $gamePayload = []): array
-    {
-        $questions = ($quest->taskBank?->questions ?? collect())
-            ->filter(fn ($question) => (string) ($question->question_type ?? '') === 'game_stage')
-            ->values();
-
-        if ($questions->isEmpty()) {
-            throw ValidationException::withMessages([
-                'task_answers' => 'Quest game_escape membutuhkan minimal 1 stage aktif.',
-            ]);
-        }
-
-        $totalStages = $questions->count();
-        $clearedStages = 0;
-        $perStage = [];
-
-        foreach ($questions as $question) {
-            $qUuid = (string) $question->uuid;
-            $playerAnswer = trim((string) ($answers[$qUuid] ?? ''));
-            $config = is_array($question->options_json) ? $question->options_json : [];
-
-            $acceptedAnswers = collect($config['accepted_answers'] ?? [])
-                ->map(fn ($value) => $this->normalizeEscapeAnswer((string) $value))
-                ->filter(fn ($value) => $value !== '')
-                ->values()
-                ->all();
-
-            if ($acceptedAnswers === []) {
-                $fallback = trim((string) ($question->answer_key ?? ''));
-                if ($fallback !== '') {
-                    $acceptedAnswers = [$this->normalizeEscapeAnswer($fallback)];
-                }
-            }
-
-            $normalizedPlayerAnswer = $this->normalizeEscapeAnswer($playerAnswer);
-            $isCleared = $normalizedPlayerAnswer !== '' && in_array($normalizedPlayerAnswer, $acceptedAnswers, true);
-            if ($isCleared) {
-                $clearedStages++;
-            }
-
-            $perStage[$qUuid] = [
-                'prompt' => (string) ($question->question_text ?? ''),
-                'answer' => $playerAnswer,
-                'is_cleared' => $isCleared,
-                'accepted_answers_count' => count($acceptedAnswers),
-            ];
-        }
-
-        $baseScore = (int) round(($clearedStages / max(1, $totalStages)) * 100);
-        $elapsedSeconds = max(0, (int) ($gamePayload['elapsed_seconds'] ?? 0));
-        $speedBonus = 0;
-        if ($elapsedSeconds > 0 && $elapsedSeconds <= 300) {
-            $speedBonus = 12;
-        } elseif ($elapsedSeconds > 300 && $elapsedSeconds <= 600) {
-            $speedBonus = 6;
-        }
-
-        $grade = max(0, min(100, $baseScore + $speedBonus));
-        $rank = $this->resolveEscapeRank($grade);
-        $portion = $grade / 100;
-
-        $questGold = (int) ($quest->reward_gold ?? 0);
-        $questExp = (int) ($quest->reward_exp ?? 0);
-        if ($questExp <= 0) {
-            $questExp = $questGold;
-        }
-
-        $earnedGold = (int) floor($questGold * $portion);
-        $earnedExp = (int) floor($questExp * $portion);
-
-        return [
-            'grade' => $grade,
-            'earned_gold' => $earnedGold,
-            'earned_exp' => $earnedExp,
-            'feedback' => sprintf(
-                'GAME_ESCAPE_RESULT: %d/%d stage clear. Base %d%% + speed bonus %d = %d%%. Reward +%d EXP / +%d GOLD.',
-                $clearedStages,
-                $totalStages,
-                $baseScore,
-                $speedBonus,
-                $grade,
-                $earnedExp,
-                $earnedGold
-            ),
-            'scores_detail' => [
-                'source' => 'task_bank_game_escape_auto_check',
-                'assessment_type' => 'game_escape',
-                'rank' => $rank,
-                'total_stages' => $totalStages,
-                'cleared_stages' => $clearedStages,
-                'base_score' => $baseScore,
-                'speed_bonus' => $speedBonus,
-                'elapsed_seconds' => $elapsedSeconds,
-                'answers' => $answers,
-                'game_payload' => $gamePayload,
-                'stages' => $perStage,
-            ],
-        ];
-    }
-
-    private function resolveEscapeRank(int $score): string
-    {
-        if ($score >= 95) return 'SS';
-        if ($score >= 90) return 'S';
-        if ($score >= 80) return 'A';
-        if ($score >= 70) return 'B';
-        if ($score >= 60) return 'C';
-        if ($score >= 50) return 'D';
-
-        return 'F';
-    }
 
     private function authorizeQuestAccessForCurrentUser(Quest $quest): void
     {
@@ -698,12 +578,4 @@ class SubmissionController extends Controller
         return 'Quest ini sedang tidak aktif.';
     }
 
-    private function normalizeEscapeAnswer(string $value): string
-    {
-        $normalized = mb_strtolower(trim($value));
-        $normalized = preg_replace('/\s*-\s*/u', '-', $normalized) ?? $normalized;
-        $normalized = preg_replace('/\s+/u', ' ', $normalized) ?? $normalized;
-
-        return trim($normalized);
-    }
 }

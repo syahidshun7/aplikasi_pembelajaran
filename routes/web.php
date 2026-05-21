@@ -216,6 +216,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::get('/quests/{quest}', [QuestController::class, 'show'])->name('quests.show');
+    Route::post('/quests/{quest}/platforming-progress', [QuestController::class, 'savePlatformingProgress'])->name('quests.platforming-progress.save');
+    Route::get('/quests/{quest}/platforming-progress', [QuestController::class, 'loadPlatformingProgress'])->name('quests.platforming-progress.load');
     Route::post('/quests/{quest}/unlock-late', [QuestController::class, 'unlockLate'])->name('quests.unlock-late');
     Route::post('/quests/{quest}/submissions', [SubmissionController::class, 'store'])
         ->middleware('verified')
