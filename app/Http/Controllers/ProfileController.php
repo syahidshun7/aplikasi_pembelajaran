@@ -79,6 +79,46 @@ class ProfileController extends Controller
             ],
         ]);
     }
+
+    public function transferRecipients(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user->isStaffPlayMode()) {
+            return response()->json(['data' => []]);
+        }
+
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        $queryText = ltrim(trim((string) ($validated['q'] ?? '')), '@');
+
+        if (mb_strlen($queryText) < 2) {
+            return response()->json(['data' => []]);
+        }
+
+        $users = User::query()
+            ->whereKeyNot($user->id)
+            ->whereNull('deleted_at')
+            ->whereNotIn('role', User::staffRoles())
+            ->where(function ($query) use ($queryText) {
+                $query->where('username', 'like', "{$queryText}%")
+                    ->orWhere('username', 'like', "%{$queryText}%");
+            })
+            ->orderByRaw("CASE WHEN username LIKE ? THEN 0 ELSE 1 END", ["{$queryText}%"])
+            ->orderBy('username')
+            ->limit(8)
+            ->get(['id', 'name', 'username'])
+            ->map(fn (User $recipient) => [
+                'id' => (int) $recipient->id,
+                'name' => (string) ($recipient->name ?? ''),
+                'username' => (string) ($recipient->username ?? ''),
+            ])
+            ->values();
+
+        return response()->json(['data' => $users]);
+    }
     /**
      * Update the user's profile information.
      */
@@ -225,11 +265,27 @@ class ProfileController extends Controller
             'exp'           => $totalExp,
             'level_progress' => $progress,
             'role'          => $user->role,
+            'staff_play_mode' => $user->isStaffPlayMode(),
             'bio'           => $user->detailUser?->bio,
             'experience'    => $user->detailUser?->experience,
             'location'      => $user->detailUser?->location,
             'skills'        => $user->detailUser?->skills,
         ];
+    }
+
+    private function resolveTransferUsers(User $user)
+    {
+        if ($user->isStaffPlayMode()) {
+            return collect();
+        }
+
+        return User::query()
+            ->whereKeyNot($user->id)
+            ->whereNull('deleted_at')
+            ->whereNotIn('role', User::staffRoles())
+            ->orderBy('name')
+            ->limit(100)
+            ->get(['id', 'name', 'username', 'role']);
     }
 
     private function resolveQuestStats($user): array

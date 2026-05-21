@@ -1,0 +1,81 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\UserInventory;
+use App\Models\UserInventoryLog;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class InventoryController extends Controller
+{
+    public function index(): Response
+    {
+        $user = auth()->user();
+
+        $inventories = UserInventory::query()
+            ->with('item:id,code,name,description,price_gold,icon_path,is_active')
+            ->where('user_id', (int) $user->id)
+            ->where('quantity', '>', 0)
+            ->orderByDesc('updated_at')
+            ->get()
+            ->map(function (UserInventory $inventory) {
+                $item = $inventory->item;
+                $code = (string) ($item?->code ?? '');
+
+                return [
+                    'id' => (int) $inventory->id,
+                    'quantity' => (int) ($inventory->quantity ?? 0),
+                    'updated_at' => $inventory->updated_at?->toIso8601String(),
+                    'item' => [
+                        'id' => (int) ($item?->id ?? 0),
+                        'code' => $code,
+                        'name' => (string) ($item?->name ?? 'Unknown Item'),
+                        'description' => (string) ($item?->description ?? ''),
+                        'price_gold' => (int) ($item?->price_gold ?? 0),
+                        'icon_path' => (string) ($item?->icon_path ?? ''),
+                        'is_active' => (bool) ($item?->is_active ?? false),
+                        'is_usable' => $code === 'TIME_KEY',
+                        'use_hint' => $code === 'TIME_KEY'
+                            ? 'Gunakan dari halaman quest yang sudah melewati deadline.'
+                            : 'Item ini belum punya aksi langsung.',
+                    ],
+                ];
+            })
+            ->values();
+
+        $logs = UserInventoryLog::query()
+            ->with('item:id,code,name,icon_path')
+            ->where('user_id', (int) $user->id)
+            ->latest()
+            ->limit(30)
+            ->get()
+            ->map(function (UserInventoryLog $log) {
+                return [
+                    'id' => (int) $log->id,
+                    'type' => (string) $log->type,
+                    'quantity_change' => (int) ($log->quantity_change ?? 0),
+                    'quantity_before' => (int) ($log->quantity_before ?? 0),
+                    'quantity_after' => (int) ($log->quantity_after ?? 0),
+                    'note' => (string) ($log->note ?? ''),
+                    'created_at' => $log->created_at?->toIso8601String(),
+                    'item' => [
+                        'id' => (int) ($log->item?->id ?? 0),
+                        'code' => (string) ($log->item?->code ?? ''),
+                        'name' => (string) ($log->item?->name ?? 'Unknown Item'),
+                        'icon_path' => (string) ($log->item?->icon_path ?? ''),
+                    ],
+                ];
+            })
+            ->values();
+
+        return Inertia::render('Inventory/Index', [
+            'inventories' => $inventories,
+            'logs' => $logs,
+            'summary' => [
+                'unique_items' => (int) $inventories->count(),
+                'total_quantity' => (int) $inventories->sum('quantity'),
+            ],
+        ]);
+    }
+}

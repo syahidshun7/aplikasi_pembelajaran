@@ -30,6 +30,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HallOfCreationApiController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationDispatchController;
 use App\Http\Controllers\ProfileController;
@@ -53,6 +54,7 @@ Route::prefix('api')->name('api.')->group(function () {
 });
 
 Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
+    Route::get('/users/transfer-recipients', [ProfileController::class, 'transferRecipients'])->name('users.transfer-recipients');
     Route::get('/creations', [CreationApiController::class, 'index'])->name('creations.index');
     Route::get('/profile/creations', [CreationApiController::class, 'index'])->name('profile.creations.index');
     Route::post('/creations', [CreationApiController::class, 'store'])->name('creations.store');
@@ -237,9 +239,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/events/{event:uuid}', [UserEventController::class, 'show'])->name('events.show');
     Route::post('/events/{event:uuid}/attendance/self', [UserEventController::class, 'selfAttend'])->name('events.attendance.self');
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
+    Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
     Route::post('/shop/items/{item}/purchase', [ShopController::class, 'purchase'])
         ->middleware('verified')
         ->name('shop.purchase');
+    Route::post('/shop/gold-transfer', [ShopController::class, 'transfer'])
+        ->middleware('verified')
+        ->name('shop.gold-transfer');
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::get('/notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
     Route::post('/notifications/{notificationId}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
@@ -356,6 +362,7 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::prefix('admin/users')->name('admin.users.')->group(function () {
         Route::get('/', [AdminUserController::class, 'index'])->name('index');
         Route::get('/{user}/ledger', [AdminUserController::class, 'ledger'])->name('ledger');
+        Route::post('/{user}/gold-adjustment', [AdminUserController::class, 'adjustGold'])->name('gold-adjustment');
         Route::patch('/{userId}/restore', [AdminUserController::class, 'restore'])->name('restore');
         Route::delete('/{userId}/force', [AdminUserController::class, 'forceDestroy'])->name('force-destroy');
         Route::patch('/{user}', [AdminUserController::class, 'update'])->name('update');

@@ -1,0 +1,176 @@
+<script setup>
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { Head, Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
+
+const props = defineProps({
+    inventories: {
+        type: Array,
+        default: () => [],
+    },
+    logs: {
+        type: Array,
+        default: () => [],
+    },
+    summary: {
+        type: Object,
+        default: () => ({
+            unique_items: 0,
+            total_quantity: 0,
+        }),
+    },
+});
+
+const formatDate = (iso) => {
+    if (!iso) return '-';
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('id-ID');
+};
+
+const inventoryItems = computed(() => props.inventories || []);
+const activityLogs = computed(() => props.logs || []);
+
+const signedQuantity = (value) => {
+    const number = Number(value || 0);
+    if (number > 0) return `+${number}`;
+    return String(number);
+};
+
+const logTypeLabel = (type) => {
+    const normalized = String(type || '').toLowerCase();
+    if (normalized === 'purchase') return 'Purchased';
+    if (normalized === 'use') return 'Used';
+    if (normalized === 'refund_remove') return 'Refund Removed';
+    return normalized.replaceAll('_', ' ') || 'Activity';
+};
+</script>
+
+<template>
+    <AuthenticatedLayout>
+        <Head title="Inventory" />
+
+        <div class="user-page-shell text-[#4ed4d4]">
+            <div class="rpg-panel mb-6 border-cyan-500/50 bg-[#1a1c2c]/90">
+                <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <p class="text-[8px] uppercase tracking-[0.35em] text-cyan-300">Player_Storage</p>
+                        <h1 class="mt-2 text-xl uppercase tracking-widest text-white md:text-3xl">Inventory</h1>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 sm:min-w-[280px]">
+                        <div class="border-2 border-cyan-700 bg-[#070b11] p-3">
+                            <p class="text-[8px] uppercase text-slate-500">Unique_Items</p>
+                            <p class="mt-2 text-lg text-cyan-200">{{ summary.unique_items || 0 }}</p>
+                        </div>
+                        <div class="border-2 border-yellow-700 bg-[#070b11] p-3">
+                            <p class="text-[8px] uppercase text-slate-500">Total_Qty</p>
+                            <p class="mt-2 text-lg text-yellow-300">{{ summary.total_quantity || 0 }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+                <section class="rpg-panel border-cyan-500/40 bg-[#1a1c2c]/90">
+                    <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h2 class="text-[10px] uppercase tracking-widest text-cyan-300">Owned_Items</h2>
+                            <p class="mt-1 text-[8px] uppercase text-slate-500">Item dengan quantity 0 otomatis disembunyikan.</p>
+                        </div>
+                        <Link :href="route('shop.index')" class="inline-flex items-center justify-center border border-yellow-600 bg-yellow-400 px-3 py-2 text-[8px] font-bold uppercase text-black hover:bg-yellow-300">
+                            Open_Shop
+                        </Link>
+                    </div>
+
+                    <div v-if="inventoryItems.length > 0" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                        <article
+                            v-for="inventory in inventoryItems"
+                            :key="inventory.id"
+                            class="relative flex min-h-[190px] flex-col border-2 border-slate-700 bg-[#0d1117] p-4 shadow-[4px_4px_0_rgba(0,0,0,0.45)]"
+                        >
+                            <div class="flex items-start gap-3">
+                                <div class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden border-2 border-slate-600 bg-slate-950">
+                                    <img
+                                        v-if="inventory.item?.icon_path"
+                                        :src="`/storage/${inventory.item.icon_path}`"
+                                        :alt="inventory.item.name"
+                                        loading="lazy"
+                                        decoding="async"
+                                        class="h-full w-full object-cover"
+                                    >
+                                    <img
+                                        v-else
+                                        src="/images/logo.png"
+                                        :alt="inventory.item?.name || 'Item'"
+                                        loading="lazy"
+                                        decoding="async"
+                                        class="h-8 w-8 object-contain opacity-70"
+                                    >
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <h3 class="line-clamp-2 text-[10px] uppercase leading-snug text-white">{{ inventory.item?.name }}</h3>
+                                    <p class="mt-1 text-[8px] uppercase text-slate-500">{{ inventory.item?.code || 'ITEM' }}</p>
+                                    <p class="mt-2 inline-flex border border-yellow-700 bg-yellow-400/10 px-2 py-1 text-[9px] font-bold uppercase text-yellow-300">
+                                        Qty: {{ inventory.quantity }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p class="mt-4 line-clamp-3 flex-1 text-[9px] leading-relaxed text-slate-300">
+                                {{ inventory.item?.description || 'Tidak ada deskripsi item.' }}
+                            </p>
+
+                            <div class="mt-4 border-t border-slate-800 pt-3">
+                                <p class="text-[8px] uppercase" :class="inventory.item?.is_usable ? 'text-emerald-300' : 'text-slate-500'">
+                                    {{ inventory.item?.is_usable ? 'Usable_Item' : 'Storage_Item' }}
+                                </p>
+                                <p class="mt-1 text-[8px] leading-relaxed text-slate-400">
+                                    {{ inventory.item?.use_hint }}
+                                </p>
+                            </div>
+                        </article>
+                    </div>
+
+                    <div v-else class="flex min-h-[280px] flex-col items-center justify-center border-2 border-dashed border-slate-700 bg-[#070b11] p-6 text-center">
+                        <p class="text-sm uppercase tracking-widest text-slate-300">Inventory_Empty</p>
+                        <p class="mt-3 max-w-md text-[9px] uppercase leading-relaxed text-slate-500">
+                            Kamu belum punya item. Beli item di Shop, lalu item akan muncul di inventory ini.
+                        </p>
+                        <Link :href="route('shop.index')" class="mt-5 inline-flex border border-cyan-700 bg-cyan-400 px-4 py-2 text-[8px] font-bold uppercase text-black hover:bg-cyan-300">
+                            Go_To_Shop
+                        </Link>
+                    </div>
+                </section>
+
+                <aside class="rpg-panel border-purple-500/40 bg-[#1a1c2c]/90">
+                    <h2 class="text-[10px] uppercase tracking-widest text-purple-300">Inventory_Log</h2>
+                    <p class="mt-1 text-[8px] uppercase leading-relaxed text-slate-500">Riwayat perubahan item terbaru.</p>
+
+                    <div class="mt-4 max-h-[680px] space-y-3 overflow-y-auto pr-1 custom-scroll">
+                        <div
+                            v-for="log in activityLogs"
+                            :key="log.id"
+                            class="border border-slate-700 bg-[#0d1117] p-3"
+                        >
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-[8px] uppercase text-white">{{ log.item?.name || 'Unknown Item' }}</p>
+                                    <p class="mt-1 text-[7px] uppercase text-slate-500">{{ logTypeLabel(log.type) }}</p>
+                                </div>
+                                <p class="shrink-0 text-[9px] font-bold" :class="Number(log.quantity_change || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'">
+                                    {{ signedQuantity(log.quantity_change) }}
+                                </p>
+                            </div>
+                            <p v-if="log.note" class="mt-2 text-[8px] leading-relaxed text-slate-300">{{ log.note }}</p>
+                            <p class="mt-2 text-[8px] text-slate-500">{{ formatDate(log.created_at) }}</p>
+                        </div>
+
+                        <p v-if="activityLogs.length === 0" class="border border-dashed border-slate-700 p-4 text-center text-[8px] uppercase text-slate-500">
+                            No_Inventory_Log
+                        </p>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </AuthenticatedLayout>
+</template>

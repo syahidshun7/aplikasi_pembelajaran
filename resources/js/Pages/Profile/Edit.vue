@@ -1,10 +1,11 @@
 <script setup>
-import { Head, usePage, Link } from '@inertiajs/vue3';
+import { Head, usePage, Link, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm.vue';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue';
 import DeleteUserForm from './Partials/DeleteUserForm.vue';
+import { toast } from '@/Utils/Alert';
 
 const props = defineProps({
     user: Object,
@@ -31,6 +32,7 @@ const userData = computed(() => props.user || page.props.auth.user);
 const isDashboardView = computed(() => props.profileView === 'dashboard');
 const userExp = computed(() => Number(userData.value?.exp ?? 0));
 const userGold = computed(() => Number(userData.value?.gold ?? 0));
+const canTransferGold = computed(() => !Boolean(userData.value?.staff_play_mode));
 const userLvl = computed(() => Number(userData.value?.lvl ?? 1));
 const levelProgress = computed(() => userData.value?.level_progress || {});
 const userLevelTitle = computed(() => levelProgress.value?.title || 'Novice');
@@ -101,6 +103,17 @@ const resolveActiveTabFromLocation = () => {
 
 const activeTab = ref(resolveActiveTabFromLocation());
 const themeMode = ref('dark');
+const isTransferModalOpen = ref(false);
+const recipientSearch = ref('');
+const recipientResults = ref([]);
+const selectedRecipient = ref(null);
+const isSearchingRecipients = ref(false);
+const transferForm = useForm({
+    recipient_id: '',
+    amount: 1,
+    note: '',
+});
+let recipientSearchTimer = null;
 
 const getGradeColor = (grade) => {
     if (grade >= 90) return 'text-yellow-400';
@@ -129,6 +142,120 @@ watch(classAverageRows, (rows) => {
 const toggleAverageGradeDropdown = () => {
     isAverageGradeOpen.value = !isAverageGradeOpen.value;
 };
+
+const closeTransferModal = () => {
+    if (transferForm.processing) {
+        return;
+    }
+
+    isTransferModalOpen.value = false;
+    transferForm.clearErrors();
+};
+
+const openTransferModal = () => {
+    if (!canTransferGold.value) {
+        toast.error('TRANSFER_DISABLED', 'Transfer gold tidak tersedia untuk akun staff/admin.');
+        return;
+    }
+
+    isTransferModalOpen.value = true;
+};
+
+const selectRecipient = (recipient) => {
+    selectedRecipient.value = recipient;
+    transferForm.recipient_id = recipient?.id || '';
+    recipientSearch.value = recipient?.username ? `@${recipient.username}` : '';
+    recipientResults.value = [];
+};
+
+const searchTransferRecipients = async (query) => {
+    const normalizedQuery = String(query || '').trim();
+    const cleanQuery = normalizedQuery.replace(/^@+/, '');
+
+    if (cleanQuery.length < 2 || selectedRecipient.value) {
+        recipientResults.value = [];
+        isSearchingRecipients.value = false;
+        return;
+    }
+
+    isSearchingRecipients.value = true;
+
+    try {
+        const response = await window.axios.get(route('api.users.transfer-recipients'), {
+            params: { q: cleanQuery },
+        });
+
+        recipientResults.value = Array.isArray(response.data?.data) ? response.data.data : [];
+    } catch (error) {
+        recipientResults.value = [];
+    } finally {
+        isSearchingRecipients.value = false;
+    }
+};
+
+const submitGoldTransfer = async () => {
+    const amount = Number(transferForm.amount || 0);
+
+    if (!transferForm.recipient_id) {
+        toast.error('SELECT_RECIPIENT', 'Pilih user tujuan transfer.');
+        return;
+    }
+
+    if (!Number.isFinite(amount) || amount < 1) {
+        toast.error('INVALID_AMOUNT', 'Jumlah gold minimal 1.');
+        return;
+    }
+
+    if (userGold.value < amount) {
+        toast.error('GOLD_NOT_ENOUGH', 'Gold kamu tidak cukup.');
+        return;
+    }
+
+    const recipient = (props.transferUsers || []).find((user) => Number(user.id) === Number(transferForm.recipient_id));
+    const result = await toast.confirm(
+        'TRANSFER_GOLD?',
+        `Kirim ${amount} gold ke ${recipient?.username || recipient?.name || 'user ini'}?`,
+        'YES_TRANSFER'
+    );
+
+    if (!result.isConfirmed) {
+        return;
+    }
+
+    transferForm.post(route('shop.gold-transfer'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            toast.success('TRANSFER_SUCCESS', 'Gold berhasil dikirim.');
+            transferForm.reset();
+            transferForm.amount = 1;
+            recipientSearch.value = '';
+            recipientResults.value = [];
+            selectedRecipient.value = null;
+            isTransferModalOpen.value = false;
+        },
+        onError: (errors) => {
+            const message = Object.values(errors || {})[0] || 'Transfer gagal.';
+            toast.error('TRANSFER_FAILED', message);
+        },
+    });
+};
+
+watch(recipientSearch, (value) => {
+    if (selectedRecipient.value && value === `@${selectedRecipient.value.username}`) {
+        return;
+    }
+
+    selectedRecipient.value = null;
+    transferForm.recipient_id = '';
+
+    if (recipientSearchTimer) {
+        clearTimeout(recipientSearchTimer);
+    }
+
+    recipientSearchTimer = setTimeout(() => {
+        searchTransferRecipients(value);
+    }, 250);
+});
 
 const normalizeTheme = (value) => (String(value || '').toLowerCase() === 'light' ? 'light' : 'dark');
 
@@ -187,6 +314,10 @@ onBeforeUnmount(() => {
 
     window.removeEventListener('storage', syncThemeFromStorage);
     window.removeEventListener(USER_THEME_EVENT, syncThemeFromBroadcast);
+
+    if (recipientSearchTimer) {
+        clearTimeout(recipientSearchTimer);
+    }
 });
 </script>
 
@@ -218,10 +349,20 @@ onBeforeUnmount(() => {
                         <h1 class="break-words text-base uppercase italic tracking-tighter text-white sm:text-lg">
                             {{ userData.username || userData.name }}
                         </h1>
-                        <span class="shrink-0 text-sm text-yellow-400">
-                            {{ userGold }}
-                            <span class="text-[8px]">G</span>
-                        </span>
+                        <div class="flex shrink-0 items-center gap-2">
+                            <span class="text-sm text-yellow-400">
+                                {{ userGold }}
+                                <span class="text-[8px]">G</span>
+                            </span>
+                            <button
+                                v-if="canTransferGold"
+                                type="button"
+                                class="border-2 border-yellow-500/60 bg-yellow-400/10 px-2 py-1 text-[7px] uppercase text-yellow-300 transition-colors hover:bg-yellow-400 hover:text-black"
+                                @click="openTransferModal"
+                            >
+                                Transfer
+                            </button>
+                        </div>
                     </div>
 
                     <div class="w-full h-4 bg-black border-2 border-slate-700 p-[2px] overflow-hidden relative">
@@ -643,6 +784,105 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
             </template>
+        </div>
+
+        <div
+            v-if="isTransferModalOpen"
+            class="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 px-4 py-6"
+            @click.self="closeTransferModal"
+        >
+            <div class="w-full max-w-lg border-4 border-yellow-600 bg-[#1a1c2c] p-5 shadow-[8px_8px_0_rgba(0,0,0,0.55)]">
+                <div class="mb-4 flex items-start justify-between gap-4">
+                    <div>
+                        <p class="text-[8px] uppercase tracking-[0.25em] text-yellow-300">Wallet_Action</p>
+                        <h2 class="mt-2 text-sm uppercase text-white">Transfer_Gold</h2>
+                        <p class="mt-2 text-[8px] uppercase leading-relaxed text-slate-400">
+                            Saldo saat ini: <span class="text-yellow-300">{{ userGold }} G</span>
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        class="border border-red-400 px-2 py-1 text-[8px] text-red-300 hover:bg-red-400 hover:text-black"
+                        :disabled="transferForm.processing"
+                        @click="closeTransferModal"
+                    >
+                        [X]
+                    </button>
+                </div>
+
+                <form class="space-y-4" @submit.prevent="submitGoldTransfer">
+                    <div>
+                        <label class="block text-[8px] uppercase text-slate-400">Recipient</label>
+                        <div class="relative mt-2">
+                            <input
+                                v-model="recipientSearch"
+                                type="text"
+                                autocomplete="off"
+                                placeholder="@username"
+                                class="w-full border-2 border-slate-700 bg-[#0d1117] p-3 text-[9px] uppercase text-cyan-300 outline-none focus:border-yellow-400"
+                                :disabled="transferForm.processing"
+                            >
+                            <div
+                                v-if="recipientResults.length > 0 || isSearchingRecipients"
+                                class="absolute left-0 right-0 top-full z-20 mt-2 max-h-56 overflow-y-auto border-2 border-slate-700 bg-[#070b11] shadow-[4px_4px_0_rgba(0,0,0,0.55)]"
+                            >
+                                <p v-if="isSearchingRecipients" class="p-3 text-[8px] uppercase text-slate-500">Searching...</p>
+                                <button
+                                    v-for="recipient in recipientResults"
+                                    :key="recipient.id"
+                                    type="button"
+                                    class="block w-full border-b border-slate-800 p-3 text-left hover:bg-yellow-400 hover:text-black"
+                                    @click="selectRecipient(recipient)"
+                                >
+                                    <span class="block text-[8px] uppercase text-cyan-300 group-hover:text-black">@{{ recipient.username }}</span>
+                                    <span class="mt-1 block text-[7px] uppercase text-slate-400">{{ recipient.name }}</span>
+                                </button>
+                            </div>
+                        </div>
+                        <p v-if="recipientSearch.replace(/^@+/, '').length > 0 && recipientSearch.replace(/^@+/, '').length < 2" class="mt-2 text-[8px] text-slate-500">
+                            Ketik minimal 2 karakter username.
+                        </p>
+                        <p v-if="selectedRecipient" class="mt-2 text-[8px] uppercase text-emerald-300">
+                            Selected: @{{ selectedRecipient.username }} - {{ selectedRecipient.name }}
+                        </p>
+                        <p v-if="transferForm.errors.recipient_id" class="mt-2 text-[8px] text-red-400">{{ transferForm.errors.recipient_id }}</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-[8px] uppercase text-slate-400">Amount</label>
+                        <input
+                            v-model.number="transferForm.amount"
+                            type="number"
+                            min="1"
+                            :max="userGold"
+                            class="mt-2 w-full border-2 border-slate-700 bg-[#0d1117] p-3 text-[9px] text-yellow-300 outline-none focus:border-yellow-400"
+                            :disabled="transferForm.processing"
+                        >
+                        <p v-if="transferForm.errors.amount" class="mt-2 text-[8px] text-red-400">{{ transferForm.errors.amount }}</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-[8px] uppercase text-slate-400">Note</label>
+                        <input
+                            v-model="transferForm.note"
+                            type="text"
+                            maxlength="120"
+                            placeholder="Optional message"
+                            class="mt-2 w-full border-2 border-slate-700 bg-[#0d1117] p-3 text-[9px] text-slate-200 outline-none focus:border-yellow-400"
+                            :disabled="transferForm.processing"
+                        >
+                        <p v-if="transferForm.errors.note" class="mt-2 text-[8px] text-red-400">{{ transferForm.errors.note }}</p>
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="w-full border-2 border-yellow-700 bg-yellow-400 px-4 py-3 text-[8px] font-bold uppercase text-black transition-colors hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="transferForm.processing || !transferForm.recipient_id || transferForm.amount < 1 || userGold < transferForm.amount"
+                    >
+                        {{ transferForm.processing ? 'Sending...' : 'Send_Gold' }}
+                    </button>
+                </form>
+            </div>
         </div>
     </AuthenticatedLayout>
 </template>

@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\ShopItem;
 use App\Models\ShopTransaction;
 use App\Models\User;
+use App\Models\UserGoldTransfer;
 use App\Models\UserInventory;
+use App\Models\UserInventoryLog;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -46,18 +48,85 @@ class ShopController extends Controller
             return $item;
         });
 
-        $transactions = ShopTransaction::query()
-            ->with('item:id,name,code')
-            ->where('user_id', $user->id)
-            ->latest()
-            ->limit(20)
-            ->get();
-
         return Inertia::render('Shop/Index', [
             'items' => $items,
             'gold' => (int) ($user->gold ?? 0),
-            'transactions' => $transactions,
         ]);
+    }
+
+    public function transfer(Request $request)
+    {
+        if ((bool) $request->user()?->isStaffPlayMode()) {
+            throw ValidationException::withMessages([
+                'amount' => 'Staff play mode tidak memakai economy utama. Transfer gold dinonaktifkan untuk mentor/admin.',
+            ]);
+        }
+
+        $validated = $request->validate([
+            'recipient_id' => ['required', 'integer', 'exists:users,id'],
+            'amount' => ['required', 'integer', 'min:1', 'max:1000000'],
+            'note' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $senderId = (int) $request->user()->id;
+        $recipientId = (int) $validated['recipient_id'];
+
+        if ($senderId === $recipientId) {
+            throw ValidationException::withMessages([
+                'recipient_id' => 'Kamu tidak bisa transfer gold ke akun sendiri.',
+            ]);
+        }
+
+        DB::transaction(function () use ($senderId, $recipientId, $validated, $request) {
+            $lockedUsers = User::query()
+                ->whereIn('id', [$senderId, $recipientId])
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            $sender = $lockedUsers->get($senderId);
+            $recipient = $lockedUsers->get($recipientId);
+
+            if (! $sender || ! $recipient) {
+                throw ValidationException::withMessages([
+                    'recipient_id' => 'User tujuan tidak ditemukan.',
+                ]);
+            }
+
+            if ($recipient->isStaff()) {
+                throw ValidationException::withMessages([
+                    'recipient_id' => 'Transfer ke akun staff/admin tidak tersedia.',
+                ]);
+            }
+
+            $amount = (int) $validated['amount'];
+
+            if ((int) ($sender->gold ?? 0) < $amount) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Gold kamu tidak cukup untuk transfer ini.',
+                ]);
+            }
+
+            $sender->decrement('gold', $amount);
+            $recipient->increment('gold', $amount);
+
+            UserGoldTransfer::query()->create([
+                'sender_id' => $senderId,
+                'recipient_id' => $recipientId,
+                'amount' => $amount,
+                'status' => UserGoldTransfer::STATUS_COMPLETED,
+                'note' => trim((string) ($validated['note'] ?? '')) ?: null,
+                'meta' => [
+                    'context' => 'shop.gold.transfer',
+                    'sender_gold_before' => (int) ($sender->gold ?? 0),
+                    'recipient_gold_before' => (int) ($recipient->gold ?? 0),
+                    'ip' => (string) $request->ip(),
+                ],
+            ]);
+        });
+
+        return back()->with('message', 'GOLD_TRANSFER_SUCCESS');
     }
 
     public function purchase(Request $request, ShopItem $item)
@@ -118,10 +187,13 @@ class ShopController extends Controller
                 ]);
             }
 
+            $quantityBefore = (int) ($inventory->quantity ?? 0);
+            $quantityAfter = $quantityBefore + $qty;
+
             $inventory->increment('quantity', $qty);
             $user->decrement('gold', $totalPrice);
 
-            ShopTransaction::create([
+            $transaction = ShopTransaction::create([
                 'user_id' => $user->id,
                 'shop_item_id' => $lockedItem->id,
                 'type' => 'purchase',
@@ -131,6 +203,23 @@ class ShopController extends Controller
                 'meta' => [
                     'item_code' => $lockedItem->code,
                     'unit_price_gold' => $unitPrice,
+                ],
+            ]);
+
+            UserInventoryLog::query()->create([
+                'user_id' => $user->id,
+                'shop_item_id' => $lockedItem->id,
+                'quantity_before' => $quantityBefore,
+                'quantity_after' => $quantityAfter,
+                'quantity_change' => $qty,
+                'type' => UserInventoryLog::TYPE_PURCHASE,
+                'reference_type' => ShopTransaction::class,
+                'reference_id' => (int) $transaction->id,
+                'note' => 'Purchase from user shop',
+                'meta' => [
+                    'item_code' => $lockedItem->code,
+                    'unit_price_gold' => $unitPrice,
+                    'total_price_gold' => $totalPrice,
                 ],
             ]);
         });

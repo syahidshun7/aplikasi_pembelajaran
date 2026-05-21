@@ -9,6 +9,7 @@ use App\Models\JobRole;
 use App\Models\DailyQuest;
 use App\Models\ShopTransaction;
 use App\Models\UserGoldAdjustment;
+use App\Models\UserGoldTransfer;
 use App\Services\LevelingService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Http\RedirectResponse;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -334,6 +336,61 @@ class AdminUserController extends Controller
         ]);
     }
 
+    public function adjustGold(Request $request, User $user): RedirectResponse
+    {
+        $validated = $request->validate([
+            'direction' => ['required', Rule::in(['add', 'subtract'])],
+            'amount' => ['required', 'integer', 'min:1', 'max:1000000'],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        if (! Schema::hasTable('user_gold_adjustments')) {
+            return back()->withErrors([
+                'amount' => 'Tabel audit gold adjustment belum tersedia. Jalankan migration terlebih dahulu.',
+            ]);
+        }
+
+        DB::transaction(function () use ($request, $user, $validated) {
+            $lockedUser = User::query()
+                ->whereKey($user->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $beforeGold = (int) ($lockedUser->gold ?? 0);
+            $amount = (int) $validated['amount'];
+            $goldChange = $validated['direction'] === 'add' ? $amount : -$amount;
+            $afterGold = max(0, $beforeGold + $goldChange);
+            $actualGoldChange = $afterGold - $beforeGold;
+
+            if ($actualGoldChange === 0) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Gold user sudah 0, tidak ada yang bisa dikurangi.',
+                ]);
+            }
+
+            $lockedUser->forceFill([
+                'gold' => $afterGold,
+            ])->save();
+
+            UserGoldAdjustment::query()->create([
+                'user_id' => (int) $lockedUser->id,
+                'admin_user_id' => (int) $request->user()->id,
+                'gold_before' => $beforeGold,
+                'gold_after' => $afterGold,
+                'gold_change' => $actualGoldChange,
+                'reason' => trim((string) ($validated['reason'] ?? '')) ?: 'Admin ledger gold adjustment',
+                'meta' => [
+                    'context' => 'admin.users.ledger.adjust_gold',
+                    'requested_direction' => (string) $validated['direction'],
+                    'requested_amount' => $amount,
+                    'admin_role' => (string) ($request->user()->role ?? ''),
+                ],
+            ]);
+        });
+
+        return back()->with('message', 'USER_GOLD_ADJUSTED');
+    }
+
     public function updateRole(Request $request, User $user): RedirectResponse
     {
         $validated = $request->validate([
@@ -370,7 +427,6 @@ class AdminUserController extends Controller
     public function update(Request $request, User $user): RedirectResponse
     {
         $previousJobId = $user->job_id;
-        $beforeGold = (int) ($user->gold ?? 0);
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'username' => [
@@ -388,7 +444,6 @@ class AdminUserController extends Controller
             ],
             'role' => ['required', Rule::in(User::assignableRoles())],
             'job_id' => ['nullable', 'integer', 'exists:job_roles,id'],
-            'gold' => ['required', 'integer', 'min:0'],
             'exp' => ['required', 'integer', 'min:0'],
             'level' => ['nullable', 'integer', 'min:1'],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
@@ -412,7 +467,6 @@ class AdminUserController extends Controller
             'email' => strtolower(trim((string) $validated['email'])),
             'role' => $validated['role'],
             'job_id' => $validated['job_id'] ?? null,
-            'gold' => (int) $validated['gold'],
             'exp' => (int) $validated['exp'],
         ];
 
@@ -429,22 +483,6 @@ class AdminUserController extends Controller
         }
 
         $user->forceFill($payload)->save();
-        $afterGold = (int) ($user->gold ?? 0);
-
-        if ($afterGold !== $beforeGold && Schema::hasTable('user_gold_adjustments')) {
-            UserGoldAdjustment::query()->create([
-                'user_id' => (int) $user->id,
-                'admin_user_id' => (int) $request->user()->id,
-                'gold_before' => $beforeGold,
-                'gold_after' => $afterGold,
-                'gold_change' => $afterGold - $beforeGold,
-                'reason' => 'Admin user profile update',
-                'meta' => [
-                    'context' => 'admin.users.update',
-                    'admin_role' => (string) ($request->user()->role ?? ''),
-                ],
-            ]);
-        }
 
         $avatarUpdated = false;
         if ($request->hasFile('profile_photo')) {
@@ -523,6 +561,7 @@ class AdminUserController extends Controller
             'shop_consume_unlock' => 'Use Time Key',
             'shop_refund' => 'Shop Refund',
             'admin_adjustment' => 'Admin Gold Adjustment',
+            'user_transfer' => 'User Gold Transfer',
         ];
     }
 
@@ -533,6 +572,7 @@ class AdminUserController extends Controller
             ->concat($this->buildDailyQuestLedgerRecords($user))
             ->concat($this->buildShopLedgerRecords($user))
             ->concat($this->buildAdminAdjustmentLedgerRecords($user))
+            ->concat($this->buildTransferLedgerRecords($user))
             ->values();
     }
 
@@ -705,6 +745,51 @@ class AdminUserController extends Controller
                     'reference' => (string) ((int) $adjustment->id),
                     'item_name' => '',
                     'item_code' => '',
+                    'occurred_at' => $occurredAt->toIso8601String(),
+                    'occurred_at_ts' => (int) $occurredAt->timestamp,
+                ];
+            })
+            ->values();
+    }
+
+    private function buildTransferLedgerRecords(User $user): Collection
+    {
+        if (! Schema::hasTable('user_gold_transfers')) {
+            return collect();
+        }
+
+        return UserGoldTransfer::query()
+            ->where('status', UserGoldTransfer::STATUS_COMPLETED)
+            ->where(function ($query) use ($user) {
+                $query->where('sender_id', (int) $user->id)
+                    ->orWhere('recipient_id', (int) $user->id);
+            })
+            ->with(['sender:id,name,username', 'recipient:id,name,username'])
+            ->get(['id', 'sender_id', 'recipient_id', 'amount', 'status', 'note', 'created_at'])
+            ->map(function (UserGoldTransfer $transfer) use ($user) {
+                $isSender = (int) $transfer->sender_id === (int) $user->id;
+                $amount = (int) ($transfer->amount ?? 0);
+                $goldChange = $isSender ? -$amount : $amount;
+                $occurredAt = $transfer->created_at ?? now();
+                $counterparty = $isSender ? $transfer->recipient : $transfer->sender;
+                $counterpartyName = (string) ($counterparty?->username ?? $counterparty?->name ?? 'unknown');
+
+                return [
+                    'id' => 'user_transfer:' . (int) $transfer->id . ':' . ($isSender ? 'out' : 'in'),
+                    'source_key' => 'user_transfer',
+                    'source_label' => 'User Gold Transfer',
+                    'direction' => $this->directionFromGoldChange($goldChange),
+                    'gold_change' => $goldChange,
+                    'amount' => abs($goldChange),
+                    'note' => trim(sprintf(
+                        '%s %s | %s',
+                        $isSender ? 'Transfer to' : 'Transfer from',
+                        $counterpartyName,
+                        (string) ($transfer->note ?? '-')
+                    )),
+                    'reference' => (string) ((int) $transfer->id),
+                    'item_name' => $counterpartyName,
+                    'item_code' => $isSender ? 'OUT' : 'IN',
                     'occurred_at' => $occurredAt->toIso8601String(),
                     'occurred_at_ts' => (int) $occurredAt->timestamp,
                 ];
