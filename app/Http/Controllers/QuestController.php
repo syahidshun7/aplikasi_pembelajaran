@@ -253,6 +253,7 @@ class QuestController extends Controller
             'studyGroups' => $studyGroupQuery->get(),
             'taskBanks' => $taskBankQuery->get(['id', 'uuid', 'name', 'assessment_type', 'job_role_id']),
             'jobRoles' => JobRole::query()
+                ->active()
                 ->when($this->isMentorUser(), fn ($query) => $query->whereKey($this->requireMentorJobId()))
                 ->orderBy('name')
                 ->get(['id', 'name']),

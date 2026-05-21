@@ -27,6 +27,7 @@ const fallbackJobs = Object.freeze([
         slug: 'fallback',
         emblem_path: null,
         description: 'Jalur pembelajaran baru sedang dipersiapkan. Cek kembali beberapa saat lagi.',
+        status: 'coming_soon',
         mentors_count: 0,
     },
 ]);
@@ -105,6 +106,7 @@ const normalizedPropJobs = computed(() => {
             slug: String(job.slug ?? ''),
             emblem_path: job.emblem_path ?? null,
             description: job.description ? String(job.description) : null,
+            status: String(job.status ?? 'active'),
             mentors_count: Number(job.mentors_count ?? 0),
         }));
 });
@@ -392,6 +394,8 @@ const onCarouselPointerUp = (event) => {
 const getCardStateClass = (index) => {
     return index === activeJobIndex.value ? 'job-card--focus' : 'job-card--side';
 };
+
+const isComingSoonJob = (job) => String(job?.status || 'active') === 'coming_soon';
 
 const initCarousel = async () => {
     await nextTick();
@@ -713,6 +717,7 @@ onBeforeUnmount(() => {
                                         'bg-gradient-to-br from-indigo-800 to-violet-700 border-indigo-300/70': index % 4 === 1,
                                         'bg-gradient-to-br from-emerald-800 to-teal-700 border-emerald-300/70': index % 4 === 2,
                                         'bg-gradient-to-br from-cyan-800 to-blue-700 border-sky-300/70': index % 4 === 3,
+                                        'job-card--coming-soon': isComingSoonJob(job),
                                     },
                                 ]"
                             >
@@ -726,10 +731,26 @@ onBeforeUnmount(() => {
                                     }"
                                 ></div>
 
+                                <div v-if="isComingSoonJob(job)" class="pointer-events-none absolute inset-0 z-30">
+                                    <div class="coming-soon-chain coming-soon-chain--left"></div>
+                                    <div class="coming-soon-chain coming-soon-chain--right"></div>
+                                    <div class="absolute left-1/2 top-1/2 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center border-4 border-slate-300 bg-black/70 text-slate-200 shadow-[0_0_22px_rgba(148,163,184,0.65)]">
+                                        <i class="fi fi-rr-lock text-3xl leading-none"></i>
+                                    </div>
+                                    <div class="absolute left-1/2 top-5 -translate-x-1/2 border-2 border-slate-300 bg-black/80 px-3 py-2 text-[8px] uppercase tracking-[0.22em] text-slate-200 shadow-[4px_4px_0_rgba(0,0,0,0.45)]">
+                                        Coming Soon
+                                    </div>
+                                </div>
+
                                 <div class="h-full flex flex-col relative z-10">
                                     <div class="flex items-center justify-between mb-2">
                                         <p class="text-[8px] uppercase text-white/85">Class Card</p>
-                                        <span class="w-2 h-2 rounded-full bg-white/80 animate-pulse"></span>
+                                        <span
+                                            class="rounded-full border px-2 py-1 text-[6px] uppercase tracking-[0.16em]"
+                                            :class="isComingSoonJob(job) ? 'border-slate-200 bg-slate-300/15 text-slate-100' : 'border-white/40 bg-white/10 text-white/85'"
+                                        >
+                                            {{ isComingSoonJob(job) ? 'Coming Soon' : 'Active' }}
+                                        </span>
                                     </div>
 
                                     <div class="h-[170px] border border-white/60 bg-black/15 overflow-hidden flex items-center justify-center">
@@ -1155,6 +1176,38 @@ onBeforeUnmount(() => {
     z-index: 12;
     filter: saturate(0.92);
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.22);
+}
+
+.job-card--coming-soon {
+    filter: saturate(0.55) brightness(0.82);
+}
+
+.job-card--coming-soon.job-card--focus {
+    filter: saturate(0.65) brightness(0.9);
+}
+
+.coming-soon-chain {
+    position: absolute;
+    left: -18%;
+    right: -18%;
+    top: 50%;
+    height: 18px;
+    transform: translateY(-50%) rotate(var(--chain-rotation));
+    background-image:
+        radial-gradient(ellipse at center, transparent 0 38%, rgba(226, 232, 240, 0.98) 39% 54%, transparent 55%),
+        radial-gradient(ellipse at center, transparent 0 38%, rgba(100, 116, 139, 0.95) 39% 54%, transparent 55%);
+    background-position: 0 0, 18px 0;
+    background-size: 36px 18px;
+    filter: drop-shadow(0 0 7px rgba(148, 163, 184, 0.85));
+    opacity: 0.98;
+}
+
+.coming-soon-chain--left {
+    --chain-rotation: -18deg;
+}
+
+.coming-soon-chain--right {
+    --chain-rotation: 18deg;
 }
 
 @media (max-width: 640px) {

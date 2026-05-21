@@ -17,6 +17,7 @@ const deleteId = ref(null);
 
 const form = useForm({
     name: '',
+    status: 'active',
     description: '',
     emblem: null,
     _method: 'POST',
@@ -33,6 +34,7 @@ const startEdit = (job) => {
     isEditing.value = true;
     editId.value = job.id;
     form.name = job.name;
+    form.status = job.status || 'active';
     form.description = job.description || '';
     form.emblem = null;
     form._method = 'PUT';
@@ -43,6 +45,7 @@ const cancelEdit = () => {
     isEditing.value = false;
     editId.value = null;
     form.reset();
+    form.status = 'active';
     form._method = 'POST';
     showFormModal.value = false;
 };
@@ -51,6 +54,7 @@ const openCreateModal = () => {
     isEditing.value = false;
     editId.value = null;
     form.reset();
+    form.status = 'active';
     form._method = 'POST';
     showFormModal.value = true;
 };
@@ -128,6 +132,18 @@ const goToPage = (url) => {
         preserveScroll: true,
     });
 };
+
+const statusLabel = (status) => {
+    if (status === 'coming_soon') return 'COMING_SOON';
+    if (status === 'draft') return 'DRAFT';
+    return 'ACTIVE';
+};
+
+const statusClass = (status) => {
+    if (status === 'coming_soon') return 'border-yellow-500 text-yellow-300 bg-yellow-500/10';
+    if (status === 'draft') return 'border-slate-500 text-slate-300 bg-slate-500/10';
+    return 'border-emerald-500 text-emerald-300 bg-emerald-500/10';
+};
 </script>
 
 <template>
@@ -181,6 +197,22 @@ const goToPage = (url) => {
                                     class="w-full bg-black border-2 border-slate-700 p-2 text-[12px] font-sans text-slate-200 focus:border-cyan-400 focus:ring-0"
                                     style="resize: vertical; min-height: 120px;"
                                 ></textarea>
+                            </div>
+
+                            <div>
+                                <label class="block mb-2 text-white uppercase">JOB_STATUS:</label>
+                                <select
+                                    v-model="form.status"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-cyan-400 outline-none text-cyan-400 uppercase"
+                                    required
+                                >
+                                    <option value="active">ACTIVE</option>
+                                    <option value="coming_soon">COMING_SOON</option>
+                                    <option value="draft">DRAFT</option>
+                                </select>
+                                <p class="mt-2 text-[7px] uppercase leading-relaxed text-slate-500">
+                                    Active muncul normal di landing. Coming soon tetap muncul dengan lock. Draft hanya tersimpan di admin.
+                                </p>
                             </div>
 
                             <div>
@@ -249,6 +281,9 @@ const goToPage = (url) => {
                                             ID: {{ job.id }} // {{ job.slug }}
                                         </div>
                                         <div class="text-white uppercase">{{ job.name }}</div>
+                                        <div class="mt-2 inline-flex border px-2 py-1 text-[7px] uppercase" :class="statusClass(job.status || 'active')">
+                                            {{ statusLabel(job.status || 'active') }}
+                                        </div>
                                     </div>
                                     <img
                                         v-if="job.emblem_path"

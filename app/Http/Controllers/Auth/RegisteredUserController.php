@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -27,8 +28,10 @@ class RegisteredUserController extends Controller
 
         return Inertia::render('Auth/Register', [
             'jobs' => JobRole::query()
+                ->publicVisible()
+                ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', [JobRole::STATUS_ACTIVE])
                 ->orderBy('name')
-                ->get(['id', 'name', 'slug', 'emblem_path']),
+                ->get(['id', 'name', 'slug', 'emblem_path', 'status']),
             'turnstile' => [
                 'enabled' => $turnstileEnabled,
                 'site_key' => $turnstileEnabled ? config('services.turnstile.site_key') : null,
@@ -48,7 +51,7 @@ class RegisteredUserController extends Controller
         $rules = [
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
-            'job_id' => 'required|exists:job_roles,id',
+            'job_id' => ['required', Rule::exists('job_roles', 'id')->where('status', JobRole::STATUS_ACTIVE)],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ];
 

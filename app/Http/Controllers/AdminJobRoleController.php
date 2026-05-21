@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -46,6 +47,7 @@ class AdminJobRoleController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:job_roles,name'],
+            'status' => ['required', Rule::in(JobRole::statuses())],
             'description' => ['nullable', 'string'],
             'emblem' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
@@ -58,6 +60,7 @@ class AdminJobRoleController extends Controller
         JobRole::create([
             'name' => $validated['name'],
             'slug' => $this->generateUniqueSlug($validated['name']),
+            'status' => $validated['status'],
             'description' => $validated['description'] ?? null,
             'emblem_path' => $emblemPath,
         ]);
@@ -71,6 +74,7 @@ class AdminJobRoleController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:job_roles,name,' . $jobRole->id],
+            'status' => ['required', Rule::in(JobRole::statuses())],
             'description' => ['nullable', 'string'],
             'emblem' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
@@ -91,6 +95,7 @@ class AdminJobRoleController extends Controller
         $jobRole->update([
             'name' => $validated['name'],
             'slug' => $newSlug,
+            'status' => $validated['status'],
             'description' => $validated['description'] ?? null,
             'emblem_path' => $emblemPath,
         ]);

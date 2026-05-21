@@ -54,7 +54,7 @@ class AdminStudyGroupController extends Controller
             'search' => $search,
             'view' => $view,
         ],
-        'jobs' => JobRole::query()->orderBy('name')->get(['id', 'name', 'slug']),
+        'jobs' => JobRole::query()->active()->orderBy('name')->get(['id', 'name', 'slug']),
     ]);
 }
      

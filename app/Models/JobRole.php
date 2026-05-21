@@ -9,12 +9,39 @@ class JobRole extends Model
 {
     use SoftDeletes;
 
+    public const STATUS_ACTIVE = 'active';
+    public const STATUS_COMING_SOON = 'coming_soon';
+    public const STATUS_DRAFT = 'draft';
+
     protected $fillable = [
         'name',
         'slug',
         'description',
         'emblem_path',
+        'status',
     ];
+
+    public static function statuses(): array
+    {
+        return [
+            self::STATUS_ACTIVE,
+            self::STATUS_COMING_SOON,
+            self::STATUS_DRAFT,
+        ];
+    }
+
+    public function scopePublicVisible($query)
+    {
+        return $query->whereIn('status', [
+            self::STATUS_ACTIVE,
+            self::STATUS_COMING_SOON,
+        ]);
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('status', self::STATUS_ACTIVE);
+    }
 
     public function users()
     {

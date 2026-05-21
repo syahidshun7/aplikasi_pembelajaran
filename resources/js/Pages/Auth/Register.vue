@@ -34,6 +34,8 @@ const showPassword = ref(false);
 const showPasswordConfirmation = ref(false);
 const selectedJob = computed(() => props.jobs.find((job) => String(job.id) === String(form.job_id)) ?? null);
 const isTurnstileEnabled = computed(() => !!(props.turnstile?.enabled && props.turnstile?.site_key));
+const isComingSoonJob = (job) => String(job?.status || 'active') === 'coming_soon';
+const isSelectedJob = (job) => String(form.job_id) === String(job?.id);
 
 const renderTurnstile = async () => {
     if (!isTurnstileEnabled.value) return;
@@ -91,8 +93,10 @@ const closeJobModal = () => {
     isJobModalOpen.value = false;
 };
 
-const chooseJob = (jobId) => {
-    form.job_id = String(jobId);
+const chooseJob = (job) => {
+    if (isComingSoonJob(job)) return;
+
+    form.job_id = String(job.id);
     isJobModalOpen.value = false;
 };
 
@@ -176,18 +180,39 @@ onMounted(async () => {
                             <article
                                 v-for="(job, index) in jobs"
                                 :key="job.id"
-                                class="job-card snap-start shrink-0 w-[190px] h-[230px] p-[4px] border shadow-[0_6px_12px_rgba(15,23,42,0.25)]"
-                                :class="{
-                                    'bg-gradient-to-br from-sky-800 to-cyan-700 border-sky-200/70': index % 4 === 0,
-                                    'bg-gradient-to-br from-indigo-800 to-violet-700 border-indigo-200/70': index % 4 === 1,
-                                    'bg-gradient-to-br from-emerald-800 to-teal-700 border-emerald-200/70': index % 4 === 2,
-                                    'bg-gradient-to-br from-cyan-800 to-blue-700 border-cyan-200/70': index % 4 === 3,
-                                    'ring-2 ring-[#4ed4d4]': String(form.job_id) === String(job.id),
-                                }"
+                                class="job-card relative snap-start shrink-0 w-[190px] h-[230px] p-[4px] border shadow-[0_6px_12px_rgba(15,23,42,0.25)] overflow-hidden"
+                                :aria-disabled="isComingSoonJob(job)"
+                                :class="[
+                                    isComingSoonJob(job)
+                                        ? 'job-card--locked cursor-not-allowed bg-gradient-to-br from-slate-800 to-zinc-700 border-slate-300/60'
+                                        : {
+                                            'bg-gradient-to-br from-sky-800 to-cyan-700 border-sky-200/70': index % 4 === 0,
+                                            'bg-gradient-to-br from-indigo-800 to-violet-700 border-indigo-200/70': index % 4 === 1,
+                                            'bg-gradient-to-br from-emerald-800 to-teal-700 border-emerald-200/70': index % 4 === 2,
+                                            'bg-gradient-to-br from-cyan-800 to-blue-700 border-cyan-200/70': index % 4 === 3,
+                                            'ring-2 ring-[#4ed4d4]': isSelectedJob(job),
+                                        },
+                                ]"
                             >
+                                <div v-if="isComingSoonJob(job)" class="pointer-events-none absolute inset-0 z-20">
+                                    <div class="register-coming-soon-chain register-coming-soon-chain--left"></div>
+                                    <div class="register-coming-soon-chain register-coming-soon-chain--right"></div>
+                                    <div class="absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center border-4 border-slate-300 bg-black/75 text-slate-100 shadow-[0_0_18px_rgba(148,163,184,0.65)]">
+                                        <i class="fi fi-rr-lock text-2xl leading-none"></i>
+                                    </div>
+                                    <div class="absolute left-1/2 top-3 -translate-x-1/2 border-2 border-slate-300 bg-black/85 px-2 py-1 text-[6px] uppercase tracking-[0.18em] text-slate-100 shadow-[3px_3px_0_rgba(0,0,0,0.45)]">
+                                        Coming Soon
+                                    </div>
+                                </div>
                                 <div class="bg-black/20 border border-white/60 p-2 h-full flex flex-col">
-                                    <div class="text-[7px] uppercase tracking-wide text-white/85 mb-1">
-                                        Class Card
+                                    <div class="flex items-center justify-between gap-2 text-[7px] uppercase tracking-wide text-white/85 mb-1">
+                                        <span>Class Card</span>
+                                        <span
+                                            class="border px-1.5 py-0.5 text-[5px]"
+                                            :class="isComingSoonJob(job) ? 'border-slate-200 bg-slate-300/15 text-slate-100' : 'border-white/40 bg-white/10 text-white/85'"
+                                        >
+                                            {{ isComingSoonJob(job) ? 'Soon' : 'Active' }}
+                                        </span>
                                     </div>
                                     <div class="h-[105px] border border-white/60 bg-white/10 overflow-hidden flex items-center justify-center">
                                         <img
@@ -213,13 +238,16 @@ onMounted(async () => {
                                     </div>
                                     <button
                                         type="button"
-                                        @click="chooseJob(job.id)"
+                                        :disabled="isComingSoonJob(job)"
+                                        @click="chooseJob(job)"
                                         class="mt-2 text-[7px] uppercase px-2 py-1.5 border font-bold transition-colors"
-                                        :class="String(form.job_id) === String(job.id)
-                                            ? 'bg-[#4ed4d4] text-black border-[#006666]'
-                                            : 'bg-slate-800 text-white border-slate-500 hover:bg-slate-700'"
+                                        :class="isComingSoonJob(job)
+                                            ? 'bg-slate-700/80 text-slate-300 border-slate-400 cursor-not-allowed'
+                                            : isSelectedJob(job)
+                                                ? 'bg-[#4ed4d4] text-black border-[#006666]'
+                                                : 'bg-slate-800 text-white border-slate-500 hover:bg-slate-700'"
                                     >
-                                        {{ String(form.job_id) === String(job.id) ? 'Selected' : 'Use This Job' }}
+                                        {{ isComingSoonJob(job) ? 'Locked' : isSelectedJob(job) ? 'Selected' : 'Use This Job' }}
                                     </button>
                                 </div>
                             </article>
@@ -352,5 +380,37 @@ onMounted(async () => {
     transform: translateY(-4px) rotate(-0.6deg);
     box-shadow: 0 14px 24px rgba(15, 23, 42, 0.32);
 }
-</style>
 
+.job-card--locked {
+    filter: grayscale(0.92) saturate(0.42) brightness(0.86);
+}
+
+.job-card--locked:hover {
+    transform: none;
+    box-shadow: 0 6px 12px rgba(15, 23, 42, 0.25);
+}
+
+.register-coming-soon-chain {
+    position: absolute;
+    left: -24%;
+    right: -24%;
+    top: 50%;
+    height: 14px;
+    transform: translateY(-50%) rotate(var(--chain-rotation));
+    background-image:
+        radial-gradient(ellipse at center, transparent 0 38%, rgba(226, 232, 240, 0.98) 39% 54%, transparent 55%),
+        radial-gradient(ellipse at center, transparent 0 38%, rgba(100, 116, 139, 0.95) 39% 54%, transparent 55%);
+    background-position: 0 0, 14px 0;
+    background-size: 28px 14px;
+    filter: drop-shadow(0 0 6px rgba(148, 163, 184, 0.85));
+    opacity: 0.98;
+}
+
+.register-coming-soon-chain--left {
+    --chain-rotation: -18deg;
+}
+
+.register-coming-soon-chain--right {
+    --chain-rotation: 18deg;
+}
+</style>
