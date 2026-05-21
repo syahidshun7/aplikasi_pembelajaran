@@ -185,6 +185,7 @@ class AdminUserController extends Controller
             'users' => $users,
             'availableRoles' => User::assignableRoles(),
             'jobRoles' => JobRole::query()
+                ->active()
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'filters' => [

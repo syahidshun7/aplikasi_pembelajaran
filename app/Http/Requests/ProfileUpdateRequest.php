@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\JobRole;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -19,7 +20,7 @@ class ProfileUpdateRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'username' => ['required', 'string', 'lowercase', 'max:255', 'unique:users,username,' . $this->user()->id],
             'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
-            'job_id' => ['nullable', 'exists:job_roles,id'],
+            'job_id' => ['nullable', Rule::exists('job_roles', 'id')->where('status', JobRole::STATUS_ACTIVE)],
             'bio' => ['nullable', 'string', 'max:2000'],
             'experience' => ['nullable', 'string', 'max:255'],
             'location' => ['nullable', 'string', 'max:255'],

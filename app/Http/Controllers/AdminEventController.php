@@ -72,7 +72,7 @@ class AdminEventController extends Controller
         return Inertia::render('Events/Admin/Index', [
             'events' => $events,
             'studyGroups' => $studyGroupQuery->get(['id', 'name', 'job_id']),
-            'jobRoles' => JobRole::query()->orderBy('name')->get(['id', 'name']),
+            'jobRoles' => JobRole::query()->active()->orderBy('name')->get(['id', 'name']),
             'filters' => [
                 'search' => $search,
                 'view' => $view,

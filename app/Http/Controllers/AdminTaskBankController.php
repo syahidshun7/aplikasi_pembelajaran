@@ -49,7 +49,7 @@ class AdminTaskBankController extends Controller
             ->paginate(12)
             ->withQueryString();
 
-        $jobsQuery = JobRole::query()->orderBy('name');
+        $jobsQuery = JobRole::query()->active()->orderBy('name');
         if ($this->isMentorUser()) {
             $jobsQuery->whereKey($this->requireMentorJobId());
         }
