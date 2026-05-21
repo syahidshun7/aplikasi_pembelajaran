@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ShopItem;
 use App\Models\ShopTransaction;
 use App\Models\UserInventory;
+use App\Models\UserInventoryLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -90,10 +91,17 @@ class AdminShopItemController extends Controller
             ->where('type', 'purchase')
             ->sum('quantity');
 
-        $consumeQty = (int) ShopTransaction::query()
+        $legacyConsumeQty = (int) ShopTransaction::query()
             ->where('shop_item_id', $item->id)
             ->where('type', 'consume_unlock')
             ->sum('quantity');
+
+        $inventoryUseQty = (int) UserInventoryLog::query()
+            ->where('shop_item_id', $item->id)
+            ->where('type', UserInventoryLog::TYPE_USE)
+            ->sum(DB::raw('ABS(quantity_change)'));
+
+        $consumeQty = $legacyConsumeQty + $inventoryUseQty;
 
         $purchaseGold = abs((int) ShopTransaction::query()
             ->where('shop_item_id', $item->id)
@@ -193,6 +201,9 @@ class AdminShopItemController extends Controller
 
                 $refundGold = max(0, -((int) $tx->gold_change));
 
+                $quantityBefore = (int) ($inventory->quantity ?? 0);
+                $quantityAfter = max(0, $quantityBefore - $qty);
+
                 $inventory->decrement('quantity', $qty);
                 if ($refundGold > 0) {
                     $user->increment('gold', $refundGold);
@@ -207,6 +218,22 @@ class AdminShopItemController extends Controller
                         'refund_gold' => $refundGold,
                         'refund_quantity' => $qty,
                     ]),
+                ]);
+
+                UserInventoryLog::query()->create([
+                    'user_id' => $user->id,
+                    'shop_item_id' => $item->id,
+                    'quantity_before' => $quantityBefore,
+                    'quantity_after' => $quantityAfter,
+                    'quantity_change' => -$qty,
+                    'type' => UserInventoryLog::TYPE_REFUND_REMOVE,
+                    'reference_type' => ShopTransaction::class,
+                    'reference_id' => (int) $tx->id,
+                    'note' => 'Admin cancelled purchase and removed refunded item',
+                    'meta' => [
+                        'refund_gold' => $refundGold,
+                        'admin_cancelled_by' => (int) auth()->id(),
+                    ],
                 ]);
             });
         } catch (\RuntimeException $e) {

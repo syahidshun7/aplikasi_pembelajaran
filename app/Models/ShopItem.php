@@ -34,4 +34,9 @@ class ShopItem extends Model
     {
         return $this->hasMany(ShopTransaction::class, 'shop_item_id');
     }
+
+    public function inventoryLogs()
+    {
+        return $this->hasMany(UserInventoryLog::class, 'shop_item_id');
+    }
 }

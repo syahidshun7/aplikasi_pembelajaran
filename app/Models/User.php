@@ -99,6 +99,11 @@ public function inventories()
     return $this->hasMany(UserInventory::class);
 }
 
+public function inventoryLogs()
+{
+    return $this->hasMany(UserInventoryLog::class);
+}
+
 public function creations()
 {
     return $this->hasMany(Creation::class);
@@ -134,6 +139,16 @@ public function shopTransactions()
 public function goldAdjustments()
 {
     return $this->hasMany(UserGoldAdjustment::class);
+}
+
+public function sentGoldTransfers()
+{
+    return $this->hasMany(UserGoldTransfer::class, 'sender_id');
+}
+
+public function receivedGoldTransfers()
+{
+    return $this->hasMany(UserGoldTransfer::class, 'recipient_id');
 }
 
 public function sendEmailVerificationNotification(): void

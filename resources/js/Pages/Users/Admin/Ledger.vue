@@ -39,6 +39,12 @@ const filterForm = useForm({
     per_page: Number(props.filters?.per_page || 25),
 });
 
+const adjustmentForm = useForm({
+    direction: 'add',
+    amount: 1,
+    reason: '',
+});
+
 const rows = computed(() => props.ledger?.data || []);
 const paginationLinks = computed(() => props.ledger?.links || []);
 
@@ -98,6 +104,29 @@ const directionClass = (direction) => {
     if (direction === 'expense') return 'text-red-300';
     return 'text-slate-300';
 };
+
+const submitGoldAdjustment = () => {
+    const amount = Number(adjustmentForm.amount || 0);
+    const actionLabel = adjustmentForm.direction === 'add' ? 'menambahkan' : 'mengurangi';
+
+    if (!Number.isFinite(amount) || amount < 1) {
+        adjustmentForm.setError('amount', 'Amount minimal 1.');
+        return;
+    }
+
+    if (!window.confirm(`Yakin ${actionLabel} ${formatGold(amount)} gold untuk @${props.user.username || props.user.id}?`)) {
+        return;
+    }
+
+    adjustmentForm.post(route('admin.users.gold-adjustment', props.user.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            adjustmentForm.reset();
+            adjustmentForm.direction = 'add';
+            adjustmentForm.amount = 1;
+        },
+    });
+};
 </script>
 
 <template>
@@ -140,6 +169,56 @@ const directionClass = (direction) => {
                 <div class="rpg-panel border-yellow-700/60">
                     <p class="text-[8px] uppercase text-slate-400">Current_Gold</p>
                     <p class="mt-2 text-yellow-300">{{ formatGold(summary.current_gold || 0) }}</p>
+                </div>
+            </div>
+
+            <div class="rpg-panel border-yellow-700/60">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <p class="text-[8px] uppercase text-slate-400">Admin_Gold_Adjustment</p>
+                        <p class="mt-2 text-[8px] uppercase leading-relaxed text-slate-500">
+                            Tambah atau kurangi gold hanya dari ledger agar audit transaksi tercatat rapi.
+                        </p>
+                    </div>
+
+                    <form class="grid w-full grid-cols-1 gap-3 md:grid-cols-[160px_180px_minmax(0,1fr)_140px] lg:max-w-4xl" @submit.prevent="submitGoldAdjustment">
+                        <select
+                            v-model="adjustmentForm.direction"
+                            class="bg-black border-2 border-slate-700 p-2 text-yellow-300 uppercase outline-none"
+                            :disabled="adjustmentForm.processing"
+                        >
+                            <option value="add">ADD_GOLD</option>
+                            <option value="subtract">SUBTRACT_GOLD</option>
+                        </select>
+                        <input
+                            v-model.number="adjustmentForm.amount"
+                            type="number"
+                            min="1"
+                            class="bg-black border-2 border-slate-700 p-2 text-yellow-300 uppercase outline-none"
+                            placeholder="AMOUNT"
+                            :disabled="adjustmentForm.processing"
+                        />
+                        <input
+                            v-model="adjustmentForm.reason"
+                            type="text"
+                            maxlength="255"
+                            class="bg-black border-2 border-slate-700 p-2 text-cyan-300 uppercase outline-none"
+                            placeholder="REASON / NOTE"
+                            :disabled="adjustmentForm.processing"
+                        />
+                        <button
+                            type="submit"
+                            class="px-3 py-2 border-2 border-yellow-400 text-yellow-300 hover:bg-yellow-400 hover:text-black uppercase disabled:opacity-50"
+                            :disabled="adjustmentForm.processing"
+                        >
+                            {{ adjustmentForm.processing ? 'Saving...' : 'Apply' }}
+                        </button>
+                    </form>
+                </div>
+                <div class="mt-3 space-y-1">
+                    <p v-if="adjustmentForm.errors.direction" class="text-red-400 text-[8px]">{{ adjustmentForm.errors.direction }}</p>
+                    <p v-if="adjustmentForm.errors.amount" class="text-red-400 text-[8px]">{{ adjustmentForm.errors.amount }}</p>
+                    <p v-if="adjustmentForm.errors.reason" class="text-red-400 text-[8px]">{{ adjustmentForm.errors.reason }}</p>
                 </div>
             </div>
 

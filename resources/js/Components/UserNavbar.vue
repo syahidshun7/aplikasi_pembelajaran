@@ -126,6 +126,11 @@ onBeforeUnmount(() => {
                         Shop
                     </Link>
 
+                    <Link :href="route('inventory.index')" class="nav-action nav-action--inventory" @click="closeMobileMenu">
+                        <i class="fi fi-rr-box-open text-[10px] leading-none"></i>
+                        Inventory
+                    </Link>
+
                     <Link :href="route('dooplab.index')" class="nav-action nav-action--dooplab" @click="closeMobileMenu">
                         <i :class="['fi', canAccessDoopLab ? 'fi-rr-apps' : 'fi-rr-lock', 'text-[10px]', 'leading-none']"></i>
                         DoopLab
@@ -192,11 +197,20 @@ onBeforeUnmount(() => {
 
                 <Link
                     :href="route('shop.index')"
-                    class="nav-action nav-action--shop w-full justify-center"
+                    class="nav-action nav-action--inventory w-full justify-center"
                     @click="closeMobileMenu"
                 >
                     <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
                     Shop
+                </Link>
+
+                <Link
+                    :href="route('inventory.index')"
+                    class="nav-action nav-action--shop w-full justify-center"
+                    @click="closeMobileMenu"
+                >
+                    <i class="fi fi-rr-box-open text-[10px] leading-none"></i>
+                    Inventory
                 </Link>
 
                 <Link

@@ -371,6 +371,8 @@
   .nav-action--profile { --accent-rgb: 103, 232, 249; }
   .nav-action--shop { --accent: #facc15; }
   .nav-action--shop { --accent-rgb: 250, 204, 21; }
+  .nav-action--inventory { --accent: #a78bfa; }
+  .nav-action--inventory { --accent-rgb: 167, 139, 250; }
   .nav-action--dooplab { --accent: #22d3ee; }
   .nav-action--dooplab { --accent-rgb: 34, 211, 238; }
   .nav-action--hall { --accent: #4ade80; }
@@ -385,6 +387,7 @@
   [data-app-surface='user'][data-theme='light'] .nav-action--admin { --accent: #8c4cd3; --accent-rgb: 140, 76, 211; }
   [data-app-surface='user'][data-theme='light'] .nav-action--profile { --accent: #0d7b95; --accent-rgb: 13, 123, 149; }
   [data-app-surface='user'][data-theme='light'] .nav-action--shop { --accent: #a77600; --accent-rgb: 167, 118, 0; }
+  [data-app-surface='user'][data-theme='light'] .nav-action--inventory { --accent: #7c3aed; --accent-rgb: 124, 58, 237; }
   [data-app-surface='user'][data-theme='light'] .nav-action--dooplab { --accent: #0f86ab; --accent-rgb: 15, 134, 171; }
   [data-app-surface='user'][data-theme='light'] .nav-action--hall { --accent: #1a9154; --accent-rgb: 26, 145, 84; }
   [data-app-surface='user'][data-theme='light'] .nav-action--notifications { --accent: #cf6c09; --accent-rgb: 207, 108, 9; }
@@ -444,6 +447,7 @@
   .nav-action--admin { --flicker-delay: -2.7s; --flicker-dur: 22s; --wander-dur: 10s; }
   .nav-action--profile { --flicker-delay: -6.1s; --flicker-dur: 19s; --wander-dur: 9s; }
   .nav-action--shop { --flicker-delay: -9.3s; --flicker-dur: 24s; --wander-dur: 11s; }
+  .nav-action--inventory { --flicker-delay: -8.2s; --flicker-dur: 22s; --wander-dur: 10s; }
   .nav-action--dooplab { --flicker-delay: -3.6s; --flicker-dur: 20s; --wander-dur: 8s; }
   .nav-action--hall { --flicker-delay: -7.4s; --flicker-dur: 21s; --wander-dur: 10s; }
   .nav-action--notifications { --flicker-delay: -1.9s; --flicker-dur: 23s; --wander-dur: 8s; }

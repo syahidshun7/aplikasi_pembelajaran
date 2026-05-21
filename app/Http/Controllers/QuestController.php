@@ -6,13 +6,13 @@ use App\Models\Quest;
 use App\Models\JobRole;
 use App\Models\Rubric;
 use App\Models\ShopItem;
-use App\Models\ShopTransaction;
 use App\Models\Submission;
 use App\Models\TaskBank;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\StudyGroup;
 use App\Models\UserInventory;
+use App\Models\UserInventoryLog;
 use App\Models\UserQuestUnlock;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -550,21 +550,27 @@ class QuestController extends Controller
                 ]);
             }
 
-            UserQuestUnlock::query()->create([
+            $unlock = UserQuestUnlock::query()->create([
                 'user_id' => $userId,
                 'quest_id' => $quest->id,
                 'shop_item_id' => $timeKeyItem->id,
                 'unlocked_at' => now(),
             ]);
 
+            $quantityBefore = (int) ($inventory->quantity ?? 0);
+            $quantityAfter = max(0, $quantityBefore - 1);
+
             $inventory->decrement('quantity', 1);
 
-            ShopTransaction::query()->create([
+            UserInventoryLog::query()->create([
                 'user_id' => $userId,
                 'shop_item_id' => $timeKeyItem->id,
-                'type' => 'consume_unlock',
-                'quantity' => 1,
-                'gold_change' => 0,
+                'quantity_before' => $quantityBefore,
+                'quantity_after' => $quantityAfter,
+                'quantity_change' => -1,
+                'type' => UserInventoryLog::TYPE_USE,
+                'reference_type' => UserQuestUnlock::class,
+                'reference_id' => (int) $unlock->id,
                 'note' => 'Use Time Key to reopen late quest',
                 'meta' => [
                     'quest_id' => $quest->id,

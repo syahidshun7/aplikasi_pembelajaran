@@ -36,7 +36,6 @@ const editForm = useForm({
     email: '',
     role: 'user',
     job_id: '',
-    gold: 0,
     exp: 0,
     level: 1,
     bio: '',
@@ -98,7 +97,6 @@ const openEditModal = (user) => {
     editForm.email = user.email || '';
     editForm.role = user.role || 'user';
     editForm.job_id = user.job_id ? String(user.job_id) : '';
-    editForm.gold = Number(user.gold || 0);
     editForm.exp = Number(user.exp || 0);
     editForm.level = Number(user.level_display || user.level || 1);
     editForm.bio = detail.bio || '';
@@ -608,7 +606,7 @@ const formatDate = (date) => {
                     <p v-if="editForm.errors.level" class="text-red-500 text-[8px]">{{ editForm.errors.level }}</p>
                     <p class="text-[8px] uppercase text-slate-500">Level dihitung otomatis dari total EXP saat disimpan.</p>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 gap-3">
                         <input
                             v-model.number="editForm.exp"
                             type="number"
@@ -616,16 +614,11 @@ const formatDate = (date) => {
                             placeholder="EXP"
                             class="admin-input"
                         />
-                        <input
-                            v-model.number="editForm.gold"
-                            type="number"
-                            min="0"
-                            placeholder="GOLD"
-                            class="admin-input"
-                        />
                     </div>
                     <p v-if="editForm.errors.exp" class="text-red-500 text-[8px]">{{ editForm.errors.exp }}</p>
-                    <p v-if="editForm.errors.gold" class="text-red-500 text-[8px]">{{ editForm.errors.gold }}</p>
+                    <p class="text-[8px] uppercase text-slate-500">
+                        Gold tidak diedit dari form ini. Gunakan tombol Ledger untuk tambah/kurangi gold agar audit tercatat.
+                    </p>
 
                     <div class="border-t border-slate-700 pt-4 space-y-3">
                         <p class="section-label">Avatar</p>
