@@ -30,11 +30,54 @@
     "is_active": true
   },
   {
+    "pertanyaan": "Temukan kata kunci sejarah pada kalimat.",
+    "tipe_soal": "word_match",
+    "sentence": "Indonesia merdeka pada tanggal ___ Agustus ___.",
+    "blanks": ["17", "1945"],
+    "distractors": ["20", "2000", "1908"],
+    "kategori": "Sejarah",
+    "bobot": 2,
+    "urutan": 3,
+    "is_active": true
+  },
+  {
+    "pertanyaan": "Selesaikan stage platforming dasar.",
+    "tipe_soal": "platforming",
+    "stages": [
+      {
+        "prompt": "Apa ibu kota Indonesia?",
+        "correct_answer": "Jakarta",
+        "wrong_answers": ["Bandung", "Surabaya", "Medan"]
+      },
+      {
+        "prompt": "Planet terbesar di tata surya?",
+        "correct_answer": "Jupiter",
+        "wrong_answers": ["Mars", "Venus", "Saturnus"]
+      }
+    ],
+    "kategori": "Mixed",
+    "bobot": 2,
+    "urutan": 4,
+    "is_active": true
+  },
+  {
+    "pertanyaan": "Teka-teki kode level 1.",
+    "tipe_soal": "game_stage",
+    "prompt": "Kode warna bendera Indonesia adalah?",
+    "accepted_answers": ["merah putih", "red white"],
+    "hint": "Dua kata warna.",
+    "max_attempts": 3,
+    "kategori": "Game",
+    "bobot": 3,
+    "urutan": 5,
+    "is_active": true
+  },
+  {
     "pertanyaan": "Jelaskan perbedaan utama antara CPU dan GPU.",
     "tipe_soal": "essay",
     "kategori": "Komputer",
     "bobot": 2,
-    "urutan": 3,
+    "urutan": 6,
     "is_active": true
   }
 ]

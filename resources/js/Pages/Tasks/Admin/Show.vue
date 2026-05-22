@@ -40,17 +40,55 @@ const rows = computed(() => props.questions?.data || []);
 const paginationLinks = computed(() => props.questions?.links || []);
 const importErrors = computed(() => Array.isArray(props.importResult?.errors) ? props.importResult.errors : []);
 const importTemplateJson = computed(() => JSON.stringify(props.importTemplate?.sample || [], null, 2));
+const importJsonInputPlaceholder = computed(() => {
+    const type = props.taskBank?.assessment_type || 'mixed';
+    if (type === 'platforming') {
+        return 'Paste JSON di sini. Contoh: [{"pertanyaan":"...","tipe_soal":"platforming","stages":[{"prompt":"...","correct_answer":"...","wrong_answers":["..."]}]}]';
+    }
+    if (type === 'word_match') {
+        return 'Paste JSON di sini. Contoh: [{"pertanyaan":"...","tipe_soal":"word_match","sentence":"... ___ ...","blanks":["..."],"distractors":["..."]}]';
+    }
+    if (type === 'game_stage') {
+        return 'Paste JSON di sini. Contoh: [{"pertanyaan":"...","tipe_soal":"game_stage","prompt":"...","accepted_answers":["..."],"hint":"...","max_attempts":3}]';
+    }
+    if (type === 'multiple_choice') {
+        return 'Paste JSON di sini. Contoh: [{"pertanyaan":"...","tipe_soal":"multiple_choice","opsi":{"A":"...","B":"..."},"jawaban":"A"}]';
+    }
+    if (type === 'essay') {
+        return 'Paste JSON di sini. Contoh: [{"pertanyaan":"...","tipe_soal":"essay","bobot":1}]';
+    }
+    return 'Paste JSON di sini. Contoh: [{"pertanyaan":"...","tipe_soal":"platforming","stages":[{"prompt":"...","correct_answer":"..."}]},{"pertanyaan":"...","tipe_soal":"word_match","sentence":"... ___ ...","blanks":["..."]}]';
+});
 
 const isMcq = computed(() => form.question_type === 'multiple_choice');
 const isGameStage = computed(() => form.question_type === 'game_stage');
 const isPlatforming = computed(() => form.question_type === 'platforming');
 const isWordMatch = computed(() => form.question_type === 'word_match');
+const availableQuestionTypes = computed(() => {
+    const bankType = props.taskBank?.assessment_type || 'mixed';
+    if (bankType === 'essay') return ['essay'];
+    if (bankType === 'multiple_choice') return ['multiple_choice'];
+    if (bankType === 'platforming') return ['platforming'];
+    if (bankType === 'word_match') return ['word_match'];
+    return ['essay', 'multiple_choice', 'game_stage', 'platforming', 'word_match'];
+});
+
+const questionTypeOptions = [
+    { value: 'essay', label: 'ESSAY' },
+    { value: 'multiple_choice', label: 'MULTIPLE_CHOICE' },
+    { value: 'game_stage', label: 'GAME_STAGE' },
+    { value: 'platforming', label: 'PLATFORMING' },
+    { value: 'word_match', label: 'WORD_MATCH' },
+];
 
 const startEdit = (row) => {
     isEditing.value = true;
     editUuid.value = row.uuid;
     form.question_text = row.question_text || '';
     form.question_type = row.question_type || 'essay';
+    if (!availableQuestionTypes.value.includes(form.question_type)) {
+        form.question_type = availableQuestionTypes.value[0] || 'essay';
+    }
     form.options = Array.isArray(row.options_json) && row.options_json.length > 0
         ? row.options_json
         : ['', ''];
@@ -81,6 +119,9 @@ const cancelEdit = () => {
 
 const openCreateModal = () => {
     cancelEdit();
+    if (!availableQuestionTypes.value.includes(form.question_type)) {
+        form.question_type = availableQuestionTypes.value[0] || 'essay';
+    }
     showFormModal.value = true;
 };
 
@@ -249,7 +290,7 @@ const submitImport = () => {
                                         v-model="importForm.import_json_text"
                                         class="w-full bg-black border-2 border-slate-700 p-2 text-[11px] font-sans text-slate-200 focus:border-cyan-400 focus:ring-0"
                                         style="resize: vertical; min-height: 150px;"
-                                        placeholder='Paste JSON di sini, contoh: [{"pertanyaan":"...","tipe_soal":"essay","bobot":1}]'
+                                        :placeholder="importJsonInputPlaceholder"
                                     ></textarea>
                                     <p class="mt-2 text-[8px] text-slate-400 uppercase">
                                         Bisa paste JSON array langsung tanpa upload file.
@@ -343,11 +384,13 @@ const submitImport = () => {
                                     <div>
                                         <label class="block mb-2 text-white uppercase">QUESTION_TYPE:</label>
                                         <select v-model="form.question_type" class="w-full bg-black border-2 border-slate-700 p-2 text-yellow-300 uppercase outline-none focus:border-yellow-400">
-                                            <option value="essay">ESSAY</option>
-                                            <option value="multiple_choice">MULTIPLE_CHOICE</option>
-                                            <option value="game_stage">GAME_STAGE</option>
-                                            <option value="platforming">PLATFORMING</option>
-                                            <option value="word_match">WORD_MATCH</option>
+                                            <option
+                                                v-for="opt in questionTypeOptions.filter((opt) => availableQuestionTypes.includes(opt.value))"
+                                                :key="opt.value"
+                                                :value="opt.value"
+                                            >
+                                                {{ opt.label }}
+                                            </option>
                                         </select>
                                     </div>
                                     <div>

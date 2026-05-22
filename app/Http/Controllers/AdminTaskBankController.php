@@ -144,15 +144,18 @@ class AdminTaskBankController extends Controller
                 'download_url' => asset('examples/task-bank-import-template.json'),
                 'fields' => [
                     ['name' => 'pertanyaan', 'required' => true, 'description' => 'Teks soal / pertanyaan utama.'],
-                    ['name' => 'tipe_soal', 'required' => false, 'description' => 'Isi `multiple_choice` atau `essay`. Jika kosong akan mengikuti tipe task bank.'],
-                    ['name' => 'opsi', 'required' => false, 'description' => 'Wajib untuk soal pilihan ganda. Bisa object berkey `A/B/C/D` atau array string.'],
-                    ['name' => 'jawaban', 'required' => false, 'description' => 'Untuk pilihan ganda isi huruf opsi benar seperti `A`, atau isi teks opsi yang benar.'],
+                    ['name' => 'tipe_soal', 'required' => false, 'description' => 'Gunakan `essay`, `multiple_choice`, `game_stage`, `platforming`, atau `word_match`. Jika kosong akan mengikuti tipe task bank.'],
+                    ['name' => 'opsi', 'required' => false, 'description' => 'Khusus `multiple_choice`: isi object opsi `A/B/C/D` atau array string.'],
+                    ['name' => 'jawaban', 'required' => false, 'description' => 'Khusus `multiple_choice`: isi huruf opsi benar (misal `A`) atau teks opsi benar.'],
+                    ['name' => 'prompt, accepted_answers, hint, max_attempts', 'required' => false, 'description' => 'Khusus `game_stage`: wajib `prompt` + `accepted_answers` (array minimal 1).'],
+                    ['name' => 'stages', 'required' => false, 'description' => 'Khusus `platforming`: array stage, tiap stage wajib punya `prompt` dan `correct_answer`.'],
+                    ['name' => 'sentence, blanks, distractors', 'required' => false, 'description' => 'Khusus `word_match`: wajib `sentence` dan `blanks` (array minimal 1), `distractors` opsional.'],
                     ['name' => 'bobot', 'required' => false, 'description' => 'Bobot nilai, default `1`.'],
                     ['name' => 'urutan', 'required' => false, 'description' => 'Nomor urut soal, default mengikuti urutan data JSON.'],
                     ['name' => 'is_active', 'required' => false, 'description' => 'Status aktif soal, default `true`.'],
                     ['name' => 'kategori', 'required' => false, 'description' => 'Opsional untuk membantu penyusunan file JSON. Saat ini tidak disimpan karena schema bank soal belum punya kolom kategori.'],
                 ],
-                'sample' => $this->taskBankImportJsonTemplate(),
+                'sample' => $this->taskBankImportJsonTemplate((string) ($taskBank->assessment_type ?? 'mixed')),
             ],
             'filters' => [
                 'search' => $search,
@@ -174,6 +177,8 @@ class AdminTaskBankController extends Controller
             'sort_order' => ['nullable', 'integer', 'min:1'],
             'is_active' => ['required', 'boolean'],
         ]);
+
+        $this->assertQuestionTypeAllowedForTaskBank($validated['question_type'], $taskBank, 'question_type');
 
         $payload = $this->normalizeQuestionPayload($validated);
 
@@ -328,6 +333,8 @@ class AdminTaskBankController extends Controller
             'is_active' => ['required', 'boolean'],
         ]);
 
+        $this->assertQuestionTypeAllowedForTaskBank($validated['question_type'], $taskBank, 'question_type');
+
         $payload = $this->normalizeQuestionPayload($validated);
 
         $question->update($payload);
@@ -378,6 +385,13 @@ class AdminTaskBankController extends Controller
                 ]);
             }
 
+            $prompt = trim((string) ($decoded['prompt'] ?? ''));
+            if ($prompt === '') {
+                throw ValidationException::withMessages([
+                    'options' => 'Konfigurasi game_stage wajib punya `prompt`.',
+                ]);
+            }
+
             $acceptedAnswers = $decoded['accepted_answers'] ?? [];
             if (! is_array($acceptedAnswers) || count($acceptedAnswers) < 1) {
                 throw ValidationException::withMessages([
@@ -397,7 +411,19 @@ class AdminTaskBankController extends Controller
                 ]);
             }
 
-            $options = $decoded;
+            $maxAttempts = $decoded['max_attempts'] ?? 3;
+            if (! is_numeric($maxAttempts) || (int) $maxAttempts < 1 || (int) $maxAttempts > 10) {
+                throw ValidationException::withMessages([
+                    'options' => 'max_attempts harus angka 1-10.',
+                ]);
+            }
+
+            $options = [
+                'prompt' => $prompt,
+                'accepted_answers' => $decoded['accepted_answers'],
+                'hint' => trim((string) ($decoded['hint'] ?? '')),
+                'max_attempts' => (int) $maxAttempts,
+            ];
             $validated['answer_key'] = (string) $decoded['accepted_answers'][0];
         } elseif ($questionType === 'platforming') {
             $configRaw = trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', (string) ($validated['options'][0] ?? '')));
@@ -415,15 +441,51 @@ class AdminTaskBankController extends Controller
                 ]);
             }
 
+            $normalizedStages = [];
             foreach ($stages as $i => $stage) {
-                if (empty($stage['prompt']) || empty($stage['correct_answer'])) {
+                if (! is_array($stage)) {
+                    throw ValidationException::withMessages([
+                        'options' => "Stage #" . ($i + 1) . " harus berupa object JSON.",
+                    ]);
+                }
+
+                $prompt = trim((string) ($stage['prompt'] ?? ''));
+                $correctAnswer = trim((string) ($stage['correct_answer'] ?? ''));
+                if ($prompt === '' || $correctAnswer === '') {
                     throw ValidationException::withMessages([
                         'options' => "Stage #" . ($i + 1) . " wajib punya prompt dan correct_answer.",
                     ]);
                 }
+
+                $wrongAnswersRaw = $stage['wrong_answers'] ?? [];
+                if (! is_array($wrongAnswersRaw)) {
+                    throw ValidationException::withMessages([
+                        'options' => "Stage #" . ($i + 1) . ": wrong_answers harus array string.",
+                    ]);
+                }
+
+                $wrongAnswers = collect($wrongAnswersRaw)
+                    ->map(fn ($value) => trim((string) $value))
+                    ->filter(fn ($value) => $value !== '')
+                    ->values()
+                    ->all();
+
+                if (in_array($correctAnswer, $wrongAnswers, true)) {
+                    throw ValidationException::withMessages([
+                        'options' => "Stage #" . ($i + 1) . ": correct_answer tidak boleh sama dengan wrong_answers.",
+                    ]);
+                }
+
+                $normalizedStages[] = [
+                    'prompt' => $prompt,
+                    'correct_answer' => $correctAnswer,
+                    'wrong_answers' => $wrongAnswers,
+                ];
             }
 
-            $options = $decoded;
+            $options = [
+                'stages' => $normalizedStages,
+            ];
             $validated['answer_key'] = null;
         } elseif ($questionType === 'word_match') {
             $configRaw = trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', (string) ($validated['options'][0] ?? '')));
@@ -442,7 +504,43 @@ class AdminTaskBankController extends Controller
                 ]);
             }
 
-            $options = $decoded;
+            $normalizedBlanks = collect($blanks)
+                ->map(fn ($value) => trim((string) $value))
+                ->filter(fn ($value) => $value !== '')
+                ->values()
+                ->all();
+
+            if ($normalizedBlanks === []) {
+                throw ValidationException::withMessages([
+                    'options' => 'blanks tidak boleh kosong.',
+                ]);
+            }
+
+            $placeholderCount = substr_count((string) $sentence, '___');
+            if ($placeholderCount > 0 && $placeholderCount !== count($normalizedBlanks)) {
+                throw ValidationException::withMessages([
+                    'options' => 'Jumlah placeholder `___` pada sentence harus sama dengan jumlah item blanks.',
+                ]);
+            }
+
+            $distractorsRaw = $decoded['distractors'] ?? [];
+            if (! is_array($distractorsRaw)) {
+                throw ValidationException::withMessages([
+                    'options' => 'distractors harus berupa array string.',
+                ]);
+            }
+
+            $normalizedDistractors = collect($distractorsRaw)
+                ->map(fn ($value) => trim((string) $value))
+                ->filter(fn ($value) => $value !== '')
+                ->values()
+                ->all();
+
+            $options = [
+                'sentence' => trim((string) $sentence),
+                'blanks' => $normalizedBlanks,
+                'distractors' => $normalizedDistractors,
+            ];
             $validated['answer_key'] = null;
         } else {
             $options = [];
@@ -487,19 +585,7 @@ class AdminTaskBankController extends Controller
         }
 
         $questionType = $this->resolveImportedQuestionType($row, $taskBank);
-        $taskBankType = (string) ($taskBank->assessment_type ?? 'essay');
-
-        if ($taskBankType === 'essay' && $questionType !== 'essay') {
-            throw ValidationException::withMessages([
-                'import_file' => "Soal #{$humanIndex}: task bank ini hanya menerima soal essay.",
-            ]);
-        }
-
-        if ($taskBankType === 'multiple_choice' && $questionType !== 'multiple_choice') {
-            throw ValidationException::withMessages([
-                'import_file' => "Soal #{$humanIndex}: task bank ini hanya menerima soal multiple choice.",
-            ]);
-        }
+        $this->assertQuestionTypeAllowedForTaskBank($questionType, $taskBank, 'import_file', $humanIndex);
 
 
         $fingerprint = $this->questionFingerprint($questionText);
@@ -550,12 +636,35 @@ class AdminTaskBankController extends Controller
         }
 
         $taskBankType = (string) ($taskBank->assessment_type ?? 'essay');
-        if (in_array($taskBankType, ['essay', 'multiple_choice'], true)) {
+        if (in_array($taskBankType, ['essay', 'multiple_choice', 'platforming', 'word_match'], true)) {
             return $taskBankType;
         }
 
         $hasOptions = array_key_exists('opsi', $row) || array_key_exists('options', $row);
         return $hasOptions ? 'multiple_choice' : 'essay';
+    }
+
+    private function assertQuestionTypeAllowedForTaskBank(string $questionType, TaskBank $taskBank, string $errorKey = 'question_type', ?int $rowIndex = null): void
+    {
+        $assessmentType = (string) ($taskBank->assessment_type ?? 'mixed');
+        $allowedTypes = match ($assessmentType) {
+            'essay' => ['essay'],
+            'multiple_choice' => ['multiple_choice'],
+            'platforming' => ['platforming'],
+            'word_match' => ['word_match'],
+            default => ['essay', 'multiple_choice', 'game_stage', 'platforming', 'word_match'],
+        };
+
+        if (in_array($questionType, $allowedTypes, true)) {
+            return;
+        }
+
+        $allowedLabel = implode(', ', $allowedTypes);
+        $prefix = $rowIndex !== null ? "Soal #{$rowIndex}: " : '';
+
+        throw ValidationException::withMessages([
+            $errorKey => "{$prefix}task bank bertipe `{$assessmentType}` hanya menerima tipe soal: {$allowedLabel}.",
+        ]);
     }
 
     private function normalizeImportedMultipleChoiceData(array $row, int $humanIndex): array
@@ -754,8 +863,81 @@ class AdminTaskBankController extends Controller
         return Str::lower(preg_replace('/\s+/', ' ', trim($text)));
     }
 
-    private function taskBankImportJsonTemplate(): array
+    private function taskBankImportJsonTemplate(string $assessmentType = 'mixed'): array
     {
+        $templates = [
+            'multiple_choice' => [[
+                'pertanyaan' => 'Ibukota Indonesia adalah?',
+                'tipe_soal' => 'multiple_choice',
+                'opsi' => [
+                    'A' => 'Jakarta',
+                    'B' => 'Bandung',
+                    'C' => 'Surabaya',
+                    'D' => 'Medan',
+                ],
+                'jawaban' => 'A',
+                'kategori' => 'Geografi',
+                'bobot' => 1,
+                'urutan' => 1,
+                'is_active' => true,
+            ]],
+            'essay' => [[
+                'pertanyaan' => 'Jelaskan perbedaan utama antara CPU dan GPU.',
+                'tipe_soal' => 'essay',
+                'kategori' => 'Komputer',
+                'bobot' => 2,
+                'urutan' => 1,
+                'is_active' => true,
+            ]],
+            'game_stage' => [[
+                'pertanyaan' => 'Teka-teki kode level 1.',
+                'tipe_soal' => 'game_stage',
+                'prompt' => 'Kode warna bendera Indonesia adalah?',
+                'accepted_answers' => ['merah putih', 'red white'],
+                'hint' => 'Dua kata warna.',
+                'max_attempts' => 3,
+                'kategori' => 'Game',
+                'bobot' => 3,
+                'urutan' => 1,
+                'is_active' => true,
+            ]],
+            'platforming' => [[
+                'pertanyaan' => 'Selesaikan stage platforming dasar.',
+                'tipe_soal' => 'platforming',
+                'stages' => [
+                    [
+                        'prompt' => 'Apa ibu kota Indonesia?',
+                        'correct_answer' => 'Jakarta',
+                        'wrong_answers' => ['Bandung', 'Surabaya', 'Medan'],
+                    ],
+                    [
+                        'prompt' => 'Planet terbesar di tata surya?',
+                        'correct_answer' => 'Jupiter',
+                        'wrong_answers' => ['Mars', 'Venus', 'Saturnus'],
+                    ],
+                ],
+                'kategori' => 'Mixed',
+                'bobot' => 2,
+                'urutan' => 1,
+                'is_active' => true,
+            ]],
+            'word_match' => [[
+                'pertanyaan' => 'Temukan kata kunci sejarah pada kalimat.',
+                'tipe_soal' => 'word_match',
+                'sentence' => 'Indonesia merdeka pada tanggal ___ Agustus ___.',
+                'blanks' => ['17', '1945'],
+                'distractors' => ['20', '2000', '1908'],
+                'kategori' => 'Sejarah',
+                'bobot' => 2,
+                'urutan' => 1,
+                'is_active' => true,
+            ]],
+        ];
+
+        if (isset($templates[$assessmentType])) {
+            return $templates[$assessmentType];
+        }
+
         return [
             [
                 'pertanyaan' => 'Ibukota Indonesia adalah?',
@@ -788,11 +970,54 @@ class AdminTaskBankController extends Controller
                 'is_active' => true,
             ],
             [
+                'pertanyaan' => 'Temukan kata kunci sejarah pada kalimat.',
+                'tipe_soal' => 'word_match',
+                'sentence' => 'Indonesia merdeka pada tanggal ___ Agustus ___.',
+                'blanks' => ['17', '1945'],
+                'distractors' => ['20', '2000', '1908'],
+                'kategori' => 'Sejarah',
+                'bobot' => 2,
+                'urutan' => 3,
+                'is_active' => true,
+            ],
+            [
+                'pertanyaan' => 'Selesaikan stage platforming dasar.',
+                'tipe_soal' => 'platforming',
+                'stages' => [
+                    [
+                        'prompt' => 'Apa ibu kota Indonesia?',
+                        'correct_answer' => 'Jakarta',
+                        'wrong_answers' => ['Bandung', 'Surabaya', 'Medan'],
+                    ],
+                    [
+                        'prompt' => 'Planet terbesar di tata surya?',
+                        'correct_answer' => 'Jupiter',
+                        'wrong_answers' => ['Mars', 'Venus', 'Saturnus'],
+                    ],
+                ],
+                'kategori' => 'Mixed',
+                'bobot' => 2,
+                'urutan' => 4,
+                'is_active' => true,
+            ],
+            [
+                'pertanyaan' => 'Teka-teki kode level 1.',
+                'tipe_soal' => 'game_stage',
+                'prompt' => 'Kode warna bendera Indonesia adalah?',
+                'accepted_answers' => ['merah putih', 'red white'],
+                'hint' => 'Dua kata warna.',
+                'max_attempts' => 3,
+                'kategori' => 'Game',
+                'bobot' => 3,
+                'urutan' => 5,
+                'is_active' => true,
+            ],
+            [
                 'pertanyaan' => 'Jelaskan perbedaan utama antara CPU dan GPU.',
                 'tipe_soal' => 'essay',
                 'kategori' => 'Komputer',
                 'bobot' => 2,
-                'urutan' => 3,
+                'urutan' => 6,
                 'is_active' => true,
             ],
         ];
