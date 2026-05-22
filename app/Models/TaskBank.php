@@ -16,8 +16,8 @@ class TaskBank extends Model
         'name',
         'description',
         'job_role_id',
-        'rubric_id',
         'assessment_type',
+        'duration',
         'is_active',
     ];
 

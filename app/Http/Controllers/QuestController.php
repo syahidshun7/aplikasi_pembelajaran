@@ -421,7 +421,7 @@ class QuestController extends Controller
         $userId = (int) auth()->id();
         $quest->load([
             'studyGroup:id,name',
-            'taskBank:id,uuid,name,assessment_type',
+            'taskBank:id,uuid,name,assessment_type,duration',
             'taskBank.questions' => function ($query) {
                 $query->where('is_active', true)
                     ->orderBy('sort_order')
@@ -479,6 +479,9 @@ class QuestController extends Controller
 
         $canSubmit = $canFirstSubmit || $canResubmitSubmission;
 
+        $progressKey = "pf-game-state:{$userId}:" . ($quest->uuid ?: $quest->id);
+        $initialProgress = Cache::get($progressKey);
+
         return Inertia::render('Quests/Show', [
             'quest' => $quest,
             'hasSubmitted' => !!$submission,
@@ -488,7 +491,33 @@ class QuestController extends Controller
             'canSubmit' => $canSubmit,
             'timeKeyQty' => $timeKeyQty,
             'isStaffPlayMode' => $isStaffPlayMode,
+            'initialPlatformingProgress' => $initialProgress,
         ]);
+    }
+
+    public function savePlatformingProgress(Request $request, Quest $quest)
+    {
+        $userId = auth()->id();
+        $progressKey = "pf-game-state:{$userId}:" . ($quest->uuid ?: $quest->id);
+        
+        $data = $request->validate([
+            'index' => 'required|integer',
+            'level' => 'required|integer',
+            'answers' => 'required|array',
+            'time_left' => 'required|integer',
+            'wm_state' => 'nullable|array', // Tambahan untuk word_match
+        ]);
+
+        Cache::put($progressKey, $data, now()->addHours(2));
+
+        return response()->json(['status' => 'success']);
+    }
+
+    public function loadPlatformingProgress(Quest $quest)
+    {
+        $userId = auth()->id();
+        $progressKey = "pf-game-state:{$userId}:" . ($quest->uuid ?: $quest->id);
+        return response()->json(Cache::get($progressKey));
     }
 
     public function unlockLate(Quest $quest)
