@@ -27,6 +27,7 @@ const form = useForm({
     description: '',
     job_role_id: '',
     assessment_type: 'essay',
+    duration: 60,
     is_active: true,
 });
 const mentorCannotSubmitTaskBank = computed(() => isMentor.value && !form.job_role_id);
@@ -47,6 +48,7 @@ const startEdit = (bank) => {
     form.description = bank.description || '';
     form.job_role_id = bank.job_role_id || '';
     form.assessment_type = bank.assessment_type || 'essay';
+    form.duration = bank.duration ?? 60;
     form.is_active = !!bank.is_active;
     applyMentorDefaultJob();
     showFormModal.value = true;
@@ -57,6 +59,7 @@ const cancelEdit = () => {
     editUuid.value = null;
     form.reset();
     form.assessment_type = 'essay';
+    form.duration = 60;
     form.is_active = true;
     applyMentorDefaultJob();
     showFormModal.value = false;
@@ -126,7 +129,8 @@ const goToPage = (url) => {
 const typeClass = (type) => {
     if (type === 'multiple_choice') return 'text-yellow-400 border-yellow-800 bg-yellow-900/20';
     if (type === 'mixed') return 'text-purple-300 border-purple-800 bg-purple-900/20';
-    if (type === 'game_escape') return 'text-emerald-300 border-emerald-800 bg-emerald-900/20';
+    if (type === 'platforming') return 'text-purple-400 border-purple-700 bg-purple-900/20';
+    if (type === 'word_match') return 'text-orange-300 border-orange-800 bg-orange-900/20';
     return 'text-cyan-400 border-cyan-800 bg-cyan-900/20';
 };
 
@@ -196,10 +200,18 @@ watch([isMentor, firstJobId], () => {
                                         <option value="essay">ESSAY</option>
                                         <option value="multiple_choice">MULTIPLE_CHOICE</option>
                                         <option value="mixed">MIXED</option>
-                                        <option value="game_escape">GAME_ESCAPE</option>
+                                        <option value="platforming">PLATFORMING</option>
+                                        <option value="word_match">WORD_MATCH</option>
                                     </select>
                                     <p v-if="form.errors.assessment_type" class="mt-2 text-red-400 text-[8px]">{{ form.errors.assessment_type }}</p>
                                 </div>
+                            </div>
+
+                            <div v-if="form.assessment_type === 'platforming' || form.assessment_type === 'word_match'">
+                                <label class="block mb-2 text-white uppercase">GAME_DURATION (SECONDS):</label>
+                                <input v-model.number="form.duration" type="number" min="5" max="3600" class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-300 uppercase outline-none focus:border-cyan-400" required>
+                                <p class="mt-2 text-[8px] text-slate-500 uppercase">Waktu menjawab per soal (Platforming) atau total sesi (Word Match).</p>
+                                <p v-if="form.errors.duration" class="mt-2 text-red-400 text-[8px]">{{ form.errors.duration }}</p>
                             </div>
 
                             <label class="inline-flex items-center gap-2 text-[9px] uppercase text-slate-300">
