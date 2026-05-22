@@ -43,6 +43,8 @@ const importTemplateJson = computed(() => JSON.stringify(props.importTemplate?.s
 
 const isMcq = computed(() => form.question_type === 'multiple_choice');
 const isGameStage = computed(() => form.question_type === 'game_stage');
+const isPlatforming = computed(() => form.question_type === 'platforming');
+const isWordMatch = computed(() => form.question_type === 'word_match');
 
 const startEdit = (row) => {
     isEditing.value = true;
@@ -104,7 +106,7 @@ const submit = () => {
         ? (typeof form.correct_option_index === 'number' ? (normalizedOptions[form.correct_option_index] || '') : '')
         : null;
 
-    const payloadOptions = isGameStage.value
+    const payloadOptions = isGameStage.value || isPlatforming.value || isWordMatch.value
         ? [String(form.options?.[0] || '').trim()]
         : cleanedOptions;
 
@@ -163,6 +165,8 @@ const goToPage = (url) => {
 const typeClass = (type) => {
     if (type === 'multiple_choice') return 'text-yellow-400 border-yellow-800 bg-yellow-900/20';
     if (type === 'game_stage') return 'text-emerald-300 border-emerald-800 bg-emerald-900/20';
+    if (type === 'platforming') return 'text-purple-300 border-purple-800 bg-purple-900/20';
+    if (type === 'word_match') return 'text-orange-300 border-orange-800 bg-orange-900/20';
     return 'text-cyan-400 border-cyan-800 bg-cyan-900/20';
 };
 
@@ -342,6 +346,8 @@ const submitImport = () => {
                                             <option value="essay">ESSAY</option>
                                             <option value="multiple_choice">MULTIPLE_CHOICE</option>
                                             <option value="game_stage">GAME_STAGE</option>
+                                            <option value="platforming">PLATFORMING</option>
+                                            <option value="word_match">WORD_MATCH</option>
                                         </select>
                                     </div>
                                     <div>
@@ -408,6 +414,34 @@ const submitImport = () => {
                                     <p class="mt-2 text-[8px] text-slate-400 uppercase">
                                         Untuk GAME_STAGE, isi JSON config. accepted_answers minimal 1 item.
                                     </p>
+                                </div>
+                                <div v-else-if="isPlatforming">
+                                    <label class="block mb-2 text-white uppercase">PLATFORMING_CONFIG_JSON:</label>
+                                    <textarea
+                                        v-model="form.options[0]"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 text-[12px] font-sans text-slate-200 focus:border-purple-400 focus:ring-0"
+                                        style="resize: vertical; min-height: 180px;"
+                                        placeholder='{"stages":[{"prompt":"Apa ibu kota Indonesia?","correct_answer":"Jakarta","wrong_answers":["Bandung","Surabaya"]}]}'
+                                    ></textarea>
+                                    <p class="mt-2 text-[8px] text-slate-400 uppercase">
+                                        PLATFORMING: JSON dengan array stages. Tiap stage punya prompt, correct_answer, dan wrong_answers (opsional).
+                                    </p>
+                                    <p v-if="form.errors.options" class="mt-2 text-red-400 text-[8px]">{{ form.errors.options }}</p>
+                                    <p v-if="form.errors['options.0']" class="mt-2 text-red-400 text-[8px]">{{ form.errors['options.0'] }}</p>
+                                </div>
+                                <div v-else-if="isWordMatch">
+                                    <label class="block mb-2 text-white uppercase">WORD_MATCH_CONFIG_JSON:</label>
+                                    <textarea
+                                        v-model="form.options[0]"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 text-[12px] font-sans text-slate-200 focus:border-orange-400 focus:ring-0"
+                                        style="resize: vertical; min-height: 180px;"
+                                        placeholder='{"sentence":"Indonesia merdeka pada tanggal ___ Agustus ___","blanks":["17","1945"],"distractors":["20","2000"]}'
+                                    ></textarea>
+                                    <p class="mt-2 text-[8px] text-slate-400 uppercase">
+                                        WORD_MATCH: JSON dengan sentence (gunakan ___ untuk blank), blanks (jawaban benar), dan distractors (pengecoh opsional).
+                                    </p>
+                                    <p v-if="form.errors.options" class="mt-2 text-red-400 text-[8px]">{{ form.errors.options }}</p>
+                                    <p v-if="form.errors['options.0']" class="mt-2 text-red-400 text-[8px]">{{ form.errors['options.0'] }}</p>
                                 </div>
                                 <p v-if="form.errors.answer_key" class="mt-2 text-red-400 text-[8px]">{{ form.errors.answer_key }}</p>
 

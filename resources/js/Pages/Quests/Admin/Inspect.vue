@@ -103,6 +103,39 @@
                                             </p>
                                         </template>
 
+                                        <template v-else-if="q.question_type === 'platforming'">
+                                            <p class="text-[8px] text-purple-400 uppercase italic mb-2">PLATFORMING_RESULT:</p>
+                                            <div class="bg-black/40 border border-purple-800 p-4 font-sans text-[12px] text-slate-200 space-y-2">
+                                                <template v-if="parsedGameAnswer(q)">
+                                                    <p class="text-[10px] text-purple-300">
+                                                        Score: <span class="font-bold">{{ parsedGameAnswer(q).score }}</span> / {{ parsedGameAnswer(q).total }}
+                                                        · Level: <span class="font-bold">{{ parsedGameAnswer(q).level }}</span>
+                                                    </p>
+                                                    <div v-for="(a, ai) in (parsedGameAnswer(q).answers || [])" :key="ai" class="text-[10px]">
+                                                        <span class="text-slate-500">Stage {{ ai + 1 }}:</span>
+                                                        <span :class="a.correct ? 'text-emerald-400' : 'text-red-400'">{{ a.answer }}</span>
+                                                        <span class="text-slate-600">({{ a.correct ? '✓' : '✗' }})</span>
+                                                    </div>
+                                                </template>
+                                                <p v-else class="text-red-400">NOT_ANSWERED</p>
+                                            </div>
+                                        </template>
+
+                                        <template v-else-if="q.question_type === 'word_match'">
+                                            <p class="text-[8px] text-orange-400 uppercase italic mb-2">WORD_MATCH_RESULT:</p>
+                                            <div class="bg-black/40 border border-orange-800 p-4 font-sans text-[12px] text-slate-200 space-y-2">
+                                                <template v-if="parsedWordMatchAnswer(q)">
+                                                    <p class="text-[10px]" :class="parsedWordMatchAnswer(q).complete ? 'text-emerald-400' : 'text-yellow-400'">
+                                                        {{ parsedWordMatchAnswer(q).complete ? 'COMPLETED' : 'INCOMPLETE' }}
+                                                    </p>
+                                                    <p class="text-[10px] text-orange-300">
+                                                        Placed: {{ (parsedWordMatchAnswer(q).placed || []).join(' · ') || '-' }}
+                                                    </p>
+                                                </template>
+                                                <p v-else class="text-red-400">NOT_ANSWERED</p>
+                                            </div>
+                                        </template>
+
                                         <template v-else>
                                             <p class="text-[8px] text-slate-500 uppercase italic mb-2">STUDENT_ANSWER:</p>
                                             <div class="bg-black/40 border border-slate-800 p-4 font-sans text-[12px] text-slate-200 whitespace-pre-wrap">
@@ -208,6 +241,8 @@
                                                 :class="taskBankMcqByQuestion?.[q.uuid]?.is_correct ? 'text-emerald-400' : 'text-red-400'">
                                                 {{ taskBankMcqByQuestion?.[q.uuid]?.is_correct ? 'CORRECT' : 'WRONG' }}
                                             </span>
+                                            <span v-else-if="q.question_type === 'platforming'" class="text-purple-400">PLATFORMING</span>
+                                            <span v-else-if="q.question_type === 'word_match'" class="text-orange-400">WORD_MATCH</span>
                                             <span v-else class="text-yellow-400">ESSAY</span>
                                         </div>
                                     </div>
@@ -940,6 +975,18 @@ const selectedAnswerFor = (question) => {
     if (!uuid) return '';
     const value = taskAnswers.value?.[uuid];
     return typeof value === 'string' ? value : String(value || '');
+};
+
+const parsedGameAnswer = (question) => {
+    const raw = selectedAnswerFor(question);
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch (_) { return null; }
+};
+
+const parsedWordMatchAnswer = (question) => {
+    const raw = selectedAnswerFor(question);
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch (_) { return null; }
 };
 
 const applyEssayScoresFromAi = (essayScores) => {
