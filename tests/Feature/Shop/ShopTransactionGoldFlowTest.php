@@ -5,6 +5,7 @@ use App\Models\ShopItem;
 use App\Models\ShopTransaction;
 use App\Models\Submission;
 use App\Models\User;
+use App\Models\UserGoldTransfer;
 use App\Models\UserInventory;
 use App\Services\UserRewardSyncService;
 use Illuminate\Support\Facades\DB;
@@ -145,4 +146,66 @@ it('reward sync treats malformed purchase as expense and consume unlock as zero'
     $user->refresh();
 
     expect((int) $user->gold)->toBe(750);
+});
+
+it('requires the current password before transferring gold', function () {
+    $sender = User::factory()->create([
+        'gold' => 100,
+    ]);
+    $recipient = User::factory()->create([
+        'gold' => 0,
+    ]);
+
+    $this->actingAs($sender)
+        ->post(route('shop.gold-transfer'), [
+            'recipient_id' => $recipient->id,
+            'amount' => 25,
+        ])
+        ->assertSessionHasErrors('password');
+
+    expect((int) $sender->fresh()->gold)->toBe(100);
+    expect((int) $recipient->fresh()->gold)->toBe(0);
+    expect(UserGoldTransfer::query()->count())->toBe(0);
+});
+
+it('rejects gold transfer when the current password is wrong', function () {
+    $sender = User::factory()->create([
+        'gold' => 100,
+    ]);
+    $recipient = User::factory()->create([
+        'gold' => 0,
+    ]);
+
+    $this->actingAs($sender)
+        ->post(route('shop.gold-transfer'), [
+            'recipient_id' => $recipient->id,
+            'amount' => 25,
+            'password' => 'wrong-password',
+        ])
+        ->assertSessionHasErrors('password');
+
+    expect((int) $sender->fresh()->gold)->toBe(100);
+    expect((int) $recipient->fresh()->gold)->toBe(0);
+    expect(UserGoldTransfer::query()->count())->toBe(0);
+});
+
+it('transfers gold when the current password is valid', function () {
+    $sender = User::factory()->create([
+        'gold' => 100,
+    ]);
+    $recipient = User::factory()->create([
+        'gold' => 0,
+    ]);
+
+    $this->actingAs($sender)
+        ->post(route('shop.gold-transfer'), [
+            'recipient_id' => $recipient->id,
+            'amount' => 25,
+            'password' => 'password',
+        ])
+        ->assertRedirect();
+
+    expect((int) $sender->fresh()->gold)->toBe(75);
+    expect((int) $recipient->fresh()->gold)->toBe(25);
+    expect(UserGoldTransfer::query()->count())->toBe(1);
 });

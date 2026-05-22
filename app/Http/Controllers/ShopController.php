@@ -66,6 +66,7 @@ class ShopController extends Controller
             'recipient_id' => ['required', 'integer', 'exists:users,id'],
             'amount' => ['required', 'integer', 'min:1', 'max:1000000'],
             'note' => ['nullable', 'string', 'max:120'],
+            'password' => ['required', 'string', 'current_password'],
         ]);
 
         $senderId = (int) $request->user()->id;

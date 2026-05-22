@@ -112,6 +112,7 @@ const transferForm = useForm({
     recipient_id: '',
     amount: 1,
     note: '',
+    password: '',
 });
 let recipientSearchTimer = null;
 
@@ -149,6 +150,7 @@ const closeTransferModal = () => {
     }
 
     isTransferModalOpen.value = false;
+    transferForm.password = '';
     transferForm.clearErrors();
 };
 
@@ -211,6 +213,11 @@ const submitGoldTransfer = async () => {
         return;
     }
 
+    if (!transferForm.password) {
+        toast.error('PASSWORD_REQUIRED', 'Masukkan sandi akun untuk konfirmasi transfer.');
+        return;
+    }
+
     const recipient = (props.transferUsers || []).find((user) => Number(user.id) === Number(transferForm.recipient_id));
     const result = await toast.confirm(
         'TRANSFER_GOLD?',
@@ -236,6 +243,9 @@ const submitGoldTransfer = async () => {
         onError: (errors) => {
             const message = Object.values(errors || {})[0] || 'Transfer gagal.';
             toast.error('TRANSFER_FAILED', message);
+        },
+        onFinish: () => {
+            transferForm.password = '';
         },
     });
 };
@@ -874,10 +884,26 @@ onBeforeUnmount(() => {
                         <p v-if="transferForm.errors.note" class="mt-2 text-[8px] text-red-400">{{ transferForm.errors.note }}</p>
                     </div>
 
+                    <div>
+                        <label class="block text-[8px] uppercase text-slate-400">Password</label>
+                        <input
+                            v-model="transferForm.password"
+                            type="password"
+                            autocomplete="current-password"
+                            placeholder="Masukkan sandi akun"
+                            class="mt-2 w-full border-2 border-slate-700 bg-[#0d1117] p-3 text-[9px] text-slate-200 outline-none focus:border-yellow-400"
+                            :disabled="transferForm.processing"
+                        >
+                        <p class="mt-2 text-[8px] uppercase leading-relaxed text-slate-500">
+                            Sandi dibutuhkan untuk keamanan sebelum gold dikirim.
+                        </p>
+                        <p v-if="transferForm.errors.password" class="mt-2 text-[8px] text-red-400">{{ transferForm.errors.password }}</p>
+                    </div>
+
                     <button
                         type="submit"
                         class="w-full border-2 border-yellow-700 bg-yellow-400 px-4 py-3 text-[8px] font-bold uppercase text-black transition-colors hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
-                        :disabled="transferForm.processing || !transferForm.recipient_id || transferForm.amount < 1 || userGold < transferForm.amount"
+                        :disabled="transferForm.processing || !transferForm.recipient_id || transferForm.amount < 1 || userGold < transferForm.amount || !transferForm.password"
                     >
                         {{ transferForm.processing ? 'Sending...' : 'Send_Gold' }}
                     </button>
