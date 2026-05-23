@@ -1,4 +1,5 @@
 <script setup>
+import PixelModal from '@/Components/PixelModal.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -25,6 +26,9 @@ const joinForm = useForm({
     study_group_uuid: '',
     reason: '',
 });
+
+const showJoinModal = ref(false);
+const targetGroup = ref(null);
 
 const leaveForm = useForm({});
 const activeJoinUuid = ref('');
@@ -91,7 +95,7 @@ const canRequestAccess = (group) => {
     return levelPass || paidPass;
 };
 
-const requestAccess = (group) => {
+const openJoinModal = (group) => {
     if (joinForm.processing || leaveForm.processing) return;
     if (!canManageMembership.value) {
         toast.error('STAFF_PLAY_MODE', 'Admin/super admin tidak bisa join kelas student di mode preview.');
@@ -103,50 +107,35 @@ const requestAccess = (group) => {
         return;
     }
 
-    swal.fire({
-        title: 'ALASAN_GABUNG_PARTY',
-        text: `Tuliskan alasan kamu ingin bergabung ke ${group.name}.`,
-        input: 'textarea',
-        inputPlaceholder: 'Tulis alasan singkat...',
-        inputAttributes: {
-            maxlength: 500,
-        },
-        inputClass: 'rpg-alert-textarea',
-        customClass: {
-            validationMessage: 'rpg-alert-validation',
-        },
-        inputValidator: (value) => {
-            const reason = String(value || '').trim();
-            if (reason.length < 10) {
-                return 'Alasan minimal 10 karakter.';
-            }
+    targetGroup.value = group;
+    joinForm.reason = '';
+    showJoinModal.value = true;
+};
 
-            return null;
+const submitJoinRequest = () => {
+    const reason = String(joinForm.reason || '').trim();
+    if (reason.length < 10) {
+        toast.error('ERROR', 'Alasan minimal 10 karakter.');
+        return;
+    }
+
+    joinForm.study_group_uuid = targetGroup.value.uuid;
+    activeJoinUuid.value = targetGroup.value.uuid;
+
+    joinForm.post(route('groups.join'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            toast.success('REQUEST_SENT', 'Join request sent. Waiting for admin approval.');
+            showJoinModal.value = false;
         },
-        showCancelButton: true,
-        confirmButtonText: 'KIRIM_REQUEST',
-        cancelButtonText: 'BATAL',
-    }).then((result) => {
-        if (!result.isConfirmed) return;
-
-        joinForm.study_group_uuid = group.uuid;
-        joinForm.reason = String(result.value || '').trim();
-        activeJoinUuid.value = group.uuid;
-
-        joinForm.post(route('groups.join'), {
-            preserveScroll: true,
-            onSuccess: () => {
-                toast.success('REQUEST_SENT', 'Join request sent. Waiting for admin approval.');
-            },
-            onError: (errors) => {
-                const firstMessage = Object.values(errors || {})[0] || 'Unable to send join request.';
-                toast.error('REQUEST_FAILED', String(firstMessage));
-            },
-            onFinish: () => {
-                activeJoinUuid.value = '';
-                joinForm.reset('study_group_uuid', 'reason');
-            },
-        });
+        onError: (errors) => {
+            const firstMessage = Object.values(errors || {})[0] || 'Unable to send join request.';
+            toast.error('REQUEST_FAILED', String(firstMessage));
+        },
+        onFinish: () => {
+            activeJoinUuid.value = '';
+            joinForm.reset('study_group_uuid', 'reason');
+        },
     });
 };
 
@@ -357,7 +346,7 @@ const leaveGroup = (group) => {
                                             type="button"
                                             class="inline-block px-3 py-1 border border-emerald-700 text-emerald-400 hover:bg-emerald-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
                                             :disabled="joinForm.processing || !canManageMembership || !canRequestAccess(group)"
-                                            @click="requestAccess(group)"
+                                            @click="openJoinModal(group)"
                                         >
                                             {{ activeJoinUuid === group.uuid && joinForm.processing ? 'Sending...' : (canRequestAccess(group) ? 'Request_Access' : 'Level_Locked') }}
                                         </button>
@@ -389,6 +378,35 @@ const leaveGroup = (group) => {
                 </div>
             </div>
         </div>
+
+        <PixelModal :show="showJoinModal" :title="`ALASAN_GABUNG_${targetGroup?.name?.toUpperCase() || 'PARTY'}`" @close="showJoinModal = false">
+            <template #content>
+                <p class="mb-4">TULISKAN ALASAN KAMU INGIN BERGABUNG KE {{ targetGroup?.name?.toUpperCase() || '...' }}.</p>
+                <textarea
+                    v-model="joinForm.reason"
+                    class="w-full bg-transparent border-2 border-[#4ed4d4] p-3 text-[10px] text-white outline-none font-sans"
+                    rows="4"
+                    placeholder="Tulis alasan singkat..."
+                ></textarea>
+            </template>
+            <template #footer>
+                <div class="flex items-center justify-center gap-8">
+                    <button
+                        @click="submitJoinRequest"
+                        :disabled="joinForm.processing"
+                        class="uppercase text-[10px] transition-all hover:text-white border-b border-transparent hover:border-[#4ed4d4]"
+                    >
+                        {{ joinForm.processing ? 'SENDING...' : 'KIRIM_REQUEST' }}
+                    </button>
+                    <button
+                        @click="showJoinModal = false"
+                        class="uppercase text-[10px] transition-all hover:text-white border-b border-transparent hover:border-[#4ed4d4]"
+                    >
+                        BATAL
+                    </button>
+                </div>
+            </template>
+        </PixelModal>
     </AuthenticatedLayout>
 </template>
 

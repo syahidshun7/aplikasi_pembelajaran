@@ -441,17 +441,16 @@ class SubmissionController extends Controller
                 }
             }
         } elseif (in_array($assessmentType, ['platforming', 'word_match'], true)) {
-            $question = $questions->first();
-            if ($question) {
+            foreach ($questions as $question) {
                 $qUuid = (string) $question->uuid;
                 $payload = json_decode((string) ($answers[$qUuid] ?? '{}'), true) ?: [];
-                
-                $correctCount = (int) ($payload['score'] ?? $payload['correct_count'] ?? 0);
-                $totalQuestionsCount = (int) ($payload['total'] ?? 1);
-                
-                $correctWeight = $correctCount;
-                $maxWeight = max(1, $totalQuestionsCount); // Prevent division by zero
+
+                $correctCount += (int) ($payload['score'] ?? $payload['correct_count'] ?? 0);
+                $totalQuestionsCount += (int) ($payload['total'] ?? 0);
             }
+
+            $correctWeight = $correctCount;
+            $maxWeight = max(1, $totalQuestionsCount);
         }
 
         $grade = $maxWeight > 0

@@ -19,7 +19,7 @@ class UserSeeder extends Seeder
         ]);
 
         // 2. Buat Akun User Biasa (Adventurer)
-        User::create([
+    User::create([
             'name'     => 'Luffy Player',
             'email'    => 'player@guild.com',
             'password' => Hash::make('12345678'),

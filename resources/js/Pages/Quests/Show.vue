@@ -139,7 +139,7 @@ const saveGameState = async (force = false) => {
     if (typeof window === 'undefined' || pfFinished.value || wmFinished.value) return;
     const now = Date.now();
     const state = taskBankType.value === 'word_match' 
-        ? { placed: wmPlacedWords.value, time_left: wmTimeLeft.value, all_cards: wmAllCards.value }
+        ? { placed: wmPlacedWords.value, time_left: wmTimeLeft.value, all_cards: wmAllCards.value, question_index: wmQuestionIndex.value, results: wmResults.value }
         : { index: pfStageIndex.value, level: pfPlayerLevel.value, answers: pfAnswers.value, time_left: pfTimeLeft.value };
     
     localStorage.setItem(taskBankType.value === 'word_match' ? wmGameStateKey.value : pfGameStateKey.value, JSON.stringify(state));
@@ -148,7 +148,7 @@ const saveGameState = async (force = false) => {
         lastSyncTime = now;
         try {
             const payload = taskBankType.value === 'word_match' 
-                ? { index: 0, level: 0, answers: [], time_left: wmTimeLeft.value, wm_state: state }
+                ? { index: wmQuestionIndex.value, level: 0, answers: [], time_left: wmTimeLeft.value, wm_state: state }
                 : { ...state };
             await axios.post(route('quests.platforming-progress.save', props.quest.uuid), payload);
         } catch (e) { }
@@ -168,13 +168,15 @@ const loadGameState = () => {
         wmPlacedWords.value = wmState.placed || [];
         wmTimeLeft.value = wmState.time_left ?? gameDuration.value;
         wmAllCards.value = wmState.all_cards || [];
+        wmQuestionIndex.value = wmState.question_index || 0;
+        wmResults.value = wmState.results || [];
         if (state.complete) wmFinished.value = true;
     } else {
         pfStageIndex.value = state.index || 0;
         pfPlayerLevel.value = state.level || 0;
         pfAnswers.value = state.answers || [];
         pfTimeLeft.value = state.time_left ?? gameDuration.value;
-        if (pfStageIndex.value >= (props.quest.task_bank?.questions[0]?.options_json?.stages?.length || 0)) pfFinished.value = true;
+        if (pfStageIndex.value >= pfTotalStages.value) pfFinished.value = true;
     }
 };
 
@@ -201,13 +203,26 @@ const startGameTimer = () => {
 // === PLATFORMING LOGIC ===
 const pfQuestion = computed(() => taskBankType.value === 'platforming' ? taskQuestions.value[0] : null);
 const pfStages = computed(() => {
-    let raw = pfQuestion.value?.options_json;
-    if (typeof raw === 'string') try { raw = JSON.parse(raw); } catch(e){}
-    return raw?.stages || [];
+    if (taskBankType.value !== 'platforming') return [];
+    return taskQuestions.value.flatMap(q => {
+        let raw = q?.options_json;
+        if (typeof raw === 'string') try { raw = JSON.parse(raw); } catch(e){ raw = null; }
+        return raw?.stages || [];
+    });
 });
 const pfTotalStages = computed(() => pfStages.value.length);
 const pfCurrentStage = computed(() => pfStages.value[pfStageIndex.value] || null);
 const pfCorrectCount = computed(() => pfAnswers.value.filter(a => a.correct).length);
+const pfLiveBountyGold = computed(() => {
+    const base = props.quest?.reward_gold || 0;
+    if (pfAnswers.value.length === 0) return base;
+    return Math.max(0, Math.round(base * (pfCorrectCount.value / Math.max(1, pfAnswers.value.length))));
+});
+const pfLiveBountyExp = computed(() => {
+    const base = props.quest?.reward_exp || props.quest?.reward_gold || 0;
+    if (pfAnswers.value.length === 0) return base;
+    return Math.max(0, Math.round(base * (pfCorrectCount.value / Math.max(1, pfAnswers.value.length))));
+});
 const pfNodeDisplayCurrent = computed(() => {
     if (pfTotalStages.value <= 0) return 0;
     return Math.min(pfStageIndex.value + 1, pfTotalStages.value);
@@ -266,10 +281,13 @@ const pfSelectAnswer = (ans) => {
 };
 
 // === WORD MATCH LOGIC ===
-const wmQuestion = computed(() => taskBankType.value === 'word_match' ? taskQuestions.value[0] : null);
+const wmQuestionIndex = ref(0);
+const wmQuestion = computed(() => taskBankType.value === 'word_match' ? taskQuestions.value[wmQuestionIndex.value] || null : null);
+const wmTotalQuestions = computed(() => taskBankType.value === 'word_match' ? taskQuestions.value.length : 0);
 const wmConfig = computed(() => {
+    if (taskBankType.value !== 'word_match') return {};
     let raw = wmQuestion.value?.options_json;
-    if (typeof raw === 'string') try { raw = JSON.parse(raw); } catch(e){}
+    if (typeof raw === 'string') try { raw = JSON.parse(raw); } catch(e){ raw = null; }
     return raw || {};
 });
 const wmSentenceParts = computed(() => (wmConfig.value.sentence || '').split('___'));
@@ -282,11 +300,9 @@ const wmAvailableCards = computed(() => {
 });
 
 const wmInitGame = () => {
-    if (wmAllCards.value.length === 0) {
-        const cards = [...(wmConfig.value.blanks || []), ...(wmConfig.value.distractors || [])];
-        wmAllCards.value = cards.sort(() => Math.random() - 0.5);
-    }
-    if (wmPlacedWords.value.length === 0) wmPlacedWords.value = Array(wmBlankCount.value).fill(null);
+    const cards = [...(wmConfig.value.blanks || []), ...(wmConfig.value.distractors || [])];
+    wmAllCards.value = cards.sort(() => Math.random() - 0.5);
+    wmPlacedWords.value = Array(wmBlankCount.value).fill(null);
     if (!isResuming) wmTimeLeft.value = gameDuration.value;
     isResuming = false;
     startGameTimer();
@@ -294,10 +310,34 @@ const wmInitGame = () => {
 
 const wmPlaceWord = (w) => {
     const i = wmPlacedWords.value.findIndex(x => x === null);
-    if (i !== -1) { wmPlacedWords.value[i] = w; saveGameState(); }
+    if (i !== -1) {
+        wmPlacedWords.value[i] = w;
+        saveGameState();
+    }
 };
 
-const wmRemoveWord = (i) => { wmPlacedWords.value[i] = null; saveGameState(); };
+const wmRemoveWord = (i) => {
+    wmPlacedWords.value[i] = null;
+    saveGameState();
+};
+
+const wmCorrectCount = ref(0);
+const wmWrongCount = ref(0);
+const wmLastPlaceFeedback = ref(null);
+const wmLiveBountyGold = computed(() => {
+    const base = props.quest?.reward_gold || 0;
+    const total = wmCorrectCount.value + wmWrongCount.value;
+    if (total === 0) return base;
+    return Math.max(0, Math.round(base * (wmCorrectCount.value / Math.max(1, total))));
+});
+const wmLiveBountyExp = computed(() => {
+    const base = props.quest?.reward_exp || props.quest?.reward_gold || 0;
+    const total = wmCorrectCount.value + wmWrongCount.value;
+    if (total === 0) return base;
+    return Math.max(0, Math.round(base * (wmCorrectCount.value / Math.max(1, wmCorrectCount.value + wmWrongCount.value))));
+});
+
+const wmResults = ref([]);
 
 const wmSubmitGame = (isTimeout = false) => {
     if (wmFinished.value) return;
@@ -306,26 +346,48 @@ const wmSubmitGame = (isTimeout = false) => {
         Swal.fire({ title: 'INCOMPLETE', text: 'Lengkapi transmisi data.', icon: 'warning', background: '#161b22', color: '#f59e0b' });
         return;
     }
-    stopGameTimer();
     let correct = 0;
     wmPlacedWords.value.forEach((w, i) => { if (w === wmConfig.value.blanks[i]) correct++; });
-    wmFinished.value = true;
-    wmFeedback.value = correct === wmBlankCount.value ? 'perfect' : 'partial';
-    clearGameState();
-    // FIX: Include 'complete' status for backend validation
-    submitFinalGamePayload('word_match', { 
-        placed: wmPlacedWords.value, 
-        correct_count: correct, 
-        total: wmBlankCount.value, 
-        timeout: isTimeout,
-        complete: isComplete 
-    });
+
+    // Update bounty counters after submit
+    wmCorrectCount.value += correct;
+    wmWrongCount.value += (wmBlankCount.value - correct);
+    wmLastPlaceFeedback.value = correct === wmBlankCount.value ? 'correct' : 'wrong';
+    setTimeout(() => { wmLastPlaceFeedback.value = null; }, 1000);
+
+    // Store result for current question
+    wmResults.value.push({ uuid: wmQuestion.value.uuid, placed: [...wmPlacedWords.value], correct_count: correct, total: wmBlankCount.value, timeout: isTimeout, complete: isComplete });
+
+    // Advance to next question or finish
+    if (wmQuestionIndex.value < wmTotalQuestions.value - 1) {
+        wmQuestionIndex.value++;
+        wmFeedback.value = correct === wmBlankCount.value ? 'perfect' : 'partial';
+        setTimeout(() => {
+            wmFeedback.value = null;
+            wmAllCards.value = [];
+            wmPlacedWords.value = [];
+            wmInitGame();
+        }, 1000);
+    } else {
+        stopGameTimer();
+        wmFinished.value = true;
+        wmFeedback.value = correct === wmBlankCount.value ? 'perfect' : 'partial';
+        clearGameState();
+        // Submit all results
+        const totalCorrect = wmResults.value.reduce((sum, r) => sum + r.correct_count, 0);
+        const totalBlanks = wmResults.value.reduce((sum, r) => sum + r.total, 0);
+        wmResults.value.forEach(r => {
+            form.task_answers[r.uuid] = JSON.stringify({ placed: r.placed, correct_count: r.correct_count, total: r.total, timeout: r.timeout, complete: r.complete });
+        });
+        setTimeout(() => { form.post(route('submissions.store', props.quest.uuid), { preserveScroll: true }); }, 2000);
+    }
 };
 
 const submitFinalGamePayload = (type, extra = {}) => {
-    const q = type === 'word_match' ? wmQuestion.value : pfQuestion.value;
-    const payload = type === 'word_match' ? extra : { answers: pfAnswers.value, level: pfPlayerLevel.value, score: pfCorrectCount.value, total: pfTotalStages.value };
-    form.task_answers[q.uuid] = JSON.stringify(payload);
+    const payload = { answers: pfAnswers.value, level: pfPlayerLevel.value, score: pfCorrectCount.value, total: pfTotalStages.value };
+    taskQuestions.value.filter(q => q.question_type === 'platforming').forEach(q => {
+        form.task_answers[q.uuid] = JSON.stringify(payload);
+    });
     setTimeout(() => { form.post(route('submissions.store', props.quest.uuid), { preserveScroll: true }); }, 2000);
 };
 
@@ -478,7 +540,7 @@ const unlockLateQuest = () => {
                                     <!-- Left Group: Mission Info -->
                                     <div class="flex flex-col gap-1 items-start">
                                         <div class="bg-black/85 backdrop-blur-md px-2 py-1 text-[8px] text-cyan-300 font-bold border border-cyan-500/30 pf-bevel-xs pf-hud-card whitespace-nowrap shadow-xl">
-                                            {{ taskBankType === 'word_match' ? 'MODE: RECON' : `NODE: ${pfNodeDisplayCurrent}/${pfTotalStages}` }}
+                                            {{ taskBankType === 'word_match' ? `SOAL: ${wmQuestionIndex + 1}/${wmTotalQuestions}` : `NODE: ${pfNodeDisplayCurrent}/${pfTotalStages}` }}
                                         </div>
                                         <div v-if="taskBankType === 'word_match'" class="bg-black/85 backdrop-blur-md px-2 py-1 text-[8px] text-slate-400 border border-slate-800 pf-bevel-xs pf-hud-card whitespace-nowrap">
                                             RECOVERY: {{ wmPlacedWords.filter(w=>w).length }}/{{ wmBlankCount }}
@@ -543,101 +605,62 @@ const unlockLateQuest = () => {
                         </div>
                         <div class="pf-side-card pf-bevel-sm border-yellow-600/20">
                             <p class="pf-side-title text-yellow-500"><img class="pf-px-icon" src="https://api.iconify.design/pixelarticons:gift.svg" alt=""> Bounty</p>
-                            <p class="text-amber-400 text-[11px] font-black">+{{ quest.reward_gold }} GOLD</p>
-                            <p class="text-cyan-400 text-[11px] font-black">+{{ quest.reward_exp || quest.reward_gold }} EXP</p>
+                            <p class="text-amber-400 text-[11px] font-black transition-all" :class="{ 'text-emerald-400 scale-110': (taskBankType === 'word_match' ? wmLastPlaceFeedback : pfFeedback) === 'correct', 'text-red-400 scale-90': (taskBankType === 'word_match' ? wmLastPlaceFeedback : pfFeedback) === 'wrong' }">+{{ taskBankType === 'word_match' ? wmLiveBountyGold : pfLiveBountyGold }} GOLD</p>
+                            <p class="text-cyan-400 text-[11px] font-black transition-all" :class="{ 'text-emerald-400 scale-110': (taskBankType === 'word_match' ? wmLastPlaceFeedback : pfFeedback) === 'correct', 'text-red-400 scale-90': (taskBankType === 'word_match' ? wmLastPlaceFeedback : pfFeedback) === 'wrong' }">+{{ taskBankType === 'word_match' ? wmLiveBountyExp : pfLiveBountyExp }} EXP</p>
                         </div>
                     </aside>
                 </div>
 
                 <!-- MISSION DEBRIEF -->
                 <div v-else-if="hasSubmitted" class="h-full flex flex-col overflow-y-auto bg-slate-950 relative">
-                    <!-- Background Effects -->
-                    <div class="absolute inset-0 z-0 opacity-20 pointer-events-none overflow-hidden">
-                        <div class="pf-scanline"></div>
-                        <div v-for="i in 8" :key="`bg-bit-${i}`" class="absolute w-1 h-1 bg-emerald-500/30 pf-floating-bit"
-                             :style="{ left: `${Math.random() * 100}%`, bottom: '-20px', animationDelay: `${Math.random() * 5}s` }"></div>
-                    </div>
-
-                    <!-- Header (Responsive Stack) -->
-                    <div class="shrink-0 p-4 border-b border-emerald-500/20 bg-slate-950/90 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between relative z-10">
-                        <div class="flex items-center justify-between w-full sm:w-auto gap-4">
-                            <Link :href="route('lobby')" class="text-emerald-400 text-[8px] border border-emerald-500/30 px-3 py-1.5 pf-bevel-xs font-bold uppercase hover:bg-emerald-500 hover:text-black transition-all">✕ EXIT_TO_LOBBY</Link>
-                            <div class="sm:hidden bg-emerald-500/20 border border-emerald-400/50 px-2 py-1 pf-bevel-xs shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                                <span class="text-emerald-300 text-[8px] font-black uppercase">ARCHIVED</span>
-                            </div>
-                        </div>
-                        <div class="flex flex-col items-center sm:items-end flex-1">
-                            <span class="text-white text-[10px] font-bold tracking-[0.2em] uppercase">TRANSMISSION_FINALIZED</span>
-                            <span class="text-[7px] text-emerald-500/50 font-mono tracking-tighter mt-0.5">REF_ID: {{ existingSubmission.uuid.substring(0,12) }}</span>
-                        </div>
-                        <div class="hidden sm:block bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 pf-bevel-xs"><span class="text-emerald-400 text-[8px] font-black uppercase">ARCHIVED</span></div>
+                    <!-- Header -->
+                    <div class="shrink-0 px-4 py-3 border-b border-emerald-500/20 bg-slate-950/90 flex items-center justify-between relative z-10">
+                        <Link :href="route('lobby')" class="text-emerald-400 text-[9px] border border-emerald-500/30 px-3 py-1.5 font-bold uppercase hover:bg-emerald-500 hover:text-black transition-all">← Lobby</Link>
+                        <span class="text-emerald-400 text-[8px] font-bold uppercase tracking-wider">Selesai</span>
                     </div>
 
                     <!-- Content -->
-                    <div class="flex-1 p-5 sm:p-10 flex flex-col items-center justify-center space-y-8 sm:space-y-12 relative z-10">
-                        <!-- Holographic Success Icon (Fixed Green Color) -->
-                        <div class="relative group scale-90 sm:scale-100">
-                            <div class="absolute inset-[-25px] border border-emerald-500/20 rounded-full animate-spin-slow"></div>
-                            <div class="absolute inset-[-15px] border border-dashed border-emerald-400/40 rounded-full animate-reverse-spin" style="animation-duration: 6s"></div>
-                            
-                            <!-- Green Glowing Checkmark Circle -->
-                            <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-emerald-400 bg-emerald-500/20 flex items-center justify-center shadow-[0_0_40px_rgba(52,211,153,0.5)] relative z-10">
-                                <svg class="w-10 h-10 sm:w-12 sm:h-12 text-emerald-300 drop-shadow-[0_0_8px_rgba(52,211,153,0.8)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="4">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </div>
+                    <div class="flex-1 flex flex-col items-center justify-center p-6 space-y-6 relative z-10">
+                        <!-- Success Icon -->
+                        <div class="w-14 h-14 rounded-full border-2 border-emerald-400 bg-emerald-500/10 flex items-center justify-center">
+                            <svg class="w-7 h-7 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
                         </div>
 
-                        <!-- Glitch Title (Responsive Size) -->
-                        <div class="text-center space-y-2">
-                            <h2 class="pf-glitch-text text-emerald-400 text-xl sm:text-5xl font-black italic tracking-tighter uppercase leading-none" :data-text="'MISSION_ACCOMPLISHED'">
-                                Mission_Accomplished
-                            </h2>
-                            <div class="flex items-center justify-center gap-3">
-                                <div class="h-px w-8 sm:w-12 bg-emerald-500/30"></div>
-                                <p class="text-slate-400 text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em] opacity-80">Sync_Complete_100%</p>
-                                <div class="h-px w-8 sm:w-12 bg-emerald-500/30"></div>
-                            </div>
+                        <!-- Title -->
+                        <div class="text-center">
+                            <h2 class="text-emerald-400 text-lg sm:text-xl font-black uppercase">Misi Selesai!</h2>
+                            <p class="text-slate-500 text-[10px] mt-1">{{ quest.title }}</p>
                         </div>
 
-                        <!-- Stats Grid -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl px-2">
-                            <div v-if="taskBankType !== 'word_match'" class="pf-side-card pf-bevel-sm border-emerald-500/30 bg-black/50 p-5 relative overflow-hidden">
-                                <div class="absolute inset-0 opacity-5 pointer-events-none" style="background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, #10b981 5px, #10b981 6px);"></div>
-                                <p class="text-[7px] sm:text-[8px] text-emerald-500 uppercase font-black mb-3 tracking-widest flex items-center gap-2">
-                                    <span class="w-1 h-1 bg-emerald-500 animate-ping"></span> PERFORMANCE_EVAL
-                                </p>
+                        <!-- Stats -->
+                        <div class="w-full max-w-xs space-y-3">
+                            <!-- Score -->
+                            <div v-if="existingSubmission.grade" class="border border-slate-700 bg-black/40 p-4 flex items-center justify-between">
+                                <span class="text-[10px] text-slate-400 uppercase font-bold">Skor</span>
+                                <span class="text-white text-2xl font-black">{{ existingSubmission.grade }}%</span>
+                            </div>
+
+                            <!-- Rewards -->
+                            <div class="border border-slate-700 bg-black/40 p-4 space-y-2">
+                                <p class="text-[9px] text-amber-500 uppercase font-bold mb-2">Reward</p>
                                 <div class="flex items-center justify-between">
-                                    <span class="text-4xl sm:text-5xl text-white font-black drop-shadow-[0_0_10px_rgba(16,185,129,0.3)]">{{ existingSubmission.grade || 'A' }}</span>
-                                    <div class="text-right">
-                                        <p class="text-[9px] sm:text-[10px] text-emerald-400 font-bold uppercase tracking-tighter">Status: Optimal</p>
-                                        <p class="text-[7px] sm:text-[8px] text-slate-500 font-mono mt-1 opacity-60">> RANK_VERIFIED</p>
-                                    </div>
+                                    <span class="text-amber-400 font-black text-base">+{{ existingSubmission.earned_gold ?? quest.reward_gold }}</span>
+                                    <span class="text-[9px] text-amber-600 uppercase">Gold</span>
                                 </div>
-                            </div>
-
-                            <div class="pf-side-card pf-bevel-sm border-amber-500/30 bg-black/50 p-5 relative overflow-hidden"
-                                 :class="taskBankType === 'word_match' ? 'sm:col-span-2' : ''">
-                                <div class="absolute inset-0 opacity-5 pointer-events-none" style="background-image: repeating-linear-gradient(-45deg, transparent, transparent 5px, #f59e0b 5px, #f59e0b 6px);"></div>
-                                <p class="text-[7px] sm:text-[8px] text-amber-500 uppercase font-black mb-3 tracking-widest flex items-center gap-2">
-                                    <span class="w-1 h-1 bg-amber-500 rounded-full animate-pulse"></span> BOUNTY_COLLECTED
-                                </p>
-                                <div class="space-y-1">
-                                    <p class="text-lg sm:text-xl text-amber-400 font-black tabular-nums">+{{ existingSubmission.earned_gold ?? quest.reward_gold }} <span class="text-[8px] text-amber-600/80 font-bold uppercase">Gold</span></p>
-                                    <p class="text-lg sm:text-xl text-cyan-400 font-black tabular-nums">+{{ existingSubmission.earned_exp ?? (quest.reward_exp || quest.reward_gold) }} <span class="text-[8px] text-cyan-600/80 font-bold uppercase">Exp</span></p>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-cyan-400 font-black text-base">+{{ existingSubmission.earned_exp ?? (quest.reward_exp || quest.reward_gold) }}</span>
+                                    <span class="text-[9px] text-cyan-600 uppercase">Exp</span>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Action Button -->
-                        <div class="w-full max-w-sm pt-4 flex flex-col items-center gap-4 px-2">
-                            <Link :href="route('submissions.show', existingSubmission.uuid)" 
-                                class="w-full text-center py-4 border-2 border-emerald-500 bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase pf-bevel hover:bg-emerald-500 hover:text-black transition-all shadow-xl relative overflow-hidden group">
-                                <div class="absolute inset-0 bg-white/10 -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
-                                [ ACCESS_MISSION_LOGS ]
-                            </Link>
-                            <p class="text-[6px] sm:text-[8px] text-slate-600 font-mono tracking-widest uppercase text-center">Protocol secure // Archive transmission complete.</p>
-                        </div>
+                        <!-- Action -->
+                        <Link :href="route('submissions.show', existingSubmission.uuid)" 
+                            class="w-full max-w-xs text-center py-3 border border-emerald-500 text-emerald-400 text-[10px] font-bold uppercase hover:bg-emerald-500 hover:text-black transition-all">
+                            Lihat Detail
+                        </Link>
                     </div>
                 </div>
 

@@ -33,15 +33,21 @@ export function useLobby(props) {
         }
 
         swal.fire({
-            title: 'ALASAN_GABUNG_PARTY',
-            text: `Tuliskan alasan kamu ingin bergabung ke ${groupName}.`,
+            title: 'GABUNG GUILD',
+            html: `<div style="text-align:center;margin-bottom:12px;"><img src="https://api.iconify.design/pixelarticons:users.svg" style="width:32px;height:32px;filter:invert(1) sepia(1) saturate(5) hue-rotate(140deg);margin:0 auto 10px;" alt=""><p style="font-family:'Press Start 2P',cursive;font-size:7px;line-height:1.8;color:#94a3b8;text-transform:uppercase;">Tulis alasan kamu ingin bergabung ke <span style="color:#4ed4d4;">${groupName}</span></p></div>`,
             input: 'textarea',
-            inputPlaceholder: 'Tulis alasan singkat...',
+            inputPlaceholder: 'Alasan bergabung...',
             inputAttributes: {
                 maxlength: 500,
             },
             inputClass: 'rpg-alert-textarea',
             customClass: {
+                popup: 'rpg-popup-box rpg-guild-box',
+                title: 'rpg-title',
+                htmlContainer: 'rpg-text',
+                confirmButton: 'btn-pixel-alert btn-confirm-rpg',
+                cancelButton: 'btn-pixel-alert btn-cancel-rpg',
+                actions: 'rpg-actions',
                 validationMessage: 'rpg-alert-validation',
             },
             inputValidator: (value) => {
@@ -53,7 +59,7 @@ export function useLobby(props) {
                 return null;
             },
             showCancelButton: true,
-            confirmButtonText: 'KIRIM_REQUEST',
+            confirmButtonText: 'KIRIM REQUEST',
             cancelButtonText: 'BATAL',
         }).then((result) => {
             if (!result.isConfirmed) return;
