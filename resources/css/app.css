@@ -652,6 +652,40 @@
     gap: 10px !important;
 }
 
+/* --- GUILD JOIN PIXEL BOX --- */
+.rpg-guild-box {
+    border: 4px solid #4ed4d4 !important;
+    box-shadow:
+        8px 8px 0px 0px rgba(0,0,0,0.6),
+        inset 0 0 40px rgba(78,212,212,0.05) !important;
+    position: relative !important;
+}
+
+.rpg-guild-box::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    right: 4px;
+    height: 2px;
+    background: repeating-linear-gradient(90deg, #4ed4d4 0px, #4ed4d4 4px, transparent 4px, transparent 8px);
+    opacity: 0.4;
+}
+
+.rpg-guild-box::after {
+    content: '[ GUILD_REQUEST ]';
+    position: absolute;
+    top: -10px;
+    left: 16px;
+    background: #161b22;
+    padding: 0 8px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 6px;
+    color: #4ed4d4;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
 /* Global custom scrollbar (re-use across admin tables & panels) */
 .custom-scroll {
     scrollbar-width: thin;

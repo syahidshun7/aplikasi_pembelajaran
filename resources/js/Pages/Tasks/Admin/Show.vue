@@ -25,6 +25,11 @@ const form = useForm({
     question_type: 'essay',
     options: ['', ''],
     correct_option_index: null,
+    // Word match fields
+    word_match_blanks: [''],
+    word_match_distractors: [''],
+    // Platforming fields
+    platforming_stages: [{ prompt: '', correct_answer: '', wrong_answers: [''] }],
     weight: 1,
     sort_order: 1,
     is_active: true,
@@ -43,10 +48,10 @@ const importTemplateJson = computed(() => JSON.stringify(props.importTemplate?.s
 const importJsonInputPlaceholder = computed(() => {
     const type = props.taskBank?.assessment_type || 'mixed';
     if (type === 'platforming') {
-        return 'Paste JSON di sini. Contoh: [{"pertanyaan":"...","tipe_soal":"platforming","stages":[{"prompt":"...","correct_answer":"...","wrong_answers":["..."]}]}]';
+        return 'Paste JSON di sini. 1 item = 1 soal.\n[{"pertanyaan":"Ibu kota Indonesia?","tipe_soal":"platforming","stages":[{"prompt":"Ibu kota Indonesia?","correct_answer":"Jakarta","wrong_answers":["Bandung","Surabaya"]}]},{"pertanyaan":"Planet terbesar?","tipe_soal":"platforming","stages":[{"prompt":"Planet terbesar?","correct_answer":"Jupiter","wrong_answers":["Mars","Venus"]}]}]';
     }
     if (type === 'word_match') {
-        return 'Paste JSON di sini. Contoh: [{"pertanyaan":"...","tipe_soal":"word_match","sentence":"... ___ ...","blanks":["..."],"distractors":["..."]}]';
+        return 'Paste JSON di sini. Contoh multi soal:\n[{"pertanyaan":"Kalimat dengan ___ kosong","tipe_soal":"word_match","sentence":"Indonesia merdeka tahun ___","blanks":["1945"],"distractors":["2000","1908"]},{"pertanyaan":"Kalimat kedua ___","tipe_soal":"word_match","sentence":"Ibu kota Indonesia adalah ___","blanks":["Jakarta"],"distractors":["Bandung","Surabaya"]}]';
     }
     if (type === 'game_stage') {
         return 'Paste JSON di sini. Contoh: [{"pertanyaan":"...","tipe_soal":"game_stage","prompt":"...","accepted_answers":["..."],"hint":"...","max_attempts":3}]';
@@ -98,6 +103,18 @@ const startEdit = (row) => {
     if (form.correct_option_index < 0) {
         form.correct_option_index = null;
     }
+
+    if (form.question_type === 'word_match' && row.options_json) {
+        form.word_match_blanks = row.options_json.blanks || [''];
+        form.word_match_distractors = row.options_json.distractors || [''];
+    }
+    if (form.question_type === 'platforming' && row.options_json) {
+        // If it's a platforming task, it might be nested inside an object, check structure
+        form.platforming_stages = (row.options_json.stages || row.options_json) instanceof Array
+            ? (row.options_json.stages || row.options_json)
+            : [{ prompt: '', correct_answer: '', wrong_answers: [''] }];
+    }
+
     form.weight = row.weight || 1;
     form.sort_order = row.sort_order || 1;
     form.is_active = !!row.is_active;
@@ -111,6 +128,9 @@ const cancelEdit = () => {
     form.question_type = 'essay';
     form.options = ['', ''];
     form.correct_option_index = null;
+    form.word_match_blanks = [''];
+    form.word_match_distractors = [''];
+    form.platforming_stages = [{ prompt: '', correct_answer: '', wrong_answers: [''] }];
     form.weight = 1;
     form.sort_order = 1;
     form.is_active = true;
@@ -147,9 +167,38 @@ const submit = () => {
         ? (typeof form.correct_option_index === 'number' ? (normalizedOptions[form.correct_option_index] || '') : '')
         : null;
 
-    const payloadOptions = isGameStage.value || isPlatforming.value || isWordMatch.value
-        ? [String(form.options?.[0] || '').trim()]
-        : cleanedOptions;
+    let payloadOptions = cleanedOptions;
+    if (isWordMatch.value) {
+        const blanks = form.word_match_blanks.filter(b => b.trim() !== '');
+        const underscoreCount = (form.question_text.match(/___/g) || []).length;
+        if (blanks.length === 0) {
+            form.errors.question_text = 'Minimal harus ada 1 blank (jawaban benar).';
+            return;
+        }
+        if (underscoreCount !== blanks.length) {
+            form.errors.question_text = `Jumlah ___ di kalimat (${underscoreCount}) harus sama dengan jumlah blanks (${blanks.length}).`;
+            return;
+        }
+        payloadOptions = [{
+            sentence: form.question_text,
+            blanks,
+            distractors: form.word_match_distractors.filter(d => d.trim() !== '')
+        }];
+    } else if (isPlatforming.value) {
+        const stage = form.platforming_stages[0];
+        if (!stage.prompt.trim() || !stage.correct_answer.trim()) {
+            form.errors.question_text = 'Pertanyaan dan jawaban benar wajib diisi.';
+            return;
+        }
+        const wrongAnswers = stage.wrong_answers.filter(wa => wa.trim() !== '');
+        if (wrongAnswers.length < 1) {
+            form.errors.question_text = 'Minimal 1 pengecoh wajib diisi.';
+            return;
+        }
+        payloadOptions = [{
+            stages: [{ prompt: stage.prompt, correct_answer: stage.correct_answer, wrong_answers: wrongAnswers }]
+        }];
+    }
 
     const payload = {
         question_text: form.question_text,
@@ -374,32 +423,51 @@ const submitImport = () => {
                             </h2>
 
                             <form @submit.prevent="submit" class="space-y-4">
-                                <div>
-                                    <label class="block mb-2 text-white uppercase">QUESTION:</label>
-                                    <textarea v-model="form.question_text" class="w-full bg-black border-2 border-slate-700 p-2 text-[12px] font-sans text-slate-200 focus:border-teal-400 focus:ring-0" style="resize: vertical; min-height: 110px;" required></textarea>
-                                    <p v-if="form.errors.question_text" class="mt-2 text-red-400 text-[8px]">{{ form.errors.question_text }}</p>
+                                <div v-if="!isPlatforming">
+                                    <div>
+                                        <label class="block mb-2 text-white uppercase">{{ isWordMatch ? 'SENTENCE:' : 'QUESTION:' }}</label>
+                                        <textarea v-model="form.question_text" class="w-full bg-black border-2 border-slate-700 p-2 text-[12px] font-sans text-slate-200 focus:border-teal-400 focus:ring-0" style="resize: vertical; min-height: 110px;" :placeholder="isWordMatch ? 'Tulis kalimat dengan ___ sebagai tempat kosong. Contoh: Indonesia merdeka pada tahun ___' : ''" required></textarea>
+                                        <p v-if="isWordMatch" class="mt-1 text-[8px] text-orange-300 uppercase">Gunakan ___ (3 underscore) untuk menandai setiap blank. Jumlah ___ harus sama dengan jumlah BLANKS.</p>
+                                        <p v-if="form.errors.question_text" class="mt-2 text-red-400 text-[8px]">{{ form.errors.question_text }}</p>
+                                    </div>
+
+                                    <div v-if="availableQuestionTypes.length > 1" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block mb-2 text-white uppercase">QUESTION_TYPE:</label>
+                                            <select v-model="form.question_type" class="w-full bg-black border-2 border-slate-700 p-2 text-yellow-300 uppercase outline-none focus:border-yellow-400">
+                                                <option
+                                                    v-for="opt in questionTypeOptions.filter((opt) => availableQuestionTypes.includes(opt.value))"
+                                                    :key="opt.value"
+                                                    :value="opt.value"
+                                                >
+                                                    {{ opt.label }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                        <div v-if="!isWordMatch && !isPlatforming">
+                                            <label class="block mb-2 text-white uppercase">WEIGHT:</label>
+                                            <input v-model.number="form.weight" type="number" min="1" max="100" class="w-full bg-black border-2 border-slate-700 p-2 text-teal-300 outline-none focus:border-teal-400">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-else>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block mb-2 text-white uppercase">QUESTION_TYPE:</label>
+                                            <select v-model="form.question_type" class="w-full bg-black border-2 border-slate-700 p-2 text-yellow-300 uppercase outline-none focus:border-yellow-400">
+                                                <option
+                                                    v-for="opt in questionTypeOptions.filter((opt) => availableQuestionTypes.includes(opt.value))"
+                                                    :key="opt.value"
+                                                    :value="opt.value"
+                                                >
+                                                    {{ opt.label }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="block mb-2 text-white uppercase">QUESTION_TYPE:</label>
-                                        <select v-model="form.question_type" class="w-full bg-black border-2 border-slate-700 p-2 text-yellow-300 uppercase outline-none focus:border-yellow-400">
-                                            <option
-                                                v-for="opt in questionTypeOptions.filter((opt) => availableQuestionTypes.includes(opt.value))"
-                                                :key="opt.value"
-                                                :value="opt.value"
-                                            >
-                                                {{ opt.label }}
-                                            </option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block mb-2 text-white uppercase">WEIGHT:</label>
-                                        <input v-model.number="form.weight" type="number" min="1" max="100" class="w-full bg-black border-2 border-slate-700 p-2 text-teal-300 outline-none focus:border-teal-400">
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div v-if="!isWordMatch && !isPlatforming" class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <div>
                                         <label class="block mb-2 text-white uppercase">SORT_ORDER:</label>
                                         <input v-model.number="form.sort_order" type="number" min="1" class="w-full bg-black border-2 border-slate-700 p-2 text-teal-300 outline-none focus:border-teal-400">
@@ -458,35 +526,46 @@ const submitImport = () => {
                                         Untuk GAME_STAGE, isi JSON config. accepted_answers minimal 1 item.
                                     </p>
                                 </div>
-                                <div v-else-if="isPlatforming">
-                                    <label class="block mb-2 text-white uppercase">PLATFORMING_CONFIG_JSON:</label>
-                                    <textarea
-                                        v-model="form.options[0]"
-                                        class="w-full bg-black border-2 border-slate-700 p-2 text-[12px] font-sans text-slate-200 focus:border-purple-400 focus:ring-0"
-                                        style="resize: vertical; min-height: 180px;"
-                                        placeholder='{"stages":[{"prompt":"Apa ibu kota Indonesia?","correct_answer":"Jakarta","wrong_answers":["Bandung","Surabaya"]}]}'
-                                    ></textarea>
-                                    <p class="mt-2 text-[8px] text-slate-400 uppercase">
-                                        PLATFORMING: JSON dengan array stages. Tiap stage punya prompt, correct_answer, dan wrong_answers (opsional).
-                                    </p>
-                                    <p v-if="form.errors.options" class="mt-2 text-red-400 text-[8px]">{{ form.errors.options }}</p>
-                                    <p v-if="form.errors['options.0']" class="mt-2 text-red-400 text-[8px]">{{ form.errors['options.0'] }}</p>
+                                <div v-else-if="isWordMatch" class="space-y-4">
+                                    <div class="p-4 border-2 border-emerald-800/50 bg-emerald-950/20 rounded">
+                                        <label class="block mb-3 text-emerald-300 uppercase tracking-wider text-[10px] font-bold">BLANKS (Jawaban yang Benar):</label>
+                                        <p class="text-[8px] text-slate-400 mb-3">Isi jawaban untuk setiap ___ di kalimat. Urutan harus sesuai.</p>
+                                        <div v-for="(blank, idx) in form.word_match_blanks" :key="`blank-${idx}`" class="flex items-center gap-2 mb-2">
+                                            <span class="text-[9px] text-emerald-400 w-5">{{ idx + 1 }}.</span>
+                                            <input v-model="form.word_match_blanks[idx]" type="text" class="flex-1 bg-black border-2 border-slate-700 p-2 text-slate-200 focus:border-emerald-400 outline-none text-[12px]" placeholder="Jawaban..." />
+                                            <button type="button" @click="form.word_match_blanks.splice(idx, 1)" :disabled="form.word_match_blanks.length <= 1" class="px-3 py-2 bg-red-900/40 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[10px] disabled:opacity-30 disabled:cursor-not-allowed">X</button>
+                                        </div>
+                                        <button type="button" @click="form.word_match_blanks.push('')" class="text-[10px] text-emerald-300 border border-emerald-700 px-3 py-2 mt-2 hover:bg-emerald-900/50 rounded">+ Tambah Blank</button>
+                                    </div>
+
+                                    <div class="p-4 border-2 border-orange-800/50 bg-orange-950/20 rounded">
+                                        <label class="block mb-3 text-orange-300 uppercase tracking-wider text-[10px] font-bold">DISTRACTORS (Pengecoh):</label>
+                                        <p class="text-[8px] text-slate-400 mb-3">Kata-kata pengecoh yang akan muncul sebagai pilihan tambahan. Opsional.</p>
+                                        <div v-for="(dist, idx) in form.word_match_distractors" :key="`dist-${idx}`" class="flex items-center gap-2 mb-2">
+                                            <span class="text-[9px] text-orange-400 w-5">{{ idx + 1 }}.</span>
+                                            <input v-model="form.word_match_distractors[idx]" type="text" class="flex-1 bg-black border-2 border-slate-700 p-2 text-slate-200 focus:border-orange-400 outline-none text-[12px]" placeholder="Pengecoh..." />
+                                            <button type="button" @click="form.word_match_distractors.splice(idx, 1)" class="px-3 py-2 bg-red-900/40 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[10px]">X</button>
+                                        </div>
+                                        <button type="button" @click="form.word_match_distractors.push('')" class="text-[10px] text-orange-300 border border-orange-700 px-3 py-2 mt-2 hover:bg-orange-900/50 rounded">+ Tambah Pengecoh</button>
+                                    </div>
                                 </div>
-                                <div v-else-if="isWordMatch">
-                                    <label class="block mb-2 text-white uppercase">WORD_MATCH_CONFIG_JSON:</label>
-                                    <textarea
-                                        v-model="form.options[0]"
-                                        class="w-full bg-black border-2 border-slate-700 p-2 text-[12px] font-sans text-slate-200 focus:border-orange-400 focus:ring-0"
-                                        style="resize: vertical; min-height: 180px;"
-                                        placeholder='{"sentence":"Indonesia merdeka pada tanggal ___ Agustus ___","blanks":["17","1945"],"distractors":["20","2000"]}'
-                                    ></textarea>
-                                    <p class="mt-2 text-[8px] text-slate-400 uppercase">
-                                        WORD_MATCH: JSON dengan sentence (gunakan ___ untuk blank), blanks (jawaban benar), dan distractors (pengecoh opsional).
-                                    </p>
-                                    <p v-if="form.errors.options" class="mt-2 text-red-400 text-[8px]">{{ form.errors.options }}</p>
-                                    <p v-if="form.errors['options.0']" class="mt-2 text-red-400 text-[8px]">{{ form.errors['options.0'] }}</p>
-                                </div>
-                                <p v-if="form.errors.answer_key" class="mt-2 text-red-400 text-[8px]">{{ form.errors.answer_key }}</p>
+                                <div v-if="form.question_type === 'platforming'" class="space-y-4">
+                                    <div class="p-4 border-2 border-purple-800/50 bg-purple-950/20 rounded">
+                                        <label class="block mb-3 text-purple-300 uppercase tracking-wider text-[10px] font-bold">PERTANYAAN (Prompt):</label>
+                                        <input v-model="form.platforming_stages[0].prompt" placeholder="Tulis pertanyaan..." class="w-full bg-black p-2 mb-3 border-2 border-slate-700 text-slate-200 focus:border-purple-400 outline-none text-[12px]" required />
+
+                                        <label class="block mb-2 text-emerald-300 uppercase tracking-wider text-[10px] font-bold">JAWABAN BENAR:</label>
+                                        <input v-model="form.platforming_stages[0].correct_answer" placeholder="Jawaban benar..." class="w-full bg-black p-2 mb-3 border-2 border-emerald-700 text-emerald-200 focus:border-emerald-400 outline-none text-[12px]" required />
+
+                                        <label class="block mb-2 text-orange-300 uppercase tracking-wider text-[10px] font-bold">PENGECOH:</label>
+                                        <div v-for="(wa, waIdx) in form.platforming_stages[0].wrong_answers" :key="`wa-${waIdx}`" class="flex items-center gap-2 mb-2">
+                                            <span class="text-[9px] text-orange-400 w-5">{{ waIdx + 1 }}.</span>
+                                            <input v-model="form.platforming_stages[0].wrong_answers[waIdx]" placeholder="Pengecoh..." class="flex-1 bg-black p-2 border-2 border-slate-700 text-slate-200 focus:border-orange-400 outline-none text-[12px]" />
+                                            <button type="button" @click="form.platforming_stages[0].wrong_answers.splice(waIdx, 1)" :disabled="form.platforming_stages[0].wrong_answers.length <= 1" class="px-3 py-2 bg-red-900/40 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[10px] disabled:opacity-30 disabled:cursor-not-allowed">X</button>
+                                        </div>
+                                        <button type="button" @click="form.platforming_stages[0].wrong_answers.push('')" class="text-[10px] text-orange-300 border border-orange-700 px-3 py-2 mt-2 hover:bg-orange-900/50 rounded">+ Tambah Pengecoh</button>
+                                    </div>
+                                </div>                                <p v-if="form.errors.answer_key" class="mt-2 text-red-400 text-[8px]">{{ form.errors.answer_key }}</p>
 
                                 <div class="flex gap-2">
                                     <button type="submit" class="flex-1 py-3 border-2 border-teal-400 text-teal-300 hover:bg-teal-400 hover:text-black uppercase font-bold transition-all">{{ isEditing ? 'UPDATE' : 'CREATE' }}</button>
@@ -515,8 +594,8 @@ const submitImport = () => {
                                         <p class="text-[12px] font-sans text-slate-200 mt-2 break-words">{{ task.question_text }}</p>
                                         <div class="mt-2 flex flex-wrap gap-2 items-center">
                                             <span class="px-2 py-1 border text-[8px] uppercase" :class="typeClass(task.question_type)">{{ task.question_type }}</span>
-                                            <span class="text-[8px] text-yellow-400">W: {{ task.weight }}</span>
-                                            <span class="text-[8px] text-teal-300">SORT: {{ task.sort_order }}</span>
+                                            <span v-if="task.question_type !== 'platforming' && task.question_type !== 'word_match'" class="text-[8px] text-yellow-400">W: {{ task.weight }}</span>
+                                            <span v-if="task.question_type !== 'platforming' && task.question_type !== 'word_match'" class="text-[8px] text-teal-300">SORT: {{ task.sort_order }}</span>
                                             <span :class="task.is_active ? 'text-emerald-400' : 'text-red-400'" class="text-[8px]">{{ task.is_active ? 'ACTIVE' : 'INACTIVE' }}</span>
                                         </div>
                                         <div v-if="task.question_type === 'multiple_choice' && Array.isArray(task.options_json)" class="mt-2 text-[8px] text-slate-400 font-sans">

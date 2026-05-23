@@ -168,10 +168,9 @@ class AdminTaskBankController extends Controller
         $this->assertMentorCanAccessTaskBank($taskBank);
 
         $validated = $request->validate([
-            'question_text' => ['required', 'string'],
+            'question_text' => ['nullable', 'string'],
             'question_type' => ['required', Rule::in(['essay', 'multiple_choice', 'game_stage', 'platforming', 'word_match'])],
             'options' => ['nullable', 'array'],
-            'options.*' => ['nullable', 'string'],
             'answer_key' => ['nullable', 'string', 'max:255'],
             'weight' => ['required', 'integer', 'min:1', 'max:100'],
             'sort_order' => ['nullable', 'integer', 'min:1'],
@@ -180,9 +179,37 @@ class AdminTaskBankController extends Controller
 
         $this->assertQuestionTypeAllowedForTaskBank($validated['question_type'], $taskBank, 'question_type');
 
-        $payload = $this->normalizeQuestionPayload($validated);
-
-        $taskBank->questions()->create($payload);
+        if ($validated['question_type'] === 'platforming') {
+            $stagesRaw = $validated['options'] ?? [];
+            if (empty($stagesRaw)) {
+                throw ValidationException::withMessages(['options' => 'Platforming wajib punya 1 stage.']);
+            }
+            $config = $stagesRaw[0];
+            $stages = $config['stages'] ?? [];
+            if (count($stages) !== 1) {
+                throw ValidationException::withMessages(['options' => 'Setiap task platforming hanya boleh 1 stage.']);
+            }
+            $stage = $stages[0];
+            if (empty($stage['prompt']) || empty($stage['correct_answer'])) {
+                throw ValidationException::withMessages(['options' => 'Stage wajib punya prompt dan correct_answer.']);
+            }
+            if (empty($stage['wrong_answers']) || !is_array($stage['wrong_answers'])) {
+                throw ValidationException::withMessages(['options' => 'Stage wajib punya minimal 1 pengecoh.']);
+            }
+            $payload = [
+                'question_text' => $stage['prompt'],
+                'question_type' => 'platforming',
+                'options_json' => ['stages' => [$stage]],
+                'answer_key' => null,
+                'weight' => 1,
+                'sort_order' => (int) ($validated['sort_order'] ?? 1),
+                'is_active' => true,
+            ];
+            $taskBank->questions()->create($payload);
+        } else {
+            $payload = $this->normalizeQuestionPayload($validated);
+            $taskBank->questions()->create($payload);
+        }
 
         return back()->with('message', 'TASK_CREATED');
     }
@@ -323,10 +350,9 @@ class AdminTaskBankController extends Controller
         }
 
         $validated = $request->validate([
-            'question_text' => ['required', 'string'],
+            'question_text' => ['nullable', 'string'],
             'question_type' => ['required', Rule::in(['essay', 'multiple_choice', 'game_stage', 'platforming', 'word_match'])],
             'options' => ['nullable', 'array'],
-            'options.*' => ['nullable', 'string'],
             'answer_key' => ['nullable', 'string', 'max:255'],
             'weight' => ['required', 'integer', 'min:1', 'max:100'],
             'sort_order' => ['nullable', 'integer', 'min:1'],
@@ -359,10 +385,7 @@ class AdminTaskBankController extends Controller
     {
         $questionType = $validated['question_type'];
 
-        $options = array_values(array_filter(
-            $validated['options'] ?? [],
-            fn ($value) => trim((string) $value) !== ''
-        ));
+        $options = $validated['options'] ?? [];
 
         if ($questionType === 'multiple_choice') {
             if (count($options) < 2) {
@@ -425,82 +448,19 @@ class AdminTaskBankController extends Controller
                 'max_attempts' => (int) $maxAttempts,
             ];
             $validated['answer_key'] = (string) $decoded['accepted_answers'][0];
-        } elseif ($questionType === 'platforming') {
-            $configRaw = trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', (string) ($validated['options'][0] ?? '')));
-            $decoded = json_decode($configRaw, true);
-            if (! is_array($decoded)) {
-                throw ValidationException::withMessages([
-                    'options' => 'Untuk platforming, isi opsi pertama dengan JSON konfigurasi yang valid.',
-                ]);
-            }
-
-            $stages = $decoded['stages'] ?? [];
-            if (! is_array($stages) || count($stages) < 1) {
-                throw ValidationException::withMessages([
-                    'options' => 'Konfigurasi platforming wajib punya stages minimal satu.',
-                ]);
-            }
-
-            $normalizedStages = [];
-            foreach ($stages as $i => $stage) {
-                if (! is_array($stage)) {
-                    throw ValidationException::withMessages([
-                        'options' => "Stage #" . ($i + 1) . " harus berupa object JSON.",
-                    ]);
-                }
-
-                $prompt = trim((string) ($stage['prompt'] ?? ''));
-                $correctAnswer = trim((string) ($stage['correct_answer'] ?? ''));
-                if ($prompt === '' || $correctAnswer === '') {
-                    throw ValidationException::withMessages([
-                        'options' => "Stage #" . ($i + 1) . " wajib punya prompt dan correct_answer.",
-                    ]);
-                }
-
-                $wrongAnswersRaw = $stage['wrong_answers'] ?? [];
-                if (! is_array($wrongAnswersRaw)) {
-                    throw ValidationException::withMessages([
-                        'options' => "Stage #" . ($i + 1) . ": wrong_answers harus array string.",
-                    ]);
-                }
-
-                $wrongAnswers = collect($wrongAnswersRaw)
-                    ->map(fn ($value) => trim((string) $value))
-                    ->filter(fn ($value) => $value !== '')
-                    ->values()
-                    ->all();
-
-                if (in_array($correctAnswer, $wrongAnswers, true)) {
-                    throw ValidationException::withMessages([
-                        'options' => "Stage #" . ($i + 1) . ": correct_answer tidak boleh sama dengan wrong_answers.",
-                    ]);
-                }
-
-                $normalizedStages[] = [
-                    'prompt' => $prompt,
-                    'correct_answer' => $correctAnswer,
-                    'wrong_answers' => $wrongAnswers,
-                ];
-            }
-
-            $options = [
-                'stages' => $normalizedStages,
-            ];
-            $validated['answer_key'] = null;
         } elseif ($questionType === 'word_match') {
-            $configRaw = trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', (string) ($validated['options'][0] ?? '')));
-            $decoded = json_decode($configRaw, true);
-            if (! is_array($decoded)) {
+            $configRaw = $validated['options'] ?? [];
+            if (empty($configRaw)) {
                 throw ValidationException::withMessages([
-                    'options' => 'Untuk word_match, isi opsi pertama dengan JSON konfigurasi yang valid.',
+                    'options' => 'Word match konfigurasi tidak lengkap.',
                 ]);
             }
-
-            $sentence = $decoded['sentence'] ?? '';
-            $blanks = $decoded['blanks'] ?? [];
+            $config = $configRaw[0];
+            $sentence = $config['sentence'] ?? '';
+            $blanks = $config['blanks'] ?? [];
             if (trim((string) $sentence) === '' || ! is_array($blanks) || count($blanks) < 1) {
                 throw ValidationException::withMessages([
-                    'options' => 'Konfigurasi word_match wajib punya sentence dan blanks minimal satu.',
+                    'options' => 'Word match wajib punya sentence dan blanks minimal satu.',
                 ]);
             }
 
@@ -510,27 +470,8 @@ class AdminTaskBankController extends Controller
                 ->values()
                 ->all();
 
-            if ($normalizedBlanks === []) {
-                throw ValidationException::withMessages([
-                    'options' => 'blanks tidak boleh kosong.',
-                ]);
-            }
-
-            $placeholderCount = substr_count((string) $sentence, '___');
-            if ($placeholderCount > 0 && $placeholderCount !== count($normalizedBlanks)) {
-                throw ValidationException::withMessages([
-                    'options' => 'Jumlah placeholder `___` pada sentence harus sama dengan jumlah item blanks.',
-                ]);
-            }
-
-            $distractorsRaw = $decoded['distractors'] ?? [];
-            if (! is_array($distractorsRaw)) {
-                throw ValidationException::withMessages([
-                    'options' => 'distractors harus berupa array string.',
-                ]);
-            }
-
-            $normalizedDistractors = collect($distractorsRaw)
+            $distractorsRaw = $config['distractors'] ?? [];
+            $normalizedDistractors = collect(is_array($distractorsRaw) ? $distractorsRaw : [])
                 ->map(fn ($value) => trim((string) $value))
                 ->filter(fn ($value) => $value !== '')
                 ->values()
@@ -541,6 +482,25 @@ class AdminTaskBankController extends Controller
                 'blanks' => $normalizedBlanks,
                 'distractors' => $normalizedDistractors,
             ];
+            $validated['answer_key'] = null;
+        } elseif ($questionType === 'platforming') {
+            $stagesRaw = $validated['options'] ?? [];
+            if (empty($stagesRaw)) {
+                throw ValidationException::withMessages(['options' => 'Platforming wajib punya 1 stage.']);
+            }
+            $config = $stagesRaw[0];
+            $stages = $config['stages'] ?? [];
+            if (count($stages) !== 1) {
+                throw ValidationException::withMessages(['options' => 'Setiap task platforming hanya boleh 1 stage.']);
+            }
+            $stage = $stages[0];
+            if (empty($stage['prompt']) || empty($stage['correct_answer'])) {
+                throw ValidationException::withMessages(['options' => 'Stage wajib punya prompt dan correct_answer.']);
+            }
+            if (empty($stage['wrong_answers']) || !is_array($stage['wrong_answers'])) {
+                throw ValidationException::withMessages(['options' => 'Stage wajib punya minimal 1 pengecoh.']);
+            }
+            $options = ['stages' => [$stage]];
             $validated['answer_key'] = null;
         } else {
             $options = [];
@@ -554,7 +514,7 @@ class AdminTaskBankController extends Controller
                 ? $options
                 : (! empty($options) ? $options : null),
             'answer_key' => $validated['answer_key'] ?? null,
-            'weight' => (int) $validated['weight'],
+            'weight' => in_array($questionType, ['platforming', 'word_match']) ? 1 : (int) $validated['weight'],
             'sort_order' => (int) ($validated['sort_order'] ?? 1),
             'is_active' => (bool) $validated['is_active'],
         ];
@@ -771,21 +731,26 @@ class AdminTaskBankController extends Controller
     private function normalizeImportedPlatformingData(array $row, int $humanIndex): array
     {
         $stages = $row['stages'] ?? [];
-        if (! is_array($stages) || count($stages) < 1) {
+        if (! is_array($stages) || count($stages) !== 1) {
             throw ValidationException::withMessages([
-                'import_file' => "Soal #{$humanIndex}: platforming wajib punya `stages` minimal satu.",
+                'import_file' => "Soal #{$humanIndex}: platforming harus punya tepat 1 stage. Untuk multi soal, buat item JSON terpisah.",
             ]);
         }
 
-        foreach ($stages as $i => $stage) {
-            if (empty($stage['prompt']) || empty($stage['correct_answer'])) {
-                throw ValidationException::withMessages([
-                    'import_file' => "Soal #{$humanIndex}: stage #" . ($i + 1) . " wajib punya prompt dan correct_answer.",
-                ]);
-            }
+        $stage = $stages[0];
+        if (empty($stage['prompt']) || empty($stage['correct_answer'])) {
+            throw ValidationException::withMessages([
+                'import_file' => "Soal #{$humanIndex}: stage wajib punya prompt dan correct_answer.",
+            ]);
         }
 
-        return ['stages' => $stages];
+        if (empty($stage['wrong_answers']) || ! is_array($stage['wrong_answers'])) {
+            throw ValidationException::withMessages([
+                'import_file' => "Soal #{$humanIndex}: stage wajib punya wrong_answers minimal satu.",
+            ]);
+        }
+
+        return ['stages' => [$stage]];
     }
 
     private function normalizeImportedWordMatchData(array $row, int $humanIndex): array
@@ -796,6 +761,13 @@ class AdminTaskBankController extends Controller
         if ($sentence === '' || ! is_array($blanks) || count($blanks) < 1) {
             throw ValidationException::withMessages([
                 'import_file' => "Soal #{$humanIndex}: word_match wajib punya `sentence` dan `blanks` minimal satu.",
+            ]);
+        }
+
+        $underscoreCount = substr_count($sentence, '___');
+        if ($underscoreCount !== count($blanks)) {
+            throw ValidationException::withMessages([
+                'import_file' => "Soal #{$humanIndex}: jumlah ___ di sentence ({$underscoreCount}) harus sama dengan jumlah blanks (" . count($blanks) . ").",
             ]);
         }
 
@@ -901,37 +873,50 @@ class AdminTaskBankController extends Controller
                 'urutan' => 1,
                 'is_active' => true,
             ]],
-            'platforming' => [[
-                'pertanyaan' => 'Selesaikan stage platforming dasar.',
-                'tipe_soal' => 'platforming',
-                'stages' => [
-                    [
-                        'prompt' => 'Apa ibu kota Indonesia?',
-                        'correct_answer' => 'Jakarta',
-                        'wrong_answers' => ['Bandung', 'Surabaya', 'Medan'],
+            'platforming' => [
+                [
+                    'pertanyaan' => 'Apa ibu kota Indonesia?',
+                    'tipe_soal' => 'platforming',
+                    'stages' => [
+                        [
+                            'prompt' => 'Apa ibu kota Indonesia?',
+                            'correct_answer' => 'Jakarta',
+                            'wrong_answers' => ['Bandung', 'Surabaya', 'Medan'],
+                        ],
                     ],
-                    [
-                        'prompt' => 'Planet terbesar di tata surya?',
-                        'correct_answer' => 'Jupiter',
-                        'wrong_answers' => ['Mars', 'Venus', 'Saturnus'],
-                    ],
+                    'urutan' => 1,
                 ],
-                'kategori' => 'Mixed',
-                'bobot' => 2,
-                'urutan' => 1,
-                'is_active' => true,
-            ]],
-            'word_match' => [[
-                'pertanyaan' => 'Temukan kata kunci sejarah pada kalimat.',
-                'tipe_soal' => 'word_match',
-                'sentence' => 'Indonesia merdeka pada tanggal ___ Agustus ___.',
-                'blanks' => ['17', '1945'],
-                'distractors' => ['20', '2000', '1908'],
-                'kategori' => 'Sejarah',
-                'bobot' => 2,
-                'urutan' => 1,
-                'is_active' => true,
-            ]],
+                [
+                    'pertanyaan' => 'Planet terbesar di tata surya?',
+                    'tipe_soal' => 'platforming',
+                    'stages' => [
+                        [
+                            'prompt' => 'Planet terbesar di tata surya?',
+                            'correct_answer' => 'Jupiter',
+                            'wrong_answers' => ['Mars', 'Venus', 'Saturnus'],
+                        ],
+                    ],
+                    'urutan' => 2,
+                ],
+            ],
+            'word_match' => [
+                [
+                    'pertanyaan' => 'Indonesia merdeka pada tanggal ___ Agustus ___.',
+                    'tipe_soal' => 'word_match',
+                    'sentence' => 'Indonesia merdeka pada tanggal ___ Agustus ___.',
+                    'blanks' => ['17', '1945'],
+                    'distractors' => ['20', '2000', '1908'],
+                    'urutan' => 1,
+                ],
+                [
+                    'pertanyaan' => 'Pancasila memiliki ___ sila.',
+                    'tipe_soal' => 'word_match',
+                    'sentence' => 'Pancasila memiliki ___ sila.',
+                    'blanks' => ['lima'],
+                    'distractors' => ['empat', 'enam', 'tiga'],
+                    'urutan' => 2,
+                ],
+            ],
         ];
 
         if (isset($templates[$assessmentType])) {
