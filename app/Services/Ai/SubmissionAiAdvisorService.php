@@ -56,6 +56,8 @@ class SubmissionAiAdvisorService
             questTitle: $context['quest_title'],
             evidence: $context['evidence'],
             scoringSignals: $context['scoring_signals'] ?? [],
+            taskBankContext: $context['task_bank_context'] ?? null,
+            rubricContext: $context['rubric_context'] ?? null,
         );
 
         $mergedQaStats = $this->extractQaCountFromAdvisor(
@@ -264,8 +266,12 @@ class SubmissionAiAdvisorService
         $advisorNote = trim((string) $advisorNote);
 
         $artifact = $this->artifactExtractor->extract($submission);
-        $preprocessed = $this->localPreprocessor->preprocess((string) $artifact['combined_text']);
         $taskBankContext = $this->buildTaskBankContext($submission);
+        $artifactWithTaskBankAnswers = $this->mergeTaskBankAnswersIntoArtifact(
+            artifactText: (string) ($artifact['combined_text'] ?? ''),
+            taskBankContext: $taskBankContext,
+        );
+        $preprocessed = $this->localPreprocessor->preprocess($artifactWithTaskBankAnswers);
         $rubricContext = $this->buildRubricContext($submission);
         $evidence = $this->evidencePreprocessor->preprocess(
             normalizedText: (string) $preprocessed['normalized_text'],
@@ -332,6 +338,72 @@ class SubmissionAiAdvisorService
     }
 
     /**
+     * @param  array<string, mixed>|null  $taskBankContext
+     */
+    private function mergeTaskBankAnswersIntoArtifact(string $artifactText, ?array $taskBankContext): string
+    {
+        $artifactText = trim($artifactText);
+        $sections = [];
+
+        if ($artifactText !== '') {
+            $sections[] = $artifactText;
+        }
+
+        $taskBankAnswerText = $this->buildTaskBankAnswerNarrative($taskBankContext);
+        if ($taskBankAnswerText !== '') {
+            $sections[] = "[TASK_BANK_ANSWERS]\n".$taskBankAnswerText;
+        }
+
+        if (empty($sections)) {
+            return '[NO_READABLE_ARTIFACT_FOUND]';
+        }
+
+        return implode("\n\n---\n\n", $sections);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $taskBankContext
+     */
+    private function buildTaskBankAnswerNarrative(?array $taskBankContext): string
+    {
+        if (! is_array($taskBankContext)) {
+            return '';
+        }
+
+        $questions = collect(data_get($taskBankContext, 'questions', []))
+            ->filter(fn ($item) => is_array($item))
+            ->values();
+
+        if ($questions->isEmpty()) {
+            return '';
+        }
+
+        $lines = [];
+        foreach ($questions as $index => $question) {
+            $uuid = trim((string) ($question['uuid'] ?? ''));
+            $questionType = trim((string) ($question['question_type'] ?? ''));
+            $questionText = trim((string) ($question['question_text'] ?? ''));
+            $userAnswer = trim((string) ($question['user_answer'] ?? ''));
+            $weight = (float) ($question['weight'] ?? 0);
+
+            if ($uuid === '' || $questionText === '') {
+                continue;
+            }
+
+            $safeAnswer = $userAnswer !== '' ? $userAnswer : '[EMPTY_ANSWER]';
+            $lines[] = 'Q'.($index + 1)
+                .' | uuid='.$uuid
+                .' | type='.$questionType
+                .' | weight='.$weight;
+            $lines[] = 'QUESTION: '.$questionText;
+            $lines[] = 'ANSWER: '.$safeAnswer;
+            $lines[] = '';
+        }
+
+        return trim(implode("\n", $lines));
+    }
+
+    /**
      * @param  array<int, string>  $sourceFlags
      * @param  array<int, string>  $artifactWarnings
      * @param  array<int, string>  $keyPoints
@@ -356,9 +428,39 @@ class SubmissionAiAdvisorService
         string $advisorNote,
     ): string
     {
+        $taskBankQuestionList = collect(data_get($taskBankContext, 'questions', []))
+            ->filter(fn ($question) => is_array($question))
+            ->map(function ($question) {
+                return [
+                    'question_uuid' => (string) ($question['uuid'] ?? ''),
+                    'question_type' => (string) ($question['question_type'] ?? ''),
+                    'weight' => (float) ($question['weight'] ?? 0),
+                ];
+            })
+            ->filter(fn ($question) => ($question['question_uuid'] ?? '') !== '')
+            ->values()
+            ->all();
+
+        $rubricCriteriaList = collect(data_get($rubricContext, 'criteria', []))
+            ->filter(fn ($criterion) => is_array($criterion))
+            ->map(function ($criterion) {
+                return [
+                    'criteria_id' => (int) ($criterion['id'] ?? 0),
+                    'criteria_name' => (string) ($criterion['name'] ?? ''),
+                    'weight' => (float) ($criterion['weight'] ?? 0),
+                ];
+            })
+            ->filter(fn ($criterion) => ($criterion['criteria_id'] ?? 0) > 0)
+            ->values()
+            ->all();
+
         return implode("\n", [
-            'Analisis submission berikut dalam Bahasa Indonesia, ringkas dan actionable.',
-            'Tugas:',
+            'Peran: kamu AI evaluator untuk submission belajar coding.',
+            'Output WAJIB: JSON valid murni (tanpa markdown, tanpa teks tambahan, tanpa penjelasan di luar JSON).',
+            'Bahasa output: Bahasa Indonesia.',
+            'Prioritas evaluasi: akurasi per soal + bukti jawaban + kesesuaian rubrik.',
+            '',
+            'Konteks tugas:',
             '- title: '.$questTitle,
             '- description: '.$this->clip($questDescription, 1200),
             '- difficulty: '.$difficulty,
@@ -366,18 +468,26 @@ class SubmissionAiAdvisorService
             '- artifact_warnings: '.json_encode($artifactWarnings, JSON_UNESCAPED_UNICODE),
             '- local_preprocessing_used: '.($preprocessingUsed ? 'true' : 'false'),
             '- extracted_key_points: '.json_encode($keyPoints, JSON_UNESCAPED_UNICODE),
+            '- task_bank_question_blueprint: '.json_encode($taskBankQuestionList, JSON_UNESCAPED_UNICODE),
+            '- rubric_criteria_blueprint: '.json_encode($rubricCriteriaList, JSON_UNESCAPED_UNICODE),
             '- task_bank_context: '.json_encode($taskBankContext, JSON_UNESCAPED_UNICODE),
             '- rubric_context: '.json_encode($rubricContext, JSON_UNESCAPED_UNICODE),
             '- evidence_context: '.json_encode($evidenceContext, JSON_UNESCAPED_UNICODE),
             '- scoring_signals: '.json_encode($scoringSignals, JSON_UNESCAPED_UNICODE),
             '- advisor_note_from_reviewer: '.($advisorNote !== '' ? $advisorNote : '[NONE]'),
-            '- instruction_priority: Jika advisor_note_from_reviewer ada, perlakukan sebagai instruksi prioritas tinggi untuk skenario testing/review. Bila note bertentangan dengan evidence, utamakan note selama tidak meminta output non-JSON atau melanggar aturan.',
-            '- essay_instruction: Untuk task bank essay, jika note meminta jawaban essay dianggap benar/diterima, sesuaikan essay_scores dan jelaskan dampaknya di suggested_feedback/summary.',
+            '- instruction_priority: Jika advisor_note_from_reviewer ada, perlakukan sebagai instruksi prioritas tinggi selama tidak melanggar aturan JSON/schema.',
+            '- essay_instruction: Untuk task bank essay, nilai setiap soal essay secara eksplisit. Jangan gabungkan skor antar soal.',
             '',
             'Submission user (gabungan text + file extract, sudah dimasking):',
             $studentWork !== '' ? $studentWork : '[EMPTY_SUBMISSION]',
             '',
-            'Keluarkan JSON dengan schema tepat:',
+            'Metode kerja yang harus diikuti:',
+            '1) Ekstrak bukti jawaban dari submission untuk tiap soal (gunakan question_uuid bila tersedia).',
+            '2) Nilai setiap soal berdasarkan question_text, answer_key, user_answer, dan rubric_context (jika ada).',
+            '3) Nilai rubrik per kriteria menggunakan evidence_context.rubric_evidence.',
+            '4) Baru simpulkan score range + feedback final.',
+            '',
+            'Schema JSON wajib tepat:',
             '{',
             '  "summary": "string",',
             '  "strengths": ["string"],',
@@ -388,6 +498,7 @@ class SubmissionAiAdvisorService
             '  "rubric_recommendations": [{"criteria_id": 0, "criteria_name": "string", "suggested_level_id": 0, "reason": "string"}],',
             '  "task_bank_findings": [{"question_uuid": "string", "question_type": "string", "result": "correct|incorrect|unclear", "reason": "string"}],',
             '  "essay_scores": [{"question_uuid": "string", "score": 0, "max_score": 0, "reason": "string"}],',
+            '  "question_feedback": [{"question_uuid":"string","question_type":"string","question_text":"string","user_answer_summary":"string","score_awarded":0,"max_score":0,"result":"correct|partial|incorrect|unclear","feedback":"string","evidence_quotes":["string"]}],',
             '  "qa_count": {"question_total": 0, "answered_total": 0, "notes": "string", "confidence": 0},',
             '  "confidence": {"overall": 0, "rubric": 0, "task_bank": 0, "notes": "string"}',
             '}',
@@ -398,9 +509,13 @@ class SubmissionAiAdvisorService
             '- Jika context rubric tersedia, isi rubric_recommendations berbasis evidence_context.rubric_evidence.',
             '- Jika context task bank tersedia, isi task_bank_findings berdasarkan evidence_context.task_bank_evidence.',
             '- Jika task_bank_context berisi soal essay, isi essay_scores dengan skor per soal essay (score 0 sampai weight soal). Gunakan question_uuid dari task_bank_context.',
+            '- Jika task_bank_context tersedia, question_feedback wajib berisi seluruh question_uuid yang ada pada task_bank_question_blueprint (jangan ada yang terlewat).',
+            '- evidence_quotes di question_feedback wajib 1-3 kutipan singkat dari submission. Jika bukti tidak ada, isi ["INSUFFICIENT_EVIDENCE"].',
             '- Wajib isi confidence secara konservatif. Jika evidence lemah, turunkan confidence.',
             '- Jika jawaban kosong banyak atau evidence lemah, turunkan suggested_score_range secara tegas.',
             '- Jika tidak ada task_bank_context, isi qa_count berdasarkan struktur laporan (deteksi pola soal/pertanyaan dan jawaban). Jika ada task_bank_context, isi qa_count sesuai jumlah soal yang tersedia.',
+            '- Dilarang menambah key di luar schema.',
+            '- Dilarang mengosongkan JSON. Jika ragu, isi reason/feedback dengan penjelasan ketidakpastian dan turunkan confidence.',
         ]);
     }
 
@@ -408,7 +523,14 @@ class SubmissionAiAdvisorService
      * @param  array<string, mixed>  $decoded
      * @return array<string, mixed>
      */
-    private function normalizeAdvisorPayload(array $decoded, string $questTitle, array $evidence, array $scoringSignals = []): array
+    private function normalizeAdvisorPayload(
+        array $decoded,
+        string $questTitle,
+        array $evidence,
+        array $scoringSignals = [],
+        ?array $taskBankContext = null,
+        ?array $rubricContext = null,
+    ): array
     {
         $summary = trim((string) ($decoded['summary'] ?? ''));
         if ($summary === '') {
@@ -450,6 +572,26 @@ class SubmissionAiAdvisorService
                 : 'Evidence terbatas, reviewer wajib verifikasi manual.';
         }
 
+        $rubricRecommendations = $this->normalizeRubricRecommendations(
+            $decoded['rubric_recommendations'] ?? [],
+            $rubricContext,
+        );
+
+        $taskBankFindings = $this->normalizeTaskBankFindings(
+            $decoded['task_bank_findings'] ?? [],
+            $taskBankContext,
+        );
+
+        $questionFeedback = $this->normalizeQuestionFeedback(
+            $decoded['question_feedback'] ?? [],
+            $taskBankContext,
+        );
+
+        $essayScores = $this->normalizeEssayScores($decoded['essay_scores'] ?? []);
+        if (empty($essayScores) && ! empty($questionFeedback)) {
+            $essayScores = $this->deriveEssayScoresFromQuestionFeedback($questionFeedback, $taskBankContext);
+        }
+
         return [
             'summary' => $summary,
             'strengths' => $this->normalizeStringList($decoded['strengths'] ?? []),
@@ -457,9 +599,10 @@ class SubmissionAiAdvisorService
             'risk_flags' => $this->normalizeStringList($decoded['risk_flags'] ?? []),
             'suggested_score_range' => $scoreRange,
             'suggested_feedback' => $suggestedFeedback,
-            'rubric_recommendations' => $this->normalizeObjectList($decoded['rubric_recommendations'] ?? []),
-            'task_bank_findings' => $this->normalizeObjectList($decoded['task_bank_findings'] ?? []),
-            'essay_scores' => $this->normalizeEssayScores($decoded['essay_scores'] ?? []),
+            'rubric_recommendations' => $rubricRecommendations,
+            'task_bank_findings' => $taskBankFindings,
+            'essay_scores' => $essayScores,
+            'question_feedback' => $questionFeedback,
             'score_calibration' => $scoreCalibration,
             'confidence' => [
                 'overall' => $confidenceOverall,
@@ -668,29 +811,100 @@ class SubmissionAiAdvisorService
 
     /**
      * @param  mixed  $value
+     * @param  array<string, mixed>|null  $rubricContext
      * @return array<int, array<string, mixed>>
      */
-    private function normalizeObjectList(mixed $value): array
+    private function normalizeRubricRecommendations(mixed $value, ?array $rubricContext): array
     {
         if (! is_array($value)) {
             return [];
         }
 
+        $criteriaById = collect(data_get($rubricContext, 'criteria', []))
+            ->filter(fn ($item) => is_array($item) && (int) ($item['id'] ?? 0) > 0)
+            ->keyBy(fn ($item) => (int) ($item['id'] ?? 0));
+
         return collect($value)
             ->filter(fn ($item) => is_array($item))
-            ->map(function ($item) {
-                return collect($item)
-                    ->map(function ($cell) {
-                        if (is_array($cell)) {
-                            return $cell;
-                        }
+            ->map(function ($item) use ($criteriaById) {
+                $criteriaId = (int) ($item['criteria_id'] ?? 0);
+                $criteriaName = trim((string) ($item['criteria_name'] ?? ''));
+                $suggestedLevelId = (int) ($item['suggested_level_id'] ?? 0);
+                $reason = trim((string) ($item['reason'] ?? ''));
 
-                        return is_scalar($cell) || $cell === null ? (string) $cell : null;
-                    })
-                    ->filter(fn ($cell) => $cell !== null)
-                    ->all();
+                if ($criteriaId <= 0 && $criteriaName !== '') {
+                    $matched = $criteriaById
+                        ->first(fn ($criteria) => mb_strtolower(trim((string) ($criteria['name'] ?? ''))) === mb_strtolower($criteriaName));
+                    if (is_array($matched)) {
+                        $criteriaId = (int) ($matched['id'] ?? 0);
+                    }
+                }
+
+                if ($criteriaName === '' && $criteriaId > 0) {
+                    $criteriaName = trim((string) data_get($criteriaById->get($criteriaId), 'name', ''));
+                }
+
+                if ($criteriaId <= 0 && $criteriaName === '') {
+                    return null;
+                }
+
+                return [
+                    'criteria_id' => max(0, $criteriaId),
+                    'criteria_name' => $criteriaName,
+                    'suggested_level_id' => max(0, $suggestedLevelId),
+                    'suggested_level' => max(0, (int) ($item['suggested_level'] ?? $item['level'] ?? 0)),
+                    'suggested_level_label' => trim((string) ($item['suggested_level_label'] ?? $item['level_label'] ?? '')),
+                    'reason' => $reason,
+                ];
             })
-            ->filter(fn ($item) => ! empty($item))
+            ->filter(fn ($item) => is_array($item))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  mixed  $value
+     * @param  array<string, mixed>|null  $taskBankContext
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeTaskBankFindings(mixed $value, ?array $taskBankContext): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $knownUuids = collect(data_get($taskBankContext, 'questions', []))
+            ->filter(fn ($item) => is_array($item))
+            ->map(fn ($item) => trim((string) ($item['uuid'] ?? '')))
+            ->filter(fn ($uuid) => $uuid !== '')
+            ->values()
+            ->all();
+
+        return collect($value)
+            ->filter(fn ($item) => is_array($item))
+            ->map(function ($item) use ($knownUuids) {
+                $uuid = trim((string) ($item['question_uuid'] ?? $item['uuid'] ?? ''));
+                if ($uuid === '') {
+                    return null;
+                }
+
+                if (! empty($knownUuids) && ! in_array($uuid, $knownUuids, true)) {
+                    return null;
+                }
+
+                $result = trim((string) ($item['result'] ?? 'unclear'));
+                if (! in_array($result, ['correct', 'incorrect', 'unclear'], true)) {
+                    $result = 'unclear';
+                }
+
+                return [
+                    'question_uuid' => $uuid,
+                    'question_type' => trim((string) ($item['question_type'] ?? '')),
+                    'result' => $result,
+                    'reason' => trim((string) ($item['reason'] ?? '')),
+                ];
+            })
+            ->filter(fn ($item) => is_array($item))
             ->values()
             ->all();
     }
@@ -726,6 +940,153 @@ class SubmissionAiAdvisorService
             })
             ->filter(fn ($item) => is_array($item))
             ->values()
+            ->all();
+    }
+
+    /**
+     * @param  mixed  $value
+     * @param  array<string, mixed>|null  $taskBankContext
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeQuestionFeedback(mixed $value, ?array $taskBankContext): array
+    {
+        $questionMap = $this->buildTaskBankQuestionMap($taskBankContext);
+
+        if (! is_array($value)) {
+            $value = [];
+        }
+
+        $feedbackByUuid = collect($value)
+            ->filter(fn ($item) => is_array($item))
+            ->map(function ($item) use ($questionMap) {
+                $uuid = trim((string) ($item['question_uuid'] ?? $item['uuid'] ?? ''));
+                if ($uuid === '') {
+                    return null;
+                }
+
+                $meta = $questionMap[$uuid] ?? null;
+
+                $maxScore = (float) ($item['max_score'] ?? ($meta['weight'] ?? 0));
+                $score = (float) ($item['score_awarded'] ?? $item['score'] ?? 0);
+                $result = trim((string) ($item['result'] ?? 'unclear'));
+                if (! in_array($result, ['correct', 'partial', 'incorrect', 'unclear'], true)) {
+                    $result = 'unclear';
+                }
+
+                $quotes = $this->normalizeStringList($item['evidence_quotes'] ?? []);
+                if (empty($quotes)) {
+                    $quotes = ['INSUFFICIENT_EVIDENCE'];
+                }
+
+                return [
+                    'question_uuid' => $uuid,
+                    'question_type' => trim((string) ($item['question_type'] ?? ($meta['question_type'] ?? ''))),
+                    'question_text' => trim((string) ($item['question_text'] ?? ($meta['question_text'] ?? ''))),
+                    'user_answer_summary' => trim((string) ($item['user_answer_summary'] ?? $item['answer_summary'] ?? '')),
+                    'score_awarded' => max(0.0, $score),
+                    'max_score' => max(0.0, $maxScore),
+                    'result' => $result,
+                    'feedback' => trim((string) ($item['feedback'] ?? $item['reason'] ?? '')),
+                    'evidence_quotes' => array_slice($quotes, 0, 3),
+                ];
+            })
+            ->filter(fn ($item) => is_array($item))
+            ->keyBy(fn ($item) => (string) $item['question_uuid'])
+            ->all();
+
+        if (empty($questionMap)) {
+            return array_values($feedbackByUuid);
+        }
+
+        foreach ($questionMap as $uuid => $meta) {
+            if (isset($feedbackByUuid[$uuid])) {
+                continue;
+            }
+
+            $feedbackByUuid[$uuid] = [
+                'question_uuid' => (string) $uuid,
+                'question_type' => (string) ($meta['question_type'] ?? ''),
+                'question_text' => (string) ($meta['question_text'] ?? ''),
+                'user_answer_summary' => '',
+                'score_awarded' => 0.0,
+                'max_score' => max(0.0, (float) ($meta['weight'] ?? 0)),
+                'result' => 'unclear',
+                'feedback' => 'AI tidak memberikan evaluasi detail untuk soal ini. Perlu review manual.',
+                'evidence_quotes' => ['INSUFFICIENT_EVIDENCE'],
+            ];
+        }
+
+        return array_values($feedbackByUuid);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $questionFeedback
+     * @param  array<string, mixed>|null  $taskBankContext
+     * @return array<int, array<string, mixed>>
+     */
+    private function deriveEssayScoresFromQuestionFeedback(array $questionFeedback, ?array $taskBankContext): array
+    {
+        $questionMap = $this->buildTaskBankQuestionMap($taskBankContext);
+        if (empty($questionMap)) {
+            return [];
+        }
+
+        return collect($questionFeedback)
+            ->filter(fn ($item) => is_array($item))
+            ->map(function ($item) use ($questionMap) {
+                $uuid = trim((string) ($item['question_uuid'] ?? ''));
+                if ($uuid === '' || ! isset($questionMap[$uuid])) {
+                    return null;
+                }
+
+                $meta = $questionMap[$uuid];
+                if (($meta['question_type'] ?? '') === 'multiple_choice') {
+                    return null;
+                }
+
+                $maxScore = max(0.0, (float) ($item['max_score'] ?? $meta['weight'] ?? 0));
+                $score = max(0.0, min($maxScore, (float) ($item['score_awarded'] ?? 0)));
+
+                return [
+                    'question_uuid' => $uuid,
+                    'score' => $score,
+                    'max_score' => $maxScore,
+                    'reason' => trim((string) ($item['feedback'] ?? '')),
+                ];
+            })
+            ->filter(fn ($item) => is_array($item))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $taskBankContext
+     * @return array<string, array{question_type:string,question_text:string,weight:float}>
+     */
+    private function buildTaskBankQuestionMap(?array $taskBankContext): array
+    {
+        $questions = collect(data_get($taskBankContext, 'questions', []))
+            ->filter(fn ($item) => is_array($item));
+
+        if ($questions->isEmpty()) {
+            return [];
+        }
+
+        return $questions
+            ->mapWithKeys(function ($question) {
+                $uuid = trim((string) ($question['uuid'] ?? ''));
+                if ($uuid === '') {
+                    return [];
+                }
+
+                return [
+                    $uuid => [
+                        'question_type' => trim((string) ($question['question_type'] ?? '')),
+                        'question_text' => trim((string) ($question['question_text'] ?? '')),
+                        'weight' => max(0.0, (float) ($question['weight'] ?? 0)),
+                    ],
+                ];
+            })
             ->all();
     }
 

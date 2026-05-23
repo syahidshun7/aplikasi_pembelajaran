@@ -84,6 +84,7 @@ const taskBankType = computed(() => props.quest?.task_bank?.assessment_type || n
 const taskQuestions = computed(() => props.quest?.task_bank?.questions || []);
 const isStructuredTaskBankQuest = computed(() => !!props.quest?.task_bank && ['multiple_choice', 'mixed', 'essay', 'platforming', 'word_match'].includes(taskBankType.value));
 const isAutoCheckedTaskBankQuest = computed(() => (taskBankType.value === 'multiple_choice' || taskBankType.value === 'platforming' || taskBankType.value === 'word_match'));
+const isEditSubmissionMode = computed(() => Boolean(props.hasSubmitted));
 
 const unansweredCount = computed(() => {
     if (!isStructuredTaskBankQuest.value) return 0;
@@ -389,6 +390,51 @@ const submitFinalGamePayload = (type, extra = {}) => {
         form.task_answers[q.uuid] = JSON.stringify(payload);
     });
     setTimeout(() => { form.post(route('submissions.store', props.quest.uuid), { preserveScroll: true }); }, 2000);
+};
+
+const submitReport = () => {
+    if (form.processing) {
+        return;
+    }
+
+    if (isStructuredTaskBankQuest.value && unansweredCount.value > 0) {
+        Swal.fire({
+            title: 'INCOMPLETE_REPORT',
+            text: `Masih ada ${unansweredCount.value} soal yang belum diisi.`,
+            icon: 'warning',
+            background: '#161b22',
+            color: '#f59e0b',
+        });
+        return;
+    }
+
+    if (!isStructuredTaskBankQuest.value && String(form.content || '').trim() === '') {
+        Swal.fire({
+            title: 'CONTENT_REQUIRED',
+            text: 'Isi laporan submission terlebih dahulu.',
+            icon: 'warning',
+            background: '#161b22',
+            color: '#f59e0b',
+        });
+        return;
+    }
+
+    form.post(route('submissions.store', props.quest.uuid), {
+        preserveScroll: true,
+        onSuccess: () => {
+            clearDraft();
+        },
+        onError: (errors) => {
+            const firstError = Object.values(errors || {}).find((value) => Boolean(value));
+            Swal.fire({
+                title: 'SUBMIT_FAILED',
+                text: String(firstError || 'Submission gagal dikirim.'),
+                icon: 'error',
+                background: '#161b22',
+                color: '#ef4444',
+            });
+        },
+    });
 };
 
 const syncViewportWidth = () => {
@@ -725,7 +771,18 @@ const unlockLateQuest = () => {
                                 </div>
                             </div>
                             <div v-else><label class="block text-[12px] text-slate-500 mb-2 uppercase">Content:</label><textarea v-model="form.content" class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[14px] outline-none" rows="4" required></textarea></div>
-                            <button type="submit" :disabled="form.processing" class="w-full py-4 border-2 bg-cyan-900/40 border-cyan-400 text-cyan-400 font-bold uppercase text-[12px]">{{ form.processing ? 'TRANSMITTING...' : 'SUBMIT' }}</button>
+                            <button
+                                type="submit"
+                                :disabled="form.processing"
+                                :class="[
+                                    'w-full py-4 border-2 font-bold uppercase text-[12px] transition-colors',
+                                    isEditSubmissionMode
+                                        ? 'bg-yellow-900/40 border-yellow-400 text-yellow-400 hover:bg-yellow-500/20'
+                                        : 'bg-cyan-900/40 border-cyan-400 text-cyan-400 hover:bg-cyan-500/20'
+                                ]"
+                            >
+                                {{ form.processing ? (isEditSubmissionMode ? 'UPDATING...' : 'TRANSMITTING...') : (isEditSubmissionMode ? 'UPDATE' : 'SUBMIT') }}
+                            </button>
                         </form>
                     </div>
                 </div>

@@ -33,7 +33,7 @@ const closeMobileMenu = () => {
     mobileMenuOpen.value = false;
 };
 
-const normalizeTheme = (value) => (String(value || '').toLowerCase() === 'light' ? 'light' : 'dark');
+const normalizeTheme = (value) => (String(value || '')  .toLowerCase() === 'light' ? 'light' : 'dark');
 
 const setUserTheme = (nextTheme, options = {}) => {
     const { persist = true, broadcast = true } = options;

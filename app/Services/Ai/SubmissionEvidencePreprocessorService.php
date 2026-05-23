@@ -24,19 +24,25 @@ class SubmissionEvidencePreprocessorService
         array $sourceFlags,
     ): array {
         $chunks = $this->splitIntoChunks($normalizedText);
+        $taskBankSectionsByUuid = $this->extractTaskBankAnswerSections($normalizedText);
         $textLength = mb_strlen(trim($normalizedText));
 
         $qualityScore = $this->computeQualityScore($textLength, $artifactWarnings, $sourceFlags);
         $qualityWarnings = $this->buildQualityWarnings($textLength, $artifactWarnings, count($chunks));
 
         $rubricEvidence = $this->buildRubricEvidence($chunks, $rubricContext);
-        $taskBankEvidence = $this->buildTaskBankEvidence($chunks, $taskBankContext);
+        $taskBankEvidence = $this->buildTaskBankEvidence($chunks, $taskBankContext, $taskBankSectionsByUuid);
 
         $rubricConfidence = $this->averageConfidence($rubricEvidence);
         $taskBankConfidence = $this->averageConfidence($taskBankEvidence);
 
-        $overallConfidence = (int) round((($qualityScore * 100) * 0.35) + ($rubricConfidence * 0.40) + ($taskBankConfidence * 0.25));
-        $overallConfidence = max(1, min(100, $overallConfidence));
+        $overallConfidence = $this->computeOverallConfidence(
+            qualityScore: $qualityScore,
+            rubricConfidence: $rubricConfidence,
+            taskBankConfidence: $taskBankConfidence,
+            hasRubricEvidence: ! empty($rubricEvidence),
+            hasTaskBankEvidence: ! empty($taskBankEvidence),
+        );
 
         return [
             'quality_score' => $qualityScore,
@@ -98,7 +104,7 @@ class SubmissionEvidencePreprocessorService
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function buildTaskBankEvidence(array $chunks, ?array $taskBankContext): array
+    private function buildTaskBankEvidence(array $chunks, ?array $taskBankContext, array $taskBankSectionsByUuid = []): array
     {
         if (! is_array($taskBankContext) || ! is_array($taskBankContext['questions'] ?? null)) {
             return [];
@@ -112,20 +118,46 @@ class SubmissionEvidencePreprocessorService
 
             $questionText = (string) ($question['question_text'] ?? '');
             $userAnswer = trim((string) ($question['user_answer'] ?? ''));
+            $questionUuid = trim((string) ($question['uuid'] ?? ''));
             $keywords = $this->extractKeywords($questionText, 12);
+            $strictSection = trim((string) ($taskBankSectionsByUuid[$questionUuid] ?? ''));
             $match = $this->matchChunksByKeywords($chunks, $keywords, 2);
 
-            $baseConfidence = $this->scoreConfidence($match['match_count'], count($keywords), ! empty($match['snippets']));
+            $snippets = $match['snippets'];
+            $matchCount = (int) ($match['match_count'] ?? 0);
+
+            if ($strictSection !== '') {
+                $strictMatch = $this->matchChunksByKeywords([$strictSection], $keywords, 1);
+                $strictSnippets = $this->buildStrictSnippetsFromSection($strictSection);
+
+                $snippets = ! empty($strictSnippets)
+                    ? $strictSnippets
+                    : [$this->clip($strictSection, 320)];
+                $matchCount = max((int) ($strictMatch['match_count'] ?? 0), $userAnswer !== '' ? 1 : 0);
+            }
+
+            if (empty($snippets) && $userAnswer !== '') {
+                $syntheticSnippet = $this->clip(
+                    'Q: '.trim($questionText).' | A: '.$userAnswer,
+                    320
+                );
+                if ($syntheticSnippet !== '') {
+                    $snippets = [$syntheticSnippet];
+                    $matchCount = max(1, $matchCount);
+                }
+            }
+
+            $baseConfidence = $this->scoreConfidence($matchCount, count($keywords), ! empty($snippets));
             if ($userAnswer !== '') {
                 $baseConfidence = min(100, $baseConfidence + 10);
             }
 
             $evidence[] = [
-                'question_uuid' => (string) ($question['uuid'] ?? ''),
+                'question_uuid' => $questionUuid,
                 'question_type' => (string) ($question['question_type'] ?? ''),
                 'keywords' => $keywords,
-                'snippets' => $match['snippets'],
-                'match_count' => $match['match_count'],
+                'snippets' => $snippets,
+                'match_count' => $matchCount,
                 'has_user_answer' => $userAnswer !== '',
                 'confidence' => $baseConfidence,
             ];
@@ -260,6 +292,102 @@ class SubmissionEvidencePreprocessorService
         return max(1, min(100, $score));
     }
 
+    private function computeOverallConfidence(
+        float $qualityScore,
+        int $rubricConfidence,
+        int $taskBankConfidence,
+        bool $hasRubricEvidence,
+        bool $hasTaskBankEvidence,
+    ): int {
+        $quality = max(1, min(100, (int) round($qualityScore * 100)));
+
+        if ($hasTaskBankEvidence && ! $hasRubricEvidence) {
+            $overall = (int) round(($quality * 0.35) + ($taskBankConfidence * 0.65));
+            return max(1, min(100, $overall));
+        }
+
+        if ($hasRubricEvidence && ! $hasTaskBankEvidence) {
+            $overall = (int) round(($quality * 0.35) + ($rubricConfidence * 0.65));
+            return max(1, min(100, $overall));
+        }
+
+        if ($hasRubricEvidence && $hasTaskBankEvidence) {
+            $overall = (int) round(($quality * 0.30) + ($rubricConfidence * 0.35) + ($taskBankConfidence * 0.35));
+            return max(1, min(100, $overall));
+        }
+
+        return $quality;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function extractTaskBankAnswerSections(string $normalizedText): array
+    {
+        $markerPos = mb_stripos($normalizedText, '[TASK_BANK_ANSWERS]');
+        if ($markerPos === false) {
+            return [];
+        }
+
+        $block = trim((string) mb_substr($normalizedText, $markerPos));
+        if ($block === '') {
+            return [];
+        }
+
+        preg_match_all(
+            '/Q\d+\s*\|\s*uuid=([^|\n]+)\s*\|[^\n]*\nQUESTION:.*?(?=(?:\n\s*Q\d+\s*\|\s*uuid=)|\z)/si',
+            $block,
+            $matches,
+            PREG_SET_ORDER
+        );
+
+        $sections = [];
+        foreach ($matches as $match) {
+            $uuid = trim((string) ($match[1] ?? ''));
+            $section = trim((string) ($match[0] ?? ''));
+            if ($uuid === '' || $section === '') {
+                continue;
+            }
+
+            $sections[$uuid] = $section;
+        }
+
+        return $sections;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function buildStrictSnippetsFromSection(string $section): array
+    {
+        $section = trim($section);
+        if ($section === '') {
+            return [];
+        }
+
+        $snippets = [];
+
+        if (preg_match('/QUESTION:\s*(.+?)(?:\nANSWER:|$)/si', $section, $questionMatch)) {
+            $question = trim((string) ($questionMatch[1] ?? ''));
+            if ($question !== '') {
+                $snippets[] = $this->clip('QUESTION: '.$question, 320);
+            }
+        }
+
+        if (preg_match('/ANSWER:\s*(.+)$/si', $section, $answerMatch)) {
+            $answer = trim((string) ($answerMatch[1] ?? ''));
+            if ($answer !== '') {
+                $snippets[] = $this->clip('ANSWER: '.$answer, 320);
+            }
+        }
+
+        if (empty($snippets)) {
+            $snippets[] = $this->clip($section, 320);
+        }
+
+        return array_values(array_unique(array_filter($snippets, fn ($value) => trim((string) $value) !== '')));
+    }
+
     /**
      * @param  array<int, string>  $artifactWarnings
      * @param  array<int, string>  $sourceFlags
@@ -321,4 +449,3 @@ class SubmissionEvidencePreprocessorService
         return mb_substr($trimmed, 0, $maxChars);
     }
 }
-

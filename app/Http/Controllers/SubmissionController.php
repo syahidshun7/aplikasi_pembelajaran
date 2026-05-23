@@ -268,10 +268,40 @@ class SubmissionController extends Controller
         foreach ($questions as $question) {
             $qUuid = (string) $question->uuid;
             $value = $rawAnswers[$qUuid] ?? '';
-            $normalized[$qUuid] = trim((string) $value);
+            $answer = trim((string) $value);
+            $questionType = (string) ($question->question_type ?? 'essay');
+
+            if ($questionType === 'essay') {
+                $answer = $this->sanitizeEssayAnswer($answer);
+            }
+
+            $normalized[$qUuid] = $answer;
         }
 
         return $normalized;
+    }
+
+    private function sanitizeEssayAnswer(string $answer): string
+    {
+        $cleaned = trim($answer);
+        if ($cleaned === '') {
+            return '';
+        }
+
+        $patterns = [
+            '/(?:\n|\r)\s*(?:Q|SOAL|PERTANYAAN)\s*\d{1,3}\s*[\.:\)\-]?\s*$/iu',
+            '/(?:\n|\r)\s*(?:Q|SOAL|PERTANYAAN)\s*\d{1,3}\s*\|\s*uuid=.*$/iu',
+        ];
+
+        do {
+            $before = $cleaned;
+            foreach ($patterns as $pattern) {
+                $cleaned = preg_replace($pattern, '', $cleaned) ?? $cleaned;
+            }
+            $cleaned = trim($cleaned);
+        } while ($cleaned !== $before);
+
+        return $cleaned;
     }
 
     private function validateTaskBankAnswersOrFail(Quest $quest, $questions, array $answers): void
