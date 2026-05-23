@@ -185,6 +185,29 @@ test('check-ai sends rubric and task bank context with user answers', function (
                         'risk_flags' => [],
                         'suggested_score_range' => '80-90',
                         'suggested_feedback' => 'Lanjutkan kualitas jawaban.',
+                        'rubric_recommendations' => [[
+                            'criteria_id' => 1,
+                            'criteria_name' => 'Ketepatan Konsep',
+                            'suggested_level_id' => 1,
+                            'reason' => 'Jawaban tepat dan sesuai indikator rubric.',
+                        ]],
+                        'task_bank_findings' => [[
+                            'question_uuid' => 'q-1',
+                            'question_type' => 'multiple_choice',
+                            'result' => 'correct',
+                            'reason' => 'Pilihan jawaban cocok dengan answer_key.',
+                        ]],
+                        'question_feedback' => [[
+                            'question_uuid' => 'q-1',
+                            'question_type' => 'multiple_choice',
+                            'question_text' => 'Apa fungsi status code 404?',
+                            'user_answer_summary' => 'Memilih opsi B',
+                            'score_awarded' => 10,
+                            'max_score' => 10,
+                            'result' => 'correct',
+                            'feedback' => 'Jawaban benar.',
+                            'evidence_quotes' => ['B'],
+                        ]],
                     ], JSON_UNESCAPED_UNICODE),
                 ],
             ]],
@@ -278,8 +301,13 @@ test('check-ai sends rubric and task bank context with user answers', function (
     $response->assertJsonPath('status', 'success');
     $response->assertJsonPath('rubric_context_present', true);
     $response->assertJsonPath('task_bank_context_present', true);
+    $response->assertJsonPath('task_bank_findings.0.question_uuid', 'q-1');
+    $response->assertJsonPath('question_feedback.0.question_uuid', 'q-1');
     $response->assertJsonStructure([
         'confidence' => ['overall', 'rubric', 'task_bank', 'notes'],
+        'rubric_recommendations',
+        'task_bank_findings',
+        'question_feedback',
     ]);
 
     Http::assertSent(function ($request) {
@@ -288,6 +316,8 @@ test('check-ai sends rubric and task bank context with user answers', function (
 
         return str_contains($content, 'rubric_context')
             && str_contains($content, 'task_bank_context')
+            && str_contains($content, 'task_bank_question_blueprint')
+            && str_contains($content, 'question_feedback')
             && str_contains($content, 'Ketepatan Konsep')
             && str_contains($content, 'Apa fungsi status code 404?')
             && str_contains($content, '"user_answer":"B"');
@@ -405,6 +435,75 @@ test('check-ai preview infers qa totals from report text when task bank is absen
     $response->assertJsonPath('preview.stats.task_bank.unanswered_total', 1);
     $response->assertJsonPath('preview.stats.task_bank.answer_completion_rate', 50);
     $response->assertJsonPath('preview.stats.task_bank.count_source', 'artifact_qa');
+});
+
+test('check-ai preview enriches marker-only artifact with task-bank answers for evidence snippets', function () {
+    config()->set('services.ai.qa_detector.use_ai', false);
+
+    $admin = User::factory()->create([
+        'role' => User::ROLE_ADMIN,
+        'email_verified_at' => now(),
+    ]);
+
+    $student = User::factory()->create([
+        'role' => User::ROLE_USER,
+    ]);
+
+    $taskBank = TaskBank::query()->create([
+        'name' => 'Task Bank Marker Payload',
+        'description' => 'Menguji enrichment jawaban task-bank ke evidence AI.',
+        'assessment_type' => 'essay',
+        'is_active' => true,
+    ]);
+
+    TaskQuestion::query()->create([
+        'uuid' => 'q-marker-1',
+        'task_bank_id' => $taskBank->id,
+        'question_text' => 'Jelaskan fungsi migration pada Laravel.',
+        'question_type' => 'essay',
+        'answer_key' => '',
+        'weight' => 1,
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => 'Quest Marker Payload',
+        'description' => 'Menguji payload lama marker-only.',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => Quest::STATUS_AVAILABLE,
+        'task_bank_id' => $taskBank->id,
+    ]);
+
+    $submission = Submission::query()->create([
+        'quest_id' => $quest->id,
+        'user_id' => $student->id,
+        'content' => "[TEXT_SUBMISSION]\n[TASK_BANK_SUBMISSION]",
+        'status' => 'Pending',
+        'grade' => 0,
+        'earned_exp' => 0,
+        'earned_gold' => 0,
+        'scores_detail' => [
+            'answers' => [
+                'q-marker-1' => 'Migration dipakai untuk versioning schema database agar konsisten di semua environment.',
+            ],
+        ],
+    ]);
+
+    $response = $this->actingAs($admin)
+        ->post(route('admin.submissions.checkAIPreview', ['submission' => $submission->uuid]));
+
+    $response->assertOk();
+    $response->assertJsonPath('status', 'success');
+    $response->assertJsonPath('preview.stats.task_bank.present', true);
+    $response->assertJsonPath('preview.stats.task_bank.question_total', 1);
+    $response->assertJsonPath('preview.stats.task_bank.answered_total', 1);
+    $response->assertJsonPath('preview.evidence.task_bank_evidence.0.question_uuid', 'q-marker-1');
+
+    expect((int) data_get($response->json(), 'preview.stats.artifact.normalized_chars', 0))->toBeGreaterThan(80);
+    expect((array) data_get($response->json(), 'preview.evidence.task_bank_evidence.0.snippets', []))->not->toBeEmpty();
 });
 
 test('check-ai preview uses ai detector for qa totals when enabled', function () {

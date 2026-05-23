@@ -28,6 +28,9 @@ abstract class AbstractOpenAiCompatibleClient implements AiClientInterface
         $attempts = max(1, $this->retryCount + 1);
         $lastError = null;
         $useJsonFormat = true;
+        $temperature = (float) config('services.ai.temperature', 0.0);
+        $temperature = max(0.0, min(1.0, $temperature));
+        $allowResponseFormatFallback = $this->provider !== 'gemini';
 
         for ($attempt = 1; $attempt <= $attempts; $attempt++) {
             $startedAt = microtime(true);
@@ -36,7 +39,7 @@ abstract class AbstractOpenAiCompatibleClient implements AiClientInterface
                 $payload = [
                     'model' => $this->model,
                     'messages' => $messages,
-                    'temperature' => 0.2,
+                    'temperature' => $temperature,
                 ];
                 if ($useJsonFormat) {
                     $payload['response_format'] = ['type' => 'json_object'];
@@ -49,7 +52,7 @@ abstract class AbstractOpenAiCompatibleClient implements AiClientInterface
                 $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
 
                 if ($response->failed()) {
-                    if ($useJsonFormat && in_array($response->status(), [400, 404, 415, 422], true)) {
+                    if ($allowResponseFormatFallback && $useJsonFormat && in_array($response->status(), [400, 404, 415, 422], true)) {
                         $useJsonFormat = false;
                         continue;
                     }
@@ -61,7 +64,7 @@ abstract class AbstractOpenAiCompatibleClient implements AiClientInterface
                     ));
                 }
 
-                $content = (string) data_get($response->json(), 'choices.0.message.content', '');
+                $content = $this->extractContent($response->json());
                 if (trim($content) === '') {
                     throw new RuntimeException(strtoupper($this->provider).' returned empty completion content');
                 }
@@ -87,6 +90,42 @@ abstract class AbstractOpenAiCompatibleClient implements AiClientInterface
         }
 
         throw new RuntimeException(strtoupper($this->provider).' failed: '.($lastError?->getMessage() ?? 'unknown error'), previous: $lastError);
+    }
+
+    /**
+     * @param  array<string, mixed>  $json
+     */
+    protected function extractContent(array $json): string
+    {
+        $content = data_get($json, 'choices.0.message.content');
+
+        if (is_string($content)) {
+            return $content;
+        }
+
+        if (is_array($content)) {
+            $parts = collect($content)
+                ->map(function ($part) {
+                    if (is_string($part)) {
+                        return $part;
+                    }
+
+                    if (is_array($part)) {
+                        return (string) ($part['text'] ?? $part['content'] ?? '');
+                    }
+
+                    return '';
+                })
+                ->filter(fn ($part) => trim($part) !== '')
+                ->values()
+                ->all();
+
+            if (! empty($parts)) {
+                return implode("\n", $parts);
+            }
+        }
+
+        return '';
     }
 
     protected function newRequest()

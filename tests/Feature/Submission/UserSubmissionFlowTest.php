@@ -264,6 +264,55 @@ test('mixed task bank requires answers for all questions and stays pending for m
         ->toBe('Dependency injection is providing dependencies from outside.');
 });
 
+test('essay answer marker suffix like Q4 is sanitized before storing task bank submission', function () {
+    $user = User::factory()->create();
+
+    $taskBank = TaskBank::query()->create([
+        'name' => 'Essay Marker Cleanup Bank',
+        'description' => 'Ensure trailing question markers are removed from essay answers.',
+        'assessment_type' => 'essay',
+        'is_active' => true,
+    ]);
+
+    $question = $taskBank->questions()->create([
+        'question_text' => 'Jelaskan langkah validasi check-in.',
+        'question_type' => 'essay',
+        'options_json' => null,
+        'answer_key' => null,
+        'weight' => 1,
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => 'Essay Marker Quest',
+        'description' => 'Quest to verify essay marker cleanup.',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+        'task_bank_id' => $taskBank->id,
+    ]);
+
+    $response = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'task_answers' => [
+            $question->uuid => "Validasi check-in dilakukan dengan cek absensi hari ini sebelum simpan.\n\nQ4.",
+        ],
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    $submission = Submission::query()
+        ->where('quest_id', $quest->id)
+        ->where('user_id', $user->id)
+        ->first();
+
+    expect($submission)->not->toBeNull();
+    expect((string) ($submission->scores_detail['answers'][$question->uuid] ?? ''))
+        ->toBe('Validasi check-in dilakukan dengan cek absensi hari ini sebelum simpan.');
+});
+
 test('student cannot submit the same task bank quest twice', function () {
     $user = User::factory()->create();
 

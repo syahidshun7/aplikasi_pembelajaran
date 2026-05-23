@@ -1020,6 +1020,74 @@ const applyEssayScoresFromAi = (essayScores) => {
     return appliedCount;
 };
 
+const formatQuestionFeedbackForUi = (questionFeedback) => {
+    if (!Array.isArray(questionFeedback) || questionFeedback.length === 0) {
+        return '';
+    }
+
+    const lines = questionFeedback
+        .filter((item) => item && typeof item === 'object')
+        .map((item, index) => {
+            const uuid = String(item.question_uuid || '').trim();
+            const type = String(item.question_type || '').trim().toUpperCase();
+            const result = String(item.result || 'unclear').trim().toUpperCase();
+            const score = Number(item.score_awarded ?? 0);
+            const maxScore = Number(item.max_score ?? 0);
+            const feedback = String(item.feedback || item.reason || '').trim();
+            const quotes = Array.isArray(item.evidence_quotes) ? item.evidence_quotes.filter(Boolean) : [];
+
+            const title = `Q${index + 1}${uuid ? `(${uuid})` : ''}${type ? ` [${type}]` : ''}`;
+            const scoreLabel = `Score ${Number.isFinite(score) ? score : 0}/${Number.isFinite(maxScore) ? maxScore : 0}`;
+            const quoteLabel = quotes.length > 0
+                ? ` | Evidence: ${quotes.slice(0, 2).join(' ; ')}`
+                : '';
+
+            return `- ${title} => ${result} | ${scoreLabel}${feedback ? ` | ${feedback}` : ''}${quoteLabel}`;
+        })
+        .filter(Boolean);
+
+    if (!lines.length) {
+        return '';
+    }
+
+    return `[AI_QUESTION_FEEDBACK]\n${lines.join('\n')}`;
+};
+
+const hasCompleteQuestionFeedback = (questionFeedback) => {
+    if (!isTaskBankSubmission.value) {
+        return true;
+    }
+
+    if (!Array.isArray(questionFeedback) || questionFeedback.length === 0) {
+        return false;
+    }
+
+    const required = new Set(
+        taskQuestions.value
+            .map((question) => String(question?.uuid || '').trim())
+            .filter(Boolean)
+    );
+
+    if (!required.size) {
+        return true;
+    }
+
+    const available = new Set(
+        questionFeedback
+            .filter((item) => item && typeof item === 'object')
+            .map((item) => String(item?.question_uuid || item?.uuid || '').trim())
+            .filter(Boolean)
+    );
+
+    for (const uuid of required.values()) {
+        if (!available.has(uuid)) {
+            return false;
+        }
+    }
+
+    return true;
+};
+
 onMounted(() => {
     const savedScores = props.submission.scores_detail;
 
@@ -1205,6 +1273,11 @@ const confirmAiScanFromPreview = async () => {
         }
 
         const confidenceOverall = Number(data?.confidence?.overall ?? 0);
+        const isFallbackProvider = Boolean(data?.is_fallback);
+        const fallbackConfidencePenalty = isFallbackProvider ? 10 : 0;
+        const effectiveConfidence = Math.max(0, confidenceOverall - fallbackConfidencePenalty);
+        const questionFeedbackComplete = hasCompleteQuestionFeedback(data?.question_feedback);
+        const canAutoApply = effectiveConfidence >= minAutoApplyConfidence && questionFeedbackComplete;
         const evidenceQualityScore = Number(data?.evidence_quality_score ?? 0);
         const qualityWarnings = Array.isArray(data?.evidence_quality_warnings) ? data.evidence_quality_warnings : [];
 
@@ -1212,27 +1285,44 @@ const confirmAiScanFromPreview = async () => {
             manualFinalScore.value = Math.max(1, Math.min(100, suggested));
         }
 
-        let appliedRubricCount = applyRubricRecommendations(data.rubric_recommendations);
+        let appliedRubricCount = 0;
+        if (canAutoApply) {
+            appliedRubricCount = applyRubricRecommendations(data.rubric_recommendations);
+        }
         if (
             hasRubric.value
             && appliedRubricCount === 0
-            && confidenceOverall >= minAutoApplyConfidence
+            && canAutoApply
             && !isNaN(suggested)
             && suggested > 0
         ) {
             appliedRubricCount = autoFillRubricByScore(suggested);
         }
 
-        const appliedEssayCount = applyEssayScoresFromAi(data.essay_scores);
+        const appliedEssayCount = canAutoApply ? applyEssayScoresFromAi(data.essay_scores) : 0;
 
         const suggestionText = String(data.suggested_feedback || data.feedback || '').trim();
         const summaryText = String(data.summary || '').trim();
+        const questionFeedbackText = formatQuestionFeedbackForUi(data.question_feedback);
         const advisoryText = [summaryText, suggestionText].filter(Boolean).join(' | ');
-        feedbackText.value = `[AI_ADVISOR]: ${advisoryText}\n\n${feedbackText.value}`;
+        const aiBlock = [`[AI_ADVISOR]: ${advisoryText}`]
+            .concat(questionFeedbackText ? [questionFeedbackText] : [])
+            .join('\n');
+        feedbackText.value = `${aiBlock}\n\n${feedbackText.value}`;
 
-        const lowConfidenceMessage = confidenceOverall > 0 && confidenceOverall < minAutoApplyConfidence
-            ? `Low confidence (${confidenceOverall}). Review manual wajib.`
+        const lowConfidenceMessage = effectiveConfidence > 0 && effectiveConfidence < minAutoApplyConfidence
+            ? `Low confidence efektif (${effectiveConfidence}). Review manual wajib.`
             : '';
+
+        const fallbackMessage = isFallbackProvider
+            ? `Fallback provider aktif (confidence penalty ${fallbackConfidencePenalty}).`
+            : '';
+
+        const autoApplyMessage = canAutoApply
+            ? 'Auto-apply AI aktif.'
+            : (questionFeedbackComplete
+                ? 'Auto-apply AI dinonaktifkan (confidence efektif di bawah threshold).'
+                : 'Auto-apply AI dinonaktifkan (feedback per-soal AI belum lengkap).');
 
         const qualityWarningMessage = qualityWarnings.length
             ? `Warnings: ${qualityWarnings.join(', ')}`
@@ -1243,8 +1333,10 @@ const confirmAiScanFromPreview = async () => {
                 ? `System calibrated. ${appliedRubricCount} rubric level auto-selected.`
                 : 'System has been calibrated with AI suggestions.',
             appliedEssayCount > 0 ? `Essay: ${appliedEssayCount} skor diisi otomatis.` : '',
-            `Confidence: ${confidenceOverall || 0}`,
+            `Confidence: ${confidenceOverall || 0} (effective ${effectiveConfidence})`,
             `Evidence quality: ${evidenceQualityScore || 0}`,
+            fallbackMessage,
+            autoApplyMessage,
             lowConfidenceMessage,
             qualityWarningMessage,
         ].filter(Boolean);
