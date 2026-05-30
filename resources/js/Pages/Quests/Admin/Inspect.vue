@@ -3,157 +3,157 @@
         <div class="max-w-7xl mx-auto space-y-8">
             <AdminNavbar />
 
-            <div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center border-b-4 border-slate-800 pb-6 gap-4">
-                <div>
-                    <h1 class="text-xl text-white uppercase mb-2 tracking-tighter">Manual_Inspection_Console</h1>
-                    <div class="flex flex-wrap items-center gap-4">
-                        <span class="text-[8px] text-slate-500 italic">SUBMISSION_UUID: {{ submission.uuid.substring(0, 8) }}...</span>
-                        <span class="text-[8px] bg-yellow-900/30 text-yellow-500 px-2 py-1 border border-yellow-700">
-                            DIFFICULTY: {{ submission.quest.difficulty }}
-                        </span>
-                        <span class="text-[8px] bg-blue-900/30 text-blue-400 px-2 py-1 border border-blue-700 uppercase">
-                            MAX_REWARD: {{ submission.quest.reward_gold }} G
-                        </span>
-                        <span class="text-[8px] bg-cyan-900/30 text-cyan-400 px-2 py-1 border border-cyan-700 uppercase">
-                            MAX_EXP: {{ maxExpReward }} XP
-                        </span>
-                        <span class="text-[8px] bg-slate-900/30 text-slate-200 px-2 py-1 border border-slate-700 uppercase">
-                            PIPELINE: <span :class="pipelineStatusClass">{{ pipelineStatusLabel }}</span>
-                        </span>
-                        <span v-if="submission.file_path || submission.content"
-                            class="text-[8px] bg-slate-900/30 text-slate-200 px-2 py-1 border border-slate-700 uppercase">
-                            CONTENT_TYPE: {{ submission.file_type || (submission.content ? 'text' : 'unknown') }}
-                        </span>
-                        <span v-if="extractionStatus"
-                            class="text-[8px] bg-slate-900/30 px-2 py-1 border uppercase"
-                            :class="extractionStatus === 'success' ? 'text-emerald-300 border-emerald-700' : 'text-red-300 border-red-700'">
-                            EXTRACTION: {{ extractionStatus }}
-                        </span>
+            <div class="mb-8 border-b-4 border-slate-800 pb-6 space-y-4">
+                <!-- Header row -->
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 class="text-base md:text-xl text-white uppercase mb-2 tracking-tighter">Inspection_Console</h1>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[9px] text-slate-500 italic">{{ submission.uuid.substring(0, 8) }}...</span>
+                            <span class="text-[9px] bg-yellow-900/30 text-yellow-500 px-2 py-1 border border-yellow-700">
+                                {{ submission.quest.difficulty }}
+                            </span>
+                            <span class="text-[9px] bg-blue-900/30 text-blue-400 px-2 py-1 border border-blue-700">
+                                {{ submission.quest.reward_gold }}G / {{ maxExpReward }}XP
+                            </span>
+                            <span class="text-[9px] px-2 py-1 border" :class="pipelineStatusClass">
+                                {{ pipelineStatusLabel }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button
+                            v-if="canRerunAiEvaluation"
+                            @click.prevent="rerunAiEvaluation"
+                            :disabled="isRerunningAiEvaluation"
+                            class="text-[9px] bg-orange-900/30 text-orange-300 px-4 py-2 border border-orange-600 hover:bg-orange-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {{ isRerunningAiEvaluation ? 'RE-RUNNING...' : '⟳ RE-RUN AI' }}
+                        </button>
+                        <Link :href="route('admin.quests.submissions', { quest: submission.quest.uuid })"
+                            class="text-[9px] bg-red-900/20 text-red-400 px-4 py-2 border border-red-900 hover:bg-red-900 hover:text-white transition-all">
+                            ✕ CLOSE
+                        </Link>
                     </div>
                 </div>
-                <div class="flex flex-col gap-2 items-end">
-                    <Link :href="route('admin.quests.submissions', { quest: submission.quest.uuid })"
-                        class="text-[8px] bg-red-900/20 text-red-500 px-6 py-3 border-2 border-red-900 hover:bg-red-900 hover:text-white transition-all">
-                        [ CLOSE_TERMINAL ]
-                    </Link>
-                    <button
-                        v-if="canRunAllStages"
-                        @click.prevent="startAllPipelineStages"
-                        :disabled="isRunningAllStages"
-                        class="text-[8px] bg-blue-900/30 text-blue-200 px-6 py-3 border-2 border-blue-500 hover:bg-blue-500 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {{ isRunningAllStages ? `RUNNING_ALL_STAGES...${runAllProgress}%` : 'RUN_ALL_STAGES' }}
-                    </button>
+
+                <!-- Pipeline stepper -->
+                <div class="bg-slate-950 border border-slate-800 p-3 rounded">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-[9px] text-slate-400 uppercase">Pipeline Progress</p>
+                        <button
+                            v-if="canRunAllStages"
+                            @click.prevent="startAllPipelineStages"
+                            :disabled="isRunningAllStages"
+                            class="text-[9px] bg-blue-900/30 text-blue-200 px-3 py-1 border border-blue-500 hover:bg-blue-500 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {{ isRunningAllStages ? `RUNNING ${runAllProgress}%` : '▶ RUN ALL' }}
+                        </button>
+                    </div>
+
+                    <!-- Progress bar visual -->
+                    <div class="flex gap-1 mb-3">
+                        <div v-for="(stage, idx) in pipelineStages" :key="stage.key"
+                            class="flex-1 h-2 rounded-sm transition-all"
+                            :class="stage.completed ? 'bg-emerald-500' : (stage.active ? 'bg-cyan-500 animate-pulse' : 'bg-slate-800')"
+                            :title="stage.label"
+                        ></div>
+                    </div>
+
+                    <!-- Stage buttons (horizontal, compact) -->
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            v-if="isReadyForPreprocessing"
+                            @click.prevent="startPreprocessing"
+                            :disabled="isStartingPreprocessing"
+                            class="text-[9px] px-3 py-1.5 border transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-cyan-900/20 text-cyan-300 border-cyan-700 hover:bg-cyan-700 hover:text-black"
+                        >
+                            {{ isStartingPreprocessing ? '...' : '1. Extract' }}
+                        </button>
+                        <button
+                            v-if="isReadyForCleaning"
+                            @click.prevent="startCleaning"
+                            :disabled="isStartingCleaning"
+                            class="text-[9px] px-3 py-1.5 border transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-900/20 text-emerald-300 border-emerald-700 hover:bg-emerald-700 hover:text-black"
+                        >
+                            {{ isStartingCleaning ? '...' : '2. Clean' }}
+                        </button>
+                        <button
+                            v-if="isReadyForStructureDetection"
+                            @click.prevent="startStructureDetection"
+                            :disabled="isStartingStructureDetection"
+                            class="text-[9px] px-3 py-1.5 border transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-violet-900/20 text-violet-300 border-violet-700 hover:bg-violet-700 hover:text-black"
+                        >
+                            {{ isStartingStructureDetection ? '...' : '3. Structure' }}
+                        </button>
+                        <button
+                            v-if="isReadyForSemanticEnrichment"
+                            @click.prevent="startSemanticEnrichment"
+                            :disabled="isStartingSemanticEnrichment"
+                            class="text-[9px] px-3 py-1.5 border transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-amber-900/20 text-amber-300 border-amber-700 hover:bg-amber-700 hover:text-black"
+                        >
+                            {{ isStartingSemanticEnrichment ? '...' : '4. Semantic' }}
+                        </button>
+                        <button
+                            v-if="isReadyForRubricPreparation"
+                            @click.prevent="startRubricPreparation"
+                            :disabled="isStartingRubricPreparation"
+                            class="text-[9px] px-3 py-1.5 border transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-sky-900/20 text-sky-300 border-sky-700 hover:bg-sky-700 hover:text-black"
+                        >
+                            {{ isStartingRubricPreparation ? '...' : '5. Rubric' }}
+                        </button>
+                        <button
+                            v-if="isReadyForAiEvaluation"
+                            @click.prevent="startAiEvaluation"
+                            :disabled="isStartingAiEvaluation"
+                            class="text-[9px] px-3 py-1.5 border transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-900/20 text-indigo-300 border-indigo-700 hover:bg-indigo-700 hover:text-black"
+                        >
+                            {{ isStartingAiEvaluation ? '...' : '6. AI Eval' }}
+                        </button>
+                        <button
+                            v-if="isReadyForPostEvaluationValidation"
+                            @click.prevent="startPostEvaluationValidation"
+                            :disabled="isStartingPostEvaluationValidation"
+                            class="text-[9px] px-3 py-1.5 border transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-teal-900/20 text-teal-300 border-teal-700 hover:bg-teal-700 hover:text-black"
+                        >
+                            {{ isStartingPostEvaluationValidation ? '...' : '7. Validate' }}
+                        </button>
+                        <button
+                            v-if="isReadyForResultPresentation"
+                            @click.prevent="startResultPresentation"
+                            :disabled="isStartingResultPresentation"
+                            class="text-[9px] px-3 py-1.5 border transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-fuchsia-900/20 text-fuchsia-300 border-fuchsia-700 hover:bg-fuchsia-700 hover:text-black"
+                        >
+                            {{ isStartingResultPresentation ? '...' : '8. Present' }}
+                        </button>
+                    </div>
+
+                    <!-- Run all progress log -->
                     <div v-if="isRunningAllStages || runAllLogs.length"
-                        class="w-full max-w-[360px] p-3 border border-blue-700 bg-[#050f46] text-[8px] text-cyan-200 font-mono space-y-1">
-                        <p>Initializing Display... [OK]</p>
-                        <p>Loading Assets... {{ runAllProgress }}%</p>
-                        <p v-if="runAllCurrentStep">{{ runAllCurrentStep }}</p>
-                        <p v-if="runAllLogs.length" class="text-cyan-100 truncate">{{ runAllLogs[runAllLogs.length - 1] }}</p>
+                        class="mt-3 p-3 border border-blue-800 bg-blue-950/20 text-[9px] font-mono space-y-1">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-blue-300 uppercase">▶ Run All Progress</span>
+                            <span class="text-blue-200">{{ runAllProgress }}%</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-800 rounded overflow-hidden">
+                            <div class="h-full bg-blue-500 transition-all rounded" :style="`width: ${runAllProgress}%`"></div>
+                        </div>
+                        <p v-if="runAllCurrentStep" class="text-blue-200 mt-1">{{ runAllCurrentStep }}</p>
+                        <p v-for="(log, i) in runAllLogs.slice(-3)" :key="'ral-'+i" class="text-slate-400 truncate">{{ log }}</p>
                     </div>
-                    <button
-                        v-if="isReadyForPreprocessing"
-                        @click.prevent="startPreprocessing"
-                        :disabled="isStartingPreprocessing"
-                        class="text-[8px] bg-cyan-900/30 text-cyan-300 px-6 py-3 border-2 border-cyan-600 hover:bg-cyan-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {{ isStartingPreprocessing ? 'STARTING_PREPROCESSING...' : 'START PREPROCESSING' }}
-                    </button>
-                    <div v-else-if="submission.pipeline_status === 'preprocessing'"
-                        class="text-[8px] px-4 py-2 border border-cyan-700 bg-cyan-900/10 text-cyan-300 uppercase">
-                        PREPROCESSING TRIGGERED
-                    </div>
-                    <button
-                        v-if="isReadyForCleaning"
-                        @click.prevent="startCleaning"
-                        :disabled="isStartingCleaning"
-                        class="text-[8px] bg-emerald-900/30 text-emerald-300 px-6 py-3 border-2 border-emerald-600 hover:bg-emerald-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {{ isStartingCleaning ? 'CLEANING_TEXT...' : 'CLEAN_TEXT' }}
-                    </button>
-                    <div v-else-if="submission.pipeline_status === 'cleaning'"
-                        class="text-[8px] px-4 py-2 border border-emerald-700 bg-emerald-900/10 text-emerald-300 uppercase">
-                        CLEANING TRIGGERED
-                    </div>
-                    <button
-                        v-if="isReadyForStructureDetection"
-                        @click.prevent="startStructureDetection"
-                        :disabled="isStartingStructureDetection"
-                        class="text-[8px] bg-violet-900/30 text-violet-300 px-6 py-3 border-2 border-violet-600 hover:bg-violet-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {{ isStartingStructureDetection ? 'DETECTING_STRUCTURE...' : 'DETECT_STRUCTURE' }}
-                    </button>
-                    <div v-else-if="submission.pipeline_status === 'structure_detection'"
-                        class="text-[8px] px-4 py-2 border border-violet-700 bg-violet-900/10 text-violet-300 uppercase">
-                        STRUCTURE DETECTION TRIGGERED
-                    </div>
-                    <button
-                        v-if="isReadyForSemanticEnrichment"
-                        @click.prevent="startSemanticEnrichment"
-                        :disabled="isStartingSemanticEnrichment"
-                        class="text-[8px] bg-amber-900/30 text-amber-300 px-6 py-3 border-2 border-amber-600 hover:bg-amber-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {{ isStartingSemanticEnrichment ? 'ENRICHING_SEMANTIC...' : 'ENRICH_SEMANTIC' }}
-                    </button>
-                    <div v-else-if="submission.pipeline_status === 'semantic_enrichment'"
-                        class="text-[8px] px-4 py-2 border border-amber-700 bg-amber-900/10 text-amber-300 uppercase">
-                        SEMANTIC ENRICHMENT TRIGGERED
-                    </div>
-                    <button
-                        v-if="isReadyForRubricPreparation"
-                        @click.prevent="startRubricPreparation"
-                        :disabled="isStartingRubricPreparation"
-                        class="text-[8px] bg-sky-900/30 text-sky-300 px-6 py-3 border-2 border-sky-600 hover:bg-sky-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {{ isStartingRubricPreparation ? 'PREPARING_RUBRIC...' : 'PREPARE_RUBRIC' }}
-                    </button>
-                    <div v-else-if="submission.pipeline_status === 'rubric_preparation'"
-                        class="text-[8px] px-4 py-2 border border-sky-700 bg-sky-900/10 text-sky-300 uppercase">
-                        RUBRIC PREPARATION TRIGGERED
-                    </div>
-                    <button
-                        v-if="isReadyForAiEvaluation"
-                        @click.prevent="startAiEvaluation"
-                        :disabled="isStartingAiEvaluation"
-                        class="text-[8px] bg-indigo-900/30 text-indigo-300 px-6 py-3 border-2 border-indigo-600 hover:bg-indigo-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {{ isStartingAiEvaluation ? 'EVALUATING_ANSWER...' : 'RUN_AI_EVALUATION' }}
-                    </button>
-                    <button
-                        v-if="canRerunAiEvaluation"
-                        @click.prevent="rerunAiEvaluation"
-                        :disabled="isRerunningAiEvaluation"
-                        class="text-[8px] bg-orange-900/30 text-orange-300 px-6 py-3 border-2 border-orange-600 hover:bg-orange-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {{ isRerunningAiEvaluation ? 'RE-RUNNING_6→7→8...' : '⟳ RE-RUN_AI_EVALUATION' }}
-                    </button>
-                    <div v-else-if="submission.pipeline_status === 'ai_evaluation'"
-                        class="text-[8px] px-4 py-2 border border-indigo-700 bg-indigo-900/10 text-indigo-300 uppercase">
-                        AI EVALUATION TRIGGERED
-                    </div>
-                    <button
-                        v-if="isReadyForPostEvaluationValidation"
-                        @click.prevent="startPostEvaluationValidation"
-                        :disabled="isStartingPostEvaluationValidation"
-                        class="text-[8px] bg-teal-900/30 text-teal-300 px-6 py-3 border-2 border-teal-600 hover:bg-teal-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {{ isStartingPostEvaluationValidation ? 'VALIDATING_EVALUATION...' : 'RUN_POST_EVAL_VALIDATION' }}
-                    </button>
-                    <div v-else-if="submission.pipeline_status === 'post_evaluation_validation'"
-                        class="text-[8px] px-4 py-2 border border-teal-700 bg-teal-900/10 text-teal-300 uppercase">
-                        POST EVALUATION VALIDATION TRIGGERED
-                    </div>
-                    <button
-                        v-if="isReadyForResultPresentation"
-                        @click.prevent="startResultPresentation"
-                        :disabled="isStartingResultPresentation"
-                        class="text-[8px] bg-fuchsia-900/30 text-fuchsia-300 px-6 py-3 border-2 border-fuchsia-600 hover:bg-fuchsia-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {{ isStartingResultPresentation ? 'BUILDING_RESULT_PRESENTATION...' : 'RUN_RESULT_PRESENTATION' }}
-                    </button>
-                    <div v-else-if="submission.pipeline_status === 'result_presentation'"
-                        class="text-[8px] px-4 py-2 border border-fuchsia-700 bg-fuchsia-900/10 text-fuchsia-300 uppercase">
-                        RESULT PRESENTATION TRIGGERED
+
+                    <!-- Re-run progress log -->
+                    <div v-if="isRerunningAiEvaluation || rerunLogs.length"
+                        class="mt-3 p-3 border border-orange-800 bg-orange-950/20 text-[9px] font-mono space-y-1">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-orange-300 uppercase">⟳ Re-Run Progress</span>
+                            <span class="text-orange-200">{{ rerunProgress }}%</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-800 rounded overflow-hidden">
+                            <div class="h-full bg-orange-500 transition-all rounded" :style="`width: ${rerunProgress}%`"></div>
+                        </div>
+                        <p v-if="rerunCurrentStep" class="text-orange-200 mt-1">{{ rerunCurrentStep }}</p>
+                        <p v-for="(log, i) in rerunLogs.slice(-3)" :key="i" class="text-slate-400 truncate">{{ log }}</p>
                     </div>
                 </div>
             </div>
@@ -514,42 +514,93 @@
                         <div v-if="selectedOutputStage === 'evaluation' && aiEvaluationResult"
                             class="bg-slate-950 border-2 border-indigo-900/60 p-4 space-y-3">
                             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                                <p class="text-[8px] text-indigo-300 uppercase tracking-widest">>> AI_EVALUATION_OUTPUT</p>
-                                <p class="text-[7px] text-slate-500 uppercase">
-                                    STATUS: {{ aiEvaluationResult.ai_evaluation_status || 'unknown' }} / ITEMS: {{ aiEvaluationItems.length }} / NEXT: {{ aiEvaluationResult.next_stage || '-' }}
+                                <p class="text-[9px] text-indigo-300 uppercase tracking-widest">>> AI_EVALUATION_OUTPUT</p>
+                                <p class="text-[8px] text-slate-500 uppercase">
+                                    STATUS: {{ aiEvaluationResult.ai_evaluation_status || 'unknown' }} / ITEMS: {{ aiEvaluationItems.length }}
                                 </p>
                             </div>
-                            <div v-if="aiEvaluationWarnings.length" class="text-[8px] text-yellow-300 uppercase font-sans">
+                            <div v-if="aiEvaluationWarnings.length" class="text-[9px] text-yellow-300 uppercase font-sans">
                                 WARNINGS: {{ aiEvaluationWarnings.join(', ') }}
                             </div>
-                            <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-1">
-                                <div v-for="(item, index) in aiEvaluationItems" :key="`ai-eval-item-${index}`" class="border border-slate-800 bg-black/30 p-3 space-y-2">
-                                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-[8px] uppercase">
-                                        <span class="text-indigo-300">ITEM {{ item.question_number ?? index + 1 }}</span>
-                                        <span class="text-emerald-300">SCORE: {{ item.score ?? 0 }}</span>
-                                    </div>
-                                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-[8px] uppercase">
-                                        <div class="border border-slate-800 bg-black/30 p-2">SUBJECT: {{ item.subject || 'other' }}</div>
-                                        <div class="border border-slate-800 bg-black/30 p-2">TYPE: {{ item.question_type || 'essay' }}</div>
-                                        <div class="border border-slate-800 bg-black/30 p-2">CONF: {{ Number(item.evaluation_confidence ?? 0).toFixed(2) }}</div>
-                                    </div>
-                                    <div v-if="Array.isArray(item.criteria_scores) && item.criteria_scores.length" class="space-y-1">
-                                        <p class="text-[8px] text-slate-500 uppercase">CRITERIA_SCORES</p>
-                                        <div v-for="(row, cIndex) in item.criteria_scores" :key="`criteria-${index}-${cIndex}`" class="text-[11px] text-slate-200 font-sans">
-                                            - {{ row.name }}: {{ row.score }} ({{ row.reason }})
+
+                            <!-- Average score summary -->
+                            <div v-if="aiEvaluationItems.length" class="flex items-center gap-4 p-3 border border-indigo-800 bg-indigo-950/30">
+                                <div class="text-center">
+                                    <p class="text-2xl text-white font-bold font-sans">{{ Math.round(aiEvaluationItems.reduce((sum, i) => sum + (i.score ?? 0), 0) / aiEvaluationItems.length) }}</p>
+                                    <p class="text-[8px] text-indigo-300 uppercase">AVG SCORE</p>
+                                </div>
+                                <div class="flex-1 h-3 bg-slate-800 rounded overflow-hidden">
+                                    <div class="h-full rounded transition-all"
+                                        :class="Math.round(aiEvaluationItems.reduce((sum, i) => sum + (i.score ?? 0), 0) / aiEvaluationItems.length) >= 70 ? 'bg-emerald-500' : (Math.round(aiEvaluationItems.reduce((sum, i) => sum + (i.score ?? 0), 0) / aiEvaluationItems.length) >= 40 ? 'bg-yellow-500' : 'bg-red-500')"
+                                        :style="`width: ${Math.round(aiEvaluationItems.reduce((sum, i) => sum + (i.score ?? 0), 0) / aiEvaluationItems.length)}%`"
+                                    ></div>
+                                </div>
+                            </div>
+
+                            <!-- Per-item: question + answer + score unified -->
+                            <div class="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-1">
+                                <div v-for="(item, index) in aiEvaluationItems" :key="`ai-eval-item-${index}`"
+                                    class="border border-slate-700 bg-black/40 overflow-hidden">
+                                    <!-- Score header bar -->
+                                    <div class="flex items-center justify-between px-4 py-2 border-b border-slate-700"
+                                        :class="(item.score ?? 0) >= 70 ? 'bg-emerald-950/40' : ((item.score ?? 0) >= 40 ? 'bg-yellow-950/40' : 'bg-red-950/40')">
+                                        <span class="text-[10px] text-white font-sans font-bold">
+                                            Soal {{ item.question_number ?? index + 1 }}
+                                        </span>
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-[9px] text-slate-400 uppercase">{{ item.subject || '' }} · {{ item.question_type || 'essay' }}</span>
+                                            <span class="text-lg font-bold font-sans"
+                                                :class="(item.score ?? 0) >= 70 ? 'text-emerald-400' : ((item.score ?? 0) >= 40 ? 'text-yellow-400' : 'text-red-400')">
+                                                {{ item.score ?? 0 }}
+                                            </span>
                                         </div>
                                     </div>
-                                    <div v-if="Array.isArray(item.strengths) && item.strengths.length" class="space-y-1">
-                                        <p class="text-[8px] text-slate-500 uppercase">STRENGTHS</p>
-                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.strengths.join(', ') }}</p>
-                                    </div>
-                                    <div v-if="Array.isArray(item.weaknesses) && item.weaknesses.length" class="space-y-1">
-                                        <p class="text-[8px] text-slate-500 uppercase">WEAKNESSES</p>
-                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.weaknesses.join(', ') }}</p>
-                                    </div>
-                                    <div class="space-y-1">
-                                        <p class="text-[8px] text-slate-500 uppercase">FEEDBACK</p>
-                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.feedback || 'NO_FEEDBACK' }}</p>
+
+                                    <div class="p-4 space-y-3">
+                                        <!-- Question -->
+                                        <div v-if="item.question">
+                                            <p class="text-[9px] text-cyan-400 uppercase mb-1">Soal</p>
+                                            <p class="text-[12px] text-slate-200 font-sans leading-relaxed">{{ item.question }}</p>
+                                        </div>
+
+                                        <!-- Student answer -->
+                                        <div>
+                                            <p class="text-[9px] text-blue-400 uppercase mb-1">Jawaban Siswa</p>
+                                            <p class="text-[12px] text-slate-300 font-sans leading-relaxed whitespace-pre-wrap bg-slate-900/50 p-3 border-l-2 border-blue-800">{{ item.student_answer || 'Tidak dijawab' }}</p>
+                                        </div>
+
+                                        <!-- Criteria scores -->
+                                        <div v-if="Array.isArray(item.criteria_scores) && item.criteria_scores.length">
+                                            <p class="text-[9px] text-slate-400 uppercase mb-2">Kriteria Penilaian</p>
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                <div v-for="(row, cIndex) in item.criteria_scores" :key="`criteria-${index}-${cIndex}`"
+                                                    class="flex items-center justify-between px-3 py-2 border border-slate-800 bg-slate-900/30">
+                                                    <span class="text-[10px] text-slate-300 font-sans">{{ row.name }}</span>
+                                                    <span class="text-[11px] font-bold font-sans"
+                                                        :class="row.score >= 70 ? 'text-emerald-400' : (row.score >= 40 ? 'text-yellow-400' : 'text-red-400')">
+                                                        {{ row.score }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Feedback -->
+                                        <div v-if="item.feedback" class="bg-slate-900/50 border border-slate-800 p-3">
+                                            <p class="text-[9px] text-amber-400 uppercase mb-1">Feedback AI</p>
+                                            <p class="text-[11px] text-slate-200 font-sans leading-relaxed">{{ item.feedback }}</p>
+                                        </div>
+
+                                        <!-- Strengths & Weaknesses inline -->
+                                        <div class="flex flex-col md:flex-row gap-3 text-[10px] font-sans">
+                                            <div v-if="Array.isArray(item.strengths) && item.strengths.length" class="flex-1">
+                                                <p class="text-emerald-400 uppercase text-[9px] mb-1">✓ Kelebihan</p>
+                                                <p class="text-slate-300">{{ item.strengths.join(' · ') }}</p>
+                                            </div>
+                                            <div v-if="Array.isArray(item.weaknesses) && item.weaknesses.length" class="flex-1">
+                                                <p class="text-red-400 uppercase text-[9px] mb-1">✗ Kekurangan</p>
+                                                <p class="text-slate-300">{{ item.weaknesses.join(' · ') }}</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -707,6 +758,12 @@
                                             <span v-else-if="q.question_type === 'word_match'" class="text-orange-400">WORD_MATCH</span>
                                             <span v-else class="text-yellow-400">ESSAY</span>
                                         </div>
+                                    </div>
+
+                                    <!-- Student answer inline -->
+                                    <div v-if="q.question_type !== 'multiple_choice'" class="mt-3">
+                                        <p class="text-[8px] text-blue-400 uppercase mb-1">Jawaban Siswa:</p>
+                                        <p class="text-[11px] font-sans text-slate-300 whitespace-pre-wrap bg-slate-900/50 p-3 border-l-2 border-blue-800 max-h-40 overflow-y-auto custom-scrollbar">{{ selectedAnswerFor(q) || 'Tidak dijawab' }}</p>
                                     </div>
 
                                     <div v-if="q.question_type === 'multiple_choice'" class="mt-3 text-[11px] font-sans">
@@ -1242,6 +1299,19 @@ const pipelineStatusClass = computed(() => {
         default: return 'text-slate-400 border-slate-600 bg-slate-700/10';
     }
 });
+const pipelineStageOrder = ['pending_preprocessing', 'preprocessed', 'cleaned', 'structured', 'semantic_enriched', 'rubric_prepared', 'ai_checked', 'post_evaluation_validated', 'evaluated'];
+const pipelineStageLabels = ['Extract', 'Clean', 'Structure', 'Semantic', 'Rubric', 'AI Eval', 'Validate', 'Present', 'Done'];
+const pipelineStages = computed(() => {
+    const currentIdx = pipelineStageOrder.indexOf(pipelineStatus.value);
+    const activeStatuses = ['preprocessing', 'cleaning', 'structure_detection', 'semantic_enrichment', 'rubric_preparation', 'ai_evaluation', 'post_evaluation_validation', 'result_presentation'];
+    const activeIdx = activeStatuses.indexOf(pipelineStatus.value);
+    return pipelineStageOrder.map((key, idx) => ({
+        key,
+        label: pipelineStageLabels[idx],
+        completed: currentIdx >= idx,
+        active: activeIdx === idx,
+    }));
+});
 const isPendingPreprocessing = computed(() => pipelineStatus.value === 'pending_preprocessing');
 const isPreprocessing = computed(() => pipelineStatus.value === 'preprocessing');
 const isReadyForPreprocessing = computed(() => ['pending_preprocessing', 'preprocessed', 'cleaned', 'structured', 'semantic_enriched', 'rubric_prepared', 'ai_checked', 'post_evaluation_validated', 'result_presentation', 'evaluated'].includes(pipelineStatus.value));
@@ -1280,6 +1350,9 @@ const isStartingSemanticEnrichment = ref(false);
 const isStartingRubricPreparation = ref(false);
 const isStartingAiEvaluation = ref(false);
 const isRerunningAiEvaluation = ref(false);
+const rerunProgress = ref(0);
+const rerunCurrentStep = ref('');
+const rerunLogs = ref([]);
 const isStartingPostEvaluationValidation = ref(false);
 const isStartingResultPresentation = ref(false);
 const autoEssayScoreSource = ref('');
@@ -2097,15 +2170,41 @@ const rerunAiEvaluation = async () => {
     if (!confirm.isConfirmed) return;
 
     isRerunningAiEvaluation.value = true;
+    rerunProgress.value = 0;
+    rerunCurrentStep.value = '6. AI Evaluation...';
+    rerunLogs.value = ['Starting re-run pipeline...'];
+
+    // Simulate progress while waiting for response
+    const progressInterval = setInterval(() => {
+        if (rerunProgress.value < 30) {
+            rerunProgress.value += 2;
+            rerunCurrentStep.value = '6. AI Evaluation...';
+        } else if (rerunProgress.value < 60) {
+            rerunProgress.value += 1;
+            rerunCurrentStep.value = '7. Post-Eval Validation...';
+        } else if (rerunProgress.value < 85) {
+            rerunProgress.value += 1;
+            rerunCurrentStep.value = '8. Result Presentation...';
+        }
+    }, 500);
+
     try {
+        rerunLogs.value.push('Calling AI evaluation...');
         const response = await axios.post(route('admin.submissions.rerunAiEvaluation', { submission: props.submission.uuid }));
+        clearInterval(progressInterval);
+        rerunProgress.value = 100;
+        rerunCurrentStep.value = 'Completed ✓';
         const data = response?.data || {};
-        Swal.fire('RERUN_COMPLETED', `Stages: AI=${data.stages?.ai_evaluation}, PostEval=${data.stages?.post_evaluation_validation}, Presentation=${data.stages?.result_presentation}`, 'success');
-        window.location.reload();
+        rerunLogs.value.push(`AI: ${data.stages?.ai_evaluation} | PostEval: ${data.stages?.post_evaluation_validation} | Present: ${data.stages?.result_presentation}`);
+        rerunLogs.value.push('Re-run selesai. Reloading...');
+        setTimeout(() => window.location.reload(), 1500);
     } catch (error) {
+        clearInterval(progressInterval);
+        rerunCurrentStep.value = 'Failed ✗';
         const data = error?.response?.data || {};
+        rerunLogs.value.push(`Error: ${data.message || 'Re-run gagal'}`);
+        if (data.stage) rerunLogs.value.push(`Failed at stage: ${data.stage}`);
         Swal.fire('RERUN_FAILED', data.message || 'Re-run gagal.', 'error');
-    } finally {
         isRerunningAiEvaluation.value = false;
     }
 };
@@ -2155,35 +2254,7 @@ const startResultPresentation = async () => {
 };
 
 const getRunAllStartIndex = () => {
-    switch (pipelineStatus.value) {
-        case 'pending_preprocessing':
-        case 'preprocessing':
-            return 0;
-        case 'preprocessed':
-        case 'cleaning':
-        case 'cleaned':
-            return 1;
-        case 'structure_detection':
-        case 'structured':
-            return 2;
-        case 'semantic_enrichment':
-        case 'semantic_enriched':
-            return 3;
-        case 'rubric_preparation':
-        case 'rubric_prepared':
-            return 4;
-        case 'ai_evaluation':
-        case 'ai_checked':
-            return 5;
-        case 'post_evaluation_validation':
-        case 'post_evaluation_validated':
-            return 6;
-        case 'result_presentation':
-        case 'evaluated':
-            return 7;
-        default:
-            return 0;
-    }
+    return 0;
 };
 
 const runAllSteps = [
