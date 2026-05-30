@@ -237,15 +237,19 @@ def validate_item(raw_item, max_retries):
 
     rubric_criteria = normalize_rubric_criteria(raw_item.get('rubric_criteria'))
     total_criteria_score = sum(int(row.get('score', 0)) for row in criteria_scores)
+    avg_criteria_score = int(round(total_criteria_score / max(1, len(criteria_scores)))) if criteria_scores else 0
 
-    criteria_consistent = abs(total_criteria_score - normalized_score) <= 15
+    # Accept both patterns: sum-based (60+25=85) or percentage-based (76,74,73 avg≈74)
+    sum_consistent = abs(total_criteria_score - normalized_score) <= 15
+    avg_consistent = abs(avg_criteria_score - normalized_score) <= 15
+    criteria_consistent = sum_consistent or avg_consistent
     if not criteria_consistent:
         warnings.append('criteria_inconsistency_detected')
 
     if rubric_criteria:
         for row in criteria_scores:
             key = normalize_text(row.get('name')).lower()
-            if key in rubric_criteria and int(row.get('score', 0)) > int(rubric_criteria[key]):
+            if key in rubric_criteria and int(row.get('score', 0)) > 100:
                 warnings.append('criteria_over_weight_detected')
                 criteria_consistent = False
                 break

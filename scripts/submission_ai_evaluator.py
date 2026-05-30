@@ -414,7 +414,9 @@ def evaluate_item(item, submission_context=None, ai_result_for_item=None):
     criteria_scores = []
     for c in criteria:
         weight = c["weight"]
-        c_score = clamp(int(round(final_score * (0.85 + (weight / 500)))), 0, 100)
+        # Score proportional to final_score, slight variance based on weight rank
+        variance = (weight - 50) * 0.1  # heavier criteria slightly higher
+        c_score = clamp(int(round(final_score + variance)), 0, 100)
         reason = "Cukup sesuai." if c_score >= 50 else "Perlu perbaikan."
         criteria_scores.append({"name": c["name"], "score": c_score, "reason": reason})
 
