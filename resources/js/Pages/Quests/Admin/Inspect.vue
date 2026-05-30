@@ -17,12 +17,145 @@
                         <span class="text-[8px] bg-cyan-900/30 text-cyan-400 px-2 py-1 border border-cyan-700 uppercase">
                             MAX_EXP: {{ maxExpReward }} XP
                         </span>
+                        <span class="text-[8px] bg-slate-900/30 text-slate-200 px-2 py-1 border border-slate-700 uppercase">
+                            PIPELINE: <span :class="pipelineStatusClass">{{ pipelineStatusLabel }}</span>
+                        </span>
+                        <span v-if="submission.file_path || submission.content"
+                            class="text-[8px] bg-slate-900/30 text-slate-200 px-2 py-1 border border-slate-700 uppercase">
+                            CONTENT_TYPE: {{ submission.file_type || (submission.content ? 'text' : 'unknown') }}
+                        </span>
+                        <span v-if="extractionStatus"
+                            class="text-[8px] bg-slate-900/30 px-2 py-1 border uppercase"
+                            :class="extractionStatus === 'success' ? 'text-emerald-300 border-emerald-700' : 'text-red-300 border-red-700'">
+                            EXTRACTION: {{ extractionStatus }}
+                        </span>
                     </div>
                 </div>
-                <Link :href="route('admin.quests.submissions', { quest: submission.quest.uuid })"
-                    class="text-[8px] bg-red-900/20 text-red-500 px-6 py-3 border-2 border-red-900 hover:bg-red-900 hover:text-white transition-all">
-                    [ CLOSE_TERMINAL ]
-                </Link>
+                <div class="flex flex-col gap-2 items-end">
+                    <Link :href="route('admin.quests.submissions', { quest: submission.quest.uuid })"
+                        class="text-[8px] bg-red-900/20 text-red-500 px-6 py-3 border-2 border-red-900 hover:bg-red-900 hover:text-white transition-all">
+                        [ CLOSE_TERMINAL ]
+                    </Link>
+                    <button
+                        v-if="canRunAllStages"
+                        @click.prevent="startAllPipelineStages"
+                        :disabled="isRunningAllStages"
+                        class="text-[8px] bg-blue-900/30 text-blue-200 px-6 py-3 border-2 border-blue-500 hover:bg-blue-500 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {{ isRunningAllStages ? `RUNNING_ALL_STAGES...${runAllProgress}%` : 'RUN_ALL_STAGES' }}
+                    </button>
+                    <div v-if="isRunningAllStages || runAllLogs.length"
+                        class="w-full max-w-[360px] p-3 border border-blue-700 bg-[#050f46] text-[8px] text-cyan-200 font-mono space-y-1">
+                        <p>Initializing Display... [OK]</p>
+                        <p>Loading Assets... {{ runAllProgress }}%</p>
+                        <p v-if="runAllCurrentStep">{{ runAllCurrentStep }}</p>
+                        <p v-if="runAllLogs.length" class="text-cyan-100 truncate">{{ runAllLogs[runAllLogs.length - 1] }}</p>
+                    </div>
+                    <button
+                        v-if="isReadyForPreprocessing"
+                        @click.prevent="startPreprocessing"
+                        :disabled="isStartingPreprocessing"
+                        class="text-[8px] bg-cyan-900/30 text-cyan-300 px-6 py-3 border-2 border-cyan-600 hover:bg-cyan-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {{ isStartingPreprocessing ? 'STARTING_PREPROCESSING...' : 'START PREPROCESSING' }}
+                    </button>
+                    <div v-else-if="submission.pipeline_status === 'preprocessing'"
+                        class="text-[8px] px-4 py-2 border border-cyan-700 bg-cyan-900/10 text-cyan-300 uppercase">
+                        PREPROCESSING TRIGGERED
+                    </div>
+                    <button
+                        v-if="isReadyForCleaning"
+                        @click.prevent="startCleaning"
+                        :disabled="isStartingCleaning"
+                        class="text-[8px] bg-emerald-900/30 text-emerald-300 px-6 py-3 border-2 border-emerald-600 hover:bg-emerald-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {{ isStartingCleaning ? 'CLEANING_TEXT...' : 'CLEAN_TEXT' }}
+                    </button>
+                    <div v-else-if="submission.pipeline_status === 'cleaning'"
+                        class="text-[8px] px-4 py-2 border border-emerald-700 bg-emerald-900/10 text-emerald-300 uppercase">
+                        CLEANING TRIGGERED
+                    </div>
+                    <button
+                        v-if="isReadyForStructureDetection"
+                        @click.prevent="startStructureDetection"
+                        :disabled="isStartingStructureDetection"
+                        class="text-[8px] bg-violet-900/30 text-violet-300 px-6 py-3 border-2 border-violet-600 hover:bg-violet-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {{ isStartingStructureDetection ? 'DETECTING_STRUCTURE...' : 'DETECT_STRUCTURE' }}
+                    </button>
+                    <div v-else-if="submission.pipeline_status === 'structure_detection'"
+                        class="text-[8px] px-4 py-2 border border-violet-700 bg-violet-900/10 text-violet-300 uppercase">
+                        STRUCTURE DETECTION TRIGGERED
+                    </div>
+                    <button
+                        v-if="isReadyForSemanticEnrichment"
+                        @click.prevent="startSemanticEnrichment"
+                        :disabled="isStartingSemanticEnrichment"
+                        class="text-[8px] bg-amber-900/30 text-amber-300 px-6 py-3 border-2 border-amber-600 hover:bg-amber-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {{ isStartingSemanticEnrichment ? 'ENRICHING_SEMANTIC...' : 'ENRICH_SEMANTIC' }}
+                    </button>
+                    <div v-else-if="submission.pipeline_status === 'semantic_enrichment'"
+                        class="text-[8px] px-4 py-2 border border-amber-700 bg-amber-900/10 text-amber-300 uppercase">
+                        SEMANTIC ENRICHMENT TRIGGERED
+                    </div>
+                    <button
+                        v-if="isReadyForRubricPreparation"
+                        @click.prevent="startRubricPreparation"
+                        :disabled="isStartingRubricPreparation"
+                        class="text-[8px] bg-sky-900/30 text-sky-300 px-6 py-3 border-2 border-sky-600 hover:bg-sky-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {{ isStartingRubricPreparation ? 'PREPARING_RUBRIC...' : 'PREPARE_RUBRIC' }}
+                    </button>
+                    <div v-else-if="submission.pipeline_status === 'rubric_preparation'"
+                        class="text-[8px] px-4 py-2 border border-sky-700 bg-sky-900/10 text-sky-300 uppercase">
+                        RUBRIC PREPARATION TRIGGERED
+                    </div>
+                    <button
+                        v-if="isReadyForAiEvaluation"
+                        @click.prevent="startAiEvaluation"
+                        :disabled="isStartingAiEvaluation"
+                        class="text-[8px] bg-indigo-900/30 text-indigo-300 px-6 py-3 border-2 border-indigo-600 hover:bg-indigo-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {{ isStartingAiEvaluation ? 'EVALUATING_ANSWER...' : 'RUN_AI_EVALUATION' }}
+                    </button>
+                    <button
+                        v-if="canRerunAiEvaluation"
+                        @click.prevent="rerunAiEvaluation"
+                        :disabled="isRerunningAiEvaluation"
+                        class="text-[8px] bg-orange-900/30 text-orange-300 px-6 py-3 border-2 border-orange-600 hover:bg-orange-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {{ isRerunningAiEvaluation ? 'RE-RUNNING_6→7→8...' : '⟳ RE-RUN_AI_EVALUATION' }}
+                    </button>
+                    <div v-else-if="submission.pipeline_status === 'ai_evaluation'"
+                        class="text-[8px] px-4 py-2 border border-indigo-700 bg-indigo-900/10 text-indigo-300 uppercase">
+                        AI EVALUATION TRIGGERED
+                    </div>
+                    <button
+                        v-if="isReadyForPostEvaluationValidation"
+                        @click.prevent="startPostEvaluationValidation"
+                        :disabled="isStartingPostEvaluationValidation"
+                        class="text-[8px] bg-teal-900/30 text-teal-300 px-6 py-3 border-2 border-teal-600 hover:bg-teal-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {{ isStartingPostEvaluationValidation ? 'VALIDATING_EVALUATION...' : 'RUN_POST_EVAL_VALIDATION' }}
+                    </button>
+                    <div v-else-if="submission.pipeline_status === 'post_evaluation_validation'"
+                        class="text-[8px] px-4 py-2 border border-teal-700 bg-teal-900/10 text-teal-300 uppercase">
+                        POST EVALUATION VALIDATION TRIGGERED
+                    </div>
+                    <button
+                        v-if="isReadyForResultPresentation"
+                        @click.prevent="startResultPresentation"
+                        :disabled="isStartingResultPresentation"
+                        class="text-[8px] bg-fuchsia-900/30 text-fuchsia-300 px-6 py-3 border-2 border-fuchsia-600 hover:bg-fuchsia-600 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {{ isStartingResultPresentation ? 'BUILDING_RESULT_PRESENTATION...' : 'RUN_RESULT_PRESENTATION' }}
+                    </button>
+                    <div v-else-if="submission.pipeline_status === 'result_presentation'"
+                        class="text-[8px] px-4 py-2 border border-fuchsia-700 bg-fuchsia-900/10 text-fuchsia-300 uppercase">
+                        RESULT PRESENTATION TRIGGERED
+                    </div>
+                </div>
             </div>
 
             <section class="bg-[#161b22] border-4 border-slate-700 shadow-2xl overflow-hidden">
@@ -181,6 +314,321 @@
                                 OPEN_EXTERNAL_SOURCE
                             </a>
                         </div>
+
+                        <div class="bg-slate-950 border-2 border-blue-900/60 p-4 space-y-3">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <p class="text-[8px] text-blue-300 uppercase tracking-widest">>> PIPELINE_STAGE_SELECTOR</p>
+                                <p class="text-[7px] text-slate-500 uppercase">CLICK_STAGE_TO_VIEW_OUTPUT</p>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <button
+                                    v-for="stage in outputStageTabs"
+                                    :key="stage.key"
+                                    type="button"
+                                    @click.prevent="selectedOutputStage = stage.key"
+                                    class="text-[8px] px-3 py-2 border uppercase transition-all"
+                                    :class="selectedOutputStage === stage.key ? 'border-cyan-400 text-cyan-200 bg-cyan-500/10' : 'border-slate-700 text-slate-300 bg-black/30 hover:border-cyan-700'"
+                                >
+                                    {{ stage.label }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="!hasSelectedOutputStageData" class="bg-black/40 border border-slate-800 p-4 text-[8px] text-slate-400 uppercase">
+                            NO OUTPUT AVAILABLE FOR SELECTED STAGE YET.
+                        </div>
+
+                        <div v-if="selectedOutputStage === 'extraction' && extractionResult"
+                            class="bg-slate-950 border-2 border-emerald-900/60 p-4 space-y-3">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <p class="text-[8px] text-emerald-400 uppercase tracking-widest">>> RAW_EXTRACTION_OUTPUT</p>
+                                <p class="text-[7px] text-slate-500 uppercase">
+                                    {{ extractionResult.detected_content_type || 'unknown' }} / {{ extractionResult.extraction_method || 'unknown' }} / PAGES: {{ extractionResult.page_count ?? 0 }}
+                                </p>
+                            </div>
+                            <div v-if="extractionWarnings.length" class="text-[8px] text-yellow-300 uppercase font-sans">
+                                WARNINGS: {{ extractionWarnings.join(', ') }}
+                            </div>
+                            <pre class="max-h-80 overflow-y-auto whitespace-pre-wrap custom-scrollbar bg-black border border-slate-800 p-4 text-[12px] text-slate-200 font-sans">{{ extractionResult.raw_text || 'NO_RAW_TEXT_EXTRACTED' }}</pre>
+                        </div>
+
+                        <div v-if="selectedOutputStage === 'cleaning' && cleaningResult"
+                            class="bg-slate-950 border-2 border-indigo-900/60 p-4 space-y-3">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <p class="text-[8px] text-indigo-300 uppercase tracking-widest">>> CLEANING_NORMALIZATION_OUTPUT</p>
+                                <p class="text-[7px] text-slate-500 uppercase">
+                                    LANG: {{ cleaningResult.language || 'unknown' }} / STATUS: {{ cleaningResult.cleaning_status || 'unknown' }} / NEXT: {{ cleaningResult.next_stage || '-' }}
+                                </p>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-[8px] uppercase">
+                                <div class="border border-slate-800 bg-black/30 p-2">Noise: {{ cleaningChanges.noise_removed }}</div>
+                                <div class="border border-slate-800 bg-black/30 p-2">OCR: {{ cleaningChanges.ocr_corrections }}</div>
+                                <div class="border border-slate-800 bg-black/30 p-2">Lines: {{ cleaningChanges.line_break_fixed }}</div>
+                                <div class="border border-slate-800 bg-black/30 p-2">Garbage: {{ cleaningChanges.garbage_removed }}</div>
+                            </div>
+                            <div v-if="cleaningWarnings.length" class="text-[8px] text-yellow-300 uppercase font-sans">
+                                WARNINGS: {{ cleaningWarnings.join(', ') }}
+                            </div>
+                            <pre class="max-h-80 overflow-y-auto whitespace-pre-wrap custom-scrollbar bg-black border border-slate-800 p-4 text-[12px] text-slate-200 font-sans">{{ cleaningResult.clean_text || 'NO_CLEAN_TEXT_GENERATED' }}</pre>
+                        </div>
+
+                        <div v-if="selectedOutputStage === 'structure' && structureResult"
+                            class="bg-slate-950 border-2 border-violet-900/60 p-4 space-y-3">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <p class="text-[8px] text-violet-300 uppercase tracking-widest">>> STRUCTURE_DETECTION_OUTPUT</p>
+                                <p class="text-[7px] text-slate-500 uppercase">
+                                    PATTERN: {{ structureResult.document_pattern || 'unknown' }} / STATUS: {{ structureResult.structure_detection_status || 'unknown' }} / ITEMS: {{ structureItems.length }} / NEXT: {{ structureResult.next_stage || '-' }}
+                                </p>
+                            </div>
+                            <div v-if="structureWarnings.length" class="text-[8px] text-yellow-300 uppercase font-sans">
+                                WARNINGS: {{ structureWarnings.join(', ') }}
+                            </div>
+                            <div v-if="instructionBlocks.length" class="bg-black/30 border border-slate-800 p-3 space-y-1">
+                                <p class="text-[8px] text-slate-500 uppercase">INSTRUCTION_BLOCKS</p>
+                                <div v-for="(instruction, index) in instructionBlocks" :key="`instruction-${index}`" class="text-[11px] text-slate-300 font-sans whitespace-pre-wrap">
+                                    {{ instruction }}
+                                </div>
+                            </div>
+                            <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-1">
+                                <div v-for="(item, index) in structureItems" :key="`structure-item-${index}`" class="border border-slate-800 bg-black/30 p-3 space-y-2">
+                                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-[8px] uppercase">
+                                        <span class="text-violet-300">ITEM {{ item.question_number ?? index + 1 }}</span>
+                                        <span :class="item.is_empty ? 'text-yellow-300' : 'text-emerald-300'">{{ item.answer_status || 'unclear' }}</span>
+                                    </div>
+                                    <div v-if="item.question" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">QUESTION</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.question }}</p>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">ANSWER</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.answer || 'EMPTY_ANSWER' }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="selectedOutputStage === 'semantic' && semanticResult"
+                            class="bg-slate-950 border-2 border-amber-900/60 p-4 space-y-3">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <p class="text-[8px] text-amber-300 uppercase tracking-widest">>> SEMANTIC_ENRICHMENT_OUTPUT</p>
+                                <p class="text-[7px] text-slate-500 uppercase">
+                                    STATUS: {{ semanticResult.semantic_enrichment_status || 'unknown' }} / ITEMS: {{ semanticItems.length }} / NEXT: {{ semanticResult.next_stage || '-' }}
+                                </p>
+                            </div>
+                            <div v-if="semanticWarnings.length" class="text-[8px] text-yellow-300 uppercase font-sans">
+                                WARNINGS: {{ semanticWarnings.join(', ') }}
+                            </div>
+                            <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-1">
+                                <div v-for="(item, index) in semanticItems" :key="`semantic-item-${index}`" class="border border-slate-800 bg-black/30 p-3 space-y-2">
+                                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-[8px] uppercase">
+                                        <span class="text-amber-300">ITEM {{ item.question_number ?? index + 1 }}</span>
+                                        <span class="text-slate-300">CONF: {{ Number(item.confidence ?? 0).toFixed(2) }}</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-[8px] uppercase">
+                                        <div class="border border-slate-800 bg-black/30 p-2">LANG: {{ item.language || 'other' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">SUBJECT: {{ item.subject || 'other' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">TYPE: {{ item.question_type || 'analysis' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">DIFFICULTY: {{ item.difficulty || item.complexity || 'medium' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">LENGTH: {{ item.answer_length || 'empty' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">QUALITY: {{ item.answer_quality || 'low_confidence' }}</div>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">EVALUATION_STRATEGY</p>
+                                        <p class="text-[11px] text-amber-200 font-sans">{{ item.evaluation_strategy || 'semantic_similarity' }}</p>
+                                    </div>
+                                    <div v-if="Array.isArray(item.expected_concepts) && item.expected_concepts.length" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">EXPECTED_CONCEPTS</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">
+                                            {{ item.expected_concepts.map((row) => `${row.concept} (${Number(row.weight ?? 0).toFixed(3)})`).join(', ') }}
+                                        </p>
+                                    </div>
+                                    <div v-else class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">EXPECTED_CONCEPTS</p>
+                                        <p class="text-[11px] text-slate-500 font-sans">-</p>
+                                    </div>
+                                    <div v-if="Array.isArray(item.semantic_tags) && item.semantic_tags.length" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">SEMANTIC_TAGS</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.semantic_tags.join(', ') }}</p>
+                                    </div>
+                                    <div v-else-if="Array.isArray(item.tags) && item.tags.length" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">SEMANTIC_TAGS</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.tags.join(', ') }}</p>
+                                    </div>
+                                    <div v-if="item.question" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">QUESTION</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.question }}</p>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">ANSWER</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.answer || 'EMPTY_ANSWER' }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="selectedOutputStage === 'rubric' && rubricPreparationResult"
+                            class="bg-slate-950 border-2 border-sky-900/60 p-4 space-y-3">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <p class="text-[8px] text-sky-300 uppercase tracking-widest">>> RUBRIC_PREPARATION_OUTPUT</p>
+                                <p class="text-[7px] text-slate-500 uppercase">
+                                    STATUS: {{ rubricPreparationResult.rubric_preparation_status || 'unknown' }} / ITEMS: {{ rubricPreparationItems.length }} / NEXT: {{ rubricPreparationResult.next_stage || '-' }}
+                                </p>
+                            </div>
+                            <div v-if="rubricPreparationWarnings.length" class="text-[8px] text-yellow-300 uppercase font-sans">
+                                WARNINGS: {{ rubricPreparationWarnings.join(', ') }}
+                            </div>
+                            <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-1">
+                                <div v-for="(item, index) in rubricPreparationItems" :key="`rubric-item-${index}`" class="border border-slate-800 bg-black/30 p-3 space-y-2">
+                                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-[8px] uppercase">
+                                        <span class="text-sky-300">ITEM {{ item.question_number ?? index + 1 }}</span>
+                                        <span :class="item.payload_status === 'ready' ? 'text-emerald-300' : (item.payload_status === 'partial' ? 'text-yellow-300' : 'text-red-300')">{{ item.payload_status || 'failed' }}</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-[8px] uppercase">
+                                        <div class="border border-slate-800 bg-black/30 p-2">SUBJECT: {{ item.subject || 'other' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">TYPE: {{ item.question_type || 'essay' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">STRATEGY: {{ item.evaluation_strategy || 'semantic_similarity' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">RUBRIC_ID: {{ item.selected_rubric?.rubric_id ?? '-' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">SCORE_MIN: {{ item.constraints?.score_range?.[0] ?? 0 }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">SCORE_MAX: {{ item.constraints?.score_range?.[1] ?? 100 }}</div>
+                                    </div>
+                                    <div v-if="Array.isArray(item.selected_rubric?.criteria) && item.selected_rubric.criteria.length" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">RUBRIC_CRITERIA</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.selected_rubric.criteria.map((c) => `${c.name}:${c.weight}`).join(', ') }}</p>
+                                    </div>
+                                    <div v-if="item.question" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">QUESTION</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.question }}</p>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">STUDENT_ANSWER</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.student_answer || 'EMPTY_ANSWER' }}</p>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">REFERENCE_ANSWER</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.reference_answer || 'NULL' }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="selectedOutputStage === 'evaluation' && aiEvaluationResult"
+                            class="bg-slate-950 border-2 border-indigo-900/60 p-4 space-y-3">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <p class="text-[8px] text-indigo-300 uppercase tracking-widest">>> AI_EVALUATION_OUTPUT</p>
+                                <p class="text-[7px] text-slate-500 uppercase">
+                                    STATUS: {{ aiEvaluationResult.ai_evaluation_status || 'unknown' }} / ITEMS: {{ aiEvaluationItems.length }} / NEXT: {{ aiEvaluationResult.next_stage || '-' }}
+                                </p>
+                            </div>
+                            <div v-if="aiEvaluationWarnings.length" class="text-[8px] text-yellow-300 uppercase font-sans">
+                                WARNINGS: {{ aiEvaluationWarnings.join(', ') }}
+                            </div>
+                            <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-1">
+                                <div v-for="(item, index) in aiEvaluationItems" :key="`ai-eval-item-${index}`" class="border border-slate-800 bg-black/30 p-3 space-y-2">
+                                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-[8px] uppercase">
+                                        <span class="text-indigo-300">ITEM {{ item.question_number ?? index + 1 }}</span>
+                                        <span class="text-emerald-300">SCORE: {{ item.score ?? 0 }}</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-[8px] uppercase">
+                                        <div class="border border-slate-800 bg-black/30 p-2">SUBJECT: {{ item.subject || 'other' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">TYPE: {{ item.question_type || 'essay' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">CONF: {{ Number(item.evaluation_confidence ?? 0).toFixed(2) }}</div>
+                                    </div>
+                                    <div v-if="Array.isArray(item.criteria_scores) && item.criteria_scores.length" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">CRITERIA_SCORES</p>
+                                        <div v-for="(row, cIndex) in item.criteria_scores" :key="`criteria-${index}-${cIndex}`" class="text-[11px] text-slate-200 font-sans">
+                                            - {{ row.name }}: {{ row.score }} ({{ row.reason }})
+                                        </div>
+                                    </div>
+                                    <div v-if="Array.isArray(item.strengths) && item.strengths.length" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">STRENGTHS</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.strengths.join(', ') }}</p>
+                                    </div>
+                                    <div v-if="Array.isArray(item.weaknesses) && item.weaknesses.length" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">WEAKNESSES</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.weaknesses.join(', ') }}</p>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">FEEDBACK</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.feedback || 'NO_FEEDBACK' }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="selectedOutputStage === 'post_eval' && postEvaluationValidationResult"
+                            class="bg-slate-950 border-2 border-teal-900/60 p-4 space-y-2">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <p class="text-[8px] text-teal-300 uppercase tracking-widest">>> POST_EVALUATION_VALIDATION_OUTPUT</p>
+                                <p class="text-[7px] text-slate-500 uppercase">
+                                    STATUS: {{ postEvaluationValidationResult.post_evaluation_validation_status || 'unknown' }}
+                                    / ITEMS: {{ postEvaluationValidationItems.length }}
+                                    / NEXT: {{ postEvaluationValidationResult.next_stage || '-' }}
+                                </p>
+                            </div>
+                            <div v-if="postEvaluationValidationWarnings.length" class="text-[8px] text-yellow-300 uppercase font-sans">
+                                WARNINGS: {{ postEvaluationValidationWarnings.join(', ') }}
+                            </div>
+                        </div>
+
+                        <div v-if="selectedOutputStage === 'presentation' && resultPresentationResult" class="bg-slate-950 border-2 border-fuchsia-900/60 p-4 space-y-3">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                <p class="text-[8px] text-fuchsia-300 uppercase tracking-widest">>> RESULT_PRESENTATION_OUTPUT</p>
+                                <p class="text-[7px] text-slate-500 uppercase">
+                                    STATUS: {{ resultPresentationResult.result_presentation_status || 'unknown' }}
+                                    / ITEMS: {{ resultPresentationItems.length }}
+                                    / NEXT: {{ resultPresentationResult.next_stage || '-' }}
+                                </p>
+                            </div>
+                            <div v-if="resultPresentationWarnings.length" class="text-[8px] text-yellow-300 uppercase font-sans">
+                                WARNINGS: {{ resultPresentationWarnings.join(', ') }}
+                            </div>
+                            <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-1">
+                                <div v-for="(item, index) in resultPresentationItems" :key="`presentation-item-${index}`" class="border border-slate-800 bg-black/30 p-3 space-y-2">
+                                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-[8px] uppercase">
+                                        <span class="text-fuchsia-300">ITEM {{ item.question_number ?? index + 1 }}</span>
+                                        <span class="text-emerald-300">FINAL_SCORE: {{ item.mentor_view?.final_score ?? 0 }}/100</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-[8px] uppercase">
+                                        <div class="border border-slate-800 bg-black/30 p-2">LABEL: {{ item.mentor_view?.score_label || 'Fair' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">CONF: {{ Number(item.confidence_display?.value ?? 0).toFixed(2) }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">CONF_LEVEL: {{ item.confidence_display?.level || 'low' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">REVIEW: {{ item.confidence_display?.requires_manual_review ? 'YES' : 'NO' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">DIFFICULTY: {{ item.analytics?.difficulty_level || 'medium' }}</div>
+                                        <div class="border border-slate-800 bg-black/30 p-2">HISTORY: {{ item.history_record?.saved ? 'SAVED' : 'NOT_SAVED' }}</div>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">FEEDBACK_SUMMARY</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.mentor_view?.feedback_summary || 'NO_FEEDBACK_SUMMARY' }}</p>
+                                    </div>
+                                    <div v-if="Array.isArray(item.mentor_view?.strengths) && item.mentor_view.strengths.length" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">STRENGTHS</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.mentor_view.strengths.join(', ') }}</p>
+                                    </div>
+                                    <div v-if="Array.isArray(item.mentor_view?.improvements) && item.mentor_view.improvements.length" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">IMPROVEMENTS</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.mentor_view.improvements.join(', ') }}</p>
+                                    </div>
+                                    <div v-if="Array.isArray(item.mentor_view?.criteria_breakdown) && item.mentor_view.criteria_breakdown.length" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">CRITERIA_BREAKDOWN</p>
+                                        <div v-for="(row, cIndex) in item.mentor_view.criteria_breakdown" :key="`presentation-criteria-${index}-${cIndex}`" class="text-[11px] text-slate-200 font-sans">
+                                            - {{ row.name }}: {{ row.score }}
+                                        </div>
+                                    </div>
+                                    <div v-if="Array.isArray(item.analytics?.common_mistakes) && item.analytics.common_mistakes.length" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">COMMON_MISTAKES</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.analytics.common_mistakes.join(', ') }}</p>
+                                    </div>
+                                    <div v-if="Array.isArray(item.analytics?.learning_tags) && item.analytics.learning_tags.length" class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">LEARNING_TAGS</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.analytics.learning_tags.join(', ') }}</p>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <p class="text-[8px] text-slate-500 uppercase">NOTIFICATION</p>
+                                        <p class="text-[11px] text-slate-200 font-sans whitespace-pre-wrap">{{ item.notification?.message || 'AI evaluation completed successfully.' }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -214,16 +662,30 @@
                             <template v-if="isTaskBankSubmission">
                                 <div class="p-4 border-2 border-slate-800 bg-black/40">
                                     <div class="flex justify-between text-[8px] uppercase">
-                                        <span class="text-slate-400 font-sans">AUTO_MCQ:</span>
-                                        <span class="text-slate-200 font-bold">{{ taskBankMcqEarnedPoints }} / {{ taskBankMcqMaxPoints }} pts</span>
+                                        <span class="text-slate-400 font-sans">AUTO_MCQ_AVG:</span>
+                                        <span class="text-slate-200 font-bold">{{ taskBankMcqScore }} / 100</span>
                                     </div>
                                     <div v-if="essayQuestions.length" class="flex justify-between text-[8px] uppercase border-t border-slate-800 pt-2 mt-2">
-                                        <span class="text-slate-400 font-sans">MANUAL_ESSAY:</span>
-                                        <span class="text-slate-200 font-bold">{{ taskBankEssayEarnedPoints }} / {{ taskBankEssayMaxPoints }} pts</span>
+                                        <span class="text-slate-400 font-sans">MANUAL_ESSAY_AVG:</span>
+                                        <span class="text-slate-200 font-bold">{{ taskBankEssayScore }} / 100</span>
+                                    </div>
+                                    <div v-if="essayQuestions.length" class="flex items-center justify-between gap-3 border-t border-slate-800 pt-2 mt-2">
+                                        <p class="text-[7px] text-slate-500 uppercase font-sans">
+                                            AUTO_SOURCE:
+                                            <span class="text-cyan-300">{{ autoEssayScoreSource || '-' }}</span>
+                                        </p>
+                                        <button
+                                            type="button"
+                                            @click.prevent="applyEssayScoresFromPipeline(true)"
+                                            :disabled="!canAutoFillEssayFromPipeline"
+                                            class="text-[7px] bg-cyan-900/30 text-cyan-300 px-2 py-1 border border-cyan-600 hover:bg-cyan-600 hover:text-black transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                            AUTO_FILL_FROM_PIPELINE
+                                        </button>
                                     </div>
                                     <div class="flex justify-between text-[8px] uppercase border-t border-slate-800 pt-2 mt-2">
-                                        <span class="text-slate-400 font-sans">TOTAL_POINTS:</span>
-                                        <span class="text-cyan-300 font-bold underline">{{ taskBankEarnedPoints }} / {{ taskBankMaxPoints }} pts</span>
+                                        <span class="text-slate-400 font-sans">FINAL_SCORE:</span>
+                                        <span class="text-cyan-300 font-bold underline">{{ taskBankTotalScore }} / 100</span>
                                     </div>
                                 </div>
 
@@ -248,21 +710,21 @@
                                     </div>
 
                                     <div v-if="q.question_type === 'multiple_choice'" class="mt-3 text-[11px] font-sans">
-                                        <p class="text-slate-400 uppercase text-[8px] italic">AUTO_POINTS:</p>
+                                        <p class="text-slate-400 uppercase text-[8px] italic">AUTO_SCORE:</p>
                                         <p class="text-cyan-300">
-                                            +{{ taskBankMcqByQuestion?.[q.uuid]?.earned_points || 0 }} / {{ q.weight || 0 }}
+                                            {{ taskBankMcqByQuestion?.[q.uuid]?.score_percent || 0 }} / 100
                                         </p>
                                     </div>
 
                                     <div v-else class="mt-4">
                                         <label class="block text-[7px] text-slate-500 uppercase italic mb-2">
-                                            ESSAY_SCORE (0–{{ q.weight || 0 }}):
+                                            ESSAY_SCORE (0-100):
                                         </label>
                                         <input
                                             type="number"
                                             v-model.number="essayPoints[q.uuid]"
                                             :min="0"
-                                            :max="q.weight || 0"
+                                            :max="100"
                                             step="1"
                                             @input="validateEssayPoints(q)"
                                             class="w-full bg-slate-900 border-2 border-slate-700 p-2 text-[10px] text-cyan-300 uppercase outline-none focus:border-cyan-400"
@@ -675,8 +1137,209 @@ const taskQuestions = computed(() => {
 });
 const isTaskBankSubmission = computed(() => taskQuestions.value.length > 0);
 const taskBankType = computed(() => taskBank.value?.assessment_type || null);
+const extractionResult = computed(() => props.submission?.extraction_result || null);
+const extractionStatus = computed(() => extractionResult.value?.extraction_status || null);
+const extractionWarnings = computed(() => Array.isArray(extractionResult.value?.warnings) ? extractionResult.value.warnings : []);
+const cleaningResult = computed(() => props.submission?.cleaning_result || null);
+const cleaningWarnings = computed(() => Array.isArray(cleaningResult.value?.warnings) ? cleaningResult.value.warnings : []);
+const cleaningChanges = computed(() => ({
+    noise_removed: Number(cleaningResult.value?.changes_summary?.noise_removed || 0),
+    ocr_corrections: Number(cleaningResult.value?.changes_summary?.ocr_corrections || 0),
+    line_break_fixed: Number(cleaningResult.value?.changes_summary?.line_break_fixed || 0),
+    garbage_removed: Number(cleaningResult.value?.changes_summary?.garbage_removed || 0),
+}));
+const structureResult = computed(() => props.submission?.structure_result || null);
+const structureWarnings = computed(() => Array.isArray(structureResult.value?.warnings) ? structureResult.value.warnings : []);
+const structureItems = computed(() => Array.isArray(structureResult.value?.items) ? structureResult.value.items : []);
+const instructionBlocks = computed(() => Array.isArray(structureResult.value?.instruction_blocks) ? structureResult.value.instruction_blocks : []);
+const semanticResult = computed(() => props.submission?.semantic_result || null);
+const semanticWarnings = computed(() => Array.isArray(semanticResult.value?.warnings) ? semanticResult.value.warnings : []);
+const semanticItems = computed(() => Array.isArray(semanticResult.value?.items) ? semanticResult.value.items : []);
+const rubricPreparationResult = computed(() => props.submission?.rubric_preparation_result || null);
+const rubricPreparationWarnings = computed(() => Array.isArray(rubricPreparationResult.value?.warnings) ? rubricPreparationResult.value.warnings : []);
+const rubricPreparationItems = computed(() => Array.isArray(rubricPreparationResult.value?.items) ? rubricPreparationResult.value.items : []);
+const aiEvaluationResult = computed(() => props.submission?.ai_evaluation_result || null);
+const aiEvaluationWarnings = computed(() => Array.isArray(aiEvaluationResult.value?.warnings) ? aiEvaluationResult.value.warnings : []);
+const aiEvaluationItems = computed(() => Array.isArray(aiEvaluationResult.value?.items) ? aiEvaluationResult.value.items : []);
+const postEvaluationValidationResult = computed(() => props.submission?.post_evaluation_validation_result || null);
+const postEvaluationValidationWarnings = computed(() => Array.isArray(postEvaluationValidationResult.value?.warnings) ? postEvaluationValidationResult.value.warnings : []);
+const postEvaluationValidationItems = computed(() => Array.isArray(postEvaluationValidationResult.value?.items) ? postEvaluationValidationResult.value.items : []);
+const resultPresentationResult = computed(() => props.submission?.result_presentation_result || null);
+const resultPresentationWarnings = computed(() => Array.isArray(resultPresentationResult.value?.warnings) ? resultPresentationResult.value.warnings : []);
+const resultPresentationItems = computed(() => Array.isArray(resultPresentationResult.value?.items) ? resultPresentationResult.value.items : []);
+const selectedOutputStage = ref('extraction');
+const outputStageTabs = [
+    { key: 'extraction', label: 'STAGE_2' },
+    { key: 'cleaning', label: 'STAGE_3' },
+    { key: 'structure', label: 'STAGE_4' },
+    { key: 'semantic', label: 'STAGE_5' },
+    { key: 'rubric', label: 'STAGE_6' },
+    { key: 'evaluation', label: 'STAGE_7' },
+    { key: 'post_eval', label: 'STAGE_8' },
+    { key: 'presentation', label: 'STAGE_9' },
+];
+const hasSelectedOutputStageData = computed(() => {
+    switch (selectedOutputStage.value) {
+        case 'extraction': return !!extractionResult.value;
+        case 'cleaning': return !!cleaningResult.value;
+        case 'structure': return !!structureResult.value;
+        case 'semantic': return !!semanticResult.value;
+        case 'rubric': return !!rubricPreparationResult.value;
+        case 'evaluation': return !!aiEvaluationResult.value;
+        case 'post_eval': return !!postEvaluationValidationResult.value;
+        case 'presentation': return !!resultPresentationResult.value;
+        default: return false;
+    }
+});
+
+const isRunningAllStages = ref(false);
+const runAllProgress = ref(0);
+const runAllCurrentStep = ref('');
+const runAllLogs = ref([]);
+
+const pipelineStatus = computed(() => String(props.submission.pipeline_status ?? 'unknown'));
+const pipelineStatusLabel = computed(() => {
+    switch (pipelineStatus.value) {
+        case 'pending_preprocessing': return 'Pending Preprocessing';
+        case 'preprocessing': return 'Preprocessing';
+        case 'preprocessed': return 'Preprocessed';
+        case 'cleaning': return 'Cleaning';
+        case 'cleaned': return 'Cleaned';
+        case 'structure_detection': return 'Structure Detection';
+        case 'structured': return 'Structured';
+        case 'semantic_enrichment': return 'Semantic Enrichment';
+        case 'semantic_enriched': return 'Semantic Enriched';
+        case 'rubric_preparation': return 'Rubric Preparation';
+        case 'rubric_prepared': return 'Rubric Prepared';
+        case 'ai_evaluation': return 'AI Evaluation';
+        case 'ai_checked': return 'AI Checked';
+        case 'post_evaluation_validation': return 'Post Evaluation Validation';
+        case 'post_evaluation_validated': return 'Post Evaluation Validated';
+        case 'result_presentation': return 'Result Presentation';
+        case 'evaluated': return 'Evaluated';
+        default: return (props.submission.pipeline_status || 'Unknown').toString();
+    }
+});
+const pipelineStatusClass = computed(() => {
+    switch (pipelineStatus.value) {
+        case 'pending_preprocessing': return 'text-yellow-400 border-yellow-500 bg-yellow-500/10';
+        case 'preprocessing': return 'text-cyan-400 border-cyan-500 bg-cyan-500/10';
+        case 'preprocessed': return 'text-emerald-400 border-emerald-500 bg-emerald-500/10';
+        case 'cleaning': return 'text-emerald-300 border-emerald-500 bg-emerald-500/10';
+        case 'cleaned': return 'text-indigo-300 border-indigo-500 bg-indigo-500/10';
+        case 'structure_detection': return 'text-violet-300 border-violet-500 bg-violet-500/10';
+        case 'structured': return 'text-violet-400 border-violet-500 bg-violet-500/10';
+        case 'semantic_enrichment': return 'text-amber-300 border-amber-500 bg-amber-500/10';
+        case 'semantic_enriched': return 'text-amber-400 border-amber-500 bg-amber-500/10';
+        case 'rubric_preparation': return 'text-sky-300 border-sky-500 bg-sky-500/10';
+        case 'rubric_prepared': return 'text-sky-400 border-sky-500 bg-sky-500/10';
+        case 'ai_evaluation': return 'text-indigo-300 border-indigo-500 bg-indigo-500/10';
+        case 'ai_checked': return 'text-indigo-400 border-indigo-500 bg-indigo-500/10';
+        case 'post_evaluation_validation': return 'text-teal-300 border-teal-500 bg-teal-500/10';
+        case 'post_evaluation_validated': return 'text-teal-400 border-teal-500 bg-teal-500/10';
+        case 'result_presentation': return 'text-fuchsia-300 border-fuchsia-500 bg-fuchsia-500/10';
+        case 'evaluated': return 'text-fuchsia-400 border-fuchsia-500 bg-fuchsia-500/10';
+        default: return 'text-slate-400 border-slate-600 bg-slate-700/10';
+    }
+});
+const isPendingPreprocessing = computed(() => pipelineStatus.value === 'pending_preprocessing');
+const isPreprocessing = computed(() => pipelineStatus.value === 'preprocessing');
+const isReadyForPreprocessing = computed(() => ['pending_preprocessing', 'preprocessed', 'cleaned', 'structured', 'semantic_enriched', 'rubric_prepared', 'ai_checked', 'post_evaluation_validated', 'result_presentation', 'evaluated'].includes(pipelineStatus.value));
+const isReadyForCleaning = computed(() => ['preprocessed', 'cleaned', 'structured', 'semantic_enriched', 'rubric_prepared', 'ai_checked', 'post_evaluation_validated', 'result_presentation', 'evaluated'].includes(pipelineStatus.value) && extractionStatus.value === 'success');
+const isReadyForStructureDetection = computed(() => ['cleaned', 'structure_detection', 'structured', 'semantic_enriched', 'rubric_prepared', 'ai_checked', 'post_evaluation_validated', 'result_presentation', 'evaluated'].includes(pipelineStatus.value) && ['success', 'partial'].includes(String(cleaningResult.value?.cleaning_status || '')));
+const isReadyForSemanticEnrichment = computed(() => ['structured', 'semantic_enriched', 'rubric_prepared', 'ai_checked', 'post_evaluation_validated', 'result_presentation', 'evaluated'].includes(pipelineStatus.value) && ['success', 'partial'].includes(String(structureResult.value?.structure_detection_status || '')));
+const isReadyForRubricPreparation = computed(() => ['semantic_enriched', 'rubric_preparation', 'rubric_prepared', 'ai_checked', 'post_evaluation_validated', 'result_presentation', 'evaluated'].includes(pipelineStatus.value) && ['success', 'partial'].includes(String(semanticResult.value?.semantic_enrichment_status || '')));
+const isReadyForAiEvaluation = computed(() => ['rubric_prepared', 'ai_evaluation', 'ai_checked', 'post_evaluation_validated', 'result_presentation', 'evaluated'].includes(pipelineStatus.value) && ['success', 'partial'].includes(String(rubricPreparationResult.value?.rubric_preparation_status || '')));
+const canRerunAiEvaluation = computed(() => ['ai_checked', 'post_evaluation_validated', 'result_presentation', 'evaluated'].includes(pipelineStatus.value) && ['success', 'partial'].includes(String(rubricPreparationResult.value?.rubric_preparation_status || '')));
+const isReadyForPostEvaluationValidation = computed(() => ['ai_checked', 'post_evaluation_validation', 'post_evaluation_validated', 'result_presentation', 'evaluated'].includes(pipelineStatus.value) && ['success', 'partial'].includes(String(aiEvaluationResult.value?.ai_evaluation_status || '')));
+const isReadyForResultPresentation = computed(() => ['post_evaluation_validated', 'result_presentation', 'evaluated'].includes(pipelineStatus.value) && ['success', 'partial'].includes(String(postEvaluationValidationResult.value?.post_evaluation_validation_status || '')));
+
+const canRunAllStages = computed(() => [
+    'pending_preprocessing',
+    'preprocessing',
+    'preprocessed',
+    'cleaning',
+    'cleaned',
+    'structure_detection',
+    'structured',
+    'semantic_enrichment',
+    'semantic_enriched',
+    'rubric_preparation',
+    'rubric_prepared',
+    'ai_evaluation',
+    'ai_checked',
+    'post_evaluation_validation',
+    'post_evaluation_validated',
+    'result_presentation',
+    'evaluated',
+].includes(pipelineStatus.value));
+const isStartingPreprocessing = ref(false);
+const isStartingCleaning = ref(false);
+const isStartingStructureDetection = ref(false);
+const isStartingSemanticEnrichment = ref(false);
+const isStartingRubricPreparation = ref(false);
+const isStartingAiEvaluation = ref(false);
+const isRerunningAiEvaluation = ref(false);
+const isStartingPostEvaluationValidation = ref(false);
+const isStartingResultPresentation = ref(false);
+const autoEssayScoreSource = ref('');
 const mcqQuestions = computed(() => taskQuestions.value.filter((q) => q.question_type === 'multiple_choice'));
 const essayQuestions = computed(() => taskQuestions.value.filter((q) => q.question_type !== 'multiple_choice'));
+const pipelineEssayScoreCandidates = computed(() => {
+    const normalizeItems = (items, source) => {
+        const output = [];
+        if (!Array.isArray(items)) {
+            return { source, output };
+        }
+
+        items.forEach((item, index) => {
+            if (!item || typeof item !== 'object') {
+                return;
+            }
+
+            const questionNumberRaw = Number(item.question_number ?? 0);
+            const questionNumber = Number.isFinite(questionNumberRaw) && questionNumberRaw > 0
+                ? Math.round(questionNumberRaw)
+                : null;
+
+            const scoreRaw = Number(
+                item?.mentor_view?.final_score
+                ?? item?.normalized_score
+                ?? item?.final_score
+                ?? item?.score
+                ?? item?.criteria_validation?.total_criteria_score
+                ?? 0
+            );
+
+            if (!Number.isFinite(scoreRaw)) {
+                return;
+            }
+
+            output.push({
+                index,
+                question_number: questionNumber,
+                percent_score: Math.max(0, Math.min(100, Math.round(scoreRaw))),
+            });
+        });
+
+        return { source, output };
+    };
+
+    if (resultPresentationItems.value.length) {
+        return normalizeItems(resultPresentationItems.value, 'stage9_result_presentation');
+    }
+
+    if (postEvaluationValidationItems.value.length) {
+        return normalizeItems(postEvaluationValidationItems.value, 'stage8_post_eval_validation');
+    }
+
+    if (aiEvaluationItems.value.length) {
+        return normalizeItems(aiEvaluationItems.value, 'stage7_ai_evaluation');
+    }
+
+    return { source: '', output: [] };
+});
+const canAutoFillEssayFromPipeline = computed(() => isTaskBankSubmission.value && essayQuestions.value.length > 0 && pipelineEssayScoreCandidates.value.output.length > 0);
 const aiPreviewJsonText = computed(() => {
     if (!aiPreviewPayload.value) return '{}';
     try {
@@ -864,35 +1527,52 @@ const taskBankMcqByQuestion = computed(() => {
         const selected = String(selectedAnswerFor(q) || '');
         const answerKey = String(q.answer_key || '');
         const isCorrect = selected !== '' && answerKey !== '' && selected === answerKey;
+        const scorePercent = isCorrect ? 100 : 0;
         by[uuid] = {
             weight,
             selected,
             answer_key: answerKey,
             is_correct: isCorrect,
-            earned_points: isCorrect ? weight : 0,
+            score_percent: scorePercent,
+            earned_points: Number(((scorePercent / 100) * weight).toFixed(2)),
+            weighted_score: scorePercent * weight,
         };
     });
     return by;
 });
 
 const taskBankMcqMaxPoints = computed(() => Object.values(taskBankMcqByQuestion.value).reduce((acc, v) => acc + Number(v.weight || 0), 0));
-const taskBankMcqEarnedPoints = computed(() => Object.values(taskBankMcqByQuestion.value).reduce((acc, v) => acc + Number(v.earned_points || 0), 0));
+const taskBankMcqWeightedScore = computed(() => Object.values(taskBankMcqByQuestion.value).reduce((acc, v) => acc + Number(v.weighted_score || 0), 0));
+const taskBankMcqScore = computed(() => {
+    const max = Number(taskBankMcqMaxPoints.value || 0);
+    if (max <= 0) return 0;
+    const score = Math.round(Number(taskBankMcqWeightedScore.value || 0) / max);
+    return Math.max(0, Math.min(100, score));
+});
+
 const taskBankEssayMaxPoints = computed(() => essayQuestions.value.reduce((acc, q) => acc + Math.max(0, Number(q.weight || 0)), 0));
-const taskBankEssayEarnedPoints = computed(() => {
+const taskBankEssayWeightedScore = computed(() => {
     return essayQuestions.value.reduce((acc, q) => {
         const uuid = String(q.uuid || '');
-        const max = Math.max(0, Number(q.weight || 0));
+        const weight = Math.max(0, Number(q.weight || 0));
         const raw = Number(essayPoints.value?.[uuid] ?? 0);
-        const clamped = Math.max(0, Math.min(max, isNaN(raw) ? 0 : raw));
-        return acc + clamped;
+        const clamped = Math.max(0, Math.min(100, isNaN(raw) ? 0 : raw));
+        return acc + (clamped * weight);
     }, 0);
 });
+const taskBankEssayScore = computed(() => {
+    const max = Number(taskBankEssayMaxPoints.value || 0);
+    if (max <= 0) return 0;
+    const score = Math.round(Number(taskBankEssayWeightedScore.value || 0) / max);
+    return Math.max(0, Math.min(100, score));
+});
+
 const taskBankMaxPoints = computed(() => taskQuestions.value.reduce((acc, q) => acc + Math.max(0, Number(q.weight || 0)), 0));
-const taskBankEarnedPoints = computed(() => Number(taskBankMcqEarnedPoints.value || 0) + Number(taskBankEssayEarnedPoints.value || 0));
+const taskBankTotalWeightedScore = computed(() => Number(taskBankMcqWeightedScore.value || 0) + Number(taskBankEssayWeightedScore.value || 0));
 const taskBankTotalScore = computed(() => {
     const max = Number(taskBankMaxPoints.value || 0);
     if (max <= 0) return 0;
-    const percent = Math.round((Number(taskBankEarnedPoints.value || 0) / max) * 100);
+    const percent = Math.round(Number(taskBankTotalWeightedScore.value || 0) / max);
     return Math.max(0, Math.min(100, percent));
 });
 
@@ -941,7 +1621,7 @@ const adjustManualScore = (delta) => {
 const validateEssayPoints = (question) => {
     const uuid = String(question?.uuid || '');
     if (!uuid) return;
-    const max = Math.max(0, Number(question?.weight || 0));
+    const max = 100;
     const raw = Number(essayPoints.value?.[uuid] ?? 0);
     const clamped = Math.max(0, Math.min(max, isNaN(raw) ? 0 : raw));
     essayPoints.value[uuid] = clamped;
@@ -1006,8 +1686,14 @@ const applyEssayScoresFromAi = (essayScores) => {
         if (!uuid || !questionMap.has(uuid)) return;
 
         const maxScore = Number(item.max_score ?? questionMap.get(uuid) ?? 0);
-        const rawScore = Number(item.score ?? 0);
-        const clamped = Math.max(0, Math.min(Number.isFinite(maxScore) && maxScore > 0 ? maxScore : questionMap.get(uuid) || 0, Number.isFinite(rawScore) ? rawScore : 0));
+        const rawScore = Number(item.score ?? item.score_awarded ?? 0);
+        if (!Number.isFinite(rawScore)) {
+            return;
+        }
+
+        const shouldScaleByMax = Number.isFinite(maxScore) && maxScore > 0 && rawScore <= maxScore;
+        const percent = shouldScaleByMax ? (rawScore / maxScore) * 100 : rawScore;
+        const clamped = Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0));
 
         next[uuid] = Math.round(clamped);
         appliedCount += 1;
@@ -1015,6 +1701,75 @@ const applyEssayScoresFromAi = (essayScores) => {
 
     if (appliedCount > 0) {
         essayPoints.value = next;
+    }
+
+    return appliedCount;
+};
+
+const applyEssayScoresFromPipeline = (showToast = false) => {
+    if (!isTaskBankSubmission.value || essayQuestions.value.length === 0) {
+        return 0;
+    }
+
+    const candidates = pipelineEssayScoreCandidates.value;
+    if (!Array.isArray(candidates?.output) || candidates.output.length === 0) {
+        return 0;
+    }
+
+    const next = { ...essayPoints.value };
+    const allQuestions = Array.isArray(taskQuestions.value) ? taskQuestions.value : [];
+    const entries = candidates.output;
+    const singleGlobalScore = entries.length === 1 ? Number(entries[0].percent_score || 0) : null;
+
+    let appliedCount = 0;
+
+    essayQuestions.value.forEach((question) => {
+        const uuid = String(question?.uuid || '').trim();
+        if (!uuid) {
+            return;
+        }
+
+        const absoluteIndex = allQuestions.findIndex((item) => String(item?.uuid || '') === uuid);
+        const absoluteNumber = absoluteIndex >= 0 ? absoluteIndex + 1 : null;
+
+        let chosen = null;
+        if (absoluteNumber !== null) {
+            chosen = entries.find((item) => Number(item?.question_number || 0) === absoluteNumber) || null;
+        }
+
+        if (!chosen && absoluteIndex >= 0) {
+            chosen = entries[absoluteIndex] || null;
+        }
+
+        if (!chosen && singleGlobalScore !== null) {
+            chosen = { percent_score: singleGlobalScore };
+        }
+
+        if (!chosen) {
+            return;
+        }
+
+        const percent = Math.max(0, Math.min(100, Number(chosen.percent_score || 0)));
+        const clamped = Math.round(Number.isFinite(percent) ? percent : 0);
+
+        const current = Number(next[uuid] ?? 0);
+        if (!Number.isFinite(current) || current !== clamped) {
+            next[uuid] = clamped;
+            appliedCount += 1;
+        }
+    });
+
+    if (appliedCount > 0) {
+        essayPoints.value = next;
+        autoEssayScoreSource.value = String(candidates.source || 'pipeline');
+    }
+
+    if (showToast) {
+        if (appliedCount > 0) {
+            Swal.fire('ESSAY_SCORE_AUTO_FILLED', `Source: ${autoEssayScoreSource.value} | Updated: ${appliedCount}`, 'success');
+        } else {
+            Swal.fire('ESSAY_SCORE_NOT_UPDATED', 'No compatible pipeline score found for essay mapping.', 'info');
+        }
     }
 
     return appliedCount;
@@ -1088,7 +1843,48 @@ const hasCompleteQuestionFeedback = (questionFeedback) => {
     return true;
 };
 
+const initializeSelectedOutputStage = () => {
+    if (resultPresentationResult.value) {
+        selectedOutputStage.value = 'presentation';
+        return;
+    }
+
+    if (postEvaluationValidationResult.value) {
+        selectedOutputStage.value = 'post_eval';
+        return;
+    }
+
+    if (aiEvaluationResult.value) {
+        selectedOutputStage.value = 'evaluation';
+        return;
+    }
+
+    if (rubricPreparationResult.value) {
+        selectedOutputStage.value = 'rubric';
+        return;
+    }
+
+    if (semanticResult.value) {
+        selectedOutputStage.value = 'semantic';
+        return;
+    }
+
+    if (structureResult.value) {
+        selectedOutputStage.value = 'structure';
+        return;
+    }
+
+    if (cleaningResult.value) {
+        selectedOutputStage.value = 'cleaning';
+        return;
+    }
+
+    selectedOutputStage.value = 'extraction';
+};
+
 onMounted(() => {
+    initializeSelectedOutputStage();
+
     const savedScores = props.submission.scores_detail;
 
     if (hasRubric.value) {
@@ -1111,10 +1907,27 @@ onMounted(() => {
         const initial = {};
         essayQuestions.value.forEach((q) => {
             const uuid = String(q.uuid || '');
-            const saved = verdictEssay?.[uuid]?.earned_points;
-            initial[uuid] = typeof saved === 'number' ? saved : Number(saved || 0);
+            const weight = Math.max(0, Number(q.weight || 0));
+            const savedPercent = verdictEssay?.[uuid]?.score_percent;
+            const savedPoints = verdictEssay?.[uuid]?.earned_points;
+
+            let resolvedPercent = 0;
+            if (savedPercent !== null && savedPercent !== undefined && savedPercent !== '') {
+                resolvedPercent = Number(savedPercent);
+            } else if (savedPoints !== null && savedPoints !== undefined && savedPoints !== '' && weight > 0) {
+                resolvedPercent = (Number(savedPoints) / weight) * 100;
+            }
+
+            initial[uuid] = Math.max(0, Math.min(100, Number.isFinite(resolvedPercent) ? Math.round(resolvedPercent) : 0));
         });
         essayPoints.value = initial;
+
+        const hasSavedVerdict = Object.keys(verdictEssay || {}).length > 0;
+        const allCurrentZero = essayQuestions.value.every((q) => Number(initial[String(q.uuid || '')] || 0) <= 0);
+        if (!hasSavedVerdict && allCurrentZero) {
+            applyEssayScoresFromPipeline(false);
+        }
+
         return;
     }
 });
@@ -1137,6 +1950,296 @@ const scanWithAI = async () => {
         Swal.fire('UPLINK_ERROR', backendMessage || 'AI preview unavailable.', 'error');
     } finally {
         isPreparingAiPreview.value = false;
+    }
+};
+
+const startPreprocessing = async () => {
+    if (!isReadyForPreprocessing.value || isStartingPreprocessing.value) {
+        return;
+    }
+
+    isStartingPreprocessing.value = true;
+    try {
+        const response = await axios.post(route('admin.submissions.startPreprocessing', { submission: props.submission.uuid }));
+        const data = response?.data || {};
+        Swal.fire('EXTRACTION_COMPLETED', `Method: ${data.extraction_method || 'unknown'}`, 'success');
+        window.location.reload();
+    } catch (error) {
+        const data = error?.response?.data || {};
+        const warningText = Array.isArray(data.warnings) && data.warnings.length ? data.warnings.join(', ') : '';
+        const backendMessage = String(data.message || data.extraction_status || '').trim();
+        Swal.fire('EXTRACTION_FAILED', warningText || backendMessage || 'Failed to extract raw text.', 'error');
+    } finally {
+        isStartingPreprocessing.value = false;
+    }
+};
+
+const startCleaning = async () => {
+    if (!isReadyForCleaning.value || isStartingCleaning.value) {
+        return;
+    }
+
+    isStartingCleaning.value = true;
+    try {
+        const response = await axios.post(route('admin.submissions.startCleaning', { submission: props.submission.uuid }));
+        const data = response?.data || {};
+        Swal.fire('CLEANING_COMPLETED', `Language: ${data.language || 'unknown'}`, 'success');
+        window.location.reload();
+    } catch (error) {
+        const data = error?.response?.data || {};
+        const warningText = Array.isArray(data.warnings) && data.warnings.length ? data.warnings.join(', ') : '';
+        const backendMessage = String(data.message || data.cleaning_status || '').trim();
+        Swal.fire('CLEANING_FAILED', warningText || backendMessage || 'Failed to clean raw text.', 'error');
+    } finally {
+        isStartingCleaning.value = false;
+    }
+};
+
+const startStructureDetection = async () => {
+    if (!isReadyForStructureDetection.value || isStartingStructureDetection.value) {
+        return;
+    }
+
+    isStartingStructureDetection.value = true;
+    try {
+        const response = await axios.post(route('admin.submissions.startStructureDetection', { submission: props.submission.uuid }));
+        const data = response?.data || {};
+        const itemCount = Array.isArray(data.items) ? data.items.length : 0;
+        Swal.fire('STRUCTURE_DETECTION_COMPLETED', `Items: ${itemCount}`, 'success');
+        window.location.reload();
+    } catch (error) {
+        const data = error?.response?.data || {};
+        const warningText = Array.isArray(data.warnings) && data.warnings.length ? data.warnings.join(', ') : '';
+        const backendMessage = String(data.message || data.structure_detection_status || '').trim();
+        Swal.fire('STRUCTURE_DETECTION_FAILED', warningText || backendMessage || 'Failed to detect document structure.', 'error');
+    } finally {
+        isStartingStructureDetection.value = false;
+    }
+};
+
+const startSemanticEnrichment = async () => {
+    if (!isReadyForSemanticEnrichment.value || isStartingSemanticEnrichment.value) {
+        return;
+    }
+
+    isStartingSemanticEnrichment.value = true;
+    try {
+        const response = await axios.post(route('admin.submissions.startSemanticEnrichment', { submission: props.submission.uuid }));
+        const data = response?.data || {};
+        const itemCount = Array.isArray(data.items) ? data.items.length : 0;
+        Swal.fire('SEMANTIC_ENRICHMENT_COMPLETED', `Items: ${itemCount}`, 'success');
+        window.location.reload();
+    } catch (error) {
+        const data = error?.response?.data || {};
+        const warningText = Array.isArray(data.warnings) && data.warnings.length ? data.warnings.join(', ') : '';
+        const backendMessage = String(data.message || data.semantic_enrichment_status || '').trim();
+        Swal.fire('SEMANTIC_ENRICHMENT_FAILED', warningText || backendMessage || 'Failed to enrich semantic metadata.', 'error');
+    } finally {
+        isStartingSemanticEnrichment.value = false;
+    }
+};
+
+const startRubricPreparation = async () => {
+    if (!isReadyForRubricPreparation.value || isStartingRubricPreparation.value) {
+        return;
+    }
+
+    isStartingRubricPreparation.value = true;
+    try {
+        const response = await axios.post(route('admin.submissions.startRubricPreparation', { submission: props.submission.uuid }));
+        const data = response?.data || {};
+        const itemCount = Array.isArray(data.items) ? data.items.length : 0;
+        Swal.fire('RUBRIC_PREPARATION_COMPLETED', `Items: ${itemCount}`, 'success');
+        window.location.reload();
+    } catch (error) {
+        const data = error?.response?.data || {};
+        const warningText = Array.isArray(data.warnings) && data.warnings.length ? data.warnings.join(', ') : '';
+        const backendMessage = String(data.message || data.rubric_preparation_status || '').trim();
+        Swal.fire('RUBRIC_PREPARATION_FAILED', warningText || backendMessage || 'Failed to prepare rubric payload.', 'error');
+    } finally {
+        isStartingRubricPreparation.value = false;
+    }
+};
+
+const startAiEvaluation = async () => {
+    if (!isReadyForAiEvaluation.value || isStartingAiEvaluation.value) {
+        return;
+    }
+
+    isStartingAiEvaluation.value = true;
+    try {
+        const response = await axios.post(route('admin.submissions.startAiEvaluation', { submission: props.submission.uuid }));
+        const data = response?.data || {};
+        const itemCount = Array.isArray(data.items) ? data.items.length : 0;
+        Swal.fire('AI_EVALUATION_COMPLETED', `Items: ${itemCount}`, 'success');
+        window.location.reload();
+    } catch (error) {
+        const data = error?.response?.data || {};
+        const warningText = Array.isArray(data.warnings) && data.warnings.length ? data.warnings.join(', ') : '';
+        const backendMessage = String(data.message || data.ai_evaluation_status || '').trim();
+        Swal.fire('AI_EVALUATION_FAILED', warningText || backendMessage || 'Failed to evaluate answers.', 'error');
+    } finally {
+        isStartingAiEvaluation.value = false;
+    }
+};
+
+const rerunAiEvaluation = async () => {
+    if (!canRerunAiEvaluation.value || isRerunningAiEvaluation.value) return;
+
+    const confirm = await Swal.fire({
+        title: 'RE-RUN AI EVALUATION?',
+        text: 'Ini akan menjalankan ulang tahap 6→7→8 (AI Evaluation → Post-Eval Validation → Result Presentation).',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Re-Run',
+        cancelButtonText: 'Batal',
+    });
+    if (!confirm.isConfirmed) return;
+
+    isRerunningAiEvaluation.value = true;
+    try {
+        const response = await axios.post(route('admin.submissions.rerunAiEvaluation', { submission: props.submission.uuid }));
+        const data = response?.data || {};
+        Swal.fire('RERUN_COMPLETED', `Stages: AI=${data.stages?.ai_evaluation}, PostEval=${data.stages?.post_evaluation_validation}, Presentation=${data.stages?.result_presentation}`, 'success');
+        window.location.reload();
+    } catch (error) {
+        const data = error?.response?.data || {};
+        Swal.fire('RERUN_FAILED', data.message || 'Re-run gagal.', 'error');
+    } finally {
+        isRerunningAiEvaluation.value = false;
+    }
+};
+
+const startPostEvaluationValidation = async () => {
+    if (!isReadyForPostEvaluationValidation.value || isStartingPostEvaluationValidation.value) {
+        return;
+    }
+
+    isStartingPostEvaluationValidation.value = true;
+    try {
+        const response = await axios.post(route('admin.submissions.startPostEvaluationValidation', { submission: props.submission.uuid }));
+        const data = response?.data || {};
+        const itemCount = Array.isArray(data.items) ? data.items.length : 0;
+        Swal.fire('POST_EVALUATION_VALIDATION_COMPLETED', `Items: ${itemCount}`, 'success');
+        window.location.reload();
+    } catch (error) {
+        const data = error?.response?.data || {};
+        const warningText = Array.isArray(data.warnings) && data.warnings.length ? data.warnings.join(', ') : '';
+        const backendMessage = String(data.message || data.post_evaluation_validation_status || '').trim();
+        Swal.fire('POST_EVALUATION_VALIDATION_FAILED', warningText || backendMessage || 'Failed to validate AI evaluation output.', 'error');
+    } finally {
+        isStartingPostEvaluationValidation.value = false;
+    }
+};
+
+const startResultPresentation = async () => {
+    if (!isReadyForResultPresentation.value || isStartingResultPresentation.value) {
+        return;
+    }
+
+    isStartingResultPresentation.value = true;
+    try {
+        const response = await axios.post(route('admin.submissions.startResultPresentation', { submission: props.submission.uuid }));
+        const data = response?.data || {};
+        const itemCount = Array.isArray(data.items) ? data.items.length : 0;
+        Swal.fire('RESULT_PRESENTATION_COMPLETED', `Items: ${itemCount}`, 'success');
+        window.location.reload();
+    } catch (error) {
+        const data = error?.response?.data || {};
+        const warningText = Array.isArray(data.warnings) && data.warnings.length ? data.warnings.join(', ') : '';
+        const backendMessage = String(data.message || data.result_presentation_status || '').trim();
+        Swal.fire('RESULT_PRESENTATION_FAILED', warningText || backendMessage || 'Failed to build mentor-facing result presentation.', 'error');
+    } finally {
+        isStartingResultPresentation.value = false;
+    }
+};
+
+const getRunAllStartIndex = () => {
+    switch (pipelineStatus.value) {
+        case 'pending_preprocessing':
+        case 'preprocessing':
+            return 0;
+        case 'preprocessed':
+        case 'cleaning':
+        case 'cleaned':
+            return 1;
+        case 'structure_detection':
+        case 'structured':
+            return 2;
+        case 'semantic_enrichment':
+        case 'semantic_enriched':
+            return 3;
+        case 'rubric_preparation':
+        case 'rubric_prepared':
+            return 4;
+        case 'ai_evaluation':
+        case 'ai_checked':
+            return 5;
+        case 'post_evaluation_validation':
+        case 'post_evaluation_validated':
+            return 6;
+        case 'result_presentation':
+        case 'evaluated':
+            return 7;
+        default:
+            return 0;
+    }
+};
+
+const runAllSteps = [
+    { key: 'extraction', label: 'RAW_EXTRACTION', routeName: 'admin.submissions.startPreprocessing' },
+    { key: 'cleaning', label: 'CLEANING_NORMALIZATION', routeName: 'admin.submissions.startCleaning' },
+    { key: 'structure', label: 'STRUCTURE_DETECTION', routeName: 'admin.submissions.startStructureDetection' },
+    { key: 'semantic', label: 'SEMANTIC_ENRICHMENT', routeName: 'admin.submissions.startSemanticEnrichment' },
+    { key: 'rubric', label: 'RUBRIC_PREPARATION', routeName: 'admin.submissions.startRubricPreparation' },
+    { key: 'evaluation', label: 'AI_EVALUATION', routeName: 'admin.submissions.startAiEvaluation' },
+    { key: 'post_eval', label: 'POST_EVAL_VALIDATION', routeName: 'admin.submissions.startPostEvaluationValidation' },
+    { key: 'presentation', label: 'RESULT_PRESENTATION', routeName: 'admin.submissions.startResultPresentation' },
+];
+
+const startAllPipelineStages = async () => {
+    if (isRunningAllStages.value || !canRunAllStages.value) {
+        return;
+    }
+
+    isRunningAllStages.value = true;
+    runAllProgress.value = 0;
+    runAllCurrentStep.value = 'Booting pipeline executor...';
+    runAllLogs.value = [];
+
+    const startIndex = getRunAllStartIndex();
+    const totalSteps = runAllSteps.length;
+
+    try {
+        for (let index = startIndex; index < totalSteps; index += 1) {
+            const step = runAllSteps[index];
+            selectedOutputStage.value = step.key;
+            runAllCurrentStep.value = `Running ${step.label}...`;
+            runAllProgress.value = Math.max(1, Math.min(99, Math.round((index / totalSteps) * 100)));
+
+            try {
+                await axios.post(route(step.routeName, { submission: props.submission.uuid }));
+                runAllLogs.value.push(`${step.label} [OK]`);
+            } catch (error) {
+                const data = error?.response?.data || {};
+                const warningText = Array.isArray(data.warnings) && data.warnings.length ? data.warnings.join(', ') : '';
+                const backendMessage = String(data.message || '').trim();
+                const failReason = warningText || backendMessage || 'unknown_error';
+                runAllLogs.value.push(`${step.label} [FAILED] ${failReason}`);
+
+                Swal.fire('PIPELINE_STOPPED', `${step.label}: ${failReason}`, 'error');
+                return;
+            }
+        }
+
+        runAllProgress.value = 100;
+        runAllCurrentStep.value = 'All stages completed.';
+        runAllLogs.value.push('PIPELINE_COMPLETE [OK]');
+
+        await Swal.fire('PIPELINE_COMPLETED', 'All stages finished successfully.', 'success');
+        window.location.reload();
+    } finally {
+        isRunningAllStages.value = false;
     }
 };
 

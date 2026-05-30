@@ -34,6 +34,7 @@ const form = useForm({
 
 const unlockForm = useForm({});
 const page = usePage();
+const maxSubmissionFileBytes = 10 * 1024 * 1024;
 
 const questDraftStorageKey = computed(() => {
     const questKey = String(props.quest?.uuid || props.quest?.id || 'quest');
@@ -101,8 +102,8 @@ const questToneStyle = computed(() => {
 
 const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file && file.size > 5 * 1024 * 1024) {
-        Swal.fire({ title: 'FILE_TOO_LARGE', text: 'Max 5MB.', icon: 'error', background: '#161b22', color: '#ef4444' });
+    if (file && file.size > maxSubmissionFileBytes) {
+        Swal.fire({ title: 'FILE_TOO_LARGE', text: 'Max 10MB.', icon: 'error', background: '#161b22', color: '#ef4444' });
         e.target.value = '';
         form.file = null;
         return;
@@ -408,10 +409,10 @@ const submitReport = () => {
         return;
     }
 
-    if (!isStructuredTaskBankQuest.value && String(form.content || '').trim() === '') {
+    if (!isStructuredTaskBankQuest.value && String(form.content || '').trim() === '' && !form.file) {
         Swal.fire({
             title: 'CONTENT_REQUIRED',
-            text: 'Isi laporan submission terlebih dahulu.',
+            text: 'Isi laporan atau upload file submission terlebih dahulu.',
             icon: 'warning',
             background: '#161b22',
             color: '#f59e0b',
@@ -770,7 +771,18 @@ const unlockLateQuest = () => {
                                     <textarea v-else v-model="form.task_answers[q.uuid]" class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[13px] outline-none" rows="3" placeholder="Jawaban..."></textarea>
                                 </div>
                             </div>
-                            <div v-else><label class="block text-[12px] text-slate-500 mb-2 uppercase">Content:</label><textarea v-model="form.content" class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[14px] outline-none" rows="4" required></textarea></div>
+                            <div v-else class="space-y-4">
+                                <div>
+                                    <label class="block text-[12px] text-slate-500 mb-2 uppercase">Content:</label>
+                                    <textarea v-model="form.content" class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[14px] outline-none" rows="4" placeholder="Tulis jawaban mentah di sini..."></textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-[12px] text-slate-500 mb-2 uppercase">Raw File:</label>
+                                    <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.txt" @change="handleFileChange" class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[12px] outline-none file:mr-4 file:border-0 file:bg-cyan-900/40 file:px-3 file:py-2 file:text-cyan-300 file:uppercase" />
+                                    <p class="mt-2 text-[10px] text-slate-500 font-sans">PDF, DOCX, TXT, JPG, PNG, WEBP. Max 10MB. File hanya disimpan mentah.</p>
+                                    <p v-if="form.file" class="mt-2 text-[10px] text-cyan-300 font-sans">Selected: {{ form.file.name }}</p>
+                                </div>
+                            </div>
                             <button
                                 type="submit"
                                 :disabled="form.processing"

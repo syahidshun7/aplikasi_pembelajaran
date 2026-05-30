@@ -108,7 +108,12 @@ class SubmissionController extends Controller
             'submission' => [
                 'id' => $submission->id,
                 'uuid' => $submission->uuid,
+                'submission_id' => $submission->submission_id,
                 'status' => $submission->status,
+                'pipeline_status' => $submission->pipeline_status,
+                'file_type' => $submission->file_type,
+                'raw_file_saved' => $this->hasStoredRawSubmission($submission),
+                'preprocess_started' => (bool) $submission->preprocess_started,
                 'content' => $submission->content,
                 'file_path' => $submission->file_path,
                 'feedback' => $submission->feedback,
@@ -162,17 +167,28 @@ class SubmissionController extends Controller
         }
 
         $validated = $request->validate([
-            'content' => [$isUpdate ? 'nullable' : 'required', 'string'],
-            'file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
+            'content' => ['nullable', 'string'],
+            'file' => ['nullable', 'file', 'min:1', 'mimes:jpg,jpeg,png,webp,pdf,docx,txt', 'max:10240'],
         ]);
 
-        if (array_key_exists('content', $validated) && $validated['content'] !== null) {
-            $submission->content = trim((string) $validated['content']);
+        $rawContent = (string) ($validated['content'] ?? '');
+        if (trim($rawContent) === '' && ! $request->hasFile('file')) {
+            throw ValidationException::withMessages([
+                'content' => 'Submission harus berupa teks atau file.',
+            ]);
+        }
+
+        if (trim($rawContent) !== '') {
+            $submission->content = $rawContent;
         } elseif (! $isUpdate) {
             $submission->content = '';
         }
+
         $submission->file_path = $this->storeUploadedFile($request, $submission);
-        $submission->status = 'Pending';
+        $submission->file_type = $this->detectSubmissionFileType($request, $submission);
+        $submission->pipeline_status = Submission::PIPELINE_STATUS_PENDING_PREPROCESSING;
+        $submission->preprocess_started = false;
+        $submission->status = Submission::STATUS_PENDING;
         $submission->grade = 0;
         $submission->feedback = null;
         $submission->earned_exp = 0;
@@ -192,73 +208,70 @@ class SubmissionController extends Controller
         }
 
         $validated = $request->validate([
-            'task_answers' => ['required', 'array', 'min:1'],
+            'task_answers' => ['nullable', 'array'],
             'task_answers.*' => ['nullable', 'string'],
             'content' => ['nullable', 'string'],
-            'game_payload' => ['nullable', 'array'],
-            'game_payload.elapsed_seconds' => ['nullable', 'integer', 'min:0', 'max:7200'],
-            'game_payload.started_at' => ['nullable', 'string', 'max:100'],
-            'game_payload.finished_at' => ['nullable', 'string', 'max:100'],
-            'game_payload.attempts' => ['nullable', 'array'],
+            'file' => ['nullable', 'file', 'min:1', 'mimes:jpg,jpeg,png,webp,pdf,docx,txt', 'max:10240'],
         ]);
 
-        $answers = $this->normalizeSubmittedAnswers(
-            $questions,
-            (array) ($validated['task_answers'] ?? [])
-        );
-
-        $this->validateTaskBankAnswersOrFail($quest, $questions, $answers);
-
-        if ($this->isAutoCheckedTaskBankQuest($quest)) {
-            $this->deleteSubmissionFileIfExists($submission->file_path);
-            $evaluation = $this->evaluateTaskBankAnswers($quest, $answers);
-
-            if ($this->isStaffPlayModeUser()) {
-                $evaluation['earned_exp'] = 0;
-                $evaluation['earned_gold'] = 0;
-                $evaluation['scores_detail']['staff_play_mode'] = true;
-                $evaluation['feedback'] .= ' STAFF_PLAY_MODE: reward tidak dihitung ke economy utama.';
-            }
-
-            $submission->content = $request->input('content') ?: '[AUTO_CHECK_TASK_BANK_SUBMISSION]';
-            $submission->file_path = null;
-            $submission->status = 'Approved';
-            $submission->grade = $evaluation['grade'];
-            $submission->feedback = $evaluation['feedback'];
-            $submission->earned_exp = $evaluation['earned_exp'];
-            $submission->earned_gold = $evaluation['earned_gold'];
-            $submission->scores_detail = $evaluation['scores_detail'];
-
-            return true;
-        }
-
-        $mcqAuto = $this->evaluateTaskBankMcqPortion($quest, $answers);
         $assessmentType = (string) ($quest->taskBank?->assessment_type ?? 'essay');
-        $questionBankHasEssay = $questions->contains(function ($q) {
-            return (string) ($q->question_type ?? '') !== 'multiple_choice';
-        });
-        if ($assessmentType === 'multiple_choice' && $questionBankHasEssay) {
-            $assessmentType = 'mixed';
+        $rawAnswers = $this->collectRawTaskAnswers((array) ($validated['task_answers'] ?? []));
+        $rawContent = (string) ($validated['content'] ?? '');
+
+        if (trim($rawContent) === '' && $this->countFilledRawAnswers($rawAnswers) === 0 && ! $request->hasFile('file')) {
+            throw ValidationException::withMessages([
+                'content' => 'Submission harus berupa teks, jawaban, atau file.',
+            ]);
         }
 
-        $submission->content = trim((string) ($validated['content'] ?? '')) ?: '[TASK_BANK_SUBMISSION]';
-        $this->deleteSubmissionFileIfExists($submission->file_path);
-        $submission->file_path = null;
-        $submission->status = 'Pending';
+        $submission->content = trim($rawContent) !== '' ? $rawContent : '[TASK_BANK_RAW_SUBMISSION]';
+        $submission->file_path = $this->storeUploadedFile($request, $submission);
+        $submission->file_type = $this->detectSubmissionFileType($request, $submission) ?: 'text';
+        $submission->pipeline_status = Submission::PIPELINE_STATUS_PENDING_PREPROCESSING;
+        $submission->preprocess_started = false;
+        $submission->status = Submission::STATUS_PENDING;
         $submission->grade = 0;
         $submission->feedback = null;
         $submission->earned_exp = 0;
         $submission->earned_gold = 0;
         $submission->scores_detail = [
-            'source' => 'task_bank_submission',
+            'source' => 'raw_task_bank_submission',
+            'raw_saved' => true,
             'assessment_type' => $assessmentType,
             'total_questions' => $questions->count(),
-            'answered_questions' => collect($answers)->filter(fn ($answer) => $answer !== '')->count(),
-            'answers' => $answers,
-            'auto_mcq' => $mcqAuto,
+            'answered_questions' => $this->countFilledRawAnswers($rawAnswers),
+            'answers' => $rawAnswers,
         ];
 
         return false;
+    }
+
+    private function collectRawTaskAnswers(array $rawAnswers): array
+    {
+        $answers = [];
+
+        foreach ($rawAnswers as $questionUuid => $answer) {
+            $key = (string) $questionUuid;
+            if ($key === '') {
+                continue;
+            }
+
+            if (is_array($answer)) {
+                $answers[$key] = json_encode($answer, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                continue;
+            }
+
+            $answers[$key] = (string) $answer;
+        }
+
+        return $answers;
+    }
+
+    private function countFilledRawAnswers(array $answers): int
+    {
+        return collect($answers)
+            ->filter(fn ($answer) => trim((string) $answer) !== '')
+            ->count();
     }
 
     private function normalizeSubmittedAnswers($questions, array $rawAnswers): array
@@ -364,6 +377,47 @@ class SubmissionController extends Controller
         return $request->file('file')->store('submissions', 'public');
     }
 
+    private function detectSubmissionFileType(Request $request, Submission $submission): ?string
+    {
+        if ($request->hasFile('file')) {
+            return $this->mapFileType((string) $request->file('file')->extension());
+        }
+
+        if (trim((string) $request->input('content', '')) !== '') {
+            return 'text';
+        }
+
+        return $submission->file_type;
+    }
+
+    private function hasStoredRawSubmission(Submission $submission): bool
+    {
+        return trim((string) $submission->content) !== '' || (bool) $submission->file_path;
+    }
+
+    private function mapFileType(string $extension): string
+    {
+        $extension = strtolower($extension);
+
+        if (in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff'], true)) {
+            return 'image';
+        }
+
+        if ($extension === 'pdf') {
+            return 'pdf';
+        }
+
+        if ($extension === 'docx') {
+            return 'docx';
+        }
+
+        if ($extension === 'txt') {
+            return 'txt';
+        }
+
+        return $extension ?: 'file';
+    }
+
     private function deleteSubmissionFileIfExists(?string $filePath): void
     {
         if ($filePath && Storage::disk('public')->exists($filePath)) {
@@ -425,7 +479,24 @@ class SubmissionController extends Controller
             return false;
         }
 
-        return in_array((string) $submission->status, ['Pending', 'Rejected'], true);
+        if (
+            (string) $submission->status === Submission::STATUS_PENDING
+            && in_array((string) $submission->pipeline_status, [
+                Submission::PIPELINE_STATUS_PREPROCESSING,
+                Submission::PIPELINE_STATUS_PREPROCESSED,
+                Submission::PIPELINE_STATUS_CLEANING,
+                Submission::PIPELINE_STATUS_CLEANED,
+                Submission::PIPELINE_STATUS_STRUCTURE_DETECTION,
+                Submission::PIPELINE_STATUS_STRUCTURED,
+                Submission::PIPELINE_STATUS_SEMANTIC_ENRICHMENT,
+                Submission::PIPELINE_STATUS_SEMANTIC_ENRICHED,
+                Submission::PIPELINE_STATUS_AI_CHECKED,
+            ], true)
+        ) {
+            return false;
+        }
+
+        return in_array((string) $submission->status, [Submission::STATUS_PENDING, Submission::STATUS_REJECTED], true);
     }
 
     private function isStaffPlayModeUser(): bool

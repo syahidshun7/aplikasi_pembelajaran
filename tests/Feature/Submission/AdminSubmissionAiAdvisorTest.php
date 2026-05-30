@@ -59,6 +59,8 @@ test('check-ai uses gemini as primary provider and does not mutate verdict field
         'user_id' => $student->id,
         'content' => 'Saya membuat endpoint dan controller sederhana.',
         'status' => 'Pending',
+        'pipeline_status' => Submission::PIPELINE_STATUS_PREPROCESSED,
+        'preprocess_started' => true,
         'grade' => 55,
         'earned_exp' => 120,
         'earned_gold' => 150,
@@ -149,6 +151,8 @@ test('check-ai falls back to ollama when primary provider fails', function () {
         'user_id' => $student->id,
         'content' => 'Submission fallback test.',
         'status' => 'Pending',
+        'pipeline_status' => Submission::PIPELINE_STATUS_PREPROCESSED,
+        'preprocess_started' => true,
         'grade' => 60,
         'earned_exp' => 100,
         'earned_gold' => 100,
@@ -284,6 +288,8 @@ test('check-ai sends rubric and task bank context with user answers', function (
         'user_id' => $student->id,
         'content' => 'Jawaban praktikum dikirim.',
         'status' => 'Pending',
+        'pipeline_status' => Submission::PIPELINE_STATUS_PREPROCESSED,
+        'preprocess_started' => true,
         'grade' => 0,
         'earned_exp' => 0,
         'earned_gold' => 0,
@@ -348,6 +354,8 @@ test('check-ai preview returns human-readable metadata before scan', function ()
         'user_id' => $student->id,
         'content' => 'Ini konten submission untuk metadata preview.',
         'status' => 'Pending',
+        'pipeline_status' => Submission::PIPELINE_STATUS_PREPROCESSED,
+        'preprocess_started' => true,
         'grade' => 0,
         'earned_exp' => 0,
         'earned_gold' => 0,
@@ -419,6 +427,8 @@ test('check-ai preview infers qa totals from report text when task bank is absen
             '2. Jelaskan fungsi status code 404?',
         ]),
         'status' => 'Pending',
+        'pipeline_status' => Submission::PIPELINE_STATUS_PREPROCESSED,
+        'preprocess_started' => true,
         'grade' => 0,
         'earned_exp' => 0,
         'earned_gold' => 0,
@@ -482,6 +492,8 @@ test('check-ai preview enriches marker-only artifact with task-bank answers for 
         'user_id' => $student->id,
         'content' => "[TEXT_SUBMISSION]\n[TASK_BANK_SUBMISSION]",
         'status' => 'Pending',
+        'pipeline_status' => Submission::PIPELINE_STATUS_PREPROCESSED,
+        'preprocess_started' => true,
         'grade' => 0,
         'earned_exp' => 0,
         'earned_gold' => 0,
@@ -559,6 +571,8 @@ test('check-ai preview uses ai detector for qa totals when enabled', function ()
             'Jawaban: request berulang tetap efek sama.',
         ]),
         'status' => 'Pending',
+        'pipeline_status' => Submission::PIPELINE_STATUS_PREPROCESSED,
+        'preprocess_started' => true,
         'grade' => 0,
         'earned_exp' => 0,
         'earned_gold' => 0,
@@ -649,6 +663,8 @@ test('check-ai applies stronger score penalty when many task-bank answers are em
         'user_id' => $student->id,
         'content' => 'Sebagian jawaban sudah diisi.',
         'status' => 'Pending',
+        'pipeline_status' => Submission::PIPELINE_STATUS_PREPROCESSED,
+        'preprocess_started' => true,
         'grade' => 0,
         'earned_exp' => 0,
         'earned_gold' => 0,
@@ -665,9 +681,9 @@ test('check-ai applies stronger score penalty when many task-bank answers are em
 
     $response->assertOk();
     $response->assertJsonPath('status', 'success');
-    $response->assertJsonPath('suggested_score_range', '48-58');
+    $response->assertJsonPath('suggested_score_range', '58-68');
 
     $submission->refresh();
-    expect((int) data_get($submission->scores_detail, 'ai_advisor.score_calibration.penalty_points', 0))->toBe(42);
+    expect((int) data_get($submission->scores_detail, 'ai_advisor.score_calibration.penalty_points', 0))->toBe(32);
     expect(data_get($submission->scores_detail, 'ai_advisor.score_calibration.reasons', []))->toContain('UNANSWERED_ITEMS_2');
 });

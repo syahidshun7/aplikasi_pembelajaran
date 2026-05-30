@@ -9,12 +9,12 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
 
-test('multiple choice task bank submission auto-checks and syncs user rewards on first submit', function () {
+test('multiple choice task bank submission is stored raw and waits for preprocessing', function () {
     $user = User::factory()->create();
 
     $taskBank = TaskBank::query()->create([
         'name' => 'MCQ Core Bank',
-        'description' => 'Auto-check bank',
+        'description' => 'Raw intake bank',
         'assessment_type' => 'multiple_choice',
         'is_active' => true,
     ]);
@@ -41,7 +41,7 @@ test('multiple choice task bank submission auto-checks and syncs user rewards on
 
     $quest = Quest::query()->create([
         'title' => 'MCQ Quest',
-        'description' => 'Quest with auto-check',
+        'description' => 'Quest with raw intake',
         'difficulty' => 'C-Rank',
         'reward_gold' => 1000,
         'reward_exp' => 1000,
@@ -61,22 +61,29 @@ test('multiple choice task bank submission auto-checks and syncs user rewards on
 
     $submission = Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->first();
     expect($submission)->not->toBeNull();
-    expect($submission->status)->toBe('Approved');
-    expect((int) $submission->grade)->toBe(100);
-    expect((int) $submission->earned_gold)->toBe(1000);
-    expect((int) $submission->earned_exp)->toBe(1000);
+    expect(str_starts_with((string) $submission->submission_id, 'SUB-'.now()->format('Ymd').'-'))->toBeTrue();
+    expect($submission->status)->toBe('Pending');
+    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
+    expect($submission->preprocess_started)->toBeFalse();
+    expect($submission->scores_detail['source'] ?? null)->toBe('raw_task_bank_submission');
+    expect($submission->scores_detail['answers'][$questionA->uuid] ?? null)->toBe('4');
+    expect($submission->scores_detail['answers'][$questionB->uuid] ?? null)->toBe('Jakarta');
+    expect($submission->scores_detail['auto_mcq'] ?? null)->toBeNull();
+    expect((int) $submission->grade)->toBe(0);
+    expect((int) $submission->earned_gold)->toBe(0);
+    expect((int) $submission->earned_exp)->toBe(0);
 
     $user->refresh();
-    expect((int) $user->gold)->toBe(1000);
-    expect((int) $user->exp)->toBe(1000);
+    expect((int) $user->gold)->toBe(0);
+    expect((int) $user->exp)->toBe(0);
 });
 
-test('word match reward follows correct answers and gives zero gold when no answer is correct', function () {
+test('word match submission stores raw payload without reward calculation', function () {
     $user = User::factory()->create();
 
     $taskBank = TaskBank::query()->create([
         'name' => 'Word Match Bank',
-        'description' => 'Auto-check word match',
+        'description' => 'Raw word match intake',
         'assessment_type' => 'word_match',
         'is_active' => true,
     ]);
@@ -97,7 +104,7 @@ test('word match reward follows correct answers and gives zero gold when no answ
 
     $quest = Quest::query()->create([
         'title' => 'Word Match Quest',
-        'description' => 'Reward should be proportional',
+        'description' => 'Reward waits for later stages',
         'difficulty' => 'C-Rank',
         'reward_gold' => 500,
         'reward_exp' => 500,
@@ -127,6 +134,10 @@ test('word match reward follows correct answers and gives zero gold when no answ
         ->latest('id')
         ->first();
     expect($wrongSubmission)->not->toBeNull();
+    expect($wrongSubmission->status)->toBe('Pending');
+    expect($wrongSubmission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
+    expect($wrongSubmission->scores_detail['source'] ?? null)->toBe('raw_task_bank_submission');
+    expect($wrongSubmission->scores_detail['answers'][$question->uuid] ?? null)->toBe(json_encode($wrongPayload));
     expect((int) $wrongSubmission->grade)->toBe(0);
     expect((int) $wrongSubmission->earned_gold)->toBe(0);
     expect((int) $wrongSubmission->earned_exp)->toBe(0);
@@ -152,9 +163,12 @@ test('word match reward follows correct answers and gives zero gold when no answ
         ->latest('id')
         ->first();
     expect($perfectSubmission)->not->toBeNull();
-    expect((int) $perfectSubmission->grade)->toBe(100);
-    expect((int) $perfectSubmission->earned_gold)->toBe(500);
-    expect((int) $perfectSubmission->earned_exp)->toBe(500);
+    expect($perfectSubmission->status)->toBe('Pending');
+    expect($perfectSubmission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
+    expect($perfectSubmission->scores_detail['answers'][$question->uuid] ?? null)->toBe(json_encode($perfectPayload));
+    expect((int) $perfectSubmission->grade)->toBe(0);
+    expect((int) $perfectSubmission->earned_gold)->toBe(0);
+    expect((int) $perfectSubmission->earned_exp)->toBe(0);
 });
 
 test('user cannot submit quest from study group they do not belong to', function () {
@@ -196,7 +210,7 @@ test('user cannot submit quest from study group they do not belong to', function
     expect($exists)->toBeFalse();
 });
 
-test('mixed task bank requires answers for all questions and stays pending for manual review', function () {
+test('mixed task bank stores raw answers without requiring full parsing', function () {
     $user = User::factory()->create();
 
     $taskBank = TaskBank::query()->create([
@@ -228,7 +242,7 @@ test('mixed task bank requires answers for all questions and stays pending for m
 
     $quest = Quest::query()->create([
         'title' => 'Mixed Task Quest',
-        'description' => 'Requires all answers',
+        'description' => 'Raw answers can be partial',
         'difficulty' => 'B-Rank',
         'reward_gold' => 1200,
         'reward_exp' => 1200,
@@ -237,13 +251,20 @@ test('mixed task bank requires answers for all questions and stays pending for m
         'task_bank_id' => $taskBank->id,
     ]);
 
-    $invalid = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+    $partial = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
         'task_answers' => [
             $mcq->uuid => 'Laravel',
         ],
     ]);
 
-    $invalid->assertSessionHasErrors(["task_answers.{$essay->uuid}"]);
+    $partial->assertSessionHasNoErrors();
+
+    $partialSubmission = Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->first();
+    expect($partialSubmission)->not->toBeNull();
+    expect($partialSubmission->status)->toBe('Pending');
+    expect($partialSubmission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
+    expect($partialSubmission->scores_detail['answered_questions'] ?? null)->toBe(1);
+    expect($partialSubmission->scores_detail['answers'][$mcq->uuid] ?? null)->toBe('Laravel');
 
     $valid = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
         'content' => 'Please review my essay answer.',
@@ -258,18 +279,21 @@ test('mixed task bank requires answers for all questions and stays pending for m
     $submission = Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->first();
     expect($submission)->not->toBeNull();
     expect($submission->status)->toBe('Pending');
+    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
     expect((int) $submission->grade)->toBe(0);
+    expect($submission->scores_detail['source'] ?? null)->toBe('raw_task_bank_submission');
     expect($submission->scores_detail['assessment_type'] ?? null)->toBe('mixed');
+    expect($submission->scores_detail['answered_questions'] ?? null)->toBe(2);
     expect($submission->scores_detail['answers'][$essay->uuid] ?? null)
         ->toBe('Dependency injection is providing dependencies from outside.');
 });
 
-test('essay answer marker suffix like Q4 is sanitized before storing task bank submission', function () {
+test('essay task bank raw answer is stored without cleanup', function () {
     $user = User::factory()->create();
 
     $taskBank = TaskBank::query()->create([
         'name' => 'Essay Marker Cleanup Bank',
-        'description' => 'Ensure trailing question markers are removed from essay answers.',
+        'description' => 'Ensure trailing question markers stay raw.',
         'assessment_type' => 'essay',
         'is_active' => true,
     ]);
@@ -286,7 +310,7 @@ test('essay answer marker suffix like Q4 is sanitized before storing task bank s
 
     $quest = Quest::query()->create([
         'title' => 'Essay Marker Quest',
-        'description' => 'Quest to verify essay marker cleanup.',
+        'description' => 'Quest to verify raw essay storage.',
         'difficulty' => 'C-Rank',
         'reward_gold' => 500,
         'reward_exp' => 500,
@@ -310,15 +334,15 @@ test('essay answer marker suffix like Q4 is sanitized before storing task bank s
 
     expect($submission)->not->toBeNull();
     expect((string) ($submission->scores_detail['answers'][$question->uuid] ?? ''))
-        ->toBe('Validasi check-in dilakukan dengan cek absensi hari ini sebelum simpan.');
+        ->toBe("Validasi check-in dilakukan dengan cek absensi hari ini sebelum simpan.\n\nQ4.");
 });
 
-test('student cannot submit the same task bank quest twice', function () {
+test('student can update pending raw task bank submission before preprocessing', function () {
     $user = User::factory()->create();
 
     $taskBank = TaskBank::query()->create([
-        'name' => 'One Attempt Bank',
-        'description' => 'Auto-check bank',
+        'name' => 'Pending Update Bank',
+        'description' => 'Raw intake bank',
         'assessment_type' => 'multiple_choice',
         'is_active' => true,
     ]);
@@ -334,8 +358,8 @@ test('student cannot submit the same task bank quest twice', function () {
     ]);
 
     $quest = Quest::query()->create([
-        'title' => 'One Attempt Quest',
-        'description' => 'Only one submission allowed for task bank',
+        'title' => 'Pending Update Quest',
+        'description' => 'Pending raw submission can be updated',
         'difficulty' => 'C-Rank',
         'reward_gold' => 500,
         'reward_exp' => 500,
@@ -353,14 +377,21 @@ test('student cannot submit the same task bank quest twice', function () {
 
     $second = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
         'task_answers' => [
-            $question->uuid => '2',
+            $question->uuid => '1',
         ],
     ]);
 
-    $second->assertSessionHasErrors('submission');
+    $second->assertSessionHasNoErrors();
+
+    expect(Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->count())->toBe(1);
+
+    $submission = Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->first();
+    expect($submission->status)->toBe('Pending');
+    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
+    expect($submission->scores_detail['answers'][$question->uuid] ?? null)->toBe('1');
 });
 
-test('misconfigured multiple_choice task bank with essay questions can still be submitted and stays pending', function () {
+test('misconfigured multiple_choice task bank is stored as raw without auto mcq scoring', function () {
     $user = User::factory()->create();
 
     $taskBank = TaskBank::query()->create([
@@ -414,9 +445,13 @@ test('misconfigured multiple_choice task bank with essay questions can still be 
     $submission = Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->first();
     expect($submission)->not->toBeNull();
     expect($submission->status)->toBe('Pending');
+    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
     expect((int) $submission->grade)->toBe(0);
-    expect($submission->scores_detail['assessment_type'] ?? null)->toBe('mixed');
-    expect(($submission->scores_detail['auto_mcq']['earned_points'] ?? null))->toBe(50);
+    expect($submission->scores_detail['source'] ?? null)->toBe('raw_task_bank_submission');
+    expect($submission->scores_detail['assessment_type'] ?? null)->toBe('multiple_choice');
+    expect($submission->scores_detail['answers'][$mcq->uuid] ?? null)->toBe('2');
+    expect($submission->scores_detail['answers'][$essay->uuid] ?? null)->toBe('Because 1+1 equals 2.');
+    expect($submission->scores_detail['auto_mcq'] ?? null)->toBeNull();
 });
 
 test('manual quest pending submission can be re-attempted (reupload file) until deadline', function () {
@@ -445,6 +480,9 @@ test('manual quest pending submission can be re-attempted (reupload file) until 
     $submission = Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->first();
     expect($submission)->not->toBeNull();
     expect($submission->status)->toBe('Pending');
+    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
+    expect($submission->preprocess_started)->toBeFalse();
+    expect($submission->file_type)->toBe('pdf');
     expect($submission->file_path)->not->toBeNull();
 
     $oldPath = (string) $submission->file_path;
@@ -458,11 +496,127 @@ test('manual quest pending submission can be re-attempted (reupload file) until 
 
     $submission->refresh();
     expect($submission->status)->toBe('Pending');
+    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
+    expect($submission->preprocess_started)->toBeFalse();
+    expect($submission->file_type)->toBe('pdf');
     expect((string) $submission->content)->toBe('first report');
     expect((string) $submission->file_path)->not->toBe('');
     expect((string) $submission->file_path)->not->toBe($oldPath);
     Storage::disk('public')->assertMissing($oldPath);
     Storage::disk('public')->assertExists((string) $submission->file_path);
+});
+
+test('manual quest accepts file-only raw submission and marks it pending preprocessing', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create([
+        'email_verified_at' => now(),
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => 'File Only Quest',
+        'description' => 'Raw file intake',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+    ]);
+
+    $response = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'file' => UploadedFile::fake()->create('laporan.pdf', 10, 'application/pdf'),
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    $submission = Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->first();
+    expect($submission)->not->toBeNull();
+    expect(str_starts_with((string) $submission->submission_id, 'SUB-'.now()->format('Ymd').'-'))->toBeTrue();
+    expect((string) $submission->content)->toBe('');
+    expect($submission->status)->toBe('Pending');
+    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
+    expect($submission->preprocess_started)->toBeFalse();
+    expect($submission->file_type)->toBe('pdf');
+    expect((int) $submission->earned_exp)->toBe(0);
+    expect((int) $submission->earned_gold)->toBe(0);
+    Storage::disk('public')->assertExists((string) $submission->file_path);
+});
+
+test('pending submission cannot be changed after preprocessing has started', function () {
+    $user = User::factory()->create([
+        'email_verified_at' => now(),
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => 'Preprocessing Lock Quest',
+        'description' => 'No update after mentor trigger',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+    ]);
+
+    $submission = Submission::query()->create([
+        'quest_id' => $quest->id,
+        'user_id' => $user->id,
+        'content' => 'raw before preprocessing',
+        'status' => 'Pending',
+        'pipeline_status' => Submission::PIPELINE_STATUS_PREPROCESSING,
+        'preprocess_started' => true,
+        'grade' => 0,
+        'earned_exp' => 0,
+        'earned_gold' => 0,
+    ]);
+
+    $response = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'content' => 'mutated while preprocessing',
+    ]);
+
+    $response->assertSessionHasErrors('submission');
+
+    $submission->refresh();
+    expect((string) $submission->content)->toBe('raw before preprocessing');
+    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PREPROCESSING);
+    expect($submission->preprocess_started)->toBeTrue();
+});
+
+test('manual quest rejects empty raw submission, empty file, and unsupported extension', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create([
+        'email_verified_at' => now(),
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => 'Validation Quest',
+        'description' => 'Only light validation',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+    ]);
+
+    $empty = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'content' => '   ',
+    ]);
+
+    $empty->assertSessionHasErrors('content');
+
+    $emptyFile = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'file' => UploadedFile::fake()->create('empty.pdf', 0, 'application/pdf'),
+    ]);
+
+    $emptyFile->assertSessionHasErrors('file');
+
+    $unsupported = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'file' => UploadedFile::fake()->create('malware.exe', 10, 'application/x-msdownload'),
+    ]);
+
+    $unsupported->assertSessionHasErrors('file');
+
+    expect(Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->exists())->toBeFalse();
 });
 
 test('manual quest pending submission cannot be re-attempted after deadline', function () {
@@ -574,6 +728,9 @@ test('rejected submission can be retaken before deadline and resets reward to pe
     $user->refresh();
 
     expect((string) $submission->status)->toBe('Pending');
+    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
+    expect($submission->preprocess_started)->toBeFalse();
+    expect($submission->file_type)->toBe('pdf');
     expect((string) $submission->content)->toBe('new answer');
     expect((int) $submission->earned_exp)->toBe(0);
     expect((int) $submission->earned_gold)->toBe(0);

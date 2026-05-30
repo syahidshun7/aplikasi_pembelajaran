@@ -13,7 +13,7 @@ return new class extends Migration
             $table->uuid('uuid')->unique();
             $table->foreignId('task_bank_id')->constrained('task_banks')->cascadeOnDelete();
             $table->text('question_text');
-            $table->enum('question_type', ['essay', 'multiple_choice'])->default('essay');
+            $table->enum('question_type', ['essay', 'multiple_choice', 'game_stage', 'platforming', 'word_match'])->default('essay');
             $table->json('options_json')->nullable();
             $table->string('answer_key')->nullable();
             $table->unsignedInteger('weight')->default(1);

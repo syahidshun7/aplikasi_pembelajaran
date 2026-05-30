@@ -6,9 +6,11 @@ use App\Models\Rubric;
 use App\Models\RubricCriterion;
 use App\Models\RubricDescription;
 use App\Models\RubricLevel;
+use App\Models\TaskBank;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 
 class RubricSeeder extends Seeder
 {
@@ -92,6 +94,100 @@ class RubricSeeder extends Seeder
                 );
             }
         }
+
+        $autoEssayRubric = Rubric::query()->firstOrCreate(
+            ['title' => 'Essay Auto Grade Rubric (System)', 'mentor_id' => $mentor->id],
+            ['description' => 'Rubric khusus auto-grading essay agar penilaian AI lebih konsisten.', 'max_score' => 100]
+        );
+
+        $autoLevels = [
+            ['level' => 1, 'label' => 'Very Poor', 'score_value' => 1],
+            ['level' => 2, 'label' => 'Poor', 'score_value' => 2],
+            ['level' => 3, 'label' => 'Fair', 'score_value' => 3],
+            ['level' => 4, 'label' => 'Good', 'score_value' => 4],
+            ['level' => 5, 'label' => 'Excellent', 'score_value' => 5],
+        ];
+
+        foreach ($autoLevels as $level) {
+            RubricLevel::query()->updateOrCreate(
+                ['rubric_id' => $autoEssayRubric->id, 'level' => $level['level']],
+                ['label' => $level['label'], 'score_value' => $level['score_value']]
+            );
+        }
+
+        $autoCriteria = [
+            ['name' => 'Akurasi Konsep', 'weight' => 30, 'order' => 1],
+            ['name' => 'Kelengkapan Jawaban', 'weight' => 30, 'order' => 2],
+            ['name' => 'Alur Penjelasan', 'weight' => 20, 'order' => 3],
+            ['name' => 'Konteks Teknis', 'weight' => 20, 'order' => 4],
+        ];
+
+        foreach ($autoCriteria as $criterion) {
+            RubricCriterion::query()->updateOrCreate(
+                ['rubric_id' => $autoEssayRubric->id, 'order' => $criterion['order']],
+                ['name' => $criterion['name'], 'weight' => $criterion['weight']]
+            );
+        }
+
+        $autoEssayRubric->load(['criteria', 'levels']);
+        $autoCriteriaByName = $autoEssayRubric->criteria->keyBy('name');
+        $autoLevelsByLabel = $autoEssayRubric->levels->keyBy('label');
+
+        $autoCells = [
+            'Akurasi Konsep' => [
+                'Very Poor' => 'Konsep inti tidak tepat atau tidak relevan dengan pertanyaan.',
+                'Poor' => 'Ada konsep yang benar, namun dominan keliru.',
+                'Fair' => 'Konsep utama mulai benar tetapi masih terdapat kekurangan penting.',
+                'Good' => 'Konsep utama benar dan cukup konsisten.',
+                'Excellent' => 'Konsep sangat akurat, tepat, dan konsisten.',
+            ],
+            'Kelengkapan Jawaban' => [
+                'Very Poor' => 'Jawaban sangat minim dan tidak mencakup poin utama.',
+                'Poor' => 'Hanya mencakup sebagian kecil poin penting.',
+                'Fair' => 'Poin penting tercakup sebagian, detail belum memadai.',
+                'Good' => 'Sebagian besar poin penting tercakup dengan baik.',
+                'Excellent' => 'Semua poin penting tercakup lengkap dan jelas.',
+            ],
+            'Alur Penjelasan' => [
+                'Very Poor' => 'Penjelasan tidak runtut dan sulit dipahami.',
+                'Poor' => 'Alur kurang rapi dan sering melompat.',
+                'Fair' => 'Alur cukup terlihat namun belum stabil.',
+                'Good' => 'Alur runtut dan mudah diikuti.',
+                'Excellent' => 'Alur sangat terstruktur, ringkas, dan koheren.',
+            ],
+            'Konteks Teknis' => [
+                'Very Poor' => 'Tidak ada konteks teknis yang relevan.',
+                'Poor' => 'Konteks teknis sangat terbatas.',
+                'Fair' => 'Konteks teknis ada namun kurang tepat/detail.',
+                'Good' => 'Konteks teknis tepat dan cukup mendukung jawaban.',
+                'Excellent' => 'Konteks teknis kuat, tepat, dan relevan penuh.',
+            ],
+        ];
+
+        foreach ($autoCells as $criteriaName => $row) {
+            $criterion = $autoCriteriaByName->get($criteriaName);
+            if (! $criterion) {
+                continue;
+            }
+
+            foreach ($row as $levelLabel => $description) {
+                $level = $autoLevelsByLabel->get($levelLabel);
+                if (! $level) {
+                    continue;
+                }
+
+                RubricDescription::query()->updateOrCreate(
+                    ['criteria_id' => $criterion->id, 'level_id' => $level->id],
+                    ['description' => $description]
+                );
+            }
+        }
+
+        if (Schema::hasColumn('task_banks', 'rubric_id')) {
+            TaskBank::query()
+                ->whereIn('assessment_type', ['essay', 'mixed'])
+                ->whereNull('rubric_id')
+                ->update(['rubric_id' => $autoEssayRubric->id]);
+        }
     }
 }
-

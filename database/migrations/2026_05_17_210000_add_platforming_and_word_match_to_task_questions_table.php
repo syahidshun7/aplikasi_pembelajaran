@@ -7,12 +7,20 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement("ALTER TABLE task_banks MODIFY COLUMN assessment_type ENUM('essay','multiple_choice','mixed','platforming','word_match','game_escape') NOT NULL DEFAULT 'essay'");
         DB::statement("ALTER TABLE task_questions MODIFY COLUMN question_type ENUM('essay','multiple_choice','game_stage','platforming','word_match') NOT NULL DEFAULT 'essay'");
     }
 
     public function down(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement("ALTER TABLE task_banks MODIFY COLUMN assessment_type ENUM('essay','multiple_choice','mixed') NOT NULL DEFAULT 'essay'");
         DB::statement("ALTER TABLE task_questions MODIFY COLUMN question_type ENUM('essay','multiple_choice','game_stage') NOT NULL DEFAULT 'essay'");
     }
