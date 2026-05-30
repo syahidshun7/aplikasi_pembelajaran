@@ -222,6 +222,41 @@ def build_ai_prompt(item, criteria, expected_concepts, submission_context=None):
     )
 
 
+def build_batch_prompt(items, submission_context=None):
+    context_text = ""
+    if isinstance(submission_context, dict):
+        total = submission_context.get("total_items", 0)
+        answered = submission_context.get("answered_items", 0)
+        lang = submission_context.get("language", "unknown")
+        context_text = f"KONTEKS: {answered}/{total} soal dijawab, bahasa: {lang}\n\n"
+
+    items_text = ""
+    for i, item in enumerate(items):
+        q = normalize_text(item.get("question"))
+        a = normalize_text(item.get("student_answer"))
+        ref = normalize_text(item.get("reference_answer"))
+        subject = normalize_text(item.get("subject") or "general")
+        rubric = item.get("selected_rubric") if isinstance(item.get("selected_rubric"), dict) else {}
+        criteria = normalize_criteria(rubric.get("criteria") if isinstance(rubric.get("criteria"), list) else [])
+        expected = normalize_expected_concepts(item.get("expected_concepts") if isinstance(item.get("expected_concepts"), list) else [])
+
+        criteria_text = ", ".join(f'{c["name"]}({c["weight"]}%)' for c in criteria)
+        concepts_text = ", ".join(c["concept"] for c in expected) if expected else "-"
+
+        items_text += (
+            f"[SOAL {i+1}] subject:{subject} | kriteria:{criteria_text} | konsep_kunci:{concepts_text}\n"
+            f"Q: {q}\nA: {a}\nREF: {ref or '-'}\n\n"
+        )
+
+    return (
+        f"Kamu penilai jawaban siswa. Nilai SEMUA jawaban berikut.\n\n"
+        f"{context_text}{items_text}"
+        f"Balas HANYA JSON array (tanpa markdown), satu object per soal:\n"
+        f'[{{"score":0-100,"criteria_scores":[{{"name":"...","score":0-100,"reason":"..."}}],'
+        f'"strengths":["..."],"weaknesses":["..."],"feedback":"...","evaluation_confidence":0.0-1.0}}]'
+    )
+
+
 def call_ai_api(prompt):
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     base_url = os.environ.get("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai").strip()
@@ -247,12 +282,41 @@ def call_ai_api(prompt):
     })
 
     try:
-        with urllib.request.urlopen(req, timeout=25) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             body = json.loads(resp.read().decode("utf-8"))
             content = body.get("choices", [{}])[0].get("message", {}).get("content", "")
-            return json.loads(content) if content.strip() else None
+            if not content.strip():
+                return None
+            parsed = json.loads(content)
+            return parsed
     except Exception:
         return None
+
+
+def call_ai_batch(items, submission_context):
+    """Single API call for all items."""
+    non_empty = [(i, item) for i, item in enumerate(items) if not is_empty_answer(normalize_text(item.get("student_answer")))]
+    if not non_empty:
+        return None
+
+    batch_items = [item for _, item in non_empty]
+    prompt = build_batch_prompt(batch_items, submission_context)
+    result = call_ai_api(prompt)
+
+    if isinstance(result, dict) and "items" in result:
+        result = result["items"]
+    if isinstance(result, dict) and "score" in result:
+        result = [result]
+    if not isinstance(result, list):
+        return None
+    if len(result) != len(non_empty):
+        return None
+
+    mapped = {}
+    for idx, (original_idx, _) in enumerate(non_empty):
+        if idx < len(result) and isinstance(result[idx], dict):
+            mapped[original_idx] = result[idx]
+    return mapped
 
 
 def parse_ai_response(ai_result, criteria, score_range):
@@ -295,7 +359,7 @@ def parse_ai_response(ai_result, criteria, score_range):
     }
 
 
-def evaluate_item(item, submission_context=None):
+def evaluate_item(item, submission_context=None, ai_result_for_item=None):
     question = normalize_text(item.get("question"))
     student_answer = normalize_text(item.get("student_answer"))
     reference_answer = normalize_text(item.get("reference_answer"))
@@ -317,16 +381,16 @@ def evaluate_item(item, submission_context=None):
             "is_empty": True,
         }
 
-    # Try AI API first
-    prompt = build_ai_prompt(item, criteria, expected_concepts, submission_context)
-    ai_result = call_ai_api(prompt)
-    parsed = parse_ai_response(ai_result, criteria, score_range) if ai_result else None
-
-    if parsed:
-        parsed["is_empty"] = False
-        return parsed
+    # Use AI result if available from batch call
+    if ai_result_for_item is not None:
+        parsed = parse_ai_response(ai_result_for_item, criteria, score_range)
+        if parsed:
+            parsed["is_empty"] = False
+            return parsed
 
     # Fallback: rule-based scoring
+    student_tokens = tokenize(student_answer)
+    reference_tokens = tokenize(reference_answer) if reference_answer else []
     student_tokens = tokenize(student_answer)
     reference_tokens = tokenize(reference_answer) if reference_answer else []
 
@@ -392,15 +456,21 @@ def evaluate(payload):
     max_items = max(1, to_int(payload.get("max_items"), 500))
     submission_context = payload.get("submission_context") if isinstance(payload.get("submission_context"), dict) else None
 
+    truncated_items = raw_items[:max_items]
+
+    # Single batch AI call for all items
+    ai_results_map = call_ai_batch(truncated_items, submission_context) or {}
+
     items = []
     warnings = []
     has_empty = False
 
-    for item in raw_items[:max_items]:
+    for idx, item in enumerate(truncated_items):
         if not isinstance(item, dict):
             warnings.append("invalid_item_payload")
             continue
-        result = evaluate_item(item, submission_context)
+        ai_for_item = ai_results_map.get(idx)
+        result = evaluate_item(item, submission_context, ai_for_item)
         if result.get("is_empty"):
             has_empty = True
         result.pop("is_empty", None)
