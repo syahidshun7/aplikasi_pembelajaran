@@ -10,7 +10,11 @@ defineProps({
 <template>
     <AuthenticatedLayout>
         <Head title="My Roadmaps" />
-        <div class="p-4 md:p-8 text-[10px] font-['Press_Start_2P'] text-[#4ed4d4] space-y-4">
+        <div class="relative min-h-screen">
+            <div class="fixed inset-0 z-0 pointer-events-none">
+                <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" class="w-full h-full object-cover opacity-[0.15]" style="image-rendering: pixelated;" alt="" />
+            </div>
+            <div class="relative z-10 p-4 md:p-8 text-[10px] font-['Press_Start_2P'] text-[#4ed4d4] space-y-4">
             <div class="border-b-2 border-cyan-900 pb-3">
                 <h1 class="text-sm md:text-lg uppercase tracking-wider">My_Roadmaps</h1>
                 <p class="text-[8px] text-slate-400 uppercase mt-2">Roadmap mentoring yang ditugaskan untukmu</p>
@@ -29,6 +33,7 @@ defineProps({
                 </Link>
             </div>
             <p v-else class="text-[8px] text-slate-400 uppercase">Belum ada roadmap. Mentor akan assign ke kamu.</p>
+        </div>
         </div>
     </AuthenticatedLayout>
 </template>

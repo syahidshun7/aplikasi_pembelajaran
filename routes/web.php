@@ -83,11 +83,8 @@ Route::get('/dooplab', function () {
         return redirect()->route('landing');
     }
 
-    if (auth()->user()?->canAccessDoopLab()) {
-        return redirect()->route('dooplab.dashboard');
-    }
-
     return Inertia::render('DoopLab/Index', [
+        'hasAccess' => (bool) auth()->user()?->canAccessDoopLab(),
         'telemetryStats' => [
             'total_member' => User::query()->where('role', User::ROLE_STUDENT)->count(),
             'total_mentor' => User::query()->where('role', User::ROLE_MENTOR)->count(),
