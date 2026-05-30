@@ -284,6 +284,24 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
         ->name('admin.submissions.checkAIPreview');
     Route::post('/submissions/{submission}/check-ai', [AdminSubmissionController::class, 'checkWithAI'])
         ->name('admin.submissions.checkAI');
+    Route::post('/submissions/{submission}/preprocess/start', [AdminSubmissionController::class, 'startPreprocessing'])
+        ->name('admin.submissions.startPreprocessing');
+    Route::post('/submissions/{submission}/clean/start', [AdminSubmissionController::class, 'startCleaning'])
+        ->name('admin.submissions.startCleaning');
+    Route::post('/submissions/{submission}/structure/start', [AdminSubmissionController::class, 'startStructureDetection'])
+        ->name('admin.submissions.startStructureDetection');
+    Route::post('/submissions/{submission}/semantic/start', [AdminSubmissionController::class, 'startSemanticEnrichment'])
+        ->name('admin.submissions.startSemanticEnrichment');
+    Route::post('/submissions/{submission}/rubric/start', [AdminSubmissionController::class, 'startRubricPreparation'])
+        ->name('admin.submissions.startRubricPreparation');
+    Route::post('/submissions/{submission}/evaluation/start', [AdminSubmissionController::class, 'startAiEvaluation'])
+        ->name('admin.submissions.startAiEvaluation');
+    Route::post('/submissions/{submission}/evaluation/rerun', [AdminSubmissionController::class, 'rerunAiEvaluation'])
+        ->name('admin.submissions.rerunAiEvaluation');
+    Route::post('/submissions/{submission}/post-eval/start', [AdminSubmissionController::class, 'startPostEvaluationValidation'])
+        ->name('admin.submissions.startPostEvaluationValidation');
+    Route::post('/submissions/{submission}/presentation/start', [AdminSubmissionController::class, 'startResultPresentation'])
+        ->name('admin.submissions.startResultPresentation');
     Route::post('/admin/quests/optional/generate-preview', [AdminOptionalQuestAiController::class, 'generatePreview'])
         ->name('admin.quests.optional.generate-preview');
     Route::post('/admin/quests/optional/commit-draft', [AdminOptionalQuestAiController::class, 'commitDraft'])

@@ -58,6 +58,58 @@ return [
             'max_chars' => (int) env('AI_QA_DETECTOR_MAX_CHARS', 12000),
             'merge_into_advisor_prompt' => (bool) env('AI_QA_DETECTOR_MERGE_INTO_ADVISOR', true),
         ],
+        'extraction' => [
+            'python_binary' => (string) env('AI_EXTRACTION_PYTHON_BINARY', 'python'),
+            'script_path' => (string) env('AI_EXTRACTION_SCRIPT_PATH', 'scripts/submission_extractor.py'),
+            'max_chars' => (int) env('AI_EXTRACTION_MAX_CHARS', 200000),
+            'ocr_timeout_seconds' => (int) env('AI_EXTRACTION_OCR_TIMEOUT_SECONDS', 60),
+            'tesseract_binary' => (string) env('AI_EXTRACTION_TESSERACT_BINARY', 'tesseract'),
+            'pdftoppm_binary' => (string) env('AI_EXTRACTION_PDFTOPPM_BINARY', 'pdftoppm'),
+        ],
+        'cleaning' => [
+            'python_binary' => (string) env('AI_CLEANING_PYTHON_BINARY', env('AI_EXTRACTION_PYTHON_BINARY', 'python')),
+            'script_path' => (string) env('AI_CLEANING_SCRIPT_PATH', 'scripts/submission_cleaner.py'),
+            'max_chars' => (int) env('AI_CLEANING_MAX_CHARS', 200000),
+            'timeout_seconds' => (int) env('AI_CLEANING_TIMEOUT_SECONDS', 30),
+        ],
+        'structure_detection' => [
+            'python_binary' => (string) env('AI_STRUCTURE_PYTHON_BINARY', env('AI_CLEANING_PYTHON_BINARY', env('AI_EXTRACTION_PYTHON_BINARY', 'python'))),
+            'script_path' => (string) env('AI_STRUCTURE_SCRIPT_PATH', 'scripts/submission_structure_detector.py'),
+            'max_chars' => (int) env('AI_STRUCTURE_MAX_CHARS', 200000),
+            'timeout_seconds' => (int) env('AI_STRUCTURE_TIMEOUT_SECONDS', 30),
+        ],
+        'semantic_enrichment' => [
+            'python_binary' => (string) env('AI_SEMANTIC_PYTHON_BINARY', env('AI_STRUCTURE_PYTHON_BINARY', env('AI_CLEANING_PYTHON_BINARY', env('AI_EXTRACTION_PYTHON_BINARY', 'python')))),
+            'script_path' => (string) env('AI_SEMANTIC_SCRIPT_PATH', 'scripts/submission_semantic_enricher.py'),
+            'max_items' => (int) env('AI_SEMANTIC_MAX_ITEMS', 500),
+            'timeout_seconds' => (int) env('AI_SEMANTIC_TIMEOUT_SECONDS', 30),
+        ],
+        'rubric_preparation' => [
+            'python_binary' => (string) env('AI_RUBRIC_PYTHON_BINARY', env('AI_SEMANTIC_PYTHON_BINARY', env('AI_STRUCTURE_PYTHON_BINARY', env('AI_CLEANING_PYTHON_BINARY', env('AI_EXTRACTION_PYTHON_BINARY', 'python'))))),
+            'script_path' => (string) env('AI_RUBRIC_SCRIPT_PATH', 'scripts/submission_rubric_preparer.py'),
+            'max_items' => (int) env('AI_RUBRIC_MAX_ITEMS', 500),
+            'allowed_feedback_length' => (int) env('AI_RUBRIC_ALLOWED_FEEDBACK_LENGTH', 200),
+            'timeout_seconds' => (int) env('AI_RUBRIC_TIMEOUT_SECONDS', 30),
+        ],
+        'ai_evaluation' => [
+            'python_binary' => (string) env('AI_EVALUATION_PYTHON_BINARY', env('AI_RUBRIC_PYTHON_BINARY', env('AI_SEMANTIC_PYTHON_BINARY', env('AI_STRUCTURE_PYTHON_BINARY', env('AI_CLEANING_PYTHON_BINARY', env('AI_EXTRACTION_PYTHON_BINARY', 'python')))))),
+            'script_path' => (string) env('AI_EVALUATION_SCRIPT_PATH', 'scripts/submission_ai_evaluator.py'),
+            'max_items' => (int) env('AI_EVALUATION_MAX_ITEMS', 500),
+            'timeout_seconds' => (int) env('AI_EVALUATION_TIMEOUT_SECONDS', 30),
+        ],
+        'post_evaluation_validation' => [
+            'python_binary' => (string) env('AI_POST_EVAL_PYTHON_BINARY', env('AI_EVALUATION_PYTHON_BINARY', env('AI_RUBRIC_PYTHON_BINARY', env('AI_SEMANTIC_PYTHON_BINARY', env('AI_STRUCTURE_PYTHON_BINARY', env('AI_CLEANING_PYTHON_BINARY', env('AI_EXTRACTION_PYTHON_BINARY', 'python'))))))),
+            'script_path' => (string) env('AI_POST_EVAL_SCRIPT_PATH', 'scripts/submission_post_evaluation_validator.py'),
+            'max_items' => (int) env('AI_POST_EVAL_MAX_ITEMS', 500),
+            'timeout_seconds' => (int) env('AI_POST_EVAL_TIMEOUT_SECONDS', 30),
+            'max_retries' => (int) env('AI_POST_EVAL_MAX_RETRIES', 2),
+        ],
+        'result_presentation' => [
+            'python_binary' => (string) env('AI_RESULT_PRES_PYTHON_BINARY', env('AI_POST_EVAL_PYTHON_BINARY', env('AI_EVALUATION_PYTHON_BINARY', env('AI_RUBRIC_PYTHON_BINARY', env('AI_SEMANTIC_PYTHON_BINARY', env('AI_STRUCTURE_PYTHON_BINARY', env('AI_CLEANING_PYTHON_BINARY', env('AI_EXTRACTION_PYTHON_BINARY', 'python')))))))),
+            'script_path' => (string) env('AI_RESULT_PRES_SCRIPT_PATH', 'scripts/submission_result_presenter.py'),
+            'max_items' => (int) env('AI_RESULT_PRES_MAX_ITEMS', 500),
+            'timeout_seconds' => (int) env('AI_RESULT_PRES_TIMEOUT_SECONDS', 30),
+        ],
 
         'gemini' => [
             'api_key' => env('GEMINI_API_KEY'),

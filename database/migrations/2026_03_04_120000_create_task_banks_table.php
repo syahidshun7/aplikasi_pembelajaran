@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('name');
             $table->text('description')->nullable();
             $table->foreignId('job_role_id')->nullable()->constrained('job_roles')->nullOnDelete();
-            $table->enum('assessment_type', ['essay', 'multiple_choice', 'mixed'])->default('essay');
+            $table->enum('assessment_type', ['essay', 'multiple_choice', 'mixed', 'platforming', 'word_match', 'game_escape'])->default('essay');
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

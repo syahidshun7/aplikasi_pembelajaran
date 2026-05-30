@@ -9,6 +9,14 @@ use App\Models\User;
 use App\Services\Ai\SubmissionAiAdvisorService;
 use App\Services\LmsNotificationService;
 use App\Services\RubricScoringService;
+use App\Services\Submissions\CleanSubmissionTextService;
+use App\Services\Submissions\DetectSubmissionStructureService;
+use App\Services\Submissions\EnrichSubmissionSemanticsService;
+use App\Services\Submissions\EvaluateSubmissionAnswersService;
+use App\Services\Submissions\PrepareSubmissionRubricService;
+use App\Services\Submissions\RawSubmissionExtractionService;
+use App\Services\Submissions\PresentSubmissionResultService;
+use App\Services\Submissions\ValidatePostEvaluationResultService;
 use App\Services\UserRewardSyncService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
@@ -27,6 +35,84 @@ class AdminSubmissionController extends Controller
     public function inspect(Submission $submission)
     {
         $this->assertMentorCanAccessSubmission($submission);
+
+        if ($submission->pipeline_status === Submission::PIPELINE_STATUS_STRUCTURE_DETECTION) {
+            $structureResult = is_array($submission->structure_result) ? $submission->structure_result : [];
+            $structureStatus = (string) ($structureResult['structure_detection_status'] ?? 'failed');
+
+            $submission->update([
+                'pipeline_status' => in_array($structureStatus, ['success', 'partial'], true)
+                    ? Submission::PIPELINE_STATUS_STRUCTURED
+                    : Submission::PIPELINE_STATUS_CLEANED,
+            ]);
+
+            $submission = $submission->fresh();
+        }
+
+        if ($submission->pipeline_status === Submission::PIPELINE_STATUS_SEMANTIC_ENRICHMENT) {
+            $semanticResult = is_array($submission->semantic_result) ? $submission->semantic_result : [];
+            $semanticStatus = (string) ($semanticResult['semantic_enrichment_status'] ?? 'failed');
+
+            $submission->update([
+                'pipeline_status' => in_array($semanticStatus, ['success', 'partial'], true)
+                    ? Submission::PIPELINE_STATUS_SEMANTIC_ENRICHED
+                    : Submission::PIPELINE_STATUS_STRUCTURED,
+            ]);
+
+            $submission = $submission->fresh();
+        }
+
+        if ($submission->pipeline_status === Submission::PIPELINE_STATUS_RUBRIC_PREPARATION) {
+            $rubricPreparationResult = is_array($submission->rubric_preparation_result) ? $submission->rubric_preparation_result : [];
+            $rubricPreparationStatus = (string) ($rubricPreparationResult['rubric_preparation_status'] ?? 'failed');
+
+            $submission->update([
+                'pipeline_status' => in_array($rubricPreparationStatus, ['success', 'partial'], true)
+                    ? Submission::PIPELINE_STATUS_RUBRIC_PREPARED
+                    : Submission::PIPELINE_STATUS_SEMANTIC_ENRICHED,
+            ]);
+
+            $submission = $submission->fresh();
+        }
+
+        if ($submission->pipeline_status === Submission::PIPELINE_STATUS_AI_EVALUATION) {
+            $aiEvaluationResult = is_array($submission->ai_evaluation_result) ? $submission->ai_evaluation_result : [];
+            $aiEvaluationStatus = (string) ($aiEvaluationResult['ai_evaluation_status'] ?? 'failed');
+
+            $submission->update([
+                'pipeline_status' => in_array($aiEvaluationStatus, ['success', 'partial'], true)
+                    ? Submission::PIPELINE_STATUS_AI_CHECKED
+                    : Submission::PIPELINE_STATUS_RUBRIC_PREPARED,
+            ]);
+
+            $submission = $submission->fresh();
+        }
+
+        if ($submission->pipeline_status === Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATION) {
+            $postEvaluationValidationResult = is_array($submission->post_evaluation_validation_result) ? $submission->post_evaluation_validation_result : [];
+            $postEvaluationValidationStatus = (string) ($postEvaluationValidationResult['post_evaluation_validation_status'] ?? 'failed');
+
+            $submission->update([
+                'pipeline_status' => in_array($postEvaluationValidationStatus, ['success', 'partial'], true)
+                    ? Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED
+                    : Submission::PIPELINE_STATUS_AI_CHECKED,
+            ]);
+
+            $submission = $submission->fresh();
+        }
+
+        if ($submission->pipeline_status === Submission::PIPELINE_STATUS_RESULT_PRESENTATION) {
+            $resultPresentationResult = is_array($submission->result_presentation_result) ? $submission->result_presentation_result : [];
+            $resultPresentationStatus = (string) ($resultPresentationResult['result_presentation_status'] ?? 'failed');
+
+            $submission->update([
+                'pipeline_status' => in_array($resultPresentationStatus, ['success', 'partial'], true)
+                    ? Submission::PIPELINE_STATUS_EVALUATED
+                    : Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED,
+            ]);
+
+            $submission = $submission->fresh();
+        }
 
         // Pastikan relasi terload agar Vue tidak membaca 'undefined'
         $submission->load([
@@ -129,11 +215,14 @@ class AdminSubmissionController extends Controller
         $questionPoints = is_array($validated['question_points'] ?? null) ? $validated['question_points'] : [];
 
         $maxPoints = 0;
-        $earnedPoints = 0;
-        $mcqEarned = 0;
+        $earnedPoints = 0.0;
+        $mcqEarned = 0.0;
         $mcqMax = 0;
-        $essayEarned = 0;
+        $essayEarned = 0.0;
         $essayMax = 0;
+        $weightedScoreTotal = 0.0;
+        $mcqWeightedScore = 0.0;
+        $essayWeightedScore = 0.0;
         $autoMcq = [];
         $manualEssay = [];
         $errors = [];
@@ -150,13 +239,17 @@ class AdminSubmissionController extends Controller
                 $mcqMax += $weight;
                 $answerKey = trim((string) ($question->answer_key ?? ''));
                 $isCorrect = $answerKey !== '' && $answer !== '' && $answer === $answerKey;
-                $points = $isCorrect ? $weight : 0;
+                $scorePercent = $isCorrect ? 100.0 : 0.0;
+                $points = round(($scorePercent / 100) * $weight, 2);
                 $mcqEarned += $points;
                 $earnedPoints += $points;
+                $mcqWeightedScore += $scorePercent * $weight;
+                $weightedScoreTotal += $scorePercent * $weight;
 
                 $autoMcq[$qUuid] = [
                     'weight' => $weight,
                     'is_correct' => $isCorrect,
+                    'score_percent' => (int) round($scorePercent),
                     'earned_points' => $points,
                 ];
 
@@ -171,16 +264,20 @@ class AdminSubmissionController extends Controller
                 continue;
             }
 
-            $points = (float) $raw;
-            if ($points < 0 || $points > $weight) {
-                $errors["question_points.{$qUuid}"] = "Skor essay harus 0–{$weight}.";
+            $scorePercent = (float) $raw;
+            if ($scorePercent < 0 || $scorePercent > 100) {
+                $errors["question_points.{$qUuid}"] = 'Skor essay harus 0-100.';
                 continue;
             }
 
+            $points = round(($scorePercent / 100) * $weight, 2);
             $essayEarned += $points;
             $earnedPoints += $points;
+            $essayWeightedScore += $scorePercent * $weight;
+            $weightedScoreTotal += $scorePercent * $weight;
             $manualEssay[$qUuid] = [
                 'weight' => $weight,
+                'score_percent' => round($scorePercent, 2),
                 'earned_points' => $points,
             ];
         }
@@ -189,24 +286,29 @@ class AdminSubmissionController extends Controller
             throw ValidationException::withMessages($errors);
         }
 
-        $newScore = $maxPoints > 0 ? (int) round(($earnedPoints / $maxPoints) * 100) : 0;
+        $newScore = $maxPoints > 0 ? (int) round($weightedScoreTotal / $maxPoints) : 0;
         $newScore = max(0, min(100, $newScore));
+
+        $mcqPercent = $mcqMax > 0 ? (int) round($mcqWeightedScore / $mcqMax) : null;
+        $essayPercent = $essayMax > 0 ? (int) round($essayWeightedScore / $essayMax) : null;
 
         $verdictDetail = [
             'source' => (string) ($taskBank->assessment_type ?? 'task_bank'),
             'task_bank' => [
                 'assessment_type' => (string) ($taskBank->assessment_type ?? 'unknown'),
                 'max_points' => $maxPoints,
-                'earned_points' => $earnedPoints,
+                'earned_points' => round($earnedPoints, 2),
                 'percent' => $newScore,
                 'mcq' => [
                     'max_points' => $mcqMax,
-                    'earned_points' => $mcqEarned,
+                    'earned_points' => round($mcqEarned, 2),
+                    'percent' => $mcqPercent,
                     'by_question' => $autoMcq,
                 ],
                 'essay' => [
                     'max_points' => $essayMax,
-                    'earned_points' => $essayEarned,
+                    'earned_points' => round($essayEarned, 2),
+                    'percent' => $essayPercent,
                     'by_question' => $manualEssay,
                 ],
             ],
@@ -341,6 +443,13 @@ class AdminSubmissionController extends Controller
     {
         $this->assertMentorCanAccessSubmission($submission);
 
+        if (! in_array($submission->pipeline_status, [Submission::PIPELINE_STATUS_PREPROCESSED, Submission::PIPELINE_STATUS_CLEANED, Submission::PIPELINE_STATUS_STRUCTURED, Submission::PIPELINE_STATUS_SEMANTIC_ENRICHED, Submission::PIPELINE_STATUS_RUBRIC_PREPARED, Submission::PIPELINE_STATUS_AI_EVALUATION, Submission::PIPELINE_STATUS_AI_CHECKED, Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATION, Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED, Submission::PIPELINE_STATUS_RESULT_PRESENTATION, Submission::PIPELINE_STATUS_EVALUATED], true)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'AI_PREPROCESS_NOT_DONE',
+            ], 422);
+        }
+
         $validated = $request->validate([
             'advisor_note' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -363,6 +472,13 @@ class AdminSubmissionController extends Controller
     public function checkWithAI(Request $request, Submission $submission, SubmissionAiAdvisorService $advisorService)
     {
         $this->assertMentorCanAccessSubmission($submission);
+
+        if (! in_array($submission->pipeline_status, [Submission::PIPELINE_STATUS_PREPROCESSED, Submission::PIPELINE_STATUS_CLEANED, Submission::PIPELINE_STATUS_STRUCTURED, Submission::PIPELINE_STATUS_SEMANTIC_ENRICHED, Submission::PIPELINE_STATUS_RUBRIC_PREPARED, Submission::PIPELINE_STATUS_AI_EVALUATION, Submission::PIPELINE_STATUS_AI_CHECKED, Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATION, Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED, Submission::PIPELINE_STATUS_RESULT_PRESENTATION, Submission::PIPELINE_STATUS_EVALUATED], true)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'AI_PREPROCESS_NOT_DONE',
+            ], 422);
+        }
 
         $submission->load('quest');
 
@@ -459,6 +575,735 @@ class AdminSubmissionController extends Controller
     /**
      * @return array{0:int,1:int}
      */
+    public function startPreprocessing(Request $request, Submission $submission, RawSubmissionExtractionService $extractionService)
+    {
+        $this->assertMentorCanAccessSubmission($submission);
+
+        if (! in_array($submission->pipeline_status, [
+            Submission::PIPELINE_STATUS_PENDING_PREPROCESSING,
+            Submission::PIPELINE_STATUS_PREPROCESSED,
+            Submission::PIPELINE_STATUS_CLEANED,
+            Submission::PIPELINE_STATUS_STRUCTURED,
+            Submission::PIPELINE_STATUS_SEMANTIC_ENRICHED,
+            Submission::PIPELINE_STATUS_RUBRIC_PREPARED,
+            Submission::PIPELINE_STATUS_AI_CHECKED,
+            Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED,
+            Submission::PIPELINE_STATUS_RESULT_PRESENTATION,
+            Submission::PIPELINE_STATUS_EVALUATED,
+        ], true)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'SUBMISSION_NOT_READY_FOR_PREPROCESSING',
+                ], 422);
+            }
+
+            return back()->with('error', 'SUBMISSION_NOT_READY_FOR_PREPROCESSING');
+        }
+
+        $submission->update([
+            'pipeline_status' => Submission::PIPELINE_STATUS_PREPROCESSING,
+            'preprocess_started' => true,
+        ]);
+
+        try {
+            $result = $extractionService->extract($submission->fresh());
+        } catch (Throwable) {
+            $result = [
+                'submission_id' => (string) ($submission->submission_id ?: $submission->uuid),
+                'detected_content_type' => (string) ($submission->file_type ?: 'txt'),
+                'extraction_method' => 'txt_reader',
+                'raw_text' => '',
+                'page_count' => 0,
+                'ocr_used' => false,
+                'ocr_confidence' => null,
+                'extraction_status' => 'failed',
+                'warnings' => ['extraction_exception'],
+            ];
+        }
+
+        $extractionSucceeded = (string) ($result['extraction_status'] ?? 'failed') === 'success';
+
+        $submission->update([
+            'pipeline_status' => $extractionSucceeded
+                ? Submission::PIPELINE_STATUS_PREPROCESSED
+                : Submission::PIPELINE_STATUS_PENDING_PREPROCESSING,
+            'preprocess_started' => $extractionSucceeded,
+            'extracted_text' => (string) ($result['raw_text'] ?? ''),
+            'extraction_result' => $result,
+            'extracted_at' => now(),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json($result, $extractionSucceeded ? 200 : 422);
+        }
+
+        return back()->with($extractionSucceeded ? 'message' : 'error', $extractionSucceeded ? 'EXTRACTION_COMPLETED' : 'EXTRACTION_FAILED');
+    }
+
+    public function startCleaning(Request $request, Submission $submission, CleanSubmissionTextService $cleaningService)
+    {
+        $this->assertMentorCanAccessSubmission($submission);
+
+        if (! in_array($submission->pipeline_status, [
+            Submission::PIPELINE_STATUS_PREPROCESSED,
+            Submission::PIPELINE_STATUS_CLEANED,
+            Submission::PIPELINE_STATUS_STRUCTURED,
+            Submission::PIPELINE_STATUS_SEMANTIC_ENRICHED,
+            Submission::PIPELINE_STATUS_RUBRIC_PREPARED,
+            Submission::PIPELINE_STATUS_AI_CHECKED,
+            Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED,
+            Submission::PIPELINE_STATUS_RESULT_PRESENTATION,
+            Submission::PIPELINE_STATUS_EVALUATED,
+        ], true)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'SUBMISSION_NOT_READY_FOR_CLEANING',
+                ], 422);
+            }
+
+            return back()->with('error', 'SUBMISSION_NOT_READY_FOR_CLEANING');
+        }
+
+        $extractionResult = is_array($submission->extraction_result) ? $submission->extraction_result : [];
+        if ((string) ($extractionResult['extraction_status'] ?? '') !== 'success' || trim((string) ($submission->extracted_text ?? '')) === '') {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'EXTRACTION_RESULT_REQUIRED',
+                ], 422);
+            }
+
+            return back()->with('error', 'EXTRACTION_RESULT_REQUIRED');
+        }
+
+        $submission->update([
+            'pipeline_status' => Submission::PIPELINE_STATUS_CLEANING,
+        ]);
+
+        try {
+            $result = $cleaningService->clean($submission->fresh());
+        } catch (Throwable) {
+            $result = [
+                'submission_id' => (string) ($submission->submission_id ?: $submission->uuid),
+                'clean_text' => '',
+                'language' => 'unknown',
+                'cleaning_status' => 'failed',
+                'changes_summary' => [
+                    'noise_removed' => 0,
+                    'ocr_corrections' => 0,
+                    'line_break_fixed' => 0,
+                    'garbage_removed' => 0,
+                ],
+                'warnings' => ['cleaning_exception'],
+                'next_stage' => 'structure_detection',
+            ];
+        }
+
+        $cleaningSucceeded = in_array((string) ($result['cleaning_status'] ?? 'failed'), ['success', 'partial'], true);
+
+        $submission->update([
+            'pipeline_status' => $cleaningSucceeded
+                ? Submission::PIPELINE_STATUS_CLEANED
+                : Submission::PIPELINE_STATUS_PREPROCESSED,
+            'clean_text' => (string) ($result['clean_text'] ?? ''),
+            'cleaning_result' => $result,
+            'cleaning_language' => (string) ($result['language'] ?? 'unknown'),
+            'cleaned_at' => now(),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json($result, $cleaningSucceeded ? 200 : 422);
+        }
+
+        return back()->with($cleaningSucceeded ? 'message' : 'error', $cleaningSucceeded ? 'CLEANING_COMPLETED' : 'CLEANING_FAILED');
+    }
+
+    public function startStructureDetection(Request $request, Submission $submission, DetectSubmissionStructureService $structureService)
+    {
+        $this->assertMentorCanAccessSubmission($submission);
+
+        if ($submission->pipeline_status === Submission::PIPELINE_STATUS_STRUCTURE_DETECTION) {
+            $existingResult = is_array($submission->structure_result) ? $submission->structure_result : [];
+            $existingStatus = (string) ($existingResult['structure_detection_status'] ?? 'failed');
+
+            $submission->update([
+                'pipeline_status' => in_array($existingStatus, ['success', 'partial'], true)
+                    ? Submission::PIPELINE_STATUS_STRUCTURED
+                    : Submission::PIPELINE_STATUS_CLEANED,
+            ]);
+
+            $submission = $submission->fresh();
+        }
+
+        if (! in_array($submission->pipeline_status, [
+            Submission::PIPELINE_STATUS_CLEANED,
+            Submission::PIPELINE_STATUS_STRUCTURED,
+            Submission::PIPELINE_STATUS_SEMANTIC_ENRICHED,
+            Submission::PIPELINE_STATUS_RUBRIC_PREPARED,
+            Submission::PIPELINE_STATUS_AI_CHECKED,
+            Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED,
+            Submission::PIPELINE_STATUS_RESULT_PRESENTATION,
+            Submission::PIPELINE_STATUS_EVALUATED,
+        ], true)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'SUBMISSION_NOT_READY_FOR_STRUCTURE_DETECTION',
+                ], 422);
+            }
+
+            return back()->with('error', 'SUBMISSION_NOT_READY_FOR_STRUCTURE_DETECTION');
+        }
+
+        $cleaningResult = is_array($submission->cleaning_result) ? $submission->cleaning_result : [];
+        $cleaningStatus = (string) ($cleaningResult['cleaning_status'] ?? '');
+        if (! in_array($cleaningStatus, ['success', 'partial'], true) || trim((string) ($submission->clean_text ?? '')) === '') {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'CLEANING_RESULT_REQUIRED',
+                ], 422);
+            }
+
+            return back()->with('error', 'CLEANING_RESULT_REQUIRED');
+        }
+
+        $submission->update([
+            'pipeline_status' => Submission::PIPELINE_STATUS_STRUCTURE_DETECTION,
+        ]);
+
+        $failedResult = [
+            'submission_id' => (string) ($submission->submission_id ?: $submission->uuid),
+            'document_pattern' => 'mixed',
+            'items' => [],
+            'instruction_blocks' => [],
+            'warnings' => ['structure_detection_exception'],
+            'structure_detection_status' => 'failed',
+            'next_stage' => 'semantic_enrichment',
+        ];
+
+        $result = $failedResult;
+        $structureSucceeded = false;
+
+        try {
+            $result = $structureService->detect($submission->fresh());
+            $structureSucceeded = in_array((string) ($result['structure_detection_status'] ?? 'failed'), ['success', 'partial'], true);
+
+            $submission->update([
+                'pipeline_status' => $structureSucceeded
+                    ? Submission::PIPELINE_STATUS_STRUCTURED
+                    : Submission::PIPELINE_STATUS_CLEANED,
+                'structured_items' => is_array($result['items'] ?? null) ? $result['items'] : [],
+                'structure_result' => $result,
+                'structure_detected_at' => now(),
+            ]);
+        } catch (Throwable) {
+            try {
+                Submission::query()
+                    ->whereKey($submission->getKey())
+                    ->where('pipeline_status', Submission::PIPELINE_STATUS_STRUCTURE_DETECTION)
+                    ->update([
+                        'pipeline_status' => Submission::PIPELINE_STATUS_CLEANED,
+                    ]);
+            } catch (Throwable) {
+            }
+
+            $result = $failedResult;
+            $structureSucceeded = false;
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json($result, $structureSucceeded ? 200 : 422);
+        }
+
+        return back()->with($structureSucceeded ? 'message' : 'error', $structureSucceeded ? 'STRUCTURE_DETECTION_COMPLETED' : 'STRUCTURE_DETECTION_FAILED');
+    }
+
+    public function startSemanticEnrichment(Request $request, Submission $submission, EnrichSubmissionSemanticsService $semanticService)
+    {
+        $this->assertMentorCanAccessSubmission($submission);
+
+        if (! in_array($submission->pipeline_status, [
+            Submission::PIPELINE_STATUS_STRUCTURED,
+            Submission::PIPELINE_STATUS_SEMANTIC_ENRICHED,
+            Submission::PIPELINE_STATUS_RUBRIC_PREPARED,
+            Submission::PIPELINE_STATUS_AI_CHECKED,
+            Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED,
+            Submission::PIPELINE_STATUS_RESULT_PRESENTATION,
+            Submission::PIPELINE_STATUS_EVALUATED,
+        ], true)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'SUBMISSION_NOT_READY_FOR_SEMANTIC_ENRICHMENT',
+                ], 422);
+            }
+
+            return back()->with('error', 'SUBMISSION_NOT_READY_FOR_SEMANTIC_ENRICHMENT');
+        }
+
+        $structureResult = is_array($submission->structure_result) ? $submission->structure_result : [];
+        $structureStatus = (string) ($structureResult['structure_detection_status'] ?? '');
+        $structuredItems = is_array($submission->structured_items) ? $submission->structured_items : [];
+        if (! in_array($structureStatus, ['success', 'partial'], true) || $structuredItems === []) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'STRUCTURE_RESULT_REQUIRED',
+                ], 422);
+            }
+
+            return back()->with('error', 'STRUCTURE_RESULT_REQUIRED');
+        }
+
+        $submission->update([
+            'pipeline_status' => Submission::PIPELINE_STATUS_SEMANTIC_ENRICHMENT,
+        ]);
+
+        try {
+            $result = $semanticService->enrich($submission->fresh());
+        } catch (Throwable) {
+            $result = [
+                'submission_id' => (string) ($submission->submission_id ?: $submission->uuid),
+                'items' => [],
+                'warnings' => ['semantic_enrichment_exception'],
+                'semantic_enrichment_status' => 'failed',
+                'next_stage' => 'rubric_preparation',
+            ];
+        }
+
+        $semanticSucceeded = in_array((string) ($result['semantic_enrichment_status'] ?? 'failed'), ['success', 'partial'], true);
+
+        $submission->update([
+            'pipeline_status' => $semanticSucceeded
+                ? Submission::PIPELINE_STATUS_SEMANTIC_ENRICHED
+                : Submission::PIPELINE_STATUS_STRUCTURED,
+            'semantic_items' => is_array($result['items'] ?? null) ? $result['items'] : [],
+            'semantic_result' => $result,
+            'semantic_enriched_at' => now(),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json($result, $semanticSucceeded ? 200 : 422);
+        }
+
+        return back()->with($semanticSucceeded ? 'message' : 'error', $semanticSucceeded ? 'SEMANTIC_ENRICHMENT_COMPLETED' : 'SEMANTIC_ENRICHMENT_FAILED');
+    }
+
+    public function startRubricPreparation(Request $request, Submission $submission, PrepareSubmissionRubricService $rubricService)
+    {
+        $this->assertMentorCanAccessSubmission($submission);
+
+        if ($submission->pipeline_status === Submission::PIPELINE_STATUS_RUBRIC_PREPARATION) {
+            $existingResult = is_array($submission->rubric_preparation_result) ? $submission->rubric_preparation_result : [];
+            $existingStatus = (string) ($existingResult['rubric_preparation_status'] ?? 'failed');
+
+            $submission->update([
+                'pipeline_status' => in_array($existingStatus, ['success', 'partial'], true)
+                    ? Submission::PIPELINE_STATUS_RUBRIC_PREPARED
+                    : Submission::PIPELINE_STATUS_SEMANTIC_ENRICHED,
+            ]);
+
+            $submission = $submission->fresh();
+        }
+
+        if (! in_array($submission->pipeline_status, [
+            Submission::PIPELINE_STATUS_SEMANTIC_ENRICHED,
+            Submission::PIPELINE_STATUS_RUBRIC_PREPARED,
+            Submission::PIPELINE_STATUS_AI_CHECKED,
+            Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED,
+            Submission::PIPELINE_STATUS_RESULT_PRESENTATION,
+            Submission::PIPELINE_STATUS_EVALUATED,
+        ], true)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'SUBMISSION_NOT_READY_FOR_RUBRIC_PREPARATION',
+                ], 422);
+            }
+
+            return back()->with('error', 'SUBMISSION_NOT_READY_FOR_RUBRIC_PREPARATION');
+        }
+
+        $semanticResult = is_array($submission->semantic_result) ? $submission->semantic_result : [];
+        $semanticStatus = (string) ($semanticResult['semantic_enrichment_status'] ?? '');
+        $semanticItems = is_array($submission->semantic_items) ? $submission->semantic_items : [];
+        if (! in_array($semanticStatus, ['success', 'partial'], true) || $semanticItems === []) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'SEMANTIC_RESULT_REQUIRED',
+                ], 422);
+            }
+
+            return back()->with('error', 'SEMANTIC_RESULT_REQUIRED');
+        }
+
+        $submission->update([
+            'pipeline_status' => Submission::PIPELINE_STATUS_RUBRIC_PREPARATION,
+        ]);
+
+        try {
+            $result = $rubricService->prepare($submission->fresh());
+        } catch (Throwable) {
+            $result = [
+                'submission_id' => (string) ($submission->submission_id ?: $submission->uuid),
+                'items' => [],
+                'warnings' => ['rubric_preparation_exception'],
+                'rubric_preparation_status' => 'failed',
+                'next_stage' => 'ai_evaluation',
+            ];
+        }
+
+        $rubricPreparationSucceeded = in_array((string) ($result['rubric_preparation_status'] ?? 'failed'), ['success', 'partial'], true);
+
+        $submission->update([
+            'pipeline_status' => $rubricPreparationSucceeded
+                ? Submission::PIPELINE_STATUS_RUBRIC_PREPARED
+                : Submission::PIPELINE_STATUS_SEMANTIC_ENRICHED,
+            'rubric_preparation_items' => is_array($result['items'] ?? null) ? $result['items'] : [],
+            'rubric_preparation_result' => $result,
+            'rubric_prepared_at' => now(),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json($result, $rubricPreparationSucceeded ? 200 : 422);
+        }
+
+        return back()->with($rubricPreparationSucceeded ? 'message' : 'error', $rubricPreparationSucceeded ? 'RUBRIC_PREPARATION_COMPLETED' : 'RUBRIC_PREPARATION_FAILED');
+    }
+
+    public function startAiEvaluation(Request $request, Submission $submission, EvaluateSubmissionAnswersService $evaluationService)
+    {
+        $this->assertMentorCanAccessSubmission($submission);
+
+        if ($submission->pipeline_status === Submission::PIPELINE_STATUS_AI_EVALUATION) {
+            $existingResult = is_array($submission->ai_evaluation_result) ? $submission->ai_evaluation_result : [];
+            $existingStatus = (string) ($existingResult['ai_evaluation_status'] ?? 'failed');
+
+            $submission->update([
+                'pipeline_status' => in_array($existingStatus, ['success', 'partial'], true)
+                    ? Submission::PIPELINE_STATUS_AI_CHECKED
+                    : Submission::PIPELINE_STATUS_RUBRIC_PREPARED,
+            ]);
+
+            $submission = $submission->fresh();
+        }
+
+        if (! in_array($submission->pipeline_status, [
+            Submission::PIPELINE_STATUS_RUBRIC_PREPARED,
+            Submission::PIPELINE_STATUS_AI_CHECKED,
+            Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED,
+            Submission::PIPELINE_STATUS_RESULT_PRESENTATION,
+            Submission::PIPELINE_STATUS_EVALUATED,
+        ], true)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'SUBMISSION_NOT_READY_FOR_AI_EVALUATION',
+                ], 422);
+            }
+
+            return back()->with('error', 'SUBMISSION_NOT_READY_FOR_AI_EVALUATION');
+        }
+
+        $rubricPreparationResult = is_array($submission->rubric_preparation_result) ? $submission->rubric_preparation_result : [];
+        $rubricPreparationStatus = (string) ($rubricPreparationResult['rubric_preparation_status'] ?? '');
+        $rubricPreparationItems = is_array($submission->rubric_preparation_items) ? $submission->rubric_preparation_items : [];
+        if (! in_array($rubricPreparationStatus, ['success', 'partial'], true) || $rubricPreparationItems === []) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'RUBRIC_PREPARATION_RESULT_REQUIRED',
+                ], 422);
+            }
+
+            return back()->with('error', 'RUBRIC_PREPARATION_RESULT_REQUIRED');
+        }
+
+        $submission->update([
+            'pipeline_status' => Submission::PIPELINE_STATUS_AI_EVALUATION,
+        ]);
+
+        try {
+            $result = $evaluationService->evaluate($submission->fresh());
+        } catch (Throwable) {
+            $result = [
+                'submission_id' => (string) ($submission->submission_id ?: $submission->uuid),
+                'items' => [],
+                'warnings' => ['ai_evaluation_exception'],
+                'ai_evaluation_status' => 'failed',
+                'next_stage' => 'evaluation_quality_review',
+            ];
+        }
+
+        $evaluationSucceeded = in_array((string) ($result['ai_evaluation_status'] ?? 'failed'), ['success', 'partial'], true);
+
+        $submission->update([
+            'pipeline_status' => $evaluationSucceeded
+                ? Submission::PIPELINE_STATUS_AI_CHECKED
+                : Submission::PIPELINE_STATUS_RUBRIC_PREPARED,
+            'ai_evaluation_items' => is_array($result['items'] ?? null) ? $result['items'] : [],
+            'ai_evaluation_result' => $result,
+            'ai_evaluated_at' => now(),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json($result, $evaluationSucceeded ? 200 : 422);
+        }
+
+        return back()->with($evaluationSucceeded ? 'message' : 'error', $evaluationSucceeded ? 'AI_EVALUATION_COMPLETED' : 'AI_EVALUATION_FAILED');
+    }
+
+    public function rerunAiEvaluation(Request $request, Submission $submission, EvaluateSubmissionAnswersService $evaluationService, ValidatePostEvaluationResultService $validationService, PresentSubmissionResultService $presentationService)
+    {
+        $this->assertMentorCanAccessSubmission($submission);
+
+        if (! in_array($submission->pipeline_status, [
+            Submission::PIPELINE_STATUS_AI_CHECKED,
+            Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED,
+            Submission::PIPELINE_STATUS_RESULT_PRESENTATION,
+            Submission::PIPELINE_STATUS_EVALUATED,
+        ], true)) {
+            return response()->json(['status' => 'error', 'message' => 'SUBMISSION_NOT_ELIGIBLE_FOR_RERUN'], 422);
+        }
+
+        $rubricPreparationItems = is_array($submission->rubric_preparation_items) ? $submission->rubric_preparation_items : [];
+        if ($rubricPreparationItems === []) {
+            return response()->json(['status' => 'error', 'message' => 'RUBRIC_PREPARATION_RESULT_REQUIRED'], 422);
+        }
+
+        // Stage 6: AI Evaluation
+        $submission->update(['pipeline_status' => Submission::PIPELINE_STATUS_AI_EVALUATION]);
+        try {
+            $evalResult = $evaluationService->evaluate($submission->fresh());
+        } catch (Throwable) {
+            $evalResult = ['submission_id' => (string) ($submission->submission_id ?: $submission->uuid), 'items' => [], 'warnings' => ['ai_evaluation_exception'], 'ai_evaluation_status' => 'failed', 'next_stage' => 'evaluation_quality_review'];
+        }
+
+        $evalSucceeded = in_array((string) ($evalResult['ai_evaluation_status'] ?? 'failed'), ['success', 'partial'], true);
+        $submission->update([
+            'pipeline_status' => $evalSucceeded ? Submission::PIPELINE_STATUS_AI_CHECKED : Submission::PIPELINE_STATUS_RUBRIC_PREPARED,
+            'ai_evaluation_items' => is_array($evalResult['items'] ?? null) ? $evalResult['items'] : [],
+            'ai_evaluation_result' => $evalResult,
+            'ai_evaluated_at' => now(),
+        ]);
+
+        if (! $evalSucceeded) {
+            return response()->json(['status' => 'error', 'message' => 'AI_EVALUATION_FAILED', 'stage' => 'ai_evaluation', 'result' => $evalResult], 422);
+        }
+
+        // Stage 7: Post-Evaluation Validation
+        $submission->update(['pipeline_status' => Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATION]);
+        try {
+            $postEvalResult = $validationService->validate($submission->fresh());
+        } catch (Throwable) {
+            $postEvalResult = ['submission_id' => (string) ($submission->submission_id ?: $submission->uuid), 'items' => [], 'warnings' => ['post_evaluation_validation_exception'], 'post_evaluation_validation_status' => 'failed', 'next_stage' => 'result_finalization'];
+        }
+
+        $postEvalSucceeded = in_array((string) ($postEvalResult['post_evaluation_validation_status'] ?? 'failed'), ['success', 'partial'], true);
+        $submission->update([
+            'pipeline_status' => $postEvalSucceeded ? Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED : Submission::PIPELINE_STATUS_AI_CHECKED,
+            'post_evaluation_validation_items' => is_array($postEvalResult['items'] ?? null) ? $postEvalResult['items'] : [],
+            'post_evaluation_validation_result' => $postEvalResult,
+            'post_evaluation_validated_at' => now(),
+        ]);
+
+        if (! $postEvalSucceeded) {
+            return response()->json(['status' => 'error', 'message' => 'POST_EVALUATION_VALIDATION_FAILED', 'stage' => 'post_evaluation_validation', 'result' => $postEvalResult], 422);
+        }
+
+        // Stage 8: Result Presentation
+        $submission->update(['pipeline_status' => Submission::PIPELINE_STATUS_RESULT_PRESENTATION]);
+        try {
+            $presResult = $presentationService->present($submission->fresh());
+        } catch (Throwable) {
+            $presResult = ['submission_id' => (string) ($submission->submission_id ?: $submission->uuid), 'items' => [], 'warnings' => ['result_presentation_exception'], 'result_presentation_status' => 'failed', 'next_stage' => 'mentor_verdict'];
+        }
+
+        $presSucceeded = in_array((string) ($presResult['result_presentation_status'] ?? 'failed'), ['success', 'partial'], true);
+        $submission->update([
+            'pipeline_status' => $presSucceeded ? Submission::PIPELINE_STATUS_EVALUATED : Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED,
+            'result_presentation_items' => is_array($presResult['items'] ?? null) ? $presResult['items'] : [],
+            'result_presentation_result' => $presResult,
+            'result_presented_at' => now(),
+        ]);
+
+        return response()->json([
+            'status' => $presSucceeded ? 'success' : 'partial',
+            'message' => $presSucceeded ? 'RERUN_AI_EVALUATION_COMPLETED' : 'RERUN_PARTIAL_FAILURE',
+            'stages' => [
+                'ai_evaluation' => (string) ($evalResult['ai_evaluation_status'] ?? 'failed'),
+                'post_evaluation_validation' => (string) ($postEvalResult['post_evaluation_validation_status'] ?? 'failed'),
+                'result_presentation' => (string) ($presResult['result_presentation_status'] ?? 'failed'),
+            ],
+        ], $presSucceeded ? 200 : 422);
+    }
+
+    public function startPostEvaluationValidation(Request $request, Submission $submission, ValidatePostEvaluationResultService $validationService)
+    {
+        $this->assertMentorCanAccessSubmission($submission);
+
+        if ($submission->pipeline_status === Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATION) {
+            $existingResult = is_array($submission->post_evaluation_validation_result) ? $submission->post_evaluation_validation_result : [];
+            $existingStatus = (string) ($existingResult['post_evaluation_validation_status'] ?? 'failed');
+
+            $submission->update([
+                'pipeline_status' => in_array($existingStatus, ['success', 'partial'], true)
+                    ? Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED
+                    : Submission::PIPELINE_STATUS_AI_CHECKED,
+            ]);
+
+            $submission = $submission->fresh();
+        }
+
+        if (! in_array($submission->pipeline_status, [
+            Submission::PIPELINE_STATUS_AI_CHECKED,
+            Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED,
+            Submission::PIPELINE_STATUS_RESULT_PRESENTATION,
+            Submission::PIPELINE_STATUS_EVALUATED,
+        ], true)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'SUBMISSION_NOT_READY_FOR_POST_EVALUATION_VALIDATION',
+                ], 422);
+            }
+
+            return back()->with('error', 'SUBMISSION_NOT_READY_FOR_POST_EVALUATION_VALIDATION');
+        }
+
+        $aiEvaluationResult = is_array($submission->ai_evaluation_result) ? $submission->ai_evaluation_result : [];
+        $aiEvaluationStatus = (string) ($aiEvaluationResult['ai_evaluation_status'] ?? '');
+        $aiEvaluationItems = is_array($submission->ai_evaluation_items) ? $submission->ai_evaluation_items : [];
+
+        if (! in_array($aiEvaluationStatus, ['success', 'partial'], true) || $aiEvaluationItems === []) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'AI_EVALUATION_RESULT_REQUIRED',
+                ], 422);
+            }
+
+            return back()->with('error', 'AI_EVALUATION_RESULT_REQUIRED');
+        }
+
+        $submission->update([
+            'pipeline_status' => Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATION,
+        ]);
+
+        try {
+            $result = $validationService->validate($submission->fresh());
+        } catch (Throwable) {
+            $result = [
+                'submission_id' => (string) ($submission->submission_id ?: $submission->uuid),
+                'items' => [],
+                'warnings' => ['post_evaluation_validation_exception'],
+                'post_evaluation_validation_status' => 'failed',
+                'next_stage' => 'result_finalization',
+            ];
+        }
+
+        $validationSucceeded = in_array((string) ($result['post_evaluation_validation_status'] ?? 'failed'), ['success', 'partial'], true);
+
+        $submission->update([
+            'pipeline_status' => $validationSucceeded
+                ? Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED
+                : Submission::PIPELINE_STATUS_AI_CHECKED,
+            'post_evaluation_validation_items' => is_array($result['items'] ?? null) ? $result['items'] : [],
+            'post_evaluation_validation_result' => $result,
+            'post_evaluation_validated_at' => now(),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json($result, $validationSucceeded ? 200 : 422);
+        }
+
+        return back()->with($validationSucceeded ? 'message' : 'error', $validationSucceeded ? 'POST_EVALUATION_VALIDATION_COMPLETED' : 'POST_EVALUATION_VALIDATION_FAILED');
+    }
+
+    public function startResultPresentation(Request $request, Submission $submission, PresentSubmissionResultService $presentationService)
+    {
+        $this->assertMentorCanAccessSubmission($submission);
+
+        if ($submission->pipeline_status === Submission::PIPELINE_STATUS_RESULT_PRESENTATION) {
+            $existingResult = is_array($submission->result_presentation_result) ? $submission->result_presentation_result : [];
+            $existingStatus = (string) ($existingResult['result_presentation_status'] ?? 'failed');
+
+            $submission->update([
+                'pipeline_status' => in_array($existingStatus, ['success', 'partial'], true)
+                    ? Submission::PIPELINE_STATUS_EVALUATED
+                    : Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED,
+            ]);
+
+            $submission = $submission->fresh();
+        }
+
+        if (! in_array($submission->pipeline_status, [Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED, Submission::PIPELINE_STATUS_EVALUATED], true)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'SUBMISSION_NOT_READY_FOR_RESULT_PRESENTATION',
+                ], 422);
+            }
+
+            return back()->with('error', 'SUBMISSION_NOT_READY_FOR_RESULT_PRESENTATION');
+        }
+
+        $postEvaluationValidationResult = is_array($submission->post_evaluation_validation_result) ? $submission->post_evaluation_validation_result : [];
+        $postEvaluationValidationStatus = (string) ($postEvaluationValidationResult['post_evaluation_validation_status'] ?? '');
+        $postEvaluationValidationItems = is_array($submission->post_evaluation_validation_items) ? $submission->post_evaluation_validation_items : [];
+        if ($postEvaluationValidationItems === [] && is_array($postEvaluationValidationResult['items'] ?? null)) {
+            $postEvaluationValidationItems = $postEvaluationValidationResult['items'];
+        }
+
+        if (! in_array($postEvaluationValidationStatus, ['success', 'partial'], true) || $postEvaluationValidationItems === []) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'POST_EVALUATION_VALIDATION_RESULT_REQUIRED',
+                ], 422);
+            }
+
+            return back()->with('error', 'POST_EVALUATION_VALIDATION_RESULT_REQUIRED');
+        }
+
+        $submission->update([
+            'pipeline_status' => Submission::PIPELINE_STATUS_RESULT_PRESENTATION,
+        ]);
+
+        try {
+            $result = $presentationService->present($submission->fresh());
+        } catch (Throwable) {
+            $result = [
+                'submission_id' => (string) ($submission->submission_id ?: $submission->uuid),
+                'items' => [],
+                'warnings' => ['result_presentation_exception'],
+                'result_presentation_status' => 'failed',
+                'next_stage' => 'mentor_verdict',
+            ];
+        }
+
+        $presentationSucceeded = in_array((string) ($result['result_presentation_status'] ?? 'failed'), ['success', 'partial'], true);
+
+        $submission->update([
+            'pipeline_status' => $presentationSucceeded
+                ? Submission::PIPELINE_STATUS_EVALUATED
+                : Submission::PIPELINE_STATUS_POST_EVALUATION_VALIDATED,
+            'result_presentation_items' => is_array($result['items'] ?? null) ? $result['items'] : [],
+            'result_presentation_result' => $result,
+            'result_presented_at' => now(),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json($result, $presentationSucceeded ? 200 : 422);
+        }
+
+        return back()->with($presentationSucceeded ? 'message' : 'error', $presentationSucceeded ? 'RESULT_PRESENTATION_COMPLETED' : 'RESULT_PRESENTATION_FAILED');
+    }
+
     private function parseScoreRange(string $range): array
     {
         if (! preg_match('/^(\d{1,3})\s*-\s*(\d{1,3})$/', trim($range), $matches)) {
