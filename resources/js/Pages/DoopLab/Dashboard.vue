@@ -862,7 +862,9 @@ onUnmounted(() => {
         </Head>
 
         <div class="nb-root">
-            <div class="nb-aurora"></div>
+            <div class="nb-aurora">
+                <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" />
+            </div>
             <div class="nb-shell">
                 <header class="nb-topbar">
                     <div class="nb-title-wrap">
@@ -1634,7 +1636,13 @@ onUnmounted(() => {
 }
 
 .nb-aurora {
-    display: none;
+    position: fixed; inset: 0; z-index: 0;
+}
+.nb-aurora img {
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: center;
+    image-rendering: pixelated;
+    opacity: 0.15;
 }
 
 .nb-shell {

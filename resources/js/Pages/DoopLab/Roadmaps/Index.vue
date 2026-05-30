@@ -1273,7 +1273,9 @@ onUnmounted(() => {
         <Head title="DoopLab Roadmap Lab" />
 
         <div class="lab-root">
-            <div class="lab-aurora"></div>
+            <div class="lab-aurora">
+                <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" />
+            </div>
             <div class="lab-shell">
             <div class="lab-topbar">
                 <div>
@@ -2492,24 +2494,16 @@ onUnmounted(() => {
 }
 
 .lab-aurora {
-    position: absolute;
+    position: fixed;
     inset: 0;
     pointer-events: none;
-    background:
-        repeating-linear-gradient(
-            0deg,
-            rgba(87, 214, 255, 0.03) 0px,
-            rgba(87, 214, 255, 0.03) 1px,
-            transparent 1px,
-            transparent 12px
-        ),
-        repeating-linear-gradient(
-            90deg,
-            rgba(87, 214, 255, 0.03) 0px,
-            rgba(87, 214, 255, 0.03) 1px,
-            transparent 1px,
-            transparent 12px
-        );
+    z-index: 0;
+}
+.lab-aurora img {
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: center;
+    image-rendering: pixelated;
+    opacity: 0.15;
 }
 
 .lab-shell {
