@@ -37,3 +37,15 @@
 - Skin `White Orbit` tetap memakai payload backend `dooptech:profile-skin-data` serta mengirim event `dooptech:profile-skin-ready`.
 - Verifikasi berhasil: cek file bundle dengan `rg --files` dan `npm.cmd run build`.
 - Mulai upgrade sistem profile skin menuju hybrid renderer agar output tetap fleksibel tetapi beban server lebih ringan: `config`, `vue_template`, dan `project_static`.
+
+
+## 2026-06-11
+
+- Investigasi bug: semua background image tidak muncul di seluruh halaman.
+- Root cause ditemukan: `[data-app-surface='user'].user-theme-root` di `resources/css/app.css` memiliki `background-color: var(--bg)` yang solid (`#0a0c10`), sehingga menutupi `AppBackgroundLayer` yang di-render via `<Teleport to="body">` dengan `z-index: -10`.
+- Fix `app.css`: ubah `background-color: var(--bg)` → `transparent` pada `user-theme-root`, tambahkan `background-color: #0a0c10` ke `body` sebagai fallback.
+- Fix `Landing.vue`: hapus inline `style="background-color: #f2d9d9;"` pada wrapper div yang menutupi background.
+- Fix `Error.vue`: hapus class `bg-[#0a0c10]` dari wrapper div yang menutupi background.
+- Investigasi bug mobile: background terlihat zoom in/zoom out saat scroll di iOS Safari & Android Chrome.
+- Root cause: `height: 100dvh` pada `.app-bg-layer` menyebabkan resize karena nilai `dvh` berubah saat address bar mobile muncul/hilang.
+- Fix `AppBackgroundLayer.vue`: hapus `height: 100dvh` dan `contain: strict` — elemen `fixed inset-0` sudah cukup untuk fill viewport tanpa efek resize.

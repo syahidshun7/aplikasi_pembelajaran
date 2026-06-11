@@ -39,8 +39,6 @@ const backgroundStyle = computed(() => ({
 <style scoped>
 .app-bg-layer {
     background: var(--bg, #0a0c10);
-    /* Gunakan 100dvh di mobile agar tidak terpengaruh dynamic viewport (address bar muncul/hilang) */
-    height: 100dvh;
 }
 
 .app-bg-layer__image {
@@ -49,25 +47,8 @@ const backgroundStyle = computed(() => ({
     background-position: center;
     background-repeat: no-repeat;
     background-size: cover;
-    /* Paksa layer ke GPU composite, cegah repaint saat scroll */
-    transform: translate3d(0, 0, 0);
+    transform: translateZ(0);
     backface-visibility: hidden;
-    /* Jangan pakai will-change: transform di mobile — bisa menyebabkan layer baru yang
-       di-scroll terpisah dari halaman, efeknya bg bergerak saat scroll */
     will-change: auto;
-}
-
-/* Mobile: iOS Safari & Android Chrome punya masalah dengan fixed + background saat scroll.
-   Tambahkan contain untuk mencegah repaint yang tidak perlu. */
-@media (max-width: 1024px) {
-    .app-bg-layer {
-        contain: strict;
-    }
-
-    .app-bg-layer__image {
-        /* Pada mobile, pastikan image tidak ter-repaint saat momentum scroll */
-        transform: translateZ(0);
-        will-change: auto;
-    }
 }
 </style>
