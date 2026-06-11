@@ -477,7 +477,6 @@ onBeforeUnmount(() => {
 
     <div
         class="relative isolate min-h-screen overflow-x-hidden font-['Press_Start_2P'] text-slate-900"
-        style="background-color: #f2d9d9;"
     >
         <AppBackgroundLayer
             image="/images/bg-loby2.png"

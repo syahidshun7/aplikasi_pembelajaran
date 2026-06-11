@@ -94,7 +94,7 @@ const reload = () => window.location.reload();
 <template>
     <Head :title="`Error ${meta.status}`" />
 
-    <div class="relative isolate min-h-screen bg-[#0a0c10] font-['Press_Start_2P'] text-[#4ed4d4] flex flex-col overflow-x-hidden">
+    <div class="relative isolate min-h-screen font-['Press_Start_2P'] text-[#4ed4d4] flex flex-col overflow-x-hidden">
         <AppBackgroundLayer overlay-class="bg-black/70" />
         <UserNavbar :show-guest-actions="true" />
 
