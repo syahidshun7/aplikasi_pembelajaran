@@ -350,6 +350,59 @@ class AdminStudyGroupController extends Controller
         return back()->with('message', 'PARTY_PERMANENTLY_DELETED');
     }
 
+    public function exportRecap($uuid)
+    {
+        $group = StudyGroup::where('uuid', $uuid)->firstOrFail();
+
+        $members = $group->users()
+            ->whereNotIn('users.role', User::staffRoles())
+            ->select('users.id', 'users.name', 'users.username', 'users.exp', 'users.level', 'users.gold')
+            ->get();
+
+        $rows = $members->map(function ($user) use ($group) {
+            $submissions = \App\Models\Submission::query()
+                ->whereIn('quest_id', function ($q) use ($group) {
+                    $q->from('quests')->select('id')->where('study_group_id', $group->id);
+                })
+                ->where('user_id', $user->id)
+                ->whereNotNull('grade')
+                ->pluck('grade')
+                ->map(fn ($g) => (float) $g);
+
+            $avg = $submissions->count() > 0
+                ? round($submissions->avg(), 2)
+                : null;
+
+            return [
+                $user->name,
+                $user->username,
+                $user->level,
+                $user->exp,
+                $user->gold,
+                $submissions->count(),
+                $avg ?? '-',
+            ];
+        });
+
+        $filename = 'rekap-' . \Illuminate\Support\Str::slug($group->name) . '-' . now()->format('Ymd') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($rows) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Nama', 'Username', 'Level', 'EXP', 'Gold', 'Jumlah Submission', 'Rata-rata Grade']);
+            foreach ($rows as $row) {
+                fputcsv($out, $row);
+            }
+            fclose($out);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
     private function generateUniqueInviteCode(): string
     {
         $maxAttempts = 10;

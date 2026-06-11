@@ -460,6 +460,7 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     // --- ADMIN AREA ---
     Route::get('/admin/study-groups/index', [AdminStudyGroupController::class, 'manage'])->name('groups.manage');
     Route::get('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'detail'])->name('groups.detail');
+    Route::get('/admin/study-groups/{uuid}/export-recap', [AdminStudyGroupController::class, 'exportRecap'])->name('groups.export-recap');
     Route::post('/admin/study-groups', [AdminStudyGroupController::class, 'store'])->name('groups.store');
     Route::put('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'update'])->name('groups.update');
     Route::post('/admin/study-groups/{uuid}/requests/{requestId}/approve', [AdminStudyGroupController::class, 'approveRequest'])
