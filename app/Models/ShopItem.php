@@ -39,4 +39,9 @@ class ShopItem extends Model
     {
         return $this->hasMany(UserInventoryLog::class, 'shop_item_id');
     }
+
+    public function profileSkin()
+    {
+        return $this->hasOne(ProfileSkin::class);
+    }
 }

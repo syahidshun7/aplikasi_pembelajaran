@@ -35,6 +35,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'role',
         'job_id',
         'profile_photo',
+        'active_profile_skin_id',
     ];
 
     /**
@@ -260,5 +261,10 @@ public function hasDoopLabKey(): bool
         ->whereHas('item', fn ($q) => $q->where('code', 'dooplab_key'))
         ->where('quantity', '>=', 1)
         ->exists();
+}
+
+public function activeProfileSkin()
+{
+    return $this->belongsTo(ProfileSkin::class, 'active_profile_skin_id');
 }
 }

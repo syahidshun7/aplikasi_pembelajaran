@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\Creation;
+use App\Models\ProfileSkin;
 use App\Models\CreationAppreciation;
 use App\Models\CreationCollaborator;
 use App\Models\CreationPhoto;
@@ -34,6 +35,8 @@ class ProfileController extends Controller
 
         $questStats = $this->resolveQuestStats($user);
 
+        $ownedSkins = $this->resolveOwnedSkins($user);
+
         return Inertia::render('Profile/Edit', [
             'user'            => $this->buildUserPayload($user),
             'userQuests'      => $this->resolveUserQuests($user),
@@ -41,6 +44,7 @@ class ProfileController extends Controller
             'totalCompleted'  => (int) ($questStats['total_completed'] ?? 0),
             'classAverages'   => $questStats['class_averages'] ?? [],
             'profileView'     => 'dashboard',
+            'ownedSkins'      => $ownedSkins,
         ]);
     }
 
@@ -77,6 +81,7 @@ class ProfileController extends Controller
                 'total_public' => $this->resolveTotalPublicCreations($user),
                 'total_appreciations_received' => $this->resolveTotalCreationAppreciationsReceived($user),
             ],
+            'activeSkin' => $user->activeProfileSkin ? $user->activeProfileSkin->toThemeArray() : null,
         ]);
     }
 
@@ -244,6 +249,7 @@ class ProfileController extends Controller
         $user->loadMissing([
             'job:id,name,emblem_path',
             'detailUser:id,user_id,bio,experience,location,skills',
+            'activeProfileSkin',
         ]);
 
         $totalExp = (int) ($user->exp ?? 0);
@@ -270,6 +276,7 @@ class ProfileController extends Controller
             'experience'    => $user->detailUser?->experience,
             'location'      => $user->detailUser?->location,
             'skills'        => $user->detailUser?->skills,
+            'active_skin'   => $user->activeProfileSkin ? $user->activeProfileSkin->toThemeArray() : null,
         ];
     }
 
@@ -557,5 +564,23 @@ class ProfileController extends Controller
                     ->orWhereHas('collaborators', fn ($collaborators) => $collaborators->where('user_id', $user->id));
             })
             ->count();
+    }
+
+    private function resolveOwnedSkins(User $user): array
+    {
+        $ownedShopItemIds = $user->inventories()
+            ->where('quantity', '>=', 1)
+            ->pluck('shop_item_id')
+            ->all();
+
+        return ProfileSkin::query()
+            ->whereIn('shop_item_id', $ownedShopItemIds)
+            ->where('is_active', true)
+            ->get()
+            ->map(fn ($skin) => array_merge($skin->toThemeArray(), [
+                'is_active' => (int) $user->active_profile_skin_id === (int) $skin->id,
+            ]))
+            ->values()
+            ->all();
     }
 }

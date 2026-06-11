@@ -26,15 +26,18 @@ class ShopController extends Controller
             "shop.items.v{$shopCacheVersion}",
             now()->addMinutes(5),
             fn () => ShopItem::query()
+                ->with('profileSkin:id,shop_item_id,slug,name,template_key,preview_image_path,background_image_path')
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->select([
                     'id',
+                    'code',
                     'name',
                     'description',
                     'price_gold',
                     'icon_path',
                     'is_active',
+                    'is_stackable',
                 ])
                 ->get()
         );
@@ -45,6 +48,17 @@ class ShopController extends Controller
 
         $items = $items->map(function ($item) use ($inventories) {
             $item->owned_qty = (int) ($inventories[$item->id] ?? 0);
+            $item->item_kind = $item->profileSkin ? 'profile_skin' : 'item';
+            $item->profile_skin = $item->profileSkin ? [
+                'id' => (int) $item->profileSkin->id,
+                'name' => (string) $item->profileSkin->name,
+                'slug' => (string) $item->profileSkin->slug,
+                'template_key' => (string) ($item->profileSkin->template_key ?? 'default'),
+                'preview_image_path' => (string) ($item->profileSkin->preview_image_path ?? ''),
+                'background_image_path' => (string) ($item->profileSkin->background_image_path ?? ''),
+            ] : null;
+            unset($item->profileSkin);
+
             return $item;
         });
 
@@ -189,6 +203,12 @@ class ShopController extends Controller
             }
 
             $quantityBefore = (int) ($inventory->quantity ?? 0);
+            if (! $lockedItem->is_stackable && ($quantityBefore > 0 || $qty > 1)) {
+                throw ValidationException::withMessages([
+                    'quantity' => 'Item kosmetik ini sudah kamu miliki. Buka Inventory/Profile untuk memakainya.',
+                ]);
+            }
+
             $quantityAfter = $quantityBefore + $qty;
 
             $inventory->increment('quantity', $qty);

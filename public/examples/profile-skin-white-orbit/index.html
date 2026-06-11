@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>White Orbit Profile Skin</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="orbit-page">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">PUBLIC PROFILE SYSTEM</p>
+        <h1 id="display-name">Loading Profile</h1>
+        <p id="bio" class="bio">Waiting for backend profile payload.</p>
+
+        <div class="identity-pills">
+          <span id="job-name">Path: -</span>
+          <span id="location">Location: -</span>
+          <span id="role">Role: -</span>
+        </div>
+      </div>
+
+      <div class="orbit-card">
+        <img src="assets/orbit-rings.svg" alt="" class="orbit-rings">
+        <div class="avatar-wrap">
+          <img id="avatar" alt="Profile avatar" class="avatar">
+        </div>
+        <div class="level-card">
+          <span id="level-title">Level</span>
+          <strong id="level">1</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="metric-grid" aria-label="Profile metrics">
+      <article>
+        <span>Average Grade</span>
+        <strong id="average-grade">0%</strong>
+      </article>
+      <article>
+        <span>Quest Clear</span>
+        <strong id="quest-clear">0</strong>
+      </article>
+      <article>
+        <span>Creations</span>
+        <strong id="creation-count">0</strong>
+      </article>
+      <article>
+        <span>Respect</span>
+        <strong id="appreciation-count">0</strong>
+      </article>
+    </section>
+
+    <section class="dashboard">
+      <article class="panel profile-panel">
+        <div class="panel-head">
+          <span>SKILLS</span>
+          <img src="assets/spark.svg" alt="">
+        </div>
+        <div id="skills" class="chips">
+          <span>No skills yet</span>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <span>CLASS PROGRESS</span>
+          <img src="assets/spark.svg" alt="">
+        </div>
+        <div id="classes" class="class-list">
+          <p>No class data.</p>
+        </div>
+      </article>
+
+      <article class="panel wide">
+        <div class="panel-head">
+          <span>PUBLIC CREATIONS</span>
+          <a id="hall-link" href="#" target="_blank" rel="noopener">Open Hall</a>
+        </div>
+        <div id="creations" class="creation-list">
+          <p>No public creation yet.</p>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="js/skin.js"></script>
+</body>
+</html>

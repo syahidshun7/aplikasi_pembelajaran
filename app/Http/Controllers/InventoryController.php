@@ -14,7 +14,7 @@ class InventoryController extends Controller
         $user = auth()->user();
 
         $inventories = UserInventory::query()
-            ->with('item:id,code,name,description,price_gold,icon_path,is_active')
+            ->with('item.profileSkin:id,shop_item_id,slug,name,template_key,preview_image_path,background_image_path')
             ->where('user_id', (int) $user->id)
             ->where('quantity', '>', 0)
             ->orderByDesc('updated_at')
@@ -22,6 +22,7 @@ class InventoryController extends Controller
             ->map(function (UserInventory $inventory) {
                 $item = $inventory->item;
                 $code = (string) ($item?->code ?? '');
+                $profileSkin = $item?->profileSkin;
 
                 return [
                     'id' => (int) $inventory->id,
@@ -35,10 +36,21 @@ class InventoryController extends Controller
                         'price_gold' => (int) ($item?->price_gold ?? 0),
                         'icon_path' => (string) ($item?->icon_path ?? ''),
                         'is_active' => (bool) ($item?->is_active ?? false),
+                        'item_kind' => $profileSkin ? 'profile_skin' : 'item',
+                        'profile_skin' => $profileSkin ? [
+                            'id' => (int) $profileSkin->id,
+                            'name' => (string) $profileSkin->name,
+                            'slug' => (string) $profileSkin->slug,
+                            'template_key' => (string) ($profileSkin->template_key ?? 'default'),
+                            'preview_image_path' => (string) ($profileSkin->preview_image_path ?? ''),
+                            'background_image_path' => (string) ($profileSkin->background_image_path ?? ''),
+                        ] : null,
                         'is_usable' => $code === 'TIME_KEY',
-                        'use_hint' => $code === 'TIME_KEY'
+                        'use_hint' => $profileSkin
+                            ? 'Cosmetic skin untuk profil publik. Equip dari Hero Status/Profile.'
+                            : ($code === 'TIME_KEY'
                             ? 'Gunakan dari halaman quest yang sudah melewati deadline.'
-                            : 'Item ini belum punya aksi langsung.',
+                            : 'Item ini belum punya aksi langsung.'),
                     ],
                 ];
             })

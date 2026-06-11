@@ -4,8 +4,10 @@ use App\Http\Controllers\AdminErrorLogController;
 use App\Http\Controllers\AdminEventController;
 use App\Http\Controllers\AdminGuideController;
 use App\Http\Controllers\AdminJobRoleController;
+use App\Http\Controllers\AdminProfileSkinController;
 use App\Http\Controllers\AdminQuestController;
 use App\Http\Controllers\AdminShopItemController;
+use App\Http\Controllers\ProfileSkinController;
 use App\Http\Controllers\AdminStudyGroupController;
 use App\Http\Controllers\AdminSubmissionController;
 use App\Http\Controllers\AdminSubmissionManagementController;
@@ -169,6 +171,7 @@ Route::get('/hall-of-creations/{id}', function ($id) {
 
 Route::get('/hall-of-creations/{creation}', [CreationPageController::class, 'show'])->name('hall.creations.show');
 Route::get('/hall-of-creations/{creation}/review', [CreationPageController::class, 'showReview'])->name('hall.creations.review');
+Route::get('/profiles/{user:username}', [ProfileController::class, 'show'])->name('profiles.show');
 
 Route::middleware('auth')->group(function () {
     Route::get('/dooplab/dashboard', [DoopLabDashboardController::class, 'index'])->name('dooplab.dashboard');
@@ -210,9 +213,11 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'dashboard'])->name('profile.dashboard');
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::get('/profiles/{user:username}', [ProfileController::class, 'show'])->name('profiles.show');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::post('/profile/skins/{skin}/activate', [ProfileSkinController::class, 'activate'])->name('profile.skins.activate');
+    Route::delete('/profile/skins/active', [ProfileSkinController::class, 'deactivate'])->name('profile.skins.deactivate');
 
     Route::get('/quests/{quest}', [QuestController::class, 'show'])->name('quests.show');
     Route::post('/quests/{quest}/platforming-progress', [QuestController::class, 'savePlatformingProgress'])->name('quests.platforming-progress.save');
@@ -402,6 +407,14 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         Route::post('/', [AdminShopItemController::class, 'store'])->name('store');
         Route::put('/{item}', [AdminShopItemController::class, 'update'])->name('update');
         Route::delete('/{item}', [AdminShopItemController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('admin/profile-skins')->name('admin.profile-skins.')->group(function () {
+        Route::get('/', [AdminProfileSkinController::class, 'index'])->name('index');
+        Route::post('/', [AdminProfileSkinController::class, 'store'])->name('store');
+        Route::post('/import-bundle', [AdminProfileSkinController::class, 'importBundle'])->name('import-bundle');
+        Route::put('/{skin}', [AdminProfileSkinController::class, 'update'])->name('update');
+        Route::delete('/{skin}', [AdminProfileSkinController::class, 'destroy'])->name('destroy');
     });
 
     Route::prefix('admin/daily-quest-definitions')->name('admin.daily-quest-definitions.')->group(function () {

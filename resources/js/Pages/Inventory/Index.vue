@@ -30,6 +30,7 @@ const formatDate = (iso) => {
 
 const inventoryItems = computed(() => props.inventories || []);
 const activityLogs = computed(() => props.logs || []);
+const isProfileSkin = (inventory) => String(inventory?.item?.item_kind || '') === 'profile_skin';
 
 const signedQuantity = (value) => {
     const number = Number(value || 0);
@@ -121,8 +122,15 @@ const logTypeLabel = (type) => {
                             </p>
 
                             <div class="mt-4 border-t border-slate-800 pt-3">
+                                <Link
+                                    v-if="isProfileSkin(inventory)"
+                                    :href="route('profile.dashboard')"
+                                    class="mb-2 inline-flex border border-purple-700 bg-purple-500/10 px-2 py-1 text-[7px] uppercase text-purple-300 hover:bg-purple-400 hover:text-black"
+                                >
+                                    Equip_Profile_Skin
+                                </Link>
                                 <p class="text-[8px] uppercase" :class="inventory.item?.is_usable ? 'text-emerald-300' : 'text-slate-500'">
-                                    {{ inventory.item?.is_usable ? 'Usable_Item' : 'Storage_Item' }}
+                                    {{ isProfileSkin(inventory) ? 'Profile_Cosmetic' : (inventory.item?.is_usable ? 'Usable_Item' : 'Storage_Item') }}
                                 </p>
                                 <p class="mt-1 text-[8px] leading-relaxed text-slate-400">
                                     {{ inventory.item?.use_hint }}
