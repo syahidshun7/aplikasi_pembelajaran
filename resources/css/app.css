@@ -41,7 +41,7 @@
   }
 
   [data-app-surface='user'].user-theme-root {
-    background-color: var(--bg);
+    background-color: transparent;
     color: var(--text);
   }
 
@@ -66,6 +66,7 @@
 
   body {
     font-family: 'Press Start 2P', cursive;
+    background-color: #0a0c10;
   }
 
   input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='submit']):not([type='button']):not([type='reset']),
