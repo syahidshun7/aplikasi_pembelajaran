@@ -30,11 +30,13 @@ const labModules = [
         <Head title="DOOPTECH | DoopLab" />
 
         <div class="lab-root">
-            <!-- Background -->
-            <div class="bg-layer">
-                <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" />
-            </div>
-            <div class="overlay"></div>
+            <!-- Background: Teleport ke body agar fixed tidak terjebak overflow:hidden -->
+            <Teleport to="body">
+                <div class="bg-layer">
+                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" />
+                </div>
+                <div class="overlay"></div>
+            </Teleport>
 
             <!-- HUD corners -->
             <div class="hud">
@@ -119,20 +121,25 @@ const labModules = [
     font-family: 'Press Start 2P', monospace;
     font-size: 8px;
     color: #d0e8e8;
-    overflow: hidden;
+    /* Hapus overflow:hidden — tidak diperlukan di sini dan menyebabkan fixed terjebak di mobile */
 }
 
 /* ===== BACKGROUND ===== */
 .bg-layer {
-    position: fixed; inset: 0; z-index: 0;
+    position: fixed; inset: 0; z-index: -2;
+    height: 100dvh;
 }
 .bg-layer img {
     width: 100%; height: 100%;
     object-fit: cover; object-position: center;
     image-rendering: pixelated;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    will-change: auto;
 }
 .overlay {
-    position: fixed; inset: 0; z-index: 1;
+    position: fixed; inset: 0; z-index: -1;
+    height: 100dvh;
     background: radial-gradient(ellipse at center, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.65) 100%);
 }
 

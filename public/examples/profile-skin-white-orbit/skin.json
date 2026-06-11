@@ -1,0 +1,25 @@
+{
+  "shop": {
+    "code": "SKIN_WHITE_ORBIT",
+    "name": "Skin: White Orbit",
+    "description": "Project skin putih modern dengan layout dashboard publik, animasi halus, dan scrollbar custom.",
+    "price_gold": 1200,
+    "is_active": true
+  },
+  "skin": {
+    "name": "White Orbit",
+    "slug": "white-orbit",
+    "description": "Skin profil publik bertema putih bersih dengan card glass, orbit visual, statistik, kelas, skill, dan karya publik.",
+    "template_key": "project_static",
+    "is_active": true,
+    "hero_gradient": "linear-gradient(135deg, #f8fafc 0%, #e0f2fe 45%, #fff7ed 100%)",
+    "accent_color": "#2563eb",
+    "border_color": "#cbd5e1",
+    "glow_color": "rgba(37,99,235,0.18)",
+    "stat_panel_bg": "#ffffff",
+    "text_primary": "#0f172a"
+  },
+  "project": {
+    "entry": "index.html"
+  }
+}

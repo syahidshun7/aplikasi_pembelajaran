@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codex Terminal Profile Skin</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="terminal-shell">
+    <section class="hero-panel">
+      <div class="hero-copy">
+        <p class="eyebrow">DOOPTECH_PUBLIC_PROFILE</p>
+        <h1 id="display-name">Loading profile...</h1>
+        <p id="bio" class="bio">Waiting for backend payload.</p>
+        <div class="meta-row">
+          <span id="job-name">Class: -</span>
+          <span id="location">Location: -</span>
+          <span id="role">Role: -</span>
+        </div>
+      </div>
+
+      <div class="avatar-card">
+        <img src="assets/circuit-frame.svg" alt="" class="frame-art">
+        <img id="avatar" alt="Profile avatar" class="avatar">
+        <div class="level-chip">
+          <span id="level-title">LEVEL</span>
+          <strong id="level">1</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="stat-grid" aria-label="Profile stats">
+      <article>
+        <span>Average Grade</span>
+        <strong id="average-grade">0%</strong>
+      </article>
+      <article>
+        <span>Quest Clear</span>
+        <strong id="quest-clear">0</strong>
+      </article>
+      <article>
+        <span>Creations</span>
+        <strong id="creation-count">0</strong>
+      </article>
+      <article>
+        <span>Respect</span>
+        <strong id="appreciation-count">0</strong>
+      </article>
+    </section>
+
+    <section class="content-grid">
+      <article class="panel">
+        <div class="panel-heading">
+          <span>SKILLS</span>
+          <img src="assets/status-badge.svg" alt="">
+        </div>
+        <div id="skills" class="tag-list">
+          <span>-</span>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-heading">
+          <span>CLASS_AVERAGES</span>
+          <img src="assets/status-badge.svg" alt="">
+        </div>
+        <div id="classes" class="stack-list">
+          <p>No class data.</p>
+        </div>
+      </article>
+
+      <article class="panel panel-wide">
+        <div class="panel-heading">
+          <span>PUBLIC_CREATIONS</span>
+          <a id="hall-link" href="#" target="_blank" rel="noopener">Open Hall</a>
+        </div>
+        <div id="creations" class="creation-grid">
+          <p>No public creation yet.</p>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="js/skin.js"></script>
+</body>
+</html>

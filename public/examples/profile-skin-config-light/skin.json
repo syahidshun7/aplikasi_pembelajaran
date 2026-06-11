@@ -1,0 +1,43 @@
+{
+  "shop": {
+    "code": "SKIN_CONFIG_LIGHT",
+    "name": "Skin: Config Light",
+    "description": "Contoh skin ringan berbasis JSON config. Tidak memakai iframe atau project static.",
+    "price_gold": 700,
+    "is_active": true
+  },
+  "skin": {
+    "name": "Config Light",
+    "slug": "config-light",
+    "description": "Skin profil ringan yang dirender oleh Vue internal dari konfigurasi JSON.",
+    "renderer_type": "config",
+    "template_key": "default",
+    "is_active": true,
+    "hero_gradient": "linear-gradient(135deg, #f8fafc 0%, #e0f2fe 48%, #eef2ff 100%)",
+    "accent_color": "#2563eb",
+    "border_color": "#cbd5e1",
+    "glow_color": "rgba(37,99,235,0.18)",
+    "stat_panel_bg": "#ffffff",
+    "text_primary": "#0f172a"
+  },
+  "config": {
+    "kicker": "Config Renderer",
+    "theme": {
+      "background": "linear-gradient(135deg, #ffffff 0%, #e0f2fe 52%, #f5f3ff 100%)",
+      "surface": "#ffffff",
+      "accent": "#2563eb",
+      "border": "#cbd5e1",
+      "text": "#0f172a",
+      "muted": "#64748b",
+      "radius": "26px",
+      "font": "Inter, Segoe UI, ui-sans-serif, system-ui, sans-serif"
+    },
+    "sections": [
+      { "type": "hero" },
+      { "type": "stats" },
+      { "type": "skills" },
+      { "type": "classes", "limit": 5 },
+      { "type": "creations", "limit": 6 }
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "shop": {
+    "code": "SKIN_SAMPLE_PROJECT",
+    "name": "Skin: Sample Project",
+    "description": "Contoh bundle project skin profil publik. Import folder ini dari Admin Profile Skins.",
+    "price_gold": 650,
+    "is_active": true
+  },
+  "skin": {
+    "name": "Sample Project",
+    "slug": "sample-project",
+    "description": "Contoh skin project statis dengan layout HTML/CSS/JS sendiri.",
+    "template_key": "project_static",
+    "is_active": true,
+    "hero_gradient": "linear-gradient(135deg, #030712 0%, #1e1b4b 48%, #0f172a 100%)",
+    "accent_color": "#22d3ee",
+    "border_color": "#f472b6",
+    "glow_color": "rgba(34,211,238,0.42)",
+    "stat_panel_bg": "#070b16",
+    "text_primary": "#67e8f9"
+  },
+  "assets": {
+    "preview": "assets/preview.png",
+    "background": "assets/background.png",
+    "avatar_frame": "assets/avatar-frame.png",
+    "panel": "assets/panel.png",
+    "decoration": "assets/decoration.png"
+  },
+  "project": {
+    "entry": "index.html"
+  }
+}

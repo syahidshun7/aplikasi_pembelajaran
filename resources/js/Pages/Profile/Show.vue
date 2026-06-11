@@ -1,8 +1,9 @@
 <script setup>
 import { Head, Link, router } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import PublicProfileLayout from '@/Layouts/PublicProfileLayout.vue';
 import CreationCard from '@/Components/Creations/CreationCard.vue';
+import ConfigSkinRenderer from '@/Components/ProfileSkins/ConfigSkinRenderer.vue';
 import { toast } from '@/Utils/Alert';
 
 const props = defineProps({
@@ -33,7 +34,90 @@ const props = defineProps({
             total_appreciations_received: 0,
         }),
     },
+    activeSkin: {
+        type: Object,
+        default: null,
+    },
 });
+
+const skinVars = computed(() => {
+    const s = props.activeSkin;
+    if (!s) return {};
+    return {
+        '--skin-gradient': s.hero_gradient,
+        '--skin-accent': s.accent_color,
+        '--skin-border': s.border_color,
+        '--skin-glow': s.glow_color,
+        '--skin-stat-bg': s.stat_panel_bg,
+        '--skin-text': s.text_primary,
+    };
+});
+const skinTemplate = computed(() => String(props.activeSkin?.template_key || 'default'));
+const skinRendererType = computed(() => {
+    if (props.activeSkin?.renderer_type) {
+        return String(props.activeSkin.renderer_type);
+    }
+
+    return props.activeSkin?.project_entry_path ? 'project_static' : 'vue_template';
+});
+const usesConfigSkinLayout = computed(() => skinRendererType.value === 'config');
+const usesCustomSkinLayout = computed(() => skinRendererType.value === 'vue_template' && ['asset_showcase', 'arcade_cabinet', 'void_phantom'].includes(skinTemplate.value));
+const assetUrl = (path) => path ? `/storage/${path}` : '';
+const projectFrame = ref(null);
+const projectPostTimers = ref([]);
+const usesProjectSkinLayout = computed(() => skinRendererType.value === 'project_static' && Boolean(props.activeSkin?.project_entry_path));
+const projectSkinUrl = computed(() => assetUrl(props.activeSkin?.project_entry_path));
+const profilePhotoUrl = computed(() => {
+    if (props.user?.profile_photo) {
+        return `/storage/${props.user.profile_photo}`;
+    }
+
+    return `https://api.dicebear.com/7.x/pixel-art/svg?seed=${props.user?.username || props.user?.name || 'guild-member'}`;
+});
+const activeSkinName = computed(() => props.activeSkin?.name || 'Default Profile');
+const assetSkinStyle = computed(() => {
+    const skin = props.activeSkin || {};
+    const backgroundImage = assetUrl(skin.background_image_path);
+
+    return {
+        '--skin-gradient': skin.hero_gradient || 'linear-gradient(135deg, #070b11 0%, #131827 100%)',
+        '--skin-accent': skin.accent_color || '#4ed4d4',
+        '--skin-border': skin.border_color || '#3d415f',
+        '--skin-glow': skin.glow_color || 'rgba(78,212,212,0.28)',
+        '--skin-stat-bg': skin.stat_panel_bg || '#141b29',
+        '--skin-text': skin.text_primary || '#4ed4d4',
+        '--skin-bg-image': backgroundImage ? `url('${backgroundImage}')` : 'none',
+        '--skin-panel-image': skin.panel_image_path ? `url('${assetUrl(skin.panel_image_path)}')` : 'none',
+        '--skin-decoration-image': skin.decoration_image_path ? `url('${assetUrl(skin.decoration_image_path)}')` : 'none',
+    };
+});
+const statCards = computed(() => [
+    { label: 'Grade AVG', value: `${props.averageGrade || 0}%`, hint: 'Quest Score' },
+    { label: 'Quest Clear', value: props.totalCompleted || 0, hint: 'Finished Logs' },
+    { label: 'Creation', value: creationCount.value, hint: 'Public Works' },
+    { label: 'Respect', value: appreciationCount.value, hint: 'Appreciations' },
+]);
+const profileStats = computed(() => ({
+    averageGrade: props.averageGrade || 0,
+    totalCompleted: props.totalCompleted || 0,
+    creationCount: creationCount.value,
+    appreciationCount: appreciationCount.value,
+}));
+const projectProfilePayload = computed(() => ({
+    type: 'dooptech:profile-skin-data',
+    user: props.user,
+    activeSkin: props.activeSkin,
+    stats: profileStats.value,
+    classAverages: props.classAverages,
+    creations: creationItems.value,
+    urls: {
+        profilePhoto: profilePhotoUrl.value,
+        hallOfCreations: route('hall.creations.index'),
+        lobby: route('lobby'),
+    },
+}));
+
+const toProjectSkinMessagePayload = () => JSON.parse(JSON.stringify(projectProfilePayload.value));
 
 const togglingId = ref(0);
 const creationItems = ref(Array.isArray(props.creations) ? props.creations : []);
@@ -153,13 +237,212 @@ const toggleAppreciation = async (creation) => {
         togglingId.value = 0;
     }
 };
+
+const postProjectSkinData = () => {
+    const target = projectFrame.value?.contentWindow;
+    if (!target) {
+        return;
+    }
+
+    target.postMessage(toProjectSkinMessagePayload(), '*');
+};
+
+const clearProjectSkinPostTimers = () => {
+    projectPostTimers.value.forEach((timer) => window.clearTimeout(timer));
+    projectPostTimers.value = [];
+};
+
+const queueProjectSkinData = () => {
+    clearProjectSkinPostTimers();
+
+    [0, 120, 350, 750, 1500].forEach((delay) => {
+        const timer = window.setTimeout(postProjectSkinData, delay);
+        projectPostTimers.value.push(timer);
+    });
+};
+
+const handleProjectSkinMessage = (event) => {
+    const payload = event.data || {};
+    if (payload.type !== 'dooptech:profile-skin-ready') {
+        return;
+    }
+
+    postProjectSkinData();
+};
+
+watch(projectProfilePayload, () => {
+    if (usesProjectSkinLayout.value) {
+        queueProjectSkinData();
+    }
+});
+
+onMounted(() => {
+    window.addEventListener('message', handleProjectSkinMessage);
+});
+
+onBeforeUnmount(() => {
+    clearProjectSkinPostTimers();
+    window.removeEventListener('message', handleProjectSkinMessage);
+});
 </script>
 
 <template>
-    <AuthenticatedLayout>
+    <PublicProfileLayout :full-bleed="usesProjectSkinLayout" :hide-footer="usesProjectSkinLayout">
         <Head :title="`${user.username || user.name} | Profile`" />
 
-        <div class="user-page-shell space-y-6 font-['Press_Start_2P'] text-[10px] leading-relaxed text-[#4ed4d4] md:space-y-8">
+        <div v-if="usesProjectSkinLayout" class="project-skin-shell">
+            <iframe
+                ref="projectFrame"
+                :src="projectSkinUrl"
+                :title="`${activeSkinName} profile skin`"
+                class="project-skin-frame"
+                sandbox="allow-scripts allow-popups allow-forms"
+                @load="queueProjectSkinData"
+            />
+        </div>
+
+        <ConfigSkinRenderer
+            v-else-if="usesConfigSkinLayout"
+            :user="user"
+            :active-skin="activeSkin"
+            :stats="profileStats"
+            :class-averages="classAverages"
+            :creations="creationItems"
+            :profile-photo-url="profilePhotoUrl"
+            :hall-of-creations-url="route('hall.creations.index')"
+        />
+
+        <div
+            v-else-if="usesCustomSkinLayout"
+            class="profile-skin-stage font-['Press_Start_2P'] text-[10px]"
+            :class="`profile-skin-stage--${skinTemplate}`"
+            :style="assetSkinStyle"
+        >
+            <section class="skin-hero-shell">
+                <div class="skin-bg" />
+                <div class="skin-decoration" />
+
+                <div class="skin-hero-grid">
+                    <div class="skin-avatar-zone">
+                        <div class="skin-avatar-frame">
+                            <img
+                                :src="profilePhotoUrl"
+                                :alt="user.username || user.name"
+                                class="skin-avatar-image"
+                            >
+                            <img
+                                v-if="activeSkin?.avatar_frame_image_path"
+                                :src="assetUrl(activeSkin.avatar_frame_image_path)"
+                                :alt="`${activeSkinName} avatar frame`"
+                                class="skin-avatar-frame-asset"
+                            >
+                        </div>
+                        <p class="skin-equipped-label">{{ activeSkinName }}</p>
+                    </div>
+
+                    <div class="skin-identity-zone">
+                        <p class="skin-kicker">{{ skinTemplate === 'arcade_cabinet' ? 'PLAYER SELECT' : 'PUBLIC HERO CARD' }}</p>
+                        <h1 class="skin-title">{{ user.username || user.name }}</h1>
+                        <div class="skin-tags">
+                            <span>{{ roleLabel }}</span>
+                            <span v-if="user.location">{{ user.location }}</span>
+                            <span v-if="user.experience">{{ user.experience }}</span>
+                        </div>
+                        <p class="skin-bio">
+                            {{ user.bio || 'Profil publik adventurer ini sedang memakai cosmetic skin khusus dari shop.' }}
+                        </p>
+
+                        <div class="skin-progress">
+                            <div class="skin-progress__bar" :style="{ width: `${userExpProgress}%` }" />
+                        </div>
+                        <div class="skin-progress-caption">
+                            <span>LVL {{ userLvl }} / {{ userLevelTitle }}</span>
+                            <span v-if="!userIsMaxLevel">EXP {{ userExpInLevel }} / {{ userExpNeeded }}</span>
+                            <span v-else>MAX LEVEL</span>
+                            <span>{{ userGold }} G</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="skin-stat-grid">
+                <article
+                    v-for="stat in statCards"
+                    :key="stat.label"
+                    class="skin-stat-card"
+                >
+                    <p>{{ stat.label }}</p>
+                    <strong>{{ stat.value }}</strong>
+                    <span>{{ stat.hint }}</span>
+                </article>
+            </section>
+
+            <section class="skin-content-grid">
+                <div class="skin-main-panel">
+                    <div class="skin-section-heading">
+                        <div>
+                            <p>{{ skinTemplate === 'arcade_cabinet' ? 'INSERT COIN TO VIEW' : 'SHOWCASE FEED' }}</p>
+                            <h2>Creator Artifacts</h2>
+                        </div>
+                        <Link :href="route('hall.creations.index')" class="skin-action-link">Hall</Link>
+                    </div>
+
+                    <div v-if="creationItems.length > 0" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        <CreationCard
+                            v-for="creation in creationItems"
+                            :key="creation.id"
+                            :creation="creation"
+                            :busy="togglingId === Number(creation.id)"
+                            @open="openDetail"
+                            @appreciate="toggleAppreciation"
+                            @insight="openInsight"
+                        />
+                    </div>
+                    <div v-else class="skin-empty">
+                        <p>No public creations yet</p>
+                        <span>Profil ini belum menampilkan creation publik di Hall of Creations.</span>
+                    </div>
+                </div>
+
+                <aside class="skin-side-panel">
+                    <div class="skin-section-heading skin-section-heading--compact">
+                        <div>
+                            <p>JOB MODULE</p>
+                            <h2>{{ user.job_name || 'Unassigned Job' }}</h2>
+                        </div>
+                    </div>
+                    <div class="skin-job-asset">
+                        <img
+                            v-if="user.job_emblem_path"
+                            :src="`/storage/${user.job_emblem_path}`"
+                            :alt="`${user.job_name} emblem`"
+                        >
+                        <img v-else src="/images/logo.png" alt="default job">
+                    </div>
+
+                    <div class="skin-note-list">
+                        <div v-if="user.name">
+                            <span>Display</span>
+                            <p>{{ user.name }}</p>
+                        </div>
+                        <div v-if="userSkills.length > 0">
+                            <span>Skills</span>
+                            <p>{{ userSkills.join(' / ') }}</p>
+                        </div>
+                        <div v-if="classAverageItems.length > 0">
+                            <span>Class Data</span>
+                            <p>{{ classAverageItems.length }} grade channel</p>
+                        </div>
+                        <div>
+                            <span>Skin Template</span>
+                            <p>{{ skinTemplate }}</p>
+                        </div>
+                    </div>
+                </aside>
+            </section>
+        </div>
+
+        <div v-else class="user-page-shell space-y-6 font-['Press_Start_2P'] text-[10px] leading-relaxed text-[#4ed4d4] md:space-y-8" :style="skinVars">
             <section class="profile-hero">
                 <div class="profile-hero__glow" />
 
@@ -398,24 +681,410 @@ const toggleAppreciation = async (creation) => {
                 </div>
             </section>
         </div>
-    </AuthenticatedLayout>
+    </PublicProfileLayout>
 </template>
 
 <style scoped>
+.project-skin-shell {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    background: #05070b;
+}
+
+.project-skin-frame {
+    display: block;
+    height: 100%;
+    min-height: 0;
+    width: 100%;
+    border: 0;
+    background: #05070b;
+}
+
+.profile-skin-stage {
+    position: relative;
+    isolation: isolate;
+    min-height: calc(100vh - 180px);
+    color: var(--skin-text, #4ed4d4);
+}
+
+.skin-hero-shell,
+.skin-main-panel,
+.skin-side-panel,
+.skin-stat-card {
+    position: relative;
+    overflow: hidden;
+    border: 2px solid var(--skin-border, #3d415f);
+    background-color: color-mix(in srgb, var(--skin-stat-bg, #141b29) 88%, black);
+}
+
+.skin-hero-shell {
+    min-height: 430px;
+    padding: clamp(1rem, 4vw, 3rem);
+}
+
+.skin-bg {
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(90deg, rgba(0, 0, 0, 0.74), rgba(0, 0, 0, 0.22)), var(--skin-bg-image), var(--skin-gradient);
+    background-position: center;
+    background-size: cover;
+}
+
+.skin-decoration {
+    position: absolute;
+    inset: 0;
+    background-image: var(--skin-decoration-image);
+    background-position: right bottom;
+    background-repeat: no-repeat;
+    background-size: min(42vw, 420px);
+    opacity: 0.9;
+    pointer-events: none;
+}
+
+.skin-hero-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(180px, 280px) minmax(0, 1fr);
+    gap: clamp(1rem, 4vw, 3rem);
+    align-items: end;
+    min-height: 350px;
+}
+
+.skin-avatar-zone {
+    display: grid;
+    gap: 0.9rem;
+    justify-items: center;
+}
+
+.skin-avatar-frame {
+    position: relative;
+    width: min(56vw, 230px);
+    aspect-ratio: 1;
+    border: 3px solid var(--skin-accent, #4ed4d4);
+    background: #05070b;
+    box-shadow: 0 0 28px var(--skin-glow, rgba(78, 212, 212, 0.35));
+}
+
+.skin-avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.skin-avatar-frame-asset {
+    position: absolute;
+    inset: -14%;
+    width: 128%;
+    height: 128%;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.skin-equipped-label,
+.skin-kicker,
+.skin-progress-caption,
+.skin-stat-card p,
+.skin-stat-card span,
+.skin-section-heading p,
+.skin-note-list span {
+    text-transform: uppercase;
+}
+
+.skin-equipped-label {
+    max-width: 100%;
+    border: 1px solid var(--skin-accent, #4ed4d4);
+    background: rgba(0, 0, 0, 0.66);
+    padding: 0.6rem 0.8rem;
+    text-align: center;
+    font-size: 7px;
+    overflow-wrap: anywhere;
+}
+
+.skin-identity-zone {
+    display: grid;
+    gap: 1rem;
+    max-width: 820px;
+}
+
+.skin-kicker {
+    color: var(--skin-accent, #4ed4d4);
+    font-size: 8px;
+    letter-spacing: 0.24em;
+}
+
+.skin-title {
+    color: #fff;
+    font-size: clamp(1.25rem, 5vw, 3.7rem);
+    line-height: 1.08;
+    overflow-wrap: anywhere;
+}
+
+.skin-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 7px;
+    text-transform: uppercase;
+    color: #dbeafe;
+}
+
+.skin-tags span {
+    border: 1px solid color-mix(in srgb, var(--skin-accent, #4ed4d4) 70%, white);
+    background: rgba(0, 0, 0, 0.55);
+    padding: 0.45rem 0.65rem;
+}
+
+.skin-bio {
+    max-width: 72ch;
+    color: #d1d5db;
+    font-size: 8px;
+    line-height: 1.9;
+    text-transform: uppercase;
+}
+
+.skin-progress {
+    height: 18px;
+    border: 2px solid var(--skin-border, #3d415f);
+    background: rgba(0, 0, 0, 0.7);
+    padding: 3px;
+}
+
+.skin-progress__bar {
+    height: 100%;
+    background: var(--skin-accent, #4ed4d4);
+    box-shadow: 0 0 18px var(--skin-glow, rgba(78, 212, 212, 0.4));
+    transition: width 0.7s ease;
+}
+
+.skin-progress-caption {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.7rem;
+    color: #94a3b8;
+    font-size: 7px;
+}
+
+.skin-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.9rem;
+    margin-top: 1rem;
+}
+
+.skin-stat-card {
+    min-height: 120px;
+    padding: 1rem;
+    background-image: linear-gradient(135deg, rgba(255,255,255,0.04), transparent), var(--skin-panel-image);
+    background-position: center;
+    background-size: cover;
+}
+
+.skin-stat-card p {
+    color: #94a3b8;
+    font-size: 7px;
+}
+
+.skin-stat-card strong {
+    display: block;
+    margin-top: 1rem;
+    color: #fff;
+    font-size: clamp(1rem, 3vw, 1.8rem);
+    line-height: 1;
+}
+
+.skin-stat-card span {
+    display: block;
+    margin-top: 0.8rem;
+    color: var(--skin-accent, #4ed4d4);
+    font-size: 7px;
+}
+
+.skin-content-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.skin-main-panel,
+.skin-side-panel {
+    padding: 1rem;
+    background-image: linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.42)), var(--skin-panel-image);
+    background-position: center;
+    background-size: cover;
+}
+
+.skin-section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--skin-border, #3d415f) 75%, transparent);
+    padding-bottom: 1rem;
+}
+
+.skin-section-heading p {
+    color: var(--skin-accent, #4ed4d4);
+    font-size: 7px;
+    letter-spacing: 0.22em;
+}
+
+.skin-section-heading h2 {
+    margin-top: 0.45rem;
+    color: #fff;
+    font-size: 11px;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.skin-action-link {
+    border: 1px solid var(--skin-accent, #4ed4d4);
+    padding: 0.6rem 0.8rem;
+    color: var(--skin-accent, #4ed4d4);
+    text-transform: uppercase;
+}
+
+.skin-empty {
+    display: grid;
+    min-height: 260px;
+    place-content: center;
+    border: 1px dashed var(--skin-border, #3d415f);
+    text-align: center;
+    color: #94a3b8;
+}
+
+.skin-empty p {
+    color: #fff;
+    text-transform: uppercase;
+}
+
+.skin-empty span {
+    margin-top: 0.8rem;
+    max-width: 420px;
+    font-size: 8px;
+    line-height: 1.8;
+    text-transform: uppercase;
+}
+
+.skin-job-asset {
+    display: grid;
+    min-height: 190px;
+    place-items: center;
+    border: 1px solid var(--skin-border, #3d415f);
+    background: rgba(0, 0, 0, 0.44);
+}
+
+.skin-job-asset img {
+    max-height: 180px;
+    width: 100%;
+    object-fit: contain;
+}
+
+.skin-note-list {
+    display: grid;
+    gap: 0.8rem;
+    margin-top: 1rem;
+}
+
+.skin-note-list div {
+    border: 1px solid color-mix(in srgb, var(--skin-border, #3d415f) 65%, transparent);
+    background: rgba(0, 0, 0, 0.35);
+    padding: 0.75rem;
+}
+
+.skin-note-list span {
+    display: block;
+    color: #94a3b8;
+    font-size: 7px;
+}
+
+.skin-note-list p {
+    margin-top: 0.5rem;
+    color: #fff;
+    font-size: 8px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+    text-transform: uppercase;
+}
+
+.profile-skin-stage--arcade_cabinet {
+    background: #050505;
+}
+
+.profile-skin-stage--arcade_cabinet .skin-hero-shell {
+    border-width: 8px;
+    border-color: #111827;
+    border-radius: 18px 18px 42px 42px;
+    box-shadow: inset 0 0 0 8px #0f172a, 0 18px 0 #020617;
+}
+
+.profile-skin-stage--arcade_cabinet .skin-hero-grid {
+    align-items: center;
+}
+
+.profile-skin-stage--arcade_cabinet .skin-avatar-frame,
+.profile-skin-stage--arcade_cabinet .skin-stat-card,
+.profile-skin-stage--arcade_cabinet .skin-main-panel,
+.profile-skin-stage--arcade_cabinet .skin-side-panel {
+    border-radius: 0;
+    box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.75);
+}
+
+.profile-skin-stage--void_phantom .skin-hero-shell {
+    clip-path: polygon(0 0, 100% 0, 100% 88%, 96% 100%, 0 100%);
+}
+
+.profile-skin-stage--void_phantom .skin-avatar-frame {
+    transform: rotate(-2deg);
+}
+
+.profile-skin-stage--asset_showcase .skin-hero-shell {
+    min-height: 520px;
+    border: 0;
+}
+
+.profile-skin-stage--asset_showcase .skin-hero-grid {
+    align-items: center;
+}
+
+@media (max-width: 900px) {
+    .skin-hero-grid,
+    .skin-content-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .skin-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 560px) {
+    .skin-stat-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .profile-hero {
-    @apply relative overflow-hidden border-4 border-cyan-500/50 bg-[#101726]/90 p-6;
+    @apply relative overflow-hidden border-4 p-6;
+    border-color: var(--skin-border, rgba(6,182,212,0.5));
+    background: var(--skin-gradient, linear-gradient(135deg, #101726 0%, #0f172a 100%));
     box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.42);
 }
 
 .profile-hero__glow {
     @apply absolute inset-0;
-    background:
-        radial-gradient(circle at top right, rgba(34, 211, 238, 0.2), transparent 28%),
-        linear-gradient(135deg, rgba(8, 145, 178, 0.18), rgba(15, 23, 42, 0.15) 42%, rgba(16, 185, 129, 0.08));
+    background: radial-gradient(circle at top right, var(--skin-glow, rgba(34,211,238,0.2)), transparent 28%);
 }
 
 .avatar-shell {
-    @apply h-24 w-24 overflow-hidden border-4 border-cyan-400 bg-slate-900 shadow-[0_0_18px_rgba(34,211,238,0.28)] sm:h-28 sm:w-28;
+    @apply h-24 w-24 overflow-hidden border-4 bg-slate-900 sm:h-28 sm:w-28;
+    border-color: var(--skin-accent, #4ed4d4);
+    box-shadow: 0 0 18px var(--skin-glow, rgba(34,211,238,0.28));
 }
 
 .pixel-link {
@@ -427,7 +1096,9 @@ const toggleAppreciation = async (creation) => {
 }
 
 .stat-panel {
-    @apply border-2 border-slate-700 bg-[#141b29]/90 p-4;
+    @apply border-2 p-4;
+    border-color: var(--skin-border, #334155);
+    background: var(--skin-stat-bg, rgba(20,27,41,0.9));
     box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.35);
 }
 

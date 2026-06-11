@@ -129,9 +129,11 @@ const lockNode = (node) => {
     <AuthenticatedLayout>
         <Head :title="`Path: ${roadmap.title}`" />
         <div class="relative min-h-screen">
-            <div class="fixed inset-0 z-0 pointer-events-none">
-                <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" class="w-full h-full object-cover opacity-[0.15]" style="image-rendering: pixelated;" alt="" />
-            </div>
+            <Teleport to="body">
+                <div class="fixed inset-0 -z-10 pointer-events-none" style="height:100dvh;">
+                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" class="w-full h-full object-cover opacity-[0.15]" style="image-rendering: pixelated; transform: translateZ(0); will-change: auto;" alt="" />
+                </div>
+            </Teleport>
             <div class="relative z-10 p-4 md:p-8 text-[10px] font-['Press_Start_2P'] text-[#4ed4d4] space-y-4">
             <div class="flex items-center justify-between border-b-2 border-cyan-900 pb-3">
                 <div>

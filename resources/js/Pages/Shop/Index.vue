@@ -20,6 +20,8 @@ const purchaseForm = useForm({
 });
 const page = usePage();
 const isStaffPlayMode = computed(() => Boolean(page.props?.auth?.user?.staff_play_mode));
+const isProfileSkin = (item) => String(item?.item_kind || '') === 'profile_skin';
+const isUnlockedCosmetic = (item) => isProfileSkin(item) && Number(item?.owned_qty || 0) > 0;
 
 const buyItem = async (item) => {
     if (!item?.id) {
@@ -37,9 +39,14 @@ const buyItem = async (item) => {
         return;
     }
 
+    if (isUnlockedCosmetic(item)) {
+        toast.success('SKIN_UNLOCKED', 'Skin ini sudah kamu miliki. Equip dari Hero Status/Profile.');
+        return;
+    }
+
     const result = await toast.confirm(
-        'BUY_ITEM?',
-        `Beli ${item.name} seharga ${item.price_gold} gold?`,
+        isProfileSkin(item) ? 'UNLOCK_SKIN?' : 'BUY_ITEM?',
+        `${isProfileSkin(item) ? 'Unlock skin' : 'Beli'} ${item.name} seharga ${item.price_gold} gold?`,
         'YES_BUY'
     );
 
@@ -71,7 +78,7 @@ const buyItem = async (item) => {
             <div class="rpg-panel mb-6 bg-[#1a1c2c]/90 border-yellow-500/50 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 class="text-yellow-400 text-xs uppercase tracking-widest">Item_Shop</h1>
-                    <p class="text-[9px] text-slate-400 mt-2 uppercase">Beli item untuk kebutuhan quest dan progres. Item yang dibeli masuk ke Inventory.</p>
+                    <p class="text-[9px] text-slate-400 mt-2 uppercase">Beli item progres dan cosmetic skin. Skin bisa dipasang ke profil publik dari Hero Status.</p>
                 </div>
                 <div class="text-left sm:text-right">
                     <p class="text-[8px] text-slate-500 uppercase mb-1">Your_Gold</p>
@@ -116,14 +123,20 @@ const buyItem = async (item) => {
                         </div>
 
                         <div class="text-center">
+                            <p
+                                v-if="isProfileSkin(item)"
+                                class="mb-2 inline-flex border border-purple-700 bg-purple-500/10 px-2 py-1 text-[6px] uppercase text-purple-300"
+                            >
+                                Profile_Skin
+                            </p>
                             <h3 class="text-[9px] text-white uppercase leading-snug line-clamp-2 min-h-[28px]">{{ item.name }}</h3>
                             <p class="text-[8px] text-yellow-300 mt-1">{{ item.price_gold }} G</p>
                             <Link
                                 v-if="Number(item.owned_qty || 0) > 0"
-                                :href="route('inventory.index')"
+                                :href="isProfileSkin(item) ? route('profile.dashboard') : route('inventory.index')"
                                 class="mt-1 inline-flex text-[7px] uppercase text-emerald-300 hover:text-emerald-100"
                             >
-                                Owned: {{ item.owned_qty || 0 }} - Inventory
+                                {{ isProfileSkin(item) ? 'Unlocked - Equip' : `Owned: ${item.owned_qty || 0} - Inventory` }}
                             </Link>
                             <p v-else class="text-[7px] text-slate-500 mt-1 uppercase">Not Owned</p>
                         </div>
@@ -132,10 +145,10 @@ const buyItem = async (item) => {
                             <button
                                 type="button"
                                 class="w-full text-[8px] px-2 py-2 btn-pixel uppercase font-bold bg-[#009999] text-black border-[#006666] hover:bg-[#4ed4d4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                :disabled="purchaseForm.processing || gold < item.price_gold || isStaffPlayMode"
+                                :disabled="purchaseForm.processing || gold < item.price_gold || isStaffPlayMode || isUnlockedCosmetic(item)"
                                 @click="buyItem(item)"
                             >
-                                {{ isStaffPlayMode ? 'Preview Only' : (purchaseForm.processing ? 'Processing...' : 'Buy') }}
+                                {{ isStaffPlayMode ? 'Preview Only' : (purchaseForm.processing ? 'Processing...' : (isUnlockedCosmetic(item) ? 'Unlocked' : (isProfileSkin(item) ? 'Unlock' : 'Buy'))) }}
                             </button>
                         </div>
                     </article>

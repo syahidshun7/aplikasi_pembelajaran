@@ -1273,9 +1273,11 @@ onUnmounted(() => {
         <Head title="DoopLab Roadmap Lab" />
 
         <div class="lab-root">
-            <div class="lab-aurora">
-                <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" />
-            </div>
+            <Teleport to="body">
+                <div class="lab-aurora">
+                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" />
+                </div>
+            </Teleport>
             <div class="lab-shell">
             <div class="lab-topbar">
                 <div>
@@ -2497,13 +2499,16 @@ onUnmounted(() => {
     position: fixed;
     inset: 0;
     pointer-events: none;
-    z-index: 0;
+    z-index: -1;
+    height: 100dvh;
 }
 .lab-aurora img {
     width: 100%; height: 100%;
     object-fit: cover; object-position: center;
     image-rendering: pixelated;
     opacity: 0.15;
+    transform: translateZ(0);
+    will-change: auto;
 }
 
 .lab-shell {

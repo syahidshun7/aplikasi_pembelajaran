@@ -23,6 +23,10 @@ const props = defineProps({
     jobs: Array,
     mustVerifyEmail: Boolean,
     status: String,
+    ownedSkins: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const page = usePage();
@@ -78,6 +82,9 @@ const classAverageRows = computed(() => {
         };
     });
 });
+const ownedProfileSkins = computed(() => Array.isArray(props.ownedSkins) ? props.ownedSkins : []);
+const activeProfileSkin = computed(() => userData.value?.active_skin || null);
+const activeProfileSkinId = computed(() => Number(activeProfileSkin.value?.id || 0));
 
 const allowedTabs = ['profile', 'password', 'danger'];
 
@@ -114,6 +121,7 @@ const transferForm = useForm({
     note: '',
     password: '',
 });
+const skinForm = useForm({});
 let recipientSearchTimer = null;
 
 const getGradeColor = (grade) => {
@@ -295,6 +303,39 @@ const applyLightTheme = () => {
     setThemeMode('light');
 };
 
+const activateSkin = (skin) => {
+    const skinId = Number(skin?.id || 0);
+    if (!skinId || skinForm.processing || Number(skin?.is_active || 0) === 1) {
+        return;
+    }
+
+    skinForm.post(route('profile.skins.activate', skinId), {
+        preserveScroll: true,
+        onSuccess: () => {
+            toast.success('SKIN_EQUIPPED', `${skin.name} dipasang ke profil publikmu.`);
+        },
+        onError: (errors) => {
+            toast.error('SKIN_FAILED', Object.values(errors || {})[0] || 'Skin gagal dipasang.');
+        },
+    });
+};
+
+const deactivateSkin = () => {
+    if (skinForm.processing || !activeProfileSkinId.value) {
+        return;
+    }
+
+    skinForm.delete(route('profile.skins.deactivate'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            toast.success('SKIN_REMOVED', 'Profil publik kembali ke skin default.');
+        },
+        onError: (errors) => {
+            toast.error('SKIN_FAILED', Object.values(errors || {})[0] || 'Skin gagal dilepas.');
+        },
+    });
+};
+
 const syncThemeFromStorage = (event) => {
     if (event.key !== USER_THEME_STORAGE_KEY) {
         return;
@@ -472,6 +513,102 @@ onBeforeUnmount(() => {
                                 My_Creations
                             </Link>
                         </div>
+                    </div>
+                </div>
+                <div class="rpg-panel border-purple-500/40 bg-black/40">
+                    <div class="mb-4 flex flex-col gap-3 border-b border-purple-900/70 pb-4 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <p class="text-[7px] uppercase tracking-[0.25em] text-purple-300">Profile_Skin_Loadout</p>
+                            <h2 class="mt-2 text-[11px] uppercase text-white">Public_Profile_Cosmetics</h2>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <Link
+                                :href="route('shop.index')"
+                                class="border border-yellow-600 bg-yellow-400 px-3 py-2 text-[8px] font-bold uppercase text-black hover:bg-yellow-300"
+                            >
+                                Buy_Skins
+                            </Link>
+                            <Link
+                                v-if="userData.username"
+                                :href="route('profiles.show', userData.username)"
+                                class="border border-cyan-700 bg-cyan-400/10 px-3 py-2 text-[8px] uppercase text-cyan-300 hover:bg-cyan-400 hover:text-black"
+                            >
+                                View_Public
+                            </Link>
+                            <button
+                                v-if="activeProfileSkinId"
+                                type="button"
+                                class="border border-slate-600 px-3 py-2 text-[8px] uppercase text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50"
+                                :disabled="skinForm.processing"
+                                @click="deactivateSkin"
+                            >
+                                Unequip
+                            </button>
+                        </div>
+                    </div>
+
+                    <div v-if="ownedProfileSkins.length > 0" class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        <article
+                            v-for="skin in ownedProfileSkins"
+                            :key="skin.id"
+                            class="overflow-hidden border-2 bg-[#0d1117]"
+                            :class="Number(skin.is_active || 0) === 1 ? 'border-purple-300 shadow-[0_0_18px_rgba(168,85,247,0.35)]' : 'border-slate-700'"
+                        >
+                            <div
+                                class="relative flex min-h-[120px] items-end border-b border-slate-800 p-3"
+                                :style="{ background: skin.hero_gradient || 'linear-gradient(135deg,#101726,#0f172a)' }"
+                            >
+                                <div
+                                    class="absolute inset-0"
+                                    :style="{ background: `radial-gradient(circle at top right, ${skin.glow_color || 'rgba(34,211,238,0.2)'}, transparent 34%)` }"
+                                />
+                                <div class="relative z-10">
+                                    <p class="text-[7px] uppercase tracking-[0.2em]" :style="{ color: skin.text_primary || '#c4b5fd' }">
+                                        Unlocked_Skin
+                                    </p>
+                                    <h3 class="mt-2 break-words text-[10px] uppercase text-white">{{ skin.name }}</h3>
+                                </div>
+                            </div>
+
+                            <div class="space-y-3 p-3">
+                                <div class="flex flex-wrap gap-2">
+                                    <span
+                                        class="inline-flex h-5 w-5 border border-slate-700"
+                                        :style="{ backgroundColor: skin.accent_color || '#4ed4d4' }"
+                                        title="Accent color"
+                                    />
+                                    <span
+                                        class="inline-flex h-5 w-5 border border-slate-700"
+                                        :style="{ backgroundColor: skin.border_color || '#3d415f' }"
+                                        title="Border color"
+                                    />
+                                    <span
+                                        class="inline-flex h-5 w-5 border border-slate-700"
+                                        :style="{ backgroundColor: skin.stat_panel_bg || '#141b29' }"
+                                        title="Panel color"
+                                    />
+                                </div>
+
+                                <button
+                                    type="button"
+                                    class="w-full border-2 px-3 py-2 text-[8px] uppercase transition-colors disabled:opacity-50"
+                                    :class="Number(skin.is_active || 0) === 1
+                                        ? 'border-purple-300 bg-purple-400 text-black'
+                                        : 'border-purple-700 text-purple-300 hover:bg-purple-400 hover:text-black'"
+                                    :disabled="skinForm.processing || Number(skin.is_active || 0) === 1"
+                                    @click="activateSkin(skin)"
+                                >
+                                    {{ Number(skin.is_active || 0) === 1 ? 'Equipped' : 'Equip_To_Public_Profile' }}
+                                </button>
+                            </div>
+                        </article>
+                    </div>
+
+                    <div v-else class="border-2 border-dashed border-slate-700 bg-black/30 p-5 text-center">
+                        <p class="text-[9px] uppercase text-slate-400">No_Profile_Skin_Unlocked</p>
+                        <p class="mt-2 text-[7px] uppercase leading-relaxed text-slate-500">
+                            Beli skin di shop untuk membuka kosmetik profil publik seperti di game.
+                        </p>
                     </div>
                 </div>
                 <div class="grid grid-cols-12 gap-6">

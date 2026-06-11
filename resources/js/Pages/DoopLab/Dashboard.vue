@@ -862,9 +862,11 @@ onUnmounted(() => {
         </Head>
 
         <div class="nb-root">
-            <div class="nb-aurora">
-                <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" />
-            </div>
+            <Teleport to="body">
+                <div class="nb-aurora">
+                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" />
+                </div>
+            </Teleport>
             <div class="nb-shell">
                 <header class="nb-topbar">
                     <div class="nb-title-wrap">
@@ -1626,7 +1628,6 @@ onUnmounted(() => {
     position: relative;
     min-height: calc(100vh - 80px);
     padding: 20px;
-    overflow: hidden;
     color: #fff;
     font-family: 'Inter', sans-serif;
     background:
@@ -1636,13 +1637,16 @@ onUnmounted(() => {
 }
 
 .nb-aurora {
-    position: fixed; inset: 0; z-index: 0;
+    position: fixed; inset: 0; z-index: -1;
+    height: 100dvh;
 }
 .nb-aurora img {
     width: 100%; height: 100%;
     object-fit: cover; object-position: center;
     image-rendering: pixelated;
     opacity: 0.15;
+    transform: translateZ(0);
+    will-change: auto;
 }
 
 .nb-shell {

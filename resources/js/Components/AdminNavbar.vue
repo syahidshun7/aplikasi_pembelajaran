@@ -102,6 +102,7 @@ const handleLogout = () => {
                     <Link :href="route('admin.rubrics.index')" class="dropdown-item" @click="closeAllMenus">RUBRICS</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.jobs.index')" class="dropdown-item" @click="closeAllMenus">JOBS</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.shop-items.index')" class="dropdown-item" @click="closeAllMenus">SHOP ITEMS</Link>
+                    <Link v-if="isAdminAccess" :href="route('admin.profile-skins.index')" class="dropdown-item" @click="closeAllMenus">PROFILE SKINS</Link>
                     <Link v-if="isAdminAccess" :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.users.index')" class="dropdown-item" @click="closeAllMenus">USERS</Link>
@@ -135,6 +136,7 @@ const handleLogout = () => {
                 <Link :href="route('admin.rubrics.index')" class="dropdown-item" @click="closeAllMenus">RUBRICS</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.jobs.index')" class="dropdown-item" @click="closeAllMenus">JOBS</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.shop-items.index')" class="dropdown-item" @click="closeAllMenus">SHOP ITEMS</Link>
+                <Link v-if="isAdminAccess" :href="route('admin.profile-skins.index')" class="dropdown-item" @click="closeAllMenus">PROFILE SKINS</Link>
                 <Link v-if="isAdminAccess" :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.users.index')" class="dropdown-item" @click="closeAllMenus">USERS</Link>
