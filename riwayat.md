@@ -49,3 +49,19 @@
 - Investigasi bug mobile: background terlihat zoom in/zoom out saat scroll di iOS Safari & Android Chrome.
 - Root cause: `height: 100dvh` pada `.app-bg-layer` menyebabkan resize karena nilai `dvh` berubah saat address bar mobile muncul/hilang.
 - Fix `AppBackgroundLayer.vue`: hapus `height: 100dvh` dan `contain: strict` — elemen `fixed inset-0` sudah cukup untuk fill viewport tanpa efek resize.
+
+
+### Fitur: Download Rekap Average Siswa Study Group
+
+- Menambahkan method `exportRecap` di `AdminStudyGroupController`: mengambil semua member non-staff, menghitung jumlah submission dan rata-rata grade dari quest milik group tersebut, lalu menghasilkan file CSV.
+- Menambahkan route `GET /admin/study-groups/{uuid}/export-recap` dengan name `groups.export-recap`.
+- Menambahkan tombol `[↓ Download Rekap CSV]` di halaman `StudyGroups/Admin/Detail.vue` di sebelah tombol Back.
+- Kolom CSV: Nama, Username, Level, EXP, Gold, Jumlah Submission, Rata-rata Grade.
+
+
+### Fitur: Download Rekap Average Siswa Study Group
+
+- Menambahkan method `exportRecap` di `AdminStudyGroupController`: mengambil semua member non-staff, menghitung jumlah submission dan rata-rata grade dari quest milik group tersebut, lalu menghasilkan file CSV.
+- Menambahkan route `GET /admin/study-groups/{uuid}/export-recap` dengan name `groups.export-recap`.
+- Menambahkan tombol `[↓ Download Rekap CSV]` di halaman `StudyGroups/Admin/Detail.vue` di sebelah tombol Back.
+- Kolom CSV: Nama, Username, Level, EXP, Gold, Jumlah Submission, Rata-rata Grade.
