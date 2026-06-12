@@ -174,10 +174,20 @@ class AdminStudyGroupController extends Controller
             })
             ->values();
 
+        $questCounts = \App\Models\Quest::query()
+            ->where('study_group_id', $group->id)
+            ->selectRaw("COUNT(*) as total, SUM(quest_type = 'main') as main_count, SUM(quest_type = 'optional') as optional_count")
+            ->first();
+
         return Inertia::render('StudyGroups/Admin/Detail', [
             'group' => $group,
             'members' => $members,
             'requests' => $requests,
+            'questCounts' => [
+                'total' => (int) ($questCounts->total ?? 0),
+                'main' => (int) ($questCounts->main_count ?? 0),
+                'optional' => (int) ($questCounts->optional_count ?? 0),
+            ],
         ]);
     }
 
@@ -357,32 +367,41 @@ class AdminStudyGroupController extends Controller
         $members = $group->users()
             ->whereNotIn('users.role', User::staffRoles())
             ->select('users.id', 'users.name', 'users.username', 'users.exp', 'users.level', 'users.gold')
+            ->orderBy('users.name')
             ->get();
 
-        $rows = $members->map(function ($user) use ($group) {
-            $submissions = \App\Models\Submission::query()
-                ->whereIn('quest_id', function ($q) use ($group) {
-                    $q->from('quests')->select('id')->where('study_group_id', $group->id);
-                })
-                ->where('user_id', $user->id)
-                ->whereNotNull('grade')
-                ->pluck('grade')
-                ->map(fn ($g) => (float) $g);
+        // Quest published di group, hanya main, urut berdasarkan title
+        $quests = \App\Models\Quest::query()
+            ->where('study_group_id', $group->id)
+            ->where('quest_type', 'main')
+            ->publishedForAverage()
+            ->orderBy('title')
+            ->get(['id', 'title', 'quest_type']);
 
-            $avg = $submissions->count() > 0
-                ? round($submissions->avg(), 2)
-                : null;
+        $totalQuests = $quests->count();
+        $questIds = $quests->pluck('id')->all();
+        $userIds = $members->pluck('id')->all();
 
-            return [
-                $user->name,
-                $user->username,
-                $user->level,
-                $user->exp,
-                $user->gold,
-                $submissions->count(),
-                $avg ?? '-',
-            ];
-        });
+        // Latest submission per (user_id, quest_id)
+        $latestSubmissions = \App\Models\Submission::query()
+            ->whereIn('user_id', $userIds)
+            ->whereIn('quest_id', $questIds)
+            ->joinSub(
+                \App\Models\Submission::query()
+                    ->whereIn('user_id', $userIds)
+                    ->whereIn('quest_id', $questIds)
+                    ->selectRaw('MAX(id) as id')
+                    ->groupBy('user_id', 'quest_id'),
+                'latest',
+                fn ($join) => $join->on('submissions.id', '=', 'latest.id')
+            )
+            ->get(['submissions.user_id', 'submissions.quest_id', 'submissions.grade']);
+
+        // Index: [user_id][quest_id] => grade
+        $gradeMap = [];
+        foreach ($latestSubmissions as $sub) {
+            $gradeMap[(int) $sub->user_id][(int) $sub->quest_id] = $sub->grade;
+        }
 
         $filename = 'rekap-' . \Illuminate\Support\Str::slug($group->name) . '-' . now()->format('Ymd') . '.csv';
 
@@ -391,12 +410,45 @@ class AdminStudyGroupController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function () use ($rows) {
+        $callback = function () use ($members, $quests, $gradeMap, $totalQuests) {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Nama', 'Username', 'Level', 'EXP', 'Gold', 'Jumlah Submission', 'Rata-rata Grade']);
-            foreach ($rows as $row) {
+
+            // Header row: kolom tetap + satu kolom per quest
+            $header = ['Nama', 'Username', 'Level', 'EXP', 'Gold'];
+            foreach ($quests as $quest) {
+                $header[] = $quest->title;
+            }
+            $header[] = 'Total Quest';
+            $header[] = 'Quest Dikerjakan';
+            $header[] = 'Rata-rata Grade';
+            fputcsv($out, $header);
+
+            foreach ($members as $user) {
+                $userGrades = $gradeMap[$user->id] ?? [];
+                $gradeSum = 0;
+                $submittedCount = 0;
+
+                $row = [$user->name, $user->username, $user->level, $user->exp, $user->gold];
+
+                foreach ($quests as $quest) {
+                    if (array_key_exists($quest->id, $userGrades)) {
+                        $grade = (int) ($userGrades[$quest->id] ?? 0);
+                        $row[] = $grade;
+                        $gradeSum += $grade;
+                        $submittedCount++;
+                    } else {
+                        $row[] = '';
+                    }
+                }
+
+                $avg = $totalQuests > 0 ? round($gradeSum / $totalQuests, 1) : 0;
+                $row[] = $totalQuests;
+                $row[] = $submittedCount;
+                $row[] = $avg;
+
                 fputcsv($out, $row);
             }
+
             fclose($out);
         };
 

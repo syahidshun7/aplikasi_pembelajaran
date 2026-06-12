@@ -7,6 +7,7 @@ const props = defineProps({
     group: Object,
     members: Array,
     requests: Array,
+    questCounts: Object,
 });
 
 const approveRequest = (requestId) => {
@@ -75,6 +76,22 @@ const removeMember = (member) => {
                 <div class="flex gap-2">
                     <a :href="route('groups.export-recap', { uuid: group.uuid })" class="inline-flex items-center justify-center px-3 py-2 border border-emerald-600 bg-emerald-900/40 text-emerald-300 hover:text-white uppercase text-[9px] sm:text-[10px]">[↓ Download Rekap CSV]</a>
                     <Link :href="route('groups.manage')" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white uppercase text-[9px] sm:text-[10px]">[Back]</Link>
+                </div>
+            </div>
+
+            <!-- Quest Stats -->
+            <div class="flex flex-wrap gap-4">
+                <div class="border border-slate-700 bg-slate-900/50 px-4 py-3 text-center min-w-[100px]">
+                    <p class="text-[7px] text-slate-400 uppercase mb-1">Total Quest</p>
+                    <p class="text-lg text-white">{{ questCounts?.total ?? 0 }}</p>
+                </div>
+                <div class="border border-cyan-700 bg-cyan-900/20 px-4 py-3 text-center min-w-[100px]">
+                    <p class="text-[7px] text-cyan-400 uppercase mb-1">Main Quest</p>
+                    <p class="text-lg text-cyan-300">{{ questCounts?.main ?? 0 }}</p>
+                </div>
+                <div class="border border-purple-700 bg-purple-900/20 px-4 py-3 text-center min-w-[100px]">
+                    <p class="text-[7px] text-purple-400 uppercase mb-1">Optional Quest</p>
+                    <p class="text-lg text-purple-300">{{ questCounts?.optional ?? 0 }}</p>
                 </div>
             </div>
 
