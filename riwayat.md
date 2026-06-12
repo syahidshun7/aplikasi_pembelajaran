@@ -65,3 +65,14 @@
 - Menambahkan route `GET /admin/study-groups/{uuid}/export-recap` dengan name `groups.export-recap`.
 - Menambahkan tombol `[↓ Download Rekap CSV]` di halaman `StudyGroups/Admin/Detail.vue` di sebelah tombol Back.
 - Kolom CSV: Nama, Username, Level, EXP, Gold, Jumlah Submission, Rata-rata Grade.
+
+
+
+## 2026-06-13
+
+### Fix: Auto-correct Task Bank Platforming & Word Match
+
+- Investigasi bug: submission quest dengan task bank tipe `platforming` dan `word_match` masuk ke status `Pending` alih-alih langsung di-auto correct seperti `multiple_choice`.
+- Root cause: `applyTaskBankSubmissionPayload()` di `SubmissionController` selalu set `status = STATUS_PENDING` untuk semua tipe dan tidak pernah memanggil `evaluateTaskBankAnswers()` meski method tersebut sudah ada.
+- Fix `SubmissionController::applyTaskBankSubmissionPayload`: tambahkan kondisi pengecekan `isAutoCheckedTaskBankQuest()` — jika tipe adalah `multiple_choice`, `platforming`, atau `word_match`, maka normalize jawaban, validasi, evaluasi, dan set `status = Approved` + `pipeline_status = AI_CHECKED` + grade/feedback/reward langsung.
+- Quest dengan essay atau tipe campuran tetap masuk pipeline `Pending` seperti sebelumnya.

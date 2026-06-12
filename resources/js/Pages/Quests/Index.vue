@@ -95,6 +95,15 @@ const filteredTaskBanks = computed(() => {
     return (props.taskBanks || []).filter((bank) => String(bank.job_role_id || '') === selectedJobScope.value);
 });
 
+const taskBankSearch = ref('');
+const searchableTaskBanks = computed(() => {
+    const q = taskBankSearch.value.trim().toLowerCase();
+    if (!q) return filteredTaskBanks.value;
+    return filteredTaskBanks.value.filter((bank) =>
+        bank.name.toLowerCase().includes(q) || (bank.assessment_type || '').toLowerCase().includes(q)
+    );
+});
+
 const aiFilteredStudyGroups = computed(() => {
     if (isMentor.value || aiScopeForm.job_id === '') {
         return props.studyGroups || [];
@@ -277,6 +286,7 @@ const cancelEdit = () => {
     form.reset();
     form.rubric_id = null;
     selectedJobScope.value = '';
+    taskBankSearch.value = '';
     applyMentorDefaults();
     showFormModal.value = false;
 };
@@ -623,10 +633,16 @@ const commitThemeBundle = async () => {
 
                             <div>
                                 <label class="block mb-2 text-white">TASK_BANK_SOURCE:</label>
+                                <input
+                                    v-model="taskBankSearch"
+                                    type="text"
+                                    placeholder="Search task bank..."
+                                    class="w-full bg-black border-2 border-slate-700 p-2 mb-1 text-teal-300 outline-none focus:border-teal-400 text-[10px] uppercase placeholder:text-slate-600"
+                                />
                                 <select v-model="form.task_bank_id"
                                     class="w-full bg-black border-2 border-slate-700 p-2 focus:border-teal-400 outline-none text-teal-300 uppercase">
                                     <option :value="null">-- NO_TASK_BANK (MANUAL_QUEST) --</option>
-                                    <option v-for="bank in filteredTaskBanks" :key="bank.id" :value="bank.id">
+                                    <option v-for="bank in searchableTaskBanks" :key="bank.id" :value="bank.id">
                                         {{ bank.name }} [{{ bank.assessment_type }}]{{ bank.job_role?.name ? ` [${bank.job_role.name}]` : '' }}
                                     </option>
                                 </select>
@@ -703,6 +719,8 @@ const commitThemeBundle = async () => {
                                         <option value="multiple_choice">MULTIPLE_CHOICE</option>
                                         <option value="essay">ESSAY</option>
                                         <option value="mixed">MIXED</option>
+                                        <option value="platforming">PLATFORMING</option>
+                                        <option value="word_match">WORD_MATCH</option>
                                     </select>
                                 </div>
                                 <div>

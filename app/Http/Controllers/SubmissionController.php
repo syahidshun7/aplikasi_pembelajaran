@@ -227,6 +227,24 @@ class SubmissionController extends Controller
         $submission->content = trim($rawContent) !== '' ? $rawContent : '[TASK_BANK_RAW_SUBMISSION]';
         $submission->file_path = $this->storeUploadedFile($request, $submission);
         $submission->file_type = $this->detectSubmissionFileType($request, $submission) ?: 'text';
+
+        if ($this->isAutoCheckedTaskBankQuest($quest) && in_array($assessmentType, ['multiple_choice', 'platforming', 'word_match'], true)) {
+            $normalizedAnswers = $this->normalizeSubmittedAnswers($questions, $rawAnswers);
+            $this->validateTaskBankAnswersOrFail($quest, $questions, $normalizedAnswers);
+            $result = $this->evaluateTaskBankAnswers($quest, $normalizedAnswers);
+
+            $submission->pipeline_status = Submission::PIPELINE_STATUS_AI_CHECKED;
+            $submission->preprocess_started = true;
+            $submission->status = Submission::STATUS_APPROVED;
+            $submission->grade = $result['grade'];
+            $submission->feedback = $result['feedback'];
+            $submission->earned_exp = $result['earned_exp'];
+            $submission->earned_gold = $result['earned_gold'];
+            $submission->scores_detail = $result['scores_detail'];
+
+            return true;
+        }
+
         $submission->pipeline_status = Submission::PIPELINE_STATUS_PENDING_PREPROCESSING;
         $submission->preprocess_started = false;
         $submission->status = Submission::STATUS_PENDING;
