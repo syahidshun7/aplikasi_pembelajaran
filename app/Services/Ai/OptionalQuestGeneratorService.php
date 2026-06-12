@@ -146,7 +146,7 @@ class OptionalQuestGeneratorService
         if (! in_array($difficulty, ['C-Rank', 'B-Rank', 'A-Rank', 'S-Rank'], true)) {
             $difficulty = 'C-Rank';
         }
-        if (! in_array($questionType, ['multiple_choice', 'essay', 'mixed'], true)) {
+        if (! in_array($questionType, ['multiple_choice', 'essay', 'mixed', 'platforming', 'word_match'], true)) {
             $questionType = 'mixed';
         }
 
@@ -197,7 +197,7 @@ class OptionalQuestGeneratorService
         }
 
         $assessmentType = (string) ($taskBank['assessment_type'] ?? 'mixed');
-        if (! in_array($assessmentType, ['multiple_choice', 'essay', 'mixed'], true)) {
+        if (! in_array($assessmentType, ['multiple_choice', 'essay', 'mixed', 'platforming', 'word_match'], true)) {
             $assessmentType = 'mixed';
         }
 
@@ -227,7 +227,7 @@ class OptionalQuestGeneratorService
 
             foreach ($questions as $index => $question) {
                 $type = (string) ($question['question_type'] ?? 'essay');
-                if (! in_array($type, ['multiple_choice', 'essay'], true)) {
+                if (! in_array($type, ['multiple_choice', 'essay', 'platforming', 'word_match'], true)) {
                     $type = 'essay';
                 }
 
@@ -246,11 +246,18 @@ class OptionalQuestGeneratorService
                     }
                 }
 
+                $extraConfig = null;
+                if ($type === 'platforming' && ! empty($question['platforming_config'])) {
+                    $extraConfig = $question['platforming_config'];
+                } elseif ($type === 'word_match' && ! empty($question['word_match_config'])) {
+                    $extraConfig = $question['word_match_config'];
+                }
+
                 TaskQuestion::query()->create([
                     'task_bank_id' => $taskBankModel->id,
                     'question_text' => mb_substr(trim((string) ($question['question_text'] ?? '')), 0, 2000),
                     'question_type' => $type,
-                    'options_json' => $type === 'multiple_choice' ? $options : null,
+                    'options_json' => $type === 'multiple_choice' ? $options : ($extraConfig !== null ? $extraConfig : null),
                     'answer_key' => $type === 'multiple_choice' ? $answerKey : '',
                     'weight' => max(1, (int) ($question['weight'] ?? 1)),
                     'sort_order' => $index + 1,
@@ -284,11 +291,18 @@ class OptionalQuestGeneratorService
      */
     private function buildThemePrompt(array $input): string
     {
-        $schema = $input['question_type'] === 'multiple_choice'
-            ? '{"question_text": "string", "question_type": "multiple_choice", "options": ["string"], "answer_key": "string", "weight": 1}'
-            : ($input['question_type'] === 'essay'
-                ? '{"question_text": "string", "question_type": "essay", "weight": 1}'
-                : '{"question_text": "string", "question_type": "multiple_choice|essay", "options": ["string"], "answer_key": "string", "weight": 1}');
+        $schema = match ($input['question_type']) {
+            'multiple_choice' => '{"question_text": "string", "question_type": "multiple_choice", "options": ["string"], "answer_key": "string", "weight": 1}',
+            'essay'           => '{"question_text": "string", "question_type": "essay", "weight": 1}',
+            'platforming'     => '{"question_text": "string (level/judul stage)", "question_type": "platforming", "platforming_config": {"stages": [{"question": "string", "answer": "string"}], "time_limit": 60}, "weight": 1}',
+            'word_match'      => '{"question_text": "string (kalimat dengan ___ sebagai tempat kosong)", "question_type": "word_match", "word_match_config": {"sentence": "string (kalimat asli)", "blanks": ["string (kata yang dihapus)"]}, "weight": 1}',
+            default           => '{"question_text": "string", "question_type": "multiple_choice|essay", "options": ["string"], "answer_key": "string", "weight": 1}',
+        };
+
+        $assessmentType = match ($input['question_type']) {
+            'multiple_choice', 'essay', 'platforming', 'word_match' => $input['question_type'],
+            default => 'mixed',
+        };
 
         $importantNote = trim((string) ($input['ai_note'] ?? ''));
 
@@ -302,7 +316,7 @@ class OptionalQuestGeneratorService
             'Output JSON schema:',
             '{',
             '  "quest": {"title": "string max 255", "description": "string", "difficulty": "C-Rank|B-Rank|A-Rank|S-Rank", "learning_objectives": ["string"], "success_criteria": ["string"], "reasoning": "string"},',
-            '  "task_bank": {"name": "string", "description": "string", "assessment_type": "multiple_choice|essay|mixed"},',
+            '  "task_bank": {"name": "string", "description": "string", "assessment_type": "'.$assessmentType.'"},',
             '  "questions": ['.$schema.']',
             '}',
             'Aturan:',
@@ -312,6 +326,8 @@ class OptionalQuestGeneratorService
             '- Jangan menyertakan indeks huruf (A,B,C) di answer_key; isi teks opsi.',
             '- Untuk essay: biarkan options kosong dan answer_key kosong.',
             '- Jika question_type=mixed, campurkan rasio seimbang.',
+            '- Untuk platforming: setiap soal berisi stages berupa pasangan question+answer (tebak kata/angka saat karakter melewati obstacle). Isi platforming_config.stages.',
+            '- Untuk word_match: soal berupa kalimat dengan kata-kata yang dihapus (ganti dengan ___). Isi word_match_config.sentence (kalimat asli) dan word_match_config.blanks (daftar kata yang dihapus).',
             '- Jika ada catatan penting, jadikan itu prioritas utama saat menyusun tingkat kesulitan dan gaya soal.',
         ]);
     }
@@ -332,18 +348,16 @@ class OptionalQuestGeneratorService
         }
 
         $assessmentType = (string) ($taskBank['assessment_type'] ?? $questionType);
-        if (! in_array($assessmentType, ['multiple_choice', 'essay', 'mixed'], true)) {
+        if (! in_array($assessmentType, ['multiple_choice', 'essay', 'mixed', 'platforming', 'word_match'], true)) {
             $assessmentType = $questionType;
         }
 
         $normalizedQuestions = [];
         foreach ($questions as $question) {
             $type = (string) ($question['question_type'] ?? 'essay');
-            if ($questionType === 'multiple_choice') {
-                $type = 'multiple_choice';
-            } elseif ($questionType === 'essay') {
-                $type = 'essay';
-            } elseif (! in_array($type, ['multiple_choice', 'essay'], true)) {
+            if (in_array($questionType, ['multiple_choice', 'essay', 'platforming', 'word_match'], true)) {
+                $type = $questionType;
+            } elseif (! in_array($type, ['multiple_choice', 'essay', 'platforming', 'word_match'], true)) {
                 $type = 'essay';
             }
 
@@ -355,13 +369,23 @@ class OptionalQuestGeneratorService
                 $answerKey = $options[0] ?? '';
             }
 
-            $normalizedQuestions[] = [
+            $entry = [
                 'question_text' => mb_substr(trim((string) ($question['question_text'] ?? '')), 0, 2000),
                 'question_type' => $type,
                 'options' => $options,
                 'answer_key' => $answerKey,
                 'weight' => max(1, (int) ($question['weight'] ?? 1)),
             ];
+
+            if ($type === 'platforming' && isset($question['platforming_config'])) {
+                $entry['platforming_config'] = $question['platforming_config'];
+            }
+
+            if ($type === 'word_match' && isset($question['word_match_config'])) {
+                $entry['word_match_config'] = $question['word_match_config'];
+            }
+
+            $normalizedQuestions[] = $entry;
         }
 
         if (count($normalizedQuestions) > $questionCount) {
