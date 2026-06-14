@@ -37,10 +37,6 @@ const backgroundStyle = computed(() => ({
 </template>
 
 <style scoped>
-.app-bg-layer {
-    background: var(--bg, #0a0c10);
-}
-
 .app-bg-layer__image {
     position: absolute;
     inset: 0;

@@ -96,7 +96,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div data-app-surface="user" :data-theme="userTheme" class="user-navbar-theme-scope">
+    <div data-app-surface="user" :data-theme="userTheme" class="user-navbar-theme-scope relative">
     <nav class="user-navbar-shell sticky top-0 z-50 flex items-center justify-between border-b-4 border-[var(--panel-border)] bg-[var(--panel)] p-4 text-[var(--text)] shadow-2xl md:bg-[var(--panel-soft)] md:backdrop-blur-sm md:px-8">
         <div class="flex items-center gap-4">
             <Link :href="route('lobby')" class="group flex items-center gap-4" @click="closeMobileMenu">
@@ -174,7 +174,7 @@ onBeforeUnmount(() => {
         </button>
     </nav>
 
-    <div v-if="mobileMenuOpen && canOpenMobileMenu" class="relative z-50 px-4 pb-4 lg:hidden">
+    <div v-if="mobileMenuOpen && canOpenMobileMenu" class="absolute left-0 right-0 z-50 px-4 pb-4 lg:hidden">
         <div class="user-navbar-mobile-shell space-y-2 border-2 border-[var(--panel-border)] bg-[var(--panel)] p-3 shadow-2xl md:bg-[var(--panel-soft)] md:backdrop-blur-sm">
             <template v-if="auth.user">
                 <Link
@@ -197,7 +197,7 @@ onBeforeUnmount(() => {
 
                 <Link
                     :href="route('shop.index')"
-                    class="nav-action nav-action--inventory w-full justify-center"
+                    class="nav-action nav-action--shop w-full justify-center"
                     @click="closeMobileMenu"
                 >
                     <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
@@ -206,7 +206,7 @@ onBeforeUnmount(() => {
 
                 <Link
                     :href="route('inventory.index')"
-                    class="nav-action nav-action--shop w-full justify-center"
+                    class="nav-action nav-action--inventory w-full justify-center"
                     @click="closeMobileMenu"
                 >
                     <i class="fi fi-rr-box-open text-[10px] leading-none"></i>

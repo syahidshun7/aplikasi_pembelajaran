@@ -130,19 +130,19 @@ const lockNode = (node) => {
         <Head :title="`Path: ${roadmap.title}`" />
         <div class="relative min-h-screen">
             <Teleport to="body">
-                <div class="fixed inset-0 -z-10 pointer-events-none" style="height:100dvh;">
-                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" class="w-full h-full object-cover opacity-[0.15]" style="image-rendering: pixelated; transform: translateZ(0); will-change: auto;" alt="" />
+                <div class="fixed inset-0 -z-10 pointer-events-none">
+                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" class="hidden md:block w-full h-full object-cover opacity-[0.15]" style="image-rendering: pixelated; transform: translateZ(0); will-change: auto;" alt="" />
                 </div>
             </Teleport>
-            <div class="relative z-10 p-4 md:p-8 text-[10px] font-['Press_Start_2P'] text-[#4ed4d4] space-y-4">
-            <div class="flex items-center justify-between border-b-2 border-cyan-900 pb-3">
-                <div>
-                    <h1 class="text-sm md:text-lg uppercase tracking-wider">{{ roadmap.title }}</h1>
+        <div class="relative z-10 p-4 md:p-8 text-[10px] font-['Press_Start_2P'] text-[#4ed4d4] space-y-4 overflow-x-hidden">
+            <div class="flex flex-wrap items-start justify-between gap-3 border-b-2 border-cyan-900 pb-3">
+                <div class="min-w-0">
+                    <h1 class="text-sm md:text-lg uppercase tracking-wider break-words">{{ roadmap.title }}</h1>
                     <p class="text-[8px] text-slate-400 uppercase mt-1">
                         {{ canManage ? `Student: ${enrollment.student_name}` : `Mentor: ${enrollment.mentor_name}` }}
                     </p>
                 </div>
-                <Link :href="route('dooplab.dashboard')" class="px-3 py-2 border border-slate-700 text-slate-300 hover:text-white uppercase text-[8px]">Back</Link>
+                <Link :href="route('dooplab.dashboard')" class="flex-shrink-0 px-3 py-2 border border-slate-700 text-slate-300 hover:text-white uppercase text-[8px]">Back</Link>
             </div>
 
             <div class="panel overflow-auto">
@@ -237,18 +237,24 @@ const lockNode = (node) => {
                                 <a
                                     v-for="resource in selectedNode.resource_meta_list"
                                     :key="`${resource.type}-${resource.href}`"
-                                    :href="resource.href"
+                                    :href="canManage && resource.submission_inspect_href ? resource.submission_inspect_href : resource.href"
                                     target="_blank"
                                     class="node-modal-resource-link"
+                                    :class="{ 'node-modal-resource-link--submission': canManage && resource.submission_inspect_href }"
                                 >
-                                    <span aria-hidden="true">{{ resource.type === 'guide' ? '📖' : '⚔️' }}</span>
+                                    <span aria-hidden="true">{{ resource.type === 'guide' ? '📖' : canManage && resource.submission_inspect_href ? '📋' : '⚔️' }}</span>
                                     {{ resource.label }}
+                                    <span v-if="canManage && resource.submission_inspect_href" class="text-[8px] opacity-70"> (submission)</span>
                                 </a>
                             </div>
                         </div>
 
                         <div v-if="selectedNode.progress?.mentor_note" class="node-modal-note">
                             Mentor note: {{ selectedNode.progress.mentor_note }}
+                        </div>
+
+                        <div v-if="selectedNode.progress?.student_note" class="node-modal-note node-modal-note--student">
+                            Catatan student: {{ selectedNode.progress.student_note }}
                         </div>
 
                         <div v-if="isOwner && (selectedNode.progress?.status === 'unlocked' || selectedNode.progress?.status === 'revision')" class="node-modal-form">
@@ -287,6 +293,13 @@ const lockNode = (node) => {
     padding: 0.75rem;
     border-radius: 0;
     box-shadow: 4px 4px 0 rgba(1, 6, 14, 0.9);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    max-height: calc(100dvh - 160px);
 }
 .field {
     border: 1px solid #334155;
@@ -449,13 +462,25 @@ const lockNode = (node) => {
     color: #fde68a;
 }
 
+.node-modal-resource-link--submission {
+    border-color: rgba(250, 204, 21, 0.5);
+    background: rgba(250, 204, 21, 0.08);
+    color: #fde68a;
+}
+
 .node-modal-note {
     border-left: 3px solid #facc15;
     background: rgba(250, 204, 21, 0.08);
     color: #fde68a;
-    font-size: 8px;
+    font-size: 12px;
     line-height: 1.8;
     padding: 0.65rem 0.75rem;
+}
+
+.node-modal-note--student {
+    border-left-color: #67e8f9;
+    background: rgba(103, 232, 249, 0.08);
+    color: #a5f3fc;
 }
 
 .node-modal-form {
@@ -627,5 +652,73 @@ p, span, a, button, textarea { font-size: 8px; }
 
 .node-modal-close {
     font-size: 18px !important;
+}
+
+@media (max-width: 768px) {
+    .panel {
+        max-height: calc(100dvh - 140px);
+        padding: 0.5rem;
+    }
+
+    .node-modal-card {
+        padding: 0.85rem !important;
+        width: min(100%, 96vw) !important;
+    }
+
+    .node-modal-head h3 {
+        font-size: 13px !important;
+        line-height: 1.5 !important;
+    }
+
+    .node-modal-head p {
+        font-size: 9px !important;
+    }
+
+    .node-modal-card p,
+    .node-modal-card span,
+    .node-modal-card a,
+    .node-modal-card textarea {
+        font-size: 11px !important;
+    }
+
+    .node-modal-card button {
+        font-size: 10px !important;
+        padding: 8px 12px !important;
+    }
+
+    .node-modal-resource-link {
+        font-size: 10px !important;
+    }
+
+    .node-modal-actions {
+        flex-direction: column;
+    }
+
+    .node-modal-actions button {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .panel {
+        max-height: calc(100dvh - 120px);
+        padding: 0.4rem;
+    }
+
+    .node-modal-backdrop {
+        padding: 0.5rem;
+        align-items: flex-end;
+    }
+
+    .node-modal-card {
+        max-height: 85dvh;
+        overflow-y: auto;
+        padding: 0.75rem !important;
+    }
+
+    .node-modal-head h3 {
+        font-size: 11px !important;
+    }
 }
 </style>

@@ -933,12 +933,14 @@ onBeforeUnmount(() => {
             </template>
         </div>
 
+        <Teleport to="body">
         <div
             v-if="isTransferModalOpen"
-            class="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 px-4 py-6"
+            data-app-surface="user"
+            class="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 px-4 py-6"
             @click.self="closeTransferModal"
         >
-            <div class="w-full max-w-lg border-4 border-yellow-600 bg-[#1a1c2c] p-5 shadow-[8px_8px_0_rgba(0,0,0,0.55)]">
+            <div class="w-full max-w-lg border-4 border-yellow-600 bg-[#1a1c2c] p-5 shadow-[8px_8px_0_rgba(0,0,0,0.55)] font-['Press_Start_2P']">
                 <div class="mb-4 flex items-start justify-between gap-4">
                     <div>
                         <p class="text-[8px] uppercase tracking-[0.25em] text-yellow-300">Wallet_Action</p>
@@ -1047,15 +1049,18 @@ onBeforeUnmount(() => {
                 </form>
             </div>
         </div>
+        </Teleport>
     </AuthenticatedLayout>
 </template>
 
-<style scoped>
+<style>
 button {
     cursor: pointer;
     font-family: 'Press Start 2P', cursive;
 }
+</style>
 
+<style scoped>
 .rpg-panel {
     @apply p-6 relative border-4 border-[#3d415f] bg-[#1a1c2c];
     box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 0.5);

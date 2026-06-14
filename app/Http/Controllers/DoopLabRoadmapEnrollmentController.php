@@ -9,6 +9,7 @@ use App\Models\DoopLabRoadmapNode;
 use App\Models\DoopLabRoadmapNodeProgress;
 use App\Models\Guide;
 use App\Models\Quest;
+use App\Models\Submission;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -97,9 +98,9 @@ class DoopLabRoadmapEnrollmentController extends Controller
                     'text_align' => (string) ($section->text_align ?? 'left'),
                     'text_valign' => (string) ($section->text_valign ?? 'top'),
                 ])->values()->all() ?? [],
-                'nodes' => $enrollment->roadmap?->nodes?->map(function ($node) use ($progressMap) {
+                'nodes' => $enrollment->roadmap?->nodes?->map(function ($node) use ($progressMap, $enrollment) {
                     $progress = $progressMap->get((int) $node->id);
-                    $resourceMetaList = $this->resolveResourceMetaList($node);
+                    $resourceMetaList = $this->resolveResourceMetaList($node, $enrollment);
 
                     return [
                         'uuid' => (string) $node->uuid,
@@ -380,7 +381,7 @@ class DoopLabRoadmapEnrollmentController extends Controller
         }
     }
 
-    private function resolveResourceMetaList(DoopLabRoadmapNode $node): array
+    private function resolveResourceMetaList(DoopLabRoadmapNode $node, DoopLabRoadmapEnrollment $enrollment): array
     {
         $result = [];
         foreach ($node->resources as $resource) {
@@ -391,6 +392,7 @@ class DoopLabRoadmapEnrollmentController extends Controller
                         'type' => 'guide',
                         'label' => (string) $guide->title,
                         'href' => route('guides.user.show', $guide->uuid),
+                        'submission_inspect_href' => null,
                     ];
                 }
             }
@@ -398,10 +400,18 @@ class DoopLabRoadmapEnrollmentController extends Controller
             if ($resource->resource_type === 'quest') {
                 $quest = Quest::query()->find($resource->resource_id);
                 if ($quest) {
+                    $submission = Submission::where('quest_id', $quest->id)
+                        ->where('user_id', $enrollment->student_id)
+                        ->latest()
+                        ->first();
+
                     $result[] = [
                         'type' => 'quest',
                         'label' => (string) $quest->title,
                         'href' => route('quests.show', $quest->uuid),
+                        'submission_inspect_href' => $submission
+                            ? route('admin.submissions.inspect', $submission->uuid)
+                            : null,
                     ];
                 }
             }

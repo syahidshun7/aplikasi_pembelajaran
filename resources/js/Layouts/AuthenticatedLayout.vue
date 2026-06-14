@@ -26,7 +26,7 @@ const showStaffPlayModeNotice = computed(() => isStaffPlayMode.value && !isDoopL
         data-app-surface="user"
         class="user-theme-root min-h-screen font-['Press_Start_2P'] selection:bg-[var(--accent)] relative isolate overflow-x-hidden flex flex-col"
     >
-        <AppBackgroundLayer />
+        <AppBackgroundLayer v-if="!isDoopLabPage" />
 
         <UserNavbar />
 

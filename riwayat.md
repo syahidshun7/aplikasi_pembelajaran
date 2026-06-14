@@ -76,3 +76,38 @@
 - Root cause: `applyTaskBankSubmissionPayload()` di `SubmissionController` selalu set `status = STATUS_PENDING` untuk semua tipe dan tidak pernah memanggil `evaluateTaskBankAnswers()` meski method tersebut sudah ada.
 - Fix `SubmissionController::applyTaskBankSubmissionPayload`: tambahkan kondisi pengecekan `isAutoCheckedTaskBankQuest()` — jika tipe adalah `multiple_choice`, `platforming`, atau `word_match`, maka normalize jawaban, validasi, evaluasi, dan set `status = Approved` + `pipeline_status = AI_CHECKED` + grade/feedback/reward langsung.
 - Quest dengan essay atau tipe campuran tetap masuk pipeline `Pending` seperti sebelumnya.
+
+
+
+## 2026-06-15
+
+### Fix: Auto Zoom In/Out saat Input Focus di Mobile Chrome
+
+- Bug: background halaman zoom in saat input field di-focus dan zoom out saat focus hilang di Chrome mobile.
+- Root cause: browser mobile otomatis zoom in jika `font-size` input kurang dari 16px.
+- Fix `resources/views/app.blade.php`: tambahkan `maximum-scale=1` pada meta viewport.
+  ```
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  ```
+- Catatan: `maximum-scale=1` mencegah auto-zoom saat focus input, namun juga menonaktifkan pinch zoom manual user. Alternatif yang lebih ramah: set `font-size: 16px` pada semua `input`, `textarea`, `select` via CSS global.
+
+
+
+## 2026-06-15
+
+### Fix: Mobile Chrome — Background Zoom In/Out & Space Hitam di Landing Page
+
+**Bug 1: Auto zoom saat input field di-focus (Chrome mobile)**
+- Root cause: browser mobile auto-zoom jika `font-size` input < 16px.
+- Fix `resources/views/app.blade.php`: tambah `maximum-scale=1` di meta viewport.
+
+**Bug 2: Background zoom in/out saat address bar Chrome muncul/hilang**
+- Root cause: `AppBackgroundLayer` menggunakan `position: fixed` yang dipengaruhi visual viewport resize saat address bar muncul/hilang.
+- Fix `resources/css/app.css`: tambah override `.app-bg-layer { height: 100svh }` pada mobile (`max-width: 768px`). `100svh` = small viewport height, nilai konstan tidak berubah saat address bar toggle.
+
+**Bug 3: Space hitam di bawah Landing Page**
+- Root cause: `AppBackgroundLayer` scoped CSS memiliki `background: var(--bg, #0a0c10)` yang membuat layer itu sendiri berwarna hitam. Di halaman gelap tidak masalah, tapi di Landing yang overlay-nya terang, warna hitam ini terlihat di area bawah.
+- Fix `AppBackgroundLayer.vue`: hapus `background: var(--bg, #0a0c10)` dari scoped CSS agar layer transparan.
+- Fix `app.css`: tambah `body:has(.landing-page-root) { background-color: #eff7ff }` dan `.landing-page-root { background-color: #eff7ff }` agar fallback body match dengan overlay terang Landing.
+- Fix `Landing.vue`: tambah class `landing-page-root` di wrapper utama.
+

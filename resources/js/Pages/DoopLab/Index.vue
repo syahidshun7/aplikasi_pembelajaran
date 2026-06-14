@@ -254,4 +254,31 @@ const labModules = [
     .module-row { grid-template-columns: repeat(2, 1fr); }
     .hud { display: none; }
 }
+
+@media (max-width: 380px) {
+    .gate-content {
+        padding: 1rem 0.75rem;
+    }
+
+    .content-card {
+        padding: 1rem;
+    }
+
+    .btn-enter, .btn-unlock {
+        font-size: 7px;
+        padding: 12px;
+    }
+
+    .id-name {
+        font-size: 8px;
+    }
+
+    .tele-row {
+        flex-direction: column;
+    }
+
+    .tele-chip {
+        flex: unset;
+    }
+}
 </style>
