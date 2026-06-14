@@ -7,7 +7,7 @@
             $defaultImage = url('/images/bg-loby2.png');
         @endphp
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 
         <title inertia>{{ $defaultTitle }}</title>
         <meta name="description" content="{{ $defaultDescription }}">
@@ -45,6 +45,7 @@
             window.Laravel = Object.assign({}, window.Laravel || {}, {
                 user: @json($bladeUser),
             });
+            // (intentionally empty)
         </script>
         @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
         @inertiaHead

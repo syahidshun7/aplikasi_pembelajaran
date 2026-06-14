@@ -82,6 +82,11 @@ const handleLogout = () => {
                 ADMIN_DASHBOARD
             </Link>
 
+            <Link :href="route('dooplab.dashboard')"
+                  class="nav-item hover:text-cyan-300 transition-colors text-cyan-500">
+                DOOPLAB
+            </Link>
+
             <NotificationBell variant="admin" />
 
             <div class="relative z-[130]">
@@ -121,6 +126,7 @@ const handleLogout = () => {
             <div class="grid grid-cols-1 gap-2">
                 <Link :href="route('lobby')" class="dropdown-item" @click="closeAllMenus">USER_DASHBOARD</Link>
                 <Link :href="route('dashboard')" class="dropdown-item" @click="closeAllMenus">ADMIN_DASHBOARD</Link>
+                <Link :href="route('dooplab.dashboard')" class="dropdown-item text-cyan-400" @click="closeAllMenus">DOOPLAB</Link>
                 <Link :href="route('notifications.index')" class="dropdown-item" @click="closeAllMenus">
                     NOTIFICATIONS
                     <span v-if="Number(page.props?.notificationCenter?.unread_count || 0) > 0" class="ml-2 text-cyan-300">

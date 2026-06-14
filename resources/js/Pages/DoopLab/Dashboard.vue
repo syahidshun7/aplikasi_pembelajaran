@@ -864,7 +864,7 @@ onUnmounted(() => {
         <div class="nb-root">
             <Teleport to="body">
                 <div class="nb-aurora">
-                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" />
+                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" class="hidden md:block" />
                 </div>
             </Teleport>
             <div class="nb-shell">
@@ -1638,7 +1638,6 @@ onUnmounted(() => {
 
 .nb-aurora {
     position: fixed; inset: 0; z-index: -1;
-    height: 100dvh;
 }
 .nb-aurora img {
     width: 100%; height: 100%;
@@ -3124,8 +3123,6 @@ onUnmounted(() => {
         grid-template-columns: 1fr;
     }
 
-
-
     .nb-todo-nav {
         max-height: 360px;
     }
@@ -3150,6 +3147,21 @@ onUnmounted(() => {
     .composer-placeholder {
         font-size: 24px;
     }
+
+    .todo-note-upload-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .todo-note-submit {
+        margin-left: 0;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .hire-mentor-card {
+        max-width: 100%;
+    }
 }
 
 @media (max-width: 620px) {
@@ -3170,6 +3182,52 @@ onUnmounted(() => {
 
     .composer-foot {
         font-size: 16px;
+    }
+
+    .nb-topbar {
+        padding: 12px;
+    }
+
+    .nb-title {
+        font-size: 14px !important;
+    }
+
+    .nb-actions {
+        flex-direction: column;
+    }
+
+    .nb-btn {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+
+    .source-add-btn {
+        font-size: 10px;
+    }
+
+    .todo-filters {
+        gap: 6px;
+    }
+
+    .todo-filter {
+        padding: 6px 10px;
+        font-size: 10px;
+    }
+
+    .panel-head--stacked {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .todo-add-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .chat-back-btn {
+        width: 100%;
+        justify-content: center;
     }
 }
 </style>
@@ -3373,6 +3431,21 @@ onUnmounted(() => {
 
     .todo-date-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 400px) {
+    .todo-modal-card {
+        padding: 10px;
+    }
+
+    .todo-modal-actions {
+        flex-direction: column;
+    }
+
+    .todo-modal-actions .nb-btn {
+        width: 100%;
+        text-align: center;
     }
 }
 

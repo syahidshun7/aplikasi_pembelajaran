@@ -12,13 +12,13 @@ defineProps({
         <Head title="My Roadmaps" />
         <div class="relative min-h-screen">
             <Teleport to="body">
-                <div class="fixed inset-0 -z-10 pointer-events-none" style="height:100dvh;">
-                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" class="w-full h-full object-cover opacity-[0.15]" style="image-rendering: pixelated; transform: translateZ(0); will-change: auto;" alt="" />
+                <div class="fixed inset-0 -z-10 pointer-events-none">
+                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" class="hidden md:block w-full h-full object-cover opacity-[0.15]" style="image-rendering: pixelated; transform: translateZ(0); will-change: auto;" alt="" />
                 </div>
             </Teleport>
             <div class="relative z-10 p-4 md:p-8 text-[10px] font-['Press_Start_2P'] text-[#4ed4d4] space-y-4">
             <div class="border-b-2 border-cyan-900 pb-3">
-                <h1 class="text-sm md:text-lg uppercase tracking-wider">My_Roadmaps</h1>
+                <h1 class="text-sm md:text-lg uppercase tracking-wider break-words">My_Roadmaps</h1>
                 <p class="text-[8px] text-slate-400 uppercase mt-2">Roadmap mentoring yang ditugaskan untukmu</p>
             </div>
 
@@ -62,4 +62,21 @@ p, a, span { font-size: 8px; }
 .panel { padding: 10px !important; }
 .panel p { font-size: 8px !important; }
 .panel p.text-\[12px\] { font-size: 9px !important; font-weight: 700 !important; }
+
+@media (max-width: 640px) {
+    .grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 480px) {
+    h1 {
+        font-size: 10px !important;
+        line-height: 1.6 !important;
+    }
+
+    .panel {
+        padding: 8px !important;
+    }
+}
 </style>

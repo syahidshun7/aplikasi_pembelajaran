@@ -1275,7 +1275,7 @@ onUnmounted(() => {
         <div class="lab-root">
             <Teleport to="body">
                 <div class="lab-aurora">
-                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" />
+                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" class="hidden md:block" />
                 </div>
             </Teleport>
             <div class="lab-shell">
@@ -1510,7 +1510,7 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <div v-if="hasActiveRoadmap" class="panel overflow-auto">
+                <div v-if="hasActiveRoadmap" class="panel overflow-auto canvas-wrapper">
                     <div ref="boardRef" class="roadmap-board" :style="{ width: `${boardWidth}px`, height: `${boardHeight}px` }" @pointerdown.self="clearSelectedItem">
                         <svg class="edge-layer" :width="boardWidth" :height="boardHeight">
                             <defs>
@@ -1795,6 +1795,14 @@ onUnmounted(() => {
     background: rgba(10, 16, 30, 0.72);
     border: 1px solid rgba(51, 65, 85, 0.8);
     padding: 0.75rem;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* panel biasa tidak boleh overflow, tapi canvas-wrapper butuh overflow:auto */
+.panel:not(.canvas-wrapper) {
+    overflow: hidden;
 }
 
 .title {
@@ -1911,7 +1919,7 @@ onUnmounted(() => {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    align-items: center;
+    align-items: flex-start;
     margin-top: 0.4rem;
 }
 
@@ -1919,25 +1927,42 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 0.3rem;
+    flex-wrap: wrap;
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 .text-block-input {
-    min-width: 220px;
+    min-width: 120px;
+    width: 100%;
+    max-width: 220px;
     height: 39px;
     resize: none;
 }
 
 .visual-preview-head {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 0.75rem;
+    flex-wrap: wrap;
 }
 
 .visual-preview-actions {
+    width: 100%;
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.visual-preview-actions .btn-primary,
+.visual-preview-actions .btn-secondary {
+    white-space: normal;
+    word-break: break-word;
+    min-width: 0;
+    flex-shrink: 1;
 }
 
 .visual-save-state {
@@ -1960,12 +1985,15 @@ onUnmounted(() => {
     margin-top: 0.4rem;
     padding-top: 0.4rem;
     border-top: 1px solid rgba(51, 65, 85, 0.55);
+    min-width: 0;
+    overflow: hidden;
 }
 
 .workspace-ribbon__group {
     display: flex;
     align-items: center;
     gap: 0.35rem;
+    flex-wrap: wrap;
 }
 
 .workspace-ribbon__label {
@@ -2029,11 +2057,15 @@ onUnmounted(() => {
     font-size: 10px;
     font-family: Inter, sans-serif;
     max-width: 120px;
+    min-width: 0;
+    flex: 1 1 80px;
+    width: 100%;
 }
 
 .enroll-multi {
-    min-width: 220px;
+    min-width: min(220px, 100%);
     max-width: 280px;
+    width: 100%;
     height: 76px;
 }
 
@@ -2066,10 +2098,13 @@ onUnmounted(() => {
 
 .table-wrap {
     overflow-x: auto;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
 }
 
 .mini-table {
     width: 100%;
+    min-width: 480px;
     border-collapse: collapse;
     font-family: Inter, sans-serif;
     font-size: 11px;
@@ -2489,10 +2524,14 @@ onUnmounted(() => {
     --danger: #ff6b7a;
     position: relative;
     min-height: calc(100vh - 64px);
-    padding: clamp(12px, 2vw, 24px);
+    padding: clamp(8px, 2vw, 24px);
     color: var(--text);
     font-family: "Press Start 2P", Inter, system-ui, sans-serif;
     font-size: 10px;
+    /* overflow-x:clip mencegah page-level horizontal scroll tanpa memblokir scroll di canvas-wrapper */
+    overflow-x: clip;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .lab-aurora {
@@ -2500,7 +2539,6 @@ onUnmounted(() => {
     inset: 0;
     pointer-events: none;
     z-index: -1;
-    height: 100dvh;
 }
 .lab-aurora img {
     width: 100%; height: 100%;
@@ -2516,6 +2554,13 @@ onUnmounted(() => {
     z-index: 1;
     display: grid;
     gap: 14px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* Semua direct child grid item tidak boleh overflow */
+.lab-shell > * {
+    min-width: 0;
 }
 
 .lab-topbar,
@@ -2528,10 +2573,16 @@ onUnmounted(() => {
 
 .lab-topbar {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
     padding: 14px 16px;
+    flex-wrap: wrap;
+}
+
+.lab-topbar > div:first-child {
+    min-width: 0;
+    flex: 1 1 0;
 }
 
 .lab-eyebrow {
@@ -2554,6 +2605,8 @@ onUnmounted(() => {
     margin: 6px 0 0;
     font-size: 9px;
     color: var(--muted);
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 .lab-btn {
@@ -2589,6 +2642,9 @@ onUnmounted(() => {
 
 .panel {
     padding: 14px;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .title {
@@ -2647,6 +2703,7 @@ onUnmounted(() => {
     border: 1px solid rgba(148, 163, 184, 0.2);
     border-radius: 0;
     overflow: auto;
+    width: 100%;
 }
 
 .mini-table th {
@@ -2880,6 +2937,29 @@ onUnmounted(() => {
     .modal-enroll-row { font-size: 11px !important; }
 }
 
+@media (max-width: 480px) {
+    .modal-card {
+        padding: 12px !important;
+        max-height: calc(100dvh - 24px);
+        overflow-y: auto;
+    }
+
+    .modal-body {
+        overflow-y: auto;
+        max-height: calc(100dvh - 120px);
+    }
+
+    .modal-head h3 {
+        font-size: 11px !important;
+    }
+
+    .modal-enroll-row {
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+    }
+}
+
 @media (max-width: 900px) {
     .lab-topbar {
         flex-direction: column;
@@ -2888,6 +2968,115 @@ onUnmounted(() => {
 
     .table-actions {
         flex-wrap: wrap;
+    }
+
+    .workspace-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .workspace-toolbar__form {
+        flex-wrap: wrap;
+    }
+
+    .workspace-toolbar .field--mini {
+        max-width: 100%;
+        flex: 1 1 120px;
+    }
+
+    .workspace-ribbon {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .workspace-ribbon__group {
+        flex-wrap: wrap;
+    }
+
+    .visual-preview-head {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .visual-preview-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 600px) {
+    .lab-root {
+        padding: 8px;
+    }
+
+    .lab-topbar {
+        padding: 10px 12px;
+    }
+
+    .lab-title {
+        font-size: 12px !important;
+    }
+
+    .lab-subtitle {
+        font-size: 8px;
+    }
+
+    .mini-table {
+        font-size: 10px;
+    }
+
+    .mini-table th {
+        font-size: 8px;
+        padding: 5px 6px;
+    }
+
+    .mini-table td {
+        padding: 5px 6px;
+        font-size: 10px;
+    }
+
+    .btn-primary,
+    .btn-secondary,
+    .btn-danger {
+        font-size: 8px;
+        padding: 6px 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .workspace-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .workspace-toolbar__form {
+        width: 100%;
+    }
+    .workspace-ribbon {
+        gap: 0.4rem;
+    }
+    .workspace-ribbon__group {
+        flex-wrap: wrap;
+    }
+    .field--mini {
+        max-width: 100%;
+        flex: 1;
+    }
+}
+
+/* Canvas — scroll container mandiri, tidak mendorong halaman */
+.canvas-wrapper {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+
+@media (max-width: 768px) {
+    .canvas-wrapper {
+        max-height: 60vh;
     }
 }
 </style>
