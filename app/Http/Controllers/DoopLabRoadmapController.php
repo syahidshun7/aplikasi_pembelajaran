@@ -270,7 +270,7 @@ class DoopLabRoadmapController extends Controller
 
         $roadmap->update(['updated_by_user_id' => (int) $user->id]);
 
-        return redirect()->route('dooplab.roadmaps.index', $this->workspaceParams($request, $roadmap->uuid));
+        return response()->noContent();
     }
 
     public function destroySection(Request $request, DoopLabRoadmapSection $section): RedirectResponse
@@ -360,7 +360,7 @@ class DoopLabRoadmapController extends Controller
 
         $roadmap->update(['updated_by_user_id' => (int) $user->id]);
 
-        return redirect()->route('dooplab.roadmaps.index', $this->workspaceParams($request, $roadmap->uuid));
+        return response()->noContent();
     }
 
     public function destroyTextBlock(Request $request, DoopLabRoadmapTextBlock $textBlock): RedirectResponse
@@ -477,7 +477,7 @@ class DoopLabRoadmapController extends Controller
 
         $roadmap->update(['updated_by_user_id' => (int) $user->id]);
 
-        return redirect()->route('dooplab.roadmaps.index', $this->workspaceParams($request, $roadmap->uuid));
+        return response()->noContent();
     }
 
     public function destroyNode(Request $request, DoopLabRoadmapNode $node): RedirectResponse

@@ -883,6 +883,7 @@ const persistSectionPosition = (section) => {
         }, {
             preserveState: true,
             preserveScroll: true,
+            showProgress: false,
             onSuccess: () => resolve(),
             onError: (errors) => reject(errors),
             onCancel: () => reject(new Error('cancelled')),
@@ -910,6 +911,7 @@ const persistNodePosition = (node) => {
         }, {
             preserveState: true,
             preserveScroll: true,
+            showProgress: false,
             onSuccess: () => resolve(),
             onError: (errors) => reject(errors),
             onCancel: () => reject(new Error('cancelled')),
@@ -935,6 +937,7 @@ const persistTextBlockPosition = (textBlock) => {
         }, {
             preserveState: true,
             preserveScroll: true,
+            showProgress: false,
             onSuccess: () => resolve(),
             onError: (errors) => reject(errors),
             onCancel: () => reject(new Error('cancelled')),
@@ -951,26 +954,25 @@ const saveLayoutChanges = async () => {
     const nodeUuids = [...dirtyNodeUuids.value];
     const textBlockUuids = [...dirtyTextBlockUuids.value];
 
+    // Clear dirty set segera agar drag berikutnya bisa langsung tandai dirty
+    // lagi tanpa menunggu round-trip server selesai.
+    clearLayoutDirty();
+
     try {
+        const tasks = [];
         for (const uuid of sectionUuids) {
             const section = draftSections.value.find((item) => String(item.uuid) === uuid);
-            if (!section) continue;
-            await persistSectionPosition(section);
+            if (section) tasks.push(persistSectionPosition(section));
         }
-
         for (const uuid of nodeUuids) {
             const node = draftNodes.value.find((item) => String(item.uuid) === uuid);
-            if (!node) continue;
-            await persistNodePosition(node);
+            if (node) tasks.push(persistNodePosition(node));
         }
-
         for (const uuid of textBlockUuids) {
             const textBlock = draftTextBlocks.value.find((item) => String(item.uuid) === uuid);
-            if (!textBlock) continue;
-            await persistTextBlockPosition(textBlock);
+            if (textBlock) tasks.push(persistTextBlockPosition(textBlock));
         }
-
-        clearLayoutDirty();
+        await Promise.allSettled(tasks);
     } catch {
     } finally {
         layoutSaving.value = false;

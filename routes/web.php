@@ -190,6 +190,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/dooplab/roadmap-nodes/{node}', [DoopLabRoadmapController::class, 'destroyNode'])->name('dooplab.roadmaps.nodes.destroy');
     Route::post('/dooplab/roadmaps/{roadmap}/edges', [DoopLabRoadmapController::class, 'storeEdge'])->name('dooplab.roadmaps.edges.store');
     Route::delete('/dooplab/roadmap-edges/{edge}', [DoopLabRoadmapController::class, 'destroyEdge'])->name('dooplab.roadmaps.edges.destroy');
+    Route::patch('/dooplab/roadmap-edges/{edge}', [DoopLabRoadmapController::class, 'updateEdge'])->name('dooplab.roadmaps.edges.update');
     Route::get('/dooplab/my-paths', [DoopLabRoadmapEnrollmentController::class, 'index'])->name('dooplab.roadmaps.enrollments.index');
     Route::get('/dooplab/enrollments/{enrollment}', [DoopLabRoadmapEnrollmentController::class, 'show'])->name('dooplab.roadmaps.enrollments.show');
     Route::post('/dooplab/enrollments', [DoopLabRoadmapEnrollmentController::class, 'store'])->name('dooplab.roadmaps.enrollments.store');
