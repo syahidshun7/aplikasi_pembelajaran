@@ -90,7 +90,7 @@ const removeMember = (member) => {
                     <p class="text-lg text-cyan-300">{{ questCounts?.main ?? 0 }}</p>
                 </div>
                 <div class="border border-purple-700 bg-purple-900/20 px-4 py-3 text-center min-w-[100px]">
-                    <p class="text-[7px] text-purple-400 uppercase mb-1">Optional Quest</p>
+                    <p class="text-[7px] text-purple-400 uppercase mb-1">Side Quest</p>
                     <p class="text-lg text-purple-300">{{ questCounts?.optional ?? 0 }}</p>
                 </div>
             </div>

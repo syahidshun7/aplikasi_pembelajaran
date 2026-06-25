@@ -560,12 +560,14 @@ class SubmissionController extends Controller
                 }
             }
         } elseif (in_array($assessmentType, ['platforming', 'word_match'], true)) {
-            foreach ($questions as $question) {
-                $qUuid = (string) $question->uuid;
+            // Platforming: semua soal mendapat payload aggregate yang sama dari frontend.
+            // Ambil dari soal pertama saja agar tidak double-count.
+            $firstQuestion = $questions->first();
+            if ($firstQuestion) {
+                $qUuid = (string) $firstQuestion->uuid;
                 $payload = json_decode((string) ($answers[$qUuid] ?? '{}'), true) ?: [];
-
-                $correctCount += (int) ($payload['score'] ?? $payload['correct_count'] ?? 0);
-                $totalQuestionsCount += (int) ($payload['total'] ?? 0);
+                $correctCount = (int) ($payload['score'] ?? $payload['correct_count'] ?? 0);
+                $totalQuestionsCount = (int) ($payload['total'] ?? 0);
             }
 
             $correctWeight = $correctCount;
