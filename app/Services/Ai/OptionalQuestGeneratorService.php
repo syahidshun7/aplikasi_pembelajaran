@@ -69,7 +69,7 @@ class OptionalQuestGeneratorService
         $messages = [
             [
                 'role' => 'system',
-                'content' => 'Kamu adalah AI perancang optional quest. Balas HANYA JSON valid, Bahasa Indonesia.',
+                'content' => 'Kamu adalah AI perancang side quest. Balas HANYA JSON valid, Bahasa Indonesia.',
             ],
             [
                 'role' => 'user',
@@ -115,7 +115,7 @@ class OptionalQuestGeneratorService
         $reward = $this->rewardForDifficulty($difficulty);
 
         return Quest::query()->create([
-            'title' => (string) ($payload['title'] ?? 'Optional Quest Draft'),
+            'title' => (string) ($payload['title'] ?? 'Side Quest Draft'),
             'description' => (string) ($payload['description'] ?? ''),
             'difficulty' => $difficulty,
             'reward_gold' => $reward,
@@ -153,7 +153,7 @@ class OptionalQuestGeneratorService
         $messages = [
             [
                 'role' => 'system',
-                'content' => 'Kamu adalah AI perancang optional quest + task bank. Balas HANYA JSON valid, Bahasa Indonesia.',
+                'content' => 'Kamu adalah AI perancang side quest + task bank. Balas HANYA JSON valid, Bahasa Indonesia.',
             ],
             [
                 'role' => 'user',
@@ -267,13 +267,18 @@ class OptionalQuestGeneratorService
 
             $reward = $this->rewardForDifficulty($difficulty);
 
+            $questType = (string) ($payload['quest_type'] ?? Quest::TYPE_OPTIONAL);
+            if (! in_array($questType, [Quest::TYPE_MAIN, Quest::TYPE_OPTIONAL], true)) {
+                $questType = Quest::TYPE_OPTIONAL;
+            }
+
             return Quest::query()->create([
-                'title' => mb_substr(trim((string) ($quest['title'] ?? 'Optional Quest AI')), 0, 255),
+                'title' => mb_substr(trim((string) ($quest['title'] ?? 'Side Quest AI')), 0, 255),
                 'description' => trim((string) ($quest['description'] ?? '')),
                 'difficulty' => $difficulty,
                 'reward_gold' => $reward,
                 'reward_exp' => $reward,
-                'quest_type' => Quest::TYPE_OPTIONAL,
+                'quest_type' => $questType,
                 'status' => $status,
                 'schedule_type' => $scheduleType,
                 'study_group_id' => (int) ($payload['study_group_id'] ?? 0) ?: null,
@@ -294,8 +299,8 @@ class OptionalQuestGeneratorService
         $schema = match ($input['question_type']) {
             'multiple_choice' => '{"question_text": "string", "question_type": "multiple_choice", "options": ["string"], "answer_key": "string", "weight": 1}',
             'essay'           => '{"question_text": "string", "question_type": "essay", "weight": 1}',
-            'platforming'     => '{"question_text": "string (level/judul stage)", "question_type": "platforming", "platforming_config": {"stages": [{"question": "string", "answer": "string"}], "time_limit": 60}, "weight": 1}',
-            'word_match'      => '{"question_text": "string (kalimat dengan ___ sebagai tempat kosong)", "question_type": "word_match", "word_match_config": {"sentence": "string (kalimat asli)", "blanks": ["string (kata yang dihapus)"]}, "weight": 1}',
+            'platforming'     => '{"question_text": "string (judul level/stage)", "question_type": "platforming", "platforming_config": {"stages": [{"prompt": "string (pertanyaan singkat)", "correct_answer": "string (jawaban benar)", "wrong_answers": ["string", "string"]}], "time_limit": 60}, "weight": 1}',
+            'word_match'      => '{"question_text": "string (kalimat asli lengkap)", "question_type": "word_match", "word_match_config": {"sentence": "string (kalimat dengan ___ menggantikan setiap kata yang dihapus)", "blanks": ["string (kata yang dihapus, urutan sesuai ___)", "string"], "distractors": ["string (kata pengecoh yang mirip tapi salah)", "string"]}, "weight": 1}',
             default           => '{"question_text": "string", "question_type": "multiple_choice|essay", "options": ["string"], "answer_key": "string", "weight": 1}',
         };
 
@@ -307,7 +312,7 @@ class OptionalQuestGeneratorService
         $importantNote = trim((string) ($input['ai_note'] ?? ''));
 
         return implode("\n", [
-            'Buat 1 OPTIONAL quest lengkap dengan task bank dan daftar soal berdasarkan input:',
+            'Buat 1 SIDE quest lengkap dengan task bank dan daftar soal berdasarkan input:',
             json_encode($input, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
             $importantNote !== ''
                 ? 'Catatan penting (WAJIB diprioritaskan): '.$importantNote
@@ -326,8 +331,8 @@ class OptionalQuestGeneratorService
             '- Jangan menyertakan indeks huruf (A,B,C) di answer_key; isi teks opsi.',
             '- Untuk essay: biarkan options kosong dan answer_key kosong.',
             '- Jika question_type=mixed, campurkan rasio seimbang.',
-            '- Untuk platforming: setiap soal berisi stages berupa pasangan question+answer (tebak kata/angka saat karakter melewati obstacle). Isi platforming_config.stages.',
-            '- Untuk word_match: soal berupa kalimat dengan kata-kata yang dihapus (ganti dengan ___). Isi word_match_config.sentence (kalimat asli) dan word_match_config.blanks (daftar kata yang dihapus).',
+            '- Untuk platforming: setiap soal berisi stages berupa array. Tiap stage wajib punya field: "prompt" (teks pertanyaan singkat), "correct_answer" (jawaban benar, string), "wrong_answers" (array 2-3 jawaban salah). JANGAN gunakan field "question" — wajib "prompt".',
+            '- Untuk word_match: soal berupa kalimat dengan kata-kata yang dihapus (ganti dengan ___). Isi word_match_config.sentence (kalimat dengan ___), word_match_config.blanks (daftar kata yang dihapus, urutan sesuai posisi ___), dan word_match_config.distractors (2-4 kata pengecoh yang mirip tapi salah — WAJIB ada).',
             '- Jika ada catatan penting, jadikan itu prioritas utama saat menyusun tingkat kesulitan dan gaya soal.',
         ]);
     }
@@ -394,7 +399,7 @@ class OptionalQuestGeneratorService
 
         return [
             'quest' => [
-                'title' => mb_substr(trim((string) ($quest['title'] ?? 'Optional Quest AI')), 0, 255),
+                'title' => mb_substr(trim((string) ($quest['title'] ?? 'Side Quest AI')), 0, 255),
                 'description' => trim((string) ($quest['description'] ?? '')),
                 'difficulty' => $questDifficulty,
                 'learning_objectives' => $this->normalizeStringList($quest['learning_objectives'] ?? []),
@@ -484,7 +489,7 @@ class OptionalQuestGeneratorService
         }
 
         return [
-            'title' => mb_substr(trim((string) ($decoded['title'] ?? 'Optional Quest: Skill Reinforcement')), 0, 255),
+            'title' => mb_substr(trim((string) ($decoded['title'] ?? 'Side Quest: Skill Reinforcement')), 0, 255),
             'description' => $description,
             'difficulty' => $difficulty,
             'learning_objectives' => $learningObjectives,

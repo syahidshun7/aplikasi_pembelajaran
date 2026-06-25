@@ -25,7 +25,7 @@ class GenerateOptionalQuestDrafts extends Command
         {--deadline= : Optional quest deadline}
         {--dry-run : Generate preview only, without saving draft quests}';
 
-    protected $description = 'Generate optional quest drafts from submission patterns using AI advisor pipeline';
+    protected $description = 'Generate side quest drafts from submission patterns using AI advisor pipeline';
 
     public function handle(OptionalQuestGeneratorService $generator): int
     {
@@ -68,7 +68,7 @@ class GenerateOptionalQuestDrafts extends Command
             ]);
 
             $draft = $preview['draft'] ?? [];
-            $title = trim((string) ($draft['title'] ?? 'Optional Quest Draft'));
+            $title = trim((string) ($draft['title'] ?? 'Side Quest Draft'));
 
             if ($dryRun) {
                 $this->table(['TITLE', 'DIFFICULTY', 'PROVIDER', 'FALLBACK'], [[

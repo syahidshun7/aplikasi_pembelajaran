@@ -63,6 +63,7 @@ const aiScopeForm = useForm({
     question_type: 'mixed',
     question_count: 10,
     difficulty: 'C-Rank',
+    quest_type: 'optional',
     publish_mode: 'draft',
     available_from: '',
     available_until: '',
@@ -431,6 +432,7 @@ const commitThemeBundle = async () => {
         const payload = {
             bundle: JSON.parse(JSON.stringify(bundle)),
             publish_mode: aiScopeForm.publish_mode,
+            quest_type: aiScopeForm.quest_type,
             available_from: aiScopeForm.available_from || null,
             available_until: aiScopeForm.available_until || null,
             deadline: aiScopeForm.deadline || null,
@@ -537,7 +539,7 @@ const commitThemeBundle = async () => {
                                         <option value="optional">OPTIONAL_BONUS</option>
                                     </select>
                                     <p class="mt-2 text-[7px] text-slate-500 uppercase italic">
-                                        *Optional quest hanya memberi exp dan gold, tidak masuk average akademik.
+                                        *Side quest hanya memberi exp dan gold, tidak masuk average akademik.
                                     </p>
                                 </div>
 
@@ -734,6 +736,13 @@ const commitThemeBundle = async () => {
                                         <option value="B-Rank">B-Rank</option>
                                         <option value="A-Rank">A-Rank</option>
                                         <option value="S-Rank">S-Rank</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block mb-1 text-[7px] text-slate-300 uppercase">Quest Type</label>
+                                    <select v-model="aiScopeForm.quest_type" class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none text-[9px]">
+                                        <option value="optional">SIDE_QUEST</option>
+                                        <option value="main">MAIN_QUEST</option>
                                     </select>
                                 </div>
                                 <div>
