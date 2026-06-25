@@ -446,7 +446,7 @@ const commitThemeBundle = async () => {
         themePreview.value = null;
         showAiGeneratorModal.value = false;
         showFormModal.value = false;
-        router.reload({ only: ['quests'], preserveState: true, preserveScroll: true });
+        router.reload({ only: ['quests', 'taskBanks'], preserveState: true, preserveScroll: true });
     } catch (error) {
         const backendMessage = String(error?.response?.data?.message || '').trim();
         const validationErrors = error?.response?.data?.errors;
