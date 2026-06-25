@@ -38,7 +38,7 @@
                 </div>
 
                 <!-- Pipeline stepper -->
-                <div class="bg-slate-950 border border-slate-800 p-3 rounded">
+                <div v-if="!isAutoCheckedType" class="bg-slate-950 border border-slate-800 p-3 rounded">
                     <div class="flex items-center justify-between mb-3">
                         <p class="text-[9px] text-slate-400 uppercase">Pipeline Progress</p>
                         <button
@@ -1194,6 +1194,7 @@ const taskQuestions = computed(() => {
 });
 const isTaskBankSubmission = computed(() => taskQuestions.value.length > 0);
 const taskBankType = computed(() => taskBank.value?.assessment_type || null);
+const isAutoCheckedType = computed(() => ['multiple_choice', 'platforming', 'word_match'].includes(taskBankType.value));
 const extractionResult = computed(() => props.submission?.extraction_result || null);
 const extractionStatus = computed(() => extractionResult.value?.extraction_status || null);
 const extractionWarnings = computed(() => Array.isArray(extractionResult.value?.warnings) ? extractionResult.value.warnings : []);
