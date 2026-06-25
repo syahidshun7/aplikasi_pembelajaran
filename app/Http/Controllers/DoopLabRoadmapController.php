@@ -12,6 +12,7 @@ use App\Models\Guide;
 use App\Models\Quest;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -234,7 +235,7 @@ class DoopLabRoadmapController extends Controller
         return redirect()->route('dooplab.roadmaps.index', $this->workspaceParams($request, $roadmap->uuid));
     }
 
-    public function updateSection(Request $request, DoopLabRoadmapSection $section): RedirectResponse
+    public function updateSection(Request $request, DoopLabRoadmapSection $section): SymfonyResponse
     {
         $user = $request->user();
         $roadmap = $section->roadmap;
@@ -270,7 +271,7 @@ class DoopLabRoadmapController extends Controller
 
         $roadmap->update(['updated_by_user_id' => (int) $user->id]);
 
-        return response()->noContent();
+        return redirect()->route('dooplab.roadmaps.index', $this->workspaceParams($request, $roadmap->uuid));
     }
 
     public function destroySection(Request $request, DoopLabRoadmapSection $section): RedirectResponse
@@ -324,7 +325,7 @@ class DoopLabRoadmapController extends Controller
         return redirect()->route('dooplab.roadmaps.index', $this->workspaceParams($request, $roadmap->uuid));
     }
 
-    public function updateTextBlock(Request $request, DoopLabRoadmapTextBlock $textBlock): RedirectResponse
+    public function updateTextBlock(Request $request, DoopLabRoadmapTextBlock $textBlock): SymfonyResponse
     {
         $user = $request->user();
         $roadmap = $textBlock->roadmap;
@@ -360,7 +361,7 @@ class DoopLabRoadmapController extends Controller
 
         $roadmap->update(['updated_by_user_id' => (int) $user->id]);
 
-        return response()->noContent();
+        return redirect()->route('dooplab.roadmaps.index', $this->workspaceParams($request, $roadmap->uuid));
     }
 
     public function destroyTextBlock(Request $request, DoopLabRoadmapTextBlock $textBlock): RedirectResponse
@@ -428,7 +429,7 @@ class DoopLabRoadmapController extends Controller
         return redirect()->route('dooplab.roadmaps.index', $this->workspaceParams($request, $roadmap->uuid));
     }
 
-    public function updateNode(Request $request, DoopLabRoadmapNode $node): RedirectResponse
+    public function updateNode(Request $request, DoopLabRoadmapNode $node): SymfonyResponse
     {
         $user = $request->user();
         $roadmap = $node->roadmap;
@@ -477,7 +478,7 @@ class DoopLabRoadmapController extends Controller
 
         $roadmap->update(['updated_by_user_id' => (int) $user->id]);
 
-        return response()->noContent();
+        return redirect()->route('dooplab.roadmaps.index', $this->workspaceParams($request, $roadmap->uuid));
     }
 
     public function destroyNode(Request $request, DoopLabRoadmapNode $node): RedirectResponse

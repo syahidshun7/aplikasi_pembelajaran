@@ -169,6 +169,24 @@
 - **Edge tidak bisa diberi label/kondisi** (mis. "jika skor > 80") - selalu linear approval.
 - **Belum ada template roadmap** - tiap mentor bikin dari nol.
 
+### Bug Fix — 2026-06-25 (Canvas Roadmap `Index.vue`)
+
+**1. Posisi node/section reset saat tambah item baru**
+- Root cause: `watch(activeRoadmap)` hanya melindungi item yang ada di `dirtySectionUuids`/`dirtyNodeUuids`. Saat `submitNode` sukses, Inertia refresh props → watcher jalan → dirty set sudah dikosongkan oleh `clearLayoutDirty()` → posisi draft di-overwrite data lama server.
+- Fix: snapshot seluruh posisi draft (`snapshotDraftPositions()`) sebelum merge incoming. Posisi dipertahankan jika item: (a) masih dirty, (b) sedang di-drag (`dragState`), atau (c) `layoutSaving` aktif.
+
+**2. Scroll halaman terblokir saat kursor di area canvas**
+- Root cause 1: `touch-action: none` di CSS statis `.section-box`, `.node-box`, `.text-block-box` memblokir semua gesture touch termasuk scroll.
+- Root cause 2: `overflow: auto` di `.canvas-wrapper` meng-intercept mouse wheel vertikal.
+- Fix: hapus `touch-action: none` dari CSS, ganti ke inline style dinamis — `none` hanya saat elemen sedang di-drag, `pan-x pan-y` saat idle. Ubah `.canvas-wrapper` ke `overflow-x: auto; overflow-y: visible` agar scroll vertikal naik ke halaman secara natural.
+
+**3. `preventDefault` di `pointerdown` memblokir scroll sebelum drag dimulai**
+- Fix: pindahkan `preventDefault()` + `setPointerCapture()` ke `onDragMove`, aktif hanya setelah pointer bergerak > 4px (threshold drag). Flag `started: false` di `dragState` melacak status ini.
+
+**4. Node dengan `section_id` bisa di-drag keluar dari section**
+- Root cause: `maxX`/`maxY` di `startDrag` dihitung dari ukuran board, bukan bounds section parent.
+- Fix: jika `type === 'node'` dan `section_id` ada, cari section parent di `draftSections`, hitung `minX/minY` dari posisi section dan `maxX/maxY` dari posisi + ukuran section dikurangi ukuran node. `clampValue` di `onDragMove` pakai `minX/minY` sehingga node terkunci dalam section-nya.
+
 ## 2026-06-20 (Todo List)
 
 - Mulai melakukan analisis fitur Todo List DoopLab berdasarkan kode yang ada di repo.
