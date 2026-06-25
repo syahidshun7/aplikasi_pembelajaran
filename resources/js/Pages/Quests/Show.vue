@@ -778,20 +778,29 @@ const unlockLateQuest = () => {
                                 </div>
                                 <div>
                                     <label class="block text-[12px] text-slate-500 mb-2 uppercase">Raw File:</label>
-                                    <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.txt" @change="handleFileChange" class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[12px] outline-none file:mr-4 file:border-0 file:bg-cyan-900/40 file:px-3 file:py-2 file:text-cyan-300 file:uppercase" />
-                                    <p class="mt-2 text-[10px] text-slate-500 font-sans">PDF, DOCX, TXT, JPG, PNG, WEBP. Max 10MB. File hanya disimpan mentah.</p>
-                                    <p v-if="form.file" class="mt-2 text-[10px] text-cyan-300 font-sans">Selected: {{ form.file.name }}</p>
+                                    <label class="flex items-center gap-3 w-full bg-[#0d1117] border-2 border-slate-800 p-3 cursor-pointer hover:border-cyan-700 transition-colors">
+                                        <span class="shrink-0 px-3 py-2 bg-cyan-900/40 border border-cyan-700 text-cyan-300 text-[10px] uppercase font-['Press_Start_2P']">Choose File</span>
+                                        <span class="text-[11px] text-slate-400 font-sans truncate">{{ form.file ? form.file.name : 'No file chosen' }}</span>
+                                        <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.txt" @change="handleFileChange" class="hidden" />
+                                    </label>
+                                    <p class="mt-2 text-[10px] text-slate-500 font-sans">PDF, DOCX, TXT, JPG, PNG, WEBP. Max 10MB.</p>
+                                    <!-- File yang sudah diupload sebelumnya -->
+                                    <div v-if="existingSubmission?.file_path" class="mt-3 p-3 border border-slate-700 bg-black/30 flex items-center justify-between gap-3">
+                                        <div class="min-w-0">
+                                            <p class="text-[9px] text-slate-400 uppercase mb-1">Current File:</p>
+                                            <p class="text-[11px] text-cyan-300 font-sans truncate">{{ existingSubmission.file_path.split('/').pop() }}</p>
+                                        </div>
+                                        <a :href="`/storage/${existingSubmission.file_path}`" target="_blank" class="shrink-0 px-3 py-2 border border-cyan-700 text-cyan-400 text-[9px] uppercase hover:bg-cyan-900/30 font-['Press_Start_2P']">VIEW</a>
+                                    </div>
                                 </div>
                             </div>
                             <button
                                 type="submit"
                                 :disabled="form.processing"
-                                :class="[
-                                    'w-full py-4 border-2 font-bold uppercase text-[12px] transition-colors',
-                                    isEditSubmissionMode
-                                        ? 'bg-yellow-900/40 border-yellow-400 text-yellow-400 hover:bg-yellow-500/20'
-                                        : 'bg-cyan-900/40 border-cyan-400 text-cyan-400 hover:bg-cyan-500/20'
-                                ]"
+                                class="w-full py-4 border-2 font-bold uppercase text-[12px] transition-colors"
+                                :class="isEditSubmissionMode
+                                    ? 'bg-yellow-900/40 border-yellow-400 text-yellow-400 hover:bg-yellow-500/20'
+                                    : 'bg-cyan-900/40 border-cyan-400 text-cyan-400 hover:bg-cyan-500/20'"
                             >
                                 {{ form.processing ? (isEditSubmissionMode ? 'UPDATING...' : 'TRANSMITTING...') : (isEditSubmissionMode ? 'UPDATE' : 'SUBMIT') }}
                             </button>
