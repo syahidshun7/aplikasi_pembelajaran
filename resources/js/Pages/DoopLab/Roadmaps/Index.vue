@@ -883,6 +883,7 @@ const persistSectionPosition = (section) => {
         }, {
             preserveState: true,
             preserveScroll: true,
+            showProgress: false,
             onSuccess: () => resolve(),
             onError: (errors) => reject(errors),
             onCancel: () => reject(new Error('cancelled')),
@@ -910,6 +911,7 @@ const persistNodePosition = (node) => {
         }, {
             preserveState: true,
             preserveScroll: true,
+            showProgress: false,
             onSuccess: () => resolve(),
             onError: (errors) => reject(errors),
             onCancel: () => reject(new Error('cancelled')),
@@ -935,6 +937,7 @@ const persistTextBlockPosition = (textBlock) => {
         }, {
             preserveState: true,
             preserveScroll: true,
+            showProgress: false,
             onSuccess: () => resolve(),
             onError: (errors) => reject(errors),
             onCancel: () => reject(new Error('cancelled')),
@@ -951,31 +954,41 @@ const saveLayoutChanges = async () => {
     const nodeUuids = [...dirtyNodeUuids.value];
     const textBlockUuids = [...dirtyTextBlockUuids.value];
 
+    // Clear dirty set segera agar drag berikutnya bisa langsung tandai dirty
+    // lagi tanpa menunggu round-trip server selesai.
+    clearLayoutDirty();
+
     try {
+        const tasks = [];
         for (const uuid of sectionUuids) {
             const section = draftSections.value.find((item) => String(item.uuid) === uuid);
-            if (!section) continue;
-            await persistSectionPosition(section);
+            if (section) tasks.push(persistSectionPosition(section));
         }
-
         for (const uuid of nodeUuids) {
             const node = draftNodes.value.find((item) => String(item.uuid) === uuid);
-            if (!node) continue;
-            await persistNodePosition(node);
+            if (node) tasks.push(persistNodePosition(node));
         }
-
         for (const uuid of textBlockUuids) {
             const textBlock = draftTextBlocks.value.find((item) => String(item.uuid) === uuid);
-            if (!textBlock) continue;
-            await persistTextBlockPosition(textBlock);
+            if (textBlock) tasks.push(persistTextBlockPosition(textBlock));
         }
-
-        clearLayoutDirty();
+        await Promise.allSettled(tasks);
     } catch {
     } finally {
         layoutSaving.value = false;
     }
 };
+
+// Auto-save: simpan otomatis 2 detik setelah tidak ada perubahan layout baru.
+// Tidak jalan saat drag aktif agar tidak mengganggu gerakan node.
+let autoSaveTimer = null;
+watch(hasPendingLayoutChanges, (pending) => {
+    if (!pending) return;
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+        if (!dragState.value) saveLayoutChanges();
+    }, 2000);
+});
 
 const stopDragListeners = () => {
     window.removeEventListener('pointermove', onDragMove);
@@ -987,10 +1000,23 @@ const onDragMove = (event) => {
     if (!dragState.value) return;
     if (Number(event.pointerId || 0) !== Number(dragState.value.pointerId || 0)) return;
 
-    if (dragState.value.mode === 'resize') {
-        const deltaX = event.clientX - dragState.value.startClientX;
-        const deltaY = event.clientY - dragState.value.startClientY;
+    const deltaX = event.clientX - dragState.value.startClientX;
+    const deltaY = event.clientY - dragState.value.startClientY;
 
+    // Threshold 4px: baru mulai drag setelah pointer benar-benar bergerak.
+    // Sebelum threshold, biarkan scroll container tetap bisa di-scroll.
+    if (!dragState.value.started) {
+        if (Math.abs(deltaX) < 4 && Math.abs(deltaY) < 4) return;
+        dragState.value.started = true;
+        // Sekarang ambil pointer capture dan blokir scroll.
+        if (dragState.value.sourceElement?.setPointerCapture) {
+            dragState.value.sourceElement.setPointerCapture(dragState.value.pointerId);
+        }
+    }
+
+    event.preventDefault();
+
+    if (dragState.value.mode === 'resize') {
         const nextWidth = clampValue(
             Math.round(dragState.value.originWidth + deltaX),
             Number(dragState.value.minWidth || 0),
@@ -1026,16 +1052,14 @@ const onDragMove = (event) => {
         return;
     }
 
-    const deltaX = event.clientX - dragState.value.startClientX;
-    const deltaY = event.clientY - dragState.value.startClientY;
     const nextX = clampValue(
         Math.round(dragState.value.originX + deltaX),
-        0,
+        Number(dragState.value.minX || 0),
         Number(dragState.value.maxX || 0),
     );
     const nextY = clampValue(
         Math.round(dragState.value.originY + deltaY),
-        0,
+        Number(dragState.value.minY || 0),
         Number(dragState.value.maxY || 0),
     );
 
@@ -1080,6 +1104,10 @@ const onDragEnd = (event) => {
     const currentDrag = { ...dragState.value };
     dragState.value = null;
     stopDragListeners();
+
+    // Jika drag belum benar-benar dimulai (hanya klik/tap tanpa gerak),
+    // tidak ada perubahan posisi → tidak perlu mark dirty.
+    if (!currentDrag.started) return;
 
     if (currentDrag.type === 'section') {
         const item = draftSections.value.find((section) => String(section.uuid) === currentDrag.uuid);
@@ -1127,8 +1155,21 @@ const startDrag = (type, item, event, mode = 'move') => {
     const itemWidth = Number(item.width || (type === 'section' ? 500 : (type === 'text' ? 320 : 180)));
     const itemHeight = Number(item.height || (type === 'section' ? 260 : (type === 'text' ? 120 : 72)));
     const boardSize = getBoardDimensions();
-    const maxX = Math.max(0, boardSize.width - Math.round(itemWidth));
-    const maxY = Math.max(0, boardSize.height - Math.round(itemHeight));
+
+    // Jika node punya section, batasi drag dalam bounds section-nya.
+    let minX = 0, minY = 0;
+    let maxX = Math.max(0, boardSize.width - Math.round(itemWidth));
+    let maxY = Math.max(0, boardSize.height - Math.round(itemHeight));
+
+    if (type === 'node' && mode === 'move' && Number(item.section_id || 0)) {
+        const parentSection = draftSections.value.find((s) => Number(s.id) === Number(item.section_id));
+        if (parentSection) {
+            minX = Number(parentSection.x || 0);
+            minY = Number(parentSection.y || 0);
+            maxX = Math.max(minX, Number(parentSection.x || 0) + Number(parentSection.width || 0) - Math.round(itemWidth));
+            maxY = Math.max(minY, Number(parentSection.y || 0) + Number(parentSection.height || 0) - Math.round(itemHeight));
+        }
+    }
     const maxWidth = Math.max(
         mode === 'resize' ? Number(item.x || 0) : 0,
         boardSize.width - Math.round(Number(item.x || 0)),
@@ -1139,11 +1180,9 @@ const startDrag = (type, item, event, mode = 'move') => {
     );
     const sourceElement = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
 
-    event.preventDefault();
-
-    if (sourceElement?.setPointerCapture) {
-        sourceElement.setPointerCapture(event.pointerId);
-    }
+    // Jangan preventDefault di sini agar scroll tetap bisa berjalan.
+    // preventDefault baru dipanggil di onDragMove saat drag benar-benar dimulai
+    // (pointer bergerak melewati threshold 4px).
 
     dragState.value = {
         type,
@@ -1163,6 +1202,10 @@ const startDrag = (type, item, event, mode = 'move') => {
         maxHeight,
         maxX,
         maxY,
+        minX,
+        minY,
+        // Flag: apakah drag benar-benar sudah dimulai (threshold terlampaui)
+        started: false,
     };
 
     window.addEventListener('pointermove', onDragMove);
@@ -1173,6 +1216,20 @@ const startDrag = (type, item, event, mode = 'move') => {
 const isDragging = (type, uuid) => {
     return dragState.value?.type === type && dragState.value?.uuid === String(uuid || '');
 };
+
+// Snapshot posisi draft saat ini ke Map agar tidak hilang saat watch jalan
+// di tengah proses save atau setelah add node/section baru.
+const snapshotDraftPositions = () => {
+    const sections = new Map();
+    const nodes = new Map();
+    const texts = new Map();
+    for (const s of draftSections.value) sections.set(String(s.uuid), s);
+    for (const n of draftNodes.value) nodes.set(String(n.uuid), n);
+    for (const t of draftTextBlocks.value) texts.set(String(t.uuid), t);
+    return { sections, nodes, texts };
+};
+
+const lastRoadmapUuid = ref('');
 
 watch(activeRoadmap, () => {
     const incomingSections = Array.isArray(activeRoadmap.value?.sections)
@@ -1185,65 +1242,51 @@ watch(activeRoadmap, () => {
         ? activeRoadmap.value.text_blocks.map(cloneTextBlock)
         : [];
 
-    const dirtySecUuids = dirtySectionUuids.value;
-    const dirtyNdUuids = dirtyNodeUuids.value;
-    const dirtyTxtUuids = dirtyTextBlockUuids.value;
+    // Ambil snapshot SEBELUM overwrite agar posisi yang belum disimpan tetap aman.
+    // Ini mencakup: (1) item dirty, (2) item yang sedang di-drag, dan
+    // (3) semua item lain yang sudah ada di draft (posisi paling baru).
+    const snap = snapshotDraftPositions();
+    const draggingUuid = dragState.value?.uuid ? String(dragState.value.uuid) : '';
+
+    const mergeLayout = (incoming, existing) => {
+        if (!existing) return incoming;
+        return {
+            ...incoming,
+            x: existing.x,
+            y: existing.y,
+            width: existing.width,
+            height: existing.height,
+            font_size: existing.font_size,
+            text_align: existing.text_align,
+            text_valign: existing.text_valign,
+        };
+    };
 
     draftSections.value = incomingSections.map((incoming) => {
-        if (dirtySecUuids.has(String(incoming.uuid))) {
-            const existing = draftSections.value.find((s) => String(s.uuid) === String(incoming.uuid));
-            if (existing) {
-                return {
-                    ...incoming,
-                    x: existing.x,
-                    y: existing.y,
-                    width: existing.width,
-                    height: existing.height,
-                    font_size: existing.font_size,
-                    text_align: existing.text_align,
-                    text_valign: existing.text_valign,
-                    resource_items: existing.resource_items,
-                };
-            }
+        const uuid = String(incoming.uuid);
+        const existing = snap.sections.get(uuid);
+        // Pertahankan posisi draft jika: item sedang dirty, sedang di-drag,
+        // atau sedang ada operasi save (layoutSaving) — aman untuk semua skenario.
+        if (existing && (dirtySectionUuids.value.has(uuid) || uuid === draggingUuid || layoutSaving.value)) {
+            return mergeLayout(incoming, existing);
         }
         return incoming;
     });
 
     draftNodes.value = incomingNodes.map((incoming) => {
-        if (dirtyNdUuids.has(String(incoming.uuid))) {
-            const existing = draftNodes.value.find((n) => String(n.uuid) === String(incoming.uuid));
-            if (existing) {
-                return {
-                    ...incoming,
-                    x: existing.x,
-                    y: existing.y,
-                    width: existing.width,
-                    height: existing.height,
-                    font_size: existing.font_size,
-                    text_align: existing.text_align,
-                    text_valign: existing.text_valign,
-                };
-            }
+        const uuid = String(incoming.uuid);
+        const existing = snap.nodes.get(uuid);
+        if (existing && (dirtyNodeUuids.value.has(uuid) || uuid === draggingUuid || layoutSaving.value)) {
+            return { ...mergeLayout(incoming, existing), resource_items: existing.resource_items };
         }
         return incoming;
     });
 
     draftTextBlocks.value = incomingTextBlocks.map((incoming) => {
-        if (dirtyTxtUuids.has(String(incoming.uuid))) {
-            const existing = draftTextBlocks.value.find((t) => String(t.uuid) === String(incoming.uuid));
-            if (existing) {
-                return {
-                    ...incoming,
-                    content: existing.content,
-                    x: existing.x,
-                    y: existing.y,
-                    width: existing.width,
-                    height: existing.height,
-                    font_size: existing.font_size,
-                    text_align: existing.text_align,
-                    text_valign: existing.text_valign,
-                };
-            }
+        const uuid = String(incoming.uuid);
+        const existing = snap.texts.get(uuid);
+        if (existing && (dirtyTextBlockUuids.value.has(uuid) || uuid === draggingUuid || layoutSaving.value)) {
+            return { ...mergeLayout(incoming, existing), content: existing.content };
         }
         return incoming;
     });
@@ -1251,8 +1294,16 @@ watch(activeRoadmap, () => {
     resetSectionForm();
     resetNodeForm();
     resetTextBlockForm();
-    inlineTitleDraft.value = null;
-    selectedItem.value = null;
+
+    // Reset selection & inline edit hanya jika roadmap yang aktif berganti,
+    // bukan saat update parsial (tambah node, save, dll).
+    const incomingUuid = String(activeRoadmap.value?.uuid || '');
+    if (incomingUuid !== lastRoadmapUuid.value) {
+        lastRoadmapUuid.value = incomingUuid;
+        inlineTitleDraft.value = null;
+        selectedItem.value = null;
+    }
+
     edgeForm.reset();
     edgeForm.stroke_color = '#334155';
     edgeForm.curvature = 0.35;
@@ -1263,7 +1314,30 @@ watch(pageUrl, () => {
     syncWorkspaceModeFromUrl();
 }, { immediate: true });
 
+// Saat scroll di area canvas, jika canvas sudah mentok (atau scroll vertikal),
+// teruskan ke halaman agar user tetap bisa scroll halaman.
+const onCanvasWheel = (event) => {
+    const el = event.currentTarget;
+    const atTop = el.scrollTop === 0;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+    const atLeft = el.scrollLeft === 0;
+    const atRight = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+
+    const scrollingVertically = Math.abs(event.deltaY) > Math.abs(event.deltaX);
+    const scrollingHorizontally = !scrollingVertically;
+
+    const wouldBubble =
+        (scrollingVertically && ((event.deltaY < 0 && atTop) || (event.deltaY > 0 && atBottom))) ||
+        (scrollingHorizontally && ((event.deltaX < 0 && atLeft) || (event.deltaX > 0 && atRight)));
+
+    if (wouldBubble) {
+        // Canvas sudah mentok — scroll halaman
+        window.scrollBy({ top: event.deltaY, left: 0, behavior: 'auto' });
+    }
+};
+
 onUnmounted(() => {
+    clearTimeout(autoSaveTimer);
     stopDragListeners();
 });
 </script>
@@ -1510,7 +1584,7 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <div v-if="hasActiveRoadmap" class="panel overflow-auto canvas-wrapper">
+                <div v-if="hasActiveRoadmap" class="panel canvas-wrapper" @wheel.passive="onCanvasWheel">
                     <div ref="boardRef" class="roadmap-board" :style="{ width: `${boardWidth}px`, height: `${boardHeight}px` }" @pointerdown.self="clearSelectedItem">
                         <svg class="edge-layer" :width="boardWidth" :height="boardHeight">
                             <defs>
@@ -1567,6 +1641,7 @@ onUnmounted(() => {
                                 background: section.bg_color,
                                 color: section.text_color,
                                 justifyContent: resolveVerticalJustify(section.text_valign, 'top'),
+                                touchAction: isDragging('section', section.uuid) ? 'none' : 'pan-x pan-y',
                             }"
                             @click.stop="selectItem('section', section)"
                             @pointerdown="startDrag('section', section, $event)"
@@ -1613,6 +1688,7 @@ onUnmounted(() => {
                                 background: textBlock.bg_color,
                                 color: textBlock.text_color,
                                 justifyContent: resolveVerticalJustify(textBlock.text_valign, 'top'),
+                                touchAction: isDragging('text', textBlock.uuid) ? 'none' : 'pan-x pan-y',
                             }"
                             @click.stop="selectItem('text', textBlock)"
                             @pointerdown="startDrag('text', textBlock, $event)"
@@ -1663,6 +1739,7 @@ onUnmounted(() => {
                                 background: node.bg_color,
                                 color: node.text_color,
                                 justifyContent: resolveVerticalJustify(node.text_valign, 'middle'),
+                                touchAction: isDragging('node', node.uuid) ? 'none' : 'pan-x pan-y',
                             }"
                             @click.stop="handleNodeClickForConnect(node) || selectItem('node', node)"
                             @pointerdown="startDrag('node', node, $event)"
@@ -2259,7 +2336,6 @@ onUnmounted(() => {
     flex-direction: column;
     cursor: grab;
     user-select: none;
-    touch-action: none;
     z-index: 0;
 }
 
@@ -2282,7 +2358,6 @@ onUnmounted(() => {
     padding: 10px;
     cursor: grab;
     user-select: none;
-    touch-action: none;
     z-index: 2;
 }
 
@@ -2296,7 +2371,6 @@ onUnmounted(() => {
     padding: 12px;
     cursor: grab;
     user-select: none;
-    touch-action: none;
     z-index: 1;
     white-space: pre-wrap;
 }
@@ -3069,14 +3143,17 @@ onUnmounted(() => {
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
-    overflow: auto;
+    overflow-x: auto;
+    overflow-y: visible;
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    overscroll-behavior-x: contain;
 }
 
 @media (max-width: 768px) {
     .canvas-wrapper {
         max-height: 60vh;
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
 }
 </style>
