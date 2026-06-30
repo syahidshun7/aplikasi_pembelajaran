@@ -142,6 +142,8 @@ const showEntryModal = ref(false);
 const entryModalMode = ref('create');
 const editingEntryUuid = ref(null);
 const entryDocPreviews = ref([]);
+const entryDocCompressionSummary = ref('');
+const entryDocCompressing = ref(false);
 const showEntryDetailModal = ref(false);
 const detailEntry = ref(null);
 const detailImageIndex = ref(0);
@@ -175,10 +177,11 @@ const openEntryModal = (entry = null) => {
 };
 
 const clearEntryDocPreviews = () => {
-    entryDocPreviews.value.forEach((url) => {
-        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+    entryDocPreviews.value.forEach((preview) => {
+        if (preview?.url?.startsWith('blob:')) URL.revokeObjectURL(preview.url);
     });
     entryDocPreviews.value = [];
+    entryDocCompressionSummary.value = '';
 };
 
 const closeEntryModal = () => {
@@ -187,18 +190,124 @@ const closeEntryModal = () => {
     clearEntryDocPreviews();
 };
 
-const onEntryDocChange = (e) => {
+const formatFileSize = (bytes) => {
+    const value = Number(bytes || 0);
+    if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))}KB`;
+    return `${(value / 1024 / 1024).toFixed(1)}MB`;
+};
+
+const blobToImage = (blob) => new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const image = new Image();
+    image.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(image);
+    };
+    image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('IMAGE_LOAD_FAILED'));
+    };
+    image.src = url;
+});
+
+const canvasToBlob = (canvas, type, quality) => new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), type, quality);
+});
+
+const createEntryDocPreviews = (files) => files.map((file) => ({
+    url: URL.createObjectURL(file),
+    name: file.name || 'Dokumentasi',
+}));
+
+const removeEntryDoc = (index) => {
+    const nextFiles = [...entryForm.documentation];
+    const nextPreviews = [...entryDocPreviews.value];
+    const [removedPreview] = nextPreviews.splice(index, 1);
+
+    if (removedPreview?.url?.startsWith('blob:')) {
+        URL.revokeObjectURL(removedPreview.url);
+    }
+
+    nextFiles.splice(index, 1);
+    entryForm.documentation = nextFiles;
+    entryDocPreviews.value = nextPreviews;
+
+    if (!nextFiles.length) {
+        entryDocCompressionSummary.value = '';
+        return;
+    }
+
+    const remainingSize = nextFiles.reduce((total, file) => total + file.size, 0);
+    entryDocCompressionSummary.value = `${nextFiles.length} foto siap diupload (${formatFileSize(remainingSize)})`;
+};
+
+const compressLogbookImage = async (file) => {
+    if (!file?.type?.startsWith('image/')) return file;
+
+    const maxSide = 1600;
+    const targetType = 'image/jpeg';
+    const quality = file.size > 2.5 * 1024 * 1024 ? 0.72 : 0.8;
+    const image = await blobToImage(file);
+    const ratio = Math.min(1, maxSide / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
+    const width = Math.max(1, Math.round((image.naturalWidth || image.width) * ratio));
+    const height = Math.max(1, Math.round((image.naturalHeight || image.height) * ratio));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext('2d', { alpha: false });
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    const blob = await canvasToBlob(canvas, targetType, quality);
+    if (!blob || blob.size >= file.size) return file;
+
+    const safeName = String(file.name || 'documentation.jpg').replace(/\.[^.]+$/, '');
+    return new File([blob], `${safeName}.jpg`, {
+        type: targetType,
+        lastModified: Date.now(),
+    });
+};
+
+const onEntryDocChange = async (e) => {
     const files = Array.from(e.target?.files || []).slice(0, 5);
     clearEntryDocPreviews();
-    entryForm.documentation = files;
-    entryDocPreviews.value = files.map((file) => URL.createObjectURL(file));
+    entryForm.documentation = [];
     if (e.target?.files?.length > 5) {
         toast.error('MAKSIMAL 5 FOTO', 'Hanya 5 foto pertama yang akan diupload.');
+    }
+
+    if (!files.length) return;
+
+    entryDocCompressing.value = true;
+    entryDocCompressionSummary.value = 'Mengompres foto...';
+
+    try {
+        const originalSize = files.reduce((total, file) => total + file.size, 0);
+        const compressedFiles = await Promise.all(files.map((file) => compressLogbookImage(file)));
+        const compressedSize = compressedFiles.reduce((total, file) => total + file.size, 0);
+
+        entryForm.documentation = compressedFiles;
+        entryDocPreviews.value = createEntryDocPreviews(compressedFiles);
+        entryDocCompressionSummary.value = `Dikompres: ${formatFileSize(originalSize)} -> ${formatFileSize(compressedSize)}`;
+    } catch (error) {
+        entryForm.documentation = files;
+        entryDocPreviews.value = createEntryDocPreviews(files);
+        entryDocCompressionSummary.value = 'Kompresi gagal, file asli akan digunakan.';
+        toast.error('KOMPRESI GAGAL', 'File asli tetap dipakai. Coba pilih foto yang lebih kecil jika upload gagal.');
+    } finally {
+        entryDocCompressing.value = false;
     }
 };
 
 const submitEntry = () => {
     if (!selectedLogbook.value) return;
+    if (entryDocCompressing.value) {
+        toast.error('TUNGGU SEBENTAR', 'Foto masih sedang dikompres.');
+        return;
+    }
     const isEdit = entryModalMode.value === 'edit';
     const opts = {
         preserveScroll: true,
@@ -594,26 +703,41 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
                         <textarea v-model="entryForm.result" rows="2" maxlength="2000" placeholder="Apa yang dicapai / dihasilkan?"></textarea>
                     </label>
                     <label class="todo-field">
-                        <span>Dokumentasi (maks 5 foto, 5MB/foto)</span>
-                        <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" multiple @change="onEntryDocChange">
+                        <span>Dokumentasi (maks 5 foto, auto-compress)</span>
+                        <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" multiple :disabled="entryDocCompressing" @change="onEntryDocChange">
+                        <small v-if="entryDocCompressionSummary" class="todo-field-note">{{ entryDocCompressionSummary }}</small>
                         <small v-if="entryForm.errors.documentation" class="todo-error">{{ entryForm.errors.documentation }}</small>
                         <small v-if="entryForm.errors['documentation.0']" class="todo-error">{{ entryForm.errors['documentation.0'] }}</small>
                     </label>
                     <div v-if="entryDocPreviews.length" class="logbook-doc-preview-grid">
-                        <a
+                        <div
                             v-for="(preview, index) in entryDocPreviews"
-                            :key="preview"
-                            :href="preview"
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            :key="preview.url"
+                            class="logbook-doc-preview-item"
                         >
-                            <img :src="preview" :alt="`Preview dokumentasi ${index + 1}`" class="todo-note-image">
-                        </a>
+                            <a
+                                :href="preview.url"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="logbook-doc-preview-link"
+                            >
+                                <img :src="preview.url" :alt="`Preview dokumentasi ${index + 1}`" class="todo-note-image">
+                            </a>
+                            <button
+                                type="button"
+                                class="logbook-doc-remove"
+                                :aria-label="`Hapus dokumentasi ${index + 1}`"
+                                title="Hapus foto"
+                                @click="removeEntryDoc(index)"
+                            >
+                                <i class="fi fi-rr-cross-small"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="todo-modal-actions logbook-entry-actions">
                         <button type="button" class="nb-btn nb-btn--ghost" @click="closeEntryModal">Batal</button>
-                        <button type="submit" class="nb-btn nb-btn--solid" :disabled="entryForm.processing">
-                            {{ entryForm.processing ? 'Menyimpan...' : (entryModalMode === 'edit' ? 'Simpan' : 'Tambah') }}
+                        <button type="submit" class="nb-btn nb-btn--solid" :disabled="entryForm.processing || entryDocCompressing">
+                            {{ entryDocCompressing ? 'Mengompres...' : (entryForm.processing ? 'Menyimpan...' : (entryModalMode === 'edit' ? 'Simpan' : 'Tambah')) }}
                         </button>
                     </div>
                 </form>

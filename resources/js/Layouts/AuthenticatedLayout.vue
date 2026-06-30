@@ -7,7 +7,7 @@ import UserNavbar from '@/Components/UserNavbar.vue';
 
 const page = usePage();
 const auth = computed(() => page.props.auth);
-const showFloatingChat = computed(() => Boolean(auth.value?.user));
+const showFloatingChat = computed(() => Boolean(auth.value?.user) && !isDoopLabPage.value);
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
 const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
@@ -25,6 +25,7 @@ const showStaffPlayModeNotice = computed(() => isStaffPlayMode.value && !isDoopL
     <div
         data-app-surface="user"
         class="user-theme-root min-h-screen font-['Press_Start_2P'] selection:bg-[var(--accent)] relative isolate overflow-x-hidden flex flex-col"
+        :class="{ 'user-theme-root--dooplab': isDoopLabPage }"
     >
         <AppBackgroundLayer v-if="!isDoopLabPage" />
 
@@ -70,10 +71,13 @@ const showStaffPlayModeNotice = computed(() => isStaffPlayMode.value && !isDoopL
             </div>
         </div>
 
-        <main class="relative z-10 p-4 md:p-8 animate-in fade-in zoom-in-95 duration-500 flex-1">
+        <main
+            class="relative z-10 animate-in fade-in zoom-in-95 duration-500 flex-1"
+            :class="isDoopLabPage ? 'p-0' : 'p-4 md:p-8'"
+        >
             <slot />
         </main>
-        <footer class="user-theme-footer mt-auto border-t-2 p-6 text-center backdrop-blur-md md:p-8">
+        <footer v-if="!isDoopLabPage" class="user-theme-footer mt-auto border-t-2 p-6 text-center backdrop-blur-md md:p-8">
             <p class="user-theme-muted break-words text-[7px] uppercase tracking-[0.18em] sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
         </footer>
 
@@ -102,5 +106,31 @@ const showStaffPlayModeNotice = computed(() => isStaffPlayMode.value && !isDoopL
 /* Animasi Fade In untuk perpindahan halaman */
 .animate-in {
     animation-fill-mode: forwards;
+}
+
+@media (max-width: 768px) {
+    .user-theme-root--dooplab :deep(.user-navbar-shell) {
+        min-height: 52px;
+        padding: 8px 12px !important;
+        border-bottom-width: 2px !important;
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24) !important;
+    }
+
+    .user-theme-root--dooplab :deep(.user-navbar-brand-logo) {
+        width: 34px !important;
+        height: 34px !important;
+        border-bottom-width: 2px !important;
+        border-right-width: 2px !important;
+    }
+
+    .user-theme-root--dooplab :deep(.user-navbar-brand-title) {
+        font-size: 7px !important;
+        letter-spacing: 0 !important;
+    }
+
+    .user-theme-root--dooplab :deep(.user-navbar-mobile-toggle) {
+        width: 34px !important;
+        height: 34px !important;
+    }
 }
 </style>
