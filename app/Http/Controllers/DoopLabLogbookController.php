@@ -9,9 +9,15 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class DoopLabLogbookController extends Controller
 {
+    private const DOCUMENTATION_MAX_DIMENSION = 1600;
+    private const DOCUMENTATION_QUALITY = 72;
+    private const DOCUMENTATION_MAX_UPLOAD_KB = 12288;
+
     public function store(Request $request): RedirectResponse
     {
         $user = $request->user();
@@ -161,7 +167,7 @@ class DoopLabLogbookController extends Controller
             'purpose'       => ['nullable', 'string', 'max:2000'],
             'result'        => ['nullable', 'string', 'max:2000'],
             'documentation' => ['nullable', 'array', 'max:5'],
-            'documentation.*' => ['file', 'max:5120', 'mimes:jpg,jpeg,png,webp'],
+            'documentation.*' => ['file', 'max:' . self::DOCUMENTATION_MAX_UPLOAD_KB, 'mimes:jpg,jpeg,png,webp'],
         ]);
 
         $docPaths = $this->storeDocumentationFiles($request);
@@ -199,7 +205,7 @@ class DoopLabLogbookController extends Controller
             'purpose'       => ['nullable', 'string', 'max:2000'],
             'result'        => ['nullable', 'string', 'max:2000'],
             'documentation' => ['nullable', 'array', 'max:5'],
-            'documentation.*' => ['file', 'max:5120', 'mimes:jpg,jpeg,png,webp'],
+            'documentation.*' => ['file', 'max:' . self::DOCUMENTATION_MAX_UPLOAD_KB, 'mimes:jpg,jpeg,png,webp'],
         ]);
 
         $docPaths = $request->hasFile('documentation')
@@ -252,8 +258,69 @@ class DoopLabLogbookController extends Controller
         return collect($files)
             ->filter(fn ($file) => $file instanceof UploadedFile)
             ->take(5)
-            ->map(fn (UploadedFile $file) => $file->store('dooplab/logbooks', 'public'))
+            ->map(fn (UploadedFile $file) => $this->storeCompressedDocumentationFile($file))
             ->values()
             ->all();
+    }
+
+    private function storeCompressedDocumentationFile(UploadedFile $file): string
+    {
+        if (! extension_loaded('gd')) {
+            return $file->store('dooplab/logbooks', 'public');
+        }
+
+        $image = $this->loadDocumentationImage($file->getRealPath(), (string) $file->getMimeType());
+        if (! $image) {
+            return $file->store('dooplab/logbooks', 'public');
+        }
+
+        $origWidth = imagesx($image);
+        $origHeight = imagesy($image);
+        $ratio = min(1, self::DOCUMENTATION_MAX_DIMENSION / max($origWidth, $origHeight));
+        $newWidth = max(1, (int) round($origWidth * $ratio));
+        $newHeight = max(1, (int) round($origHeight * $ratio));
+
+        if ($newWidth !== $origWidth || $newHeight !== $origHeight) {
+            $resized = imagecreatetruecolor($newWidth, $newHeight);
+            imagealphablending($resized, false);
+            imagesavealpha($resized, true);
+            imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $origWidth, $origHeight);
+            imagedestroy($image);
+            $image = $resized;
+        }
+
+        $extension = function_exists('imagewebp') ? 'webp' : 'jpg';
+        $path = 'dooplab/logbooks/' . now()->format('Y/m') . '/' . Str::ulid() . '.' . $extension;
+
+        ob_start();
+        if ($extension === 'webp') {
+            imagewebp($image, null, self::DOCUMENTATION_QUALITY);
+        } else {
+            $jpeg = imagecreatetruecolor($newWidth, $newHeight);
+            $white = imagecolorallocate($jpeg, 255, 255, 255);
+            imagefilledrectangle($jpeg, 0, 0, $newWidth, $newHeight, $white);
+            imagecopy($jpeg, $image, 0, 0, 0, 0, $newWidth, $newHeight);
+            imagejpeg($jpeg, null, self::DOCUMENTATION_QUALITY);
+            imagedestroy($jpeg);
+        }
+        $binary = ob_get_clean();
+        imagedestroy($image);
+
+        if (! is_string($binary) || $binary === '') {
+            return $file->store('dooplab/logbooks', 'public');
+        }
+
+        Storage::disk('public')->put($path, $binary);
+
+        return $path;
+    }
+
+    private function loadDocumentationImage(string $path, string $mime)
+    {
+        return match (true) {
+            str_contains($mime, 'png') => @imagecreatefrompng($path) ?: null,
+            str_contains($mime, 'webp') && function_exists('imagecreatefromwebp') => @imagecreatefromwebp($path) ?: null,
+            default => @imagecreatefromjpeg($path) ?: null,
+        };
     }
 }

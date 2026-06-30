@@ -943,49 +943,70 @@ onUnmounted(() => {
                             v-if="canHireMentor"
                             type="button"
                             class="source-add-btn"
+                            title="Hire Mentor"
+                            aria-label="Hire Mentor"
                             @click="showHireMentor"
                         >
                             <i class="fi fi-rr-user-add"></i>
-                            Hire Mentor
+                            <span class="nav-label">Hire Mentor</span>
                         </button>
 
                         <button
                             v-if="canCreateMentorTodo"
                             type="button"
                             class="source-add-btn"
+                            title="Mentor Invites"
+                            aria-label="Mentor Invites"
                             @click="showMentorInvites"
                         >
                             <i class="fi fi-rr-envelope"></i>
-                            Mentor Invites ({{ mentorInvites.length }})
+                            <span class="nav-label">Mentor Invites ({{ mentorInvites.length }})</span>
                         </button>
 
                         <button
                             type="button"
                             class="source-add-btn"
+                            title="My Learning Path"
+                            aria-label="My Learning Path"
                             @click="showLearningPaths"
                         >
                             <i class="fi fi-rr-road"></i>
-                            My Learning Path
+                            <span class="nav-label">My Learning Path</span>
                         </button>
+
+                        <Link
+                            v-if="canOpenRoadmapLab"
+                            :href="route('dooplab.roadmaps.index')"
+                            class="source-add-btn source-add-btn--link"
+                            title="Roadmap Lab"
+                            aria-label="Roadmap Lab"
+                        >
+                            <i class="fi fi-rr-route"></i>
+                            <span class="nav-label">Roadmap Lab</span>
+                        </Link>
 
                         <button
                             type="button"
                             class="source-add-btn"
                             :class="{ 'is-active': panelMode === 'summary' }"
+                            title="To-Do List"
+                            aria-label="To-Do List"
                             @click="showTodoList"
                         >
                             <i class="fi fi-rr-list-check"></i>
-                            To-Do List
+                            <span class="nav-label">To-Do List</span>
                         </button>
 
                         <button
                             type="button"
                             class="source-add-btn"
                             :class="{ 'is-active': panelMode === 'logbook' }"
+                            title="Logbook"
+                            aria-label="Logbook"
                             @click="showLogbook"
                         >
                             <i class="fi fi-rr-book-alt"></i>
-                            Logbook ({{ allLogbooks.length }})
+                            <span class="nav-label">Logbook ({{ allLogbooks.length }})</span>
                         </button>
 
                     </aside>
@@ -4089,6 +4110,342 @@ onUnmounted(() => {
     .nb-panel p, .nb-panel span, .nb-panel li, .nb-panel a,
     .nb-panel small, .nb-panel label { font-size: 10px !important; }
     .nb-panel h1, .nb-panel h2, .nb-panel h3, .nb-panel h4 { font-size: 11px !important; }
+}
+
+/* Mobile focus mode: let the active workspace lead, keep navigation secondary. */
+@media (max-width: 768px) {
+    .nb-root {
+        min-height: calc(100dvh - 52px) !important;
+        padding: 8px !important;
+        overflow-x: hidden !important;
+        background:
+            linear-gradient(180deg, rgba(9, 13, 20, 0.96), rgba(13, 22, 35, 0.98)) !important;
+    }
+
+    .nb-shell {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        gap: 8px !important;
+    }
+
+    .nb-topbar {
+        min-height: 0 !important;
+        padding: 10px !important;
+        border-width: 2px !important;
+        background: rgba(13, 17, 27, 0.86) !important;
+    }
+
+    .nb-title-wrap {
+        width: 100% !important;
+        align-items: flex-start !important;
+        gap: 8px !important;
+    }
+
+    .nb-logo {
+        width: 30px !important;
+        height: 30px !important;
+        flex: 0 0 30px !important;
+        font-size: 12px !important;
+    }
+
+    .nb-eyebrow {
+        font-size: 7px !important;
+        letter-spacing: 1px !important;
+        margin-bottom: 3px !important;
+    }
+
+    .nb-title {
+        font-family: Inter, sans-serif !important;
+        font-size: 13px !important;
+        line-height: 1.35 !important;
+    }
+
+    .nb-subtitle,
+    .nb-actions {
+        display: none !important;
+    }
+
+    .nb-workbench {
+        display: flex !important;
+        flex-direction: column !important;
+        min-width: 0 !important;
+        gap: 8px !important;
+    }
+
+    .nb-panel,
+    .nb-topbar,
+    .nb-chat,
+    .nb-todo-nav,
+    .nb-studio {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .nb-chat {
+        order: 1 !important;
+        min-height: calc(100dvh - 132px) !important;
+        padding: 12px !important;
+        border-width: 2px !important;
+        background: rgba(14, 20, 34, 0.96) !important;
+    }
+
+    .nb-todo-nav {
+        order: 2 !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        padding: 10px !important;
+        border-width: 2px !important;
+        background: rgba(14, 20, 34, 0.72) !important;
+    }
+
+    .nb-studio {
+        order: 3 !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        padding: 10px !important;
+        border-width: 2px !important;
+        background: rgba(14, 20, 34, 0.62) !important;
+    }
+
+    .nb-todo-nav {
+        display: grid !important;
+        grid-auto-flow: column !important;
+        grid-auto-columns: max-content !important;
+        gap: 8px !important;
+        overflow-x: auto !important;
+        padding-bottom: 12px !important;
+    }
+
+    .nb-todo-nav .source-add-btn {
+        width: auto !important;
+        min-width: 128px !important;
+        min-height: 38px !important;
+        margin: 0 !important;
+        padding: 8px 10px !important;
+        white-space: nowrap !important;
+        border-width: 2px !important;
+        opacity: 0.78 !important;
+    }
+
+    .nb-todo-nav .source-add-btn i {
+        font-size: 14px !important;
+        line-height: 1 !important;
+    }
+
+    .nb-todo-nav .source-add-btn.is-active {
+        opacity: 1 !important;
+        background: #009999 !important;
+        border-color: #006666 !important;
+        color: #fff !important;
+    }
+
+    .panel-head {
+        margin-bottom: 10px !important;
+    }
+
+    .panel-head--stacked {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: start !important;
+        gap: 8px !important;
+    }
+
+    .panel-head h2 {
+        font-size: 13px !important;
+        line-height: 1.3 !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    .panel-subtitle {
+        font-size: 10px !important;
+        line-height: 1.45 !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    .todo-add-btn,
+    .chat-back-btn {
+        width: auto !important;
+        min-width: 38px !important;
+        min-height: 34px !important;
+        padding: 7px 9px !important;
+        margin: 0 !important;
+        white-space: nowrap !important;
+    }
+
+    .todo-list-workspace,
+    .learning-path-list,
+    .hire-mentor-workspace,
+    .chat-stream {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        max-height: calc(100dvh - 220px) !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        padding-right: 2px !important;
+    }
+
+    .source-empty,
+    .learning-path-card,
+    .learning-path-card *,
+    .hire-mentor-card,
+    .hire-mentor-card *,
+    .chat-hero,
+    .chat-hero *,
+    .todo-note-item,
+    .todo-note-item * {
+        max-width: 100% !important;
+        min-width: 0 !important;
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: normal !important;
+    }
+
+    .source-search {
+        padding: 9px 10px !important;
+        margin-bottom: 8px !important;
+    }
+
+    .source-search input {
+        font-family: Inter, sans-serif !important;
+        font-size: 12px !important;
+    }
+
+    .todo-filters {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        padding-bottom: 4px !important;
+        margin-bottom: 8px !important;
+    }
+
+    .todo-filter {
+        flex: 0 0 auto !important;
+        font-size: 10px !important;
+        padding: 7px 10px !important;
+    }
+
+    .todo-nav-item,
+    .learning-path-card,
+    .chat-hero,
+    .chat-composer,
+    .todo-note-item {
+        border-width: 2px !important;
+        box-shadow: none !important;
+    }
+
+    .todo-nav-item {
+        grid-template-columns: 28px minmax(0, 1fr) 12px !important;
+        gap: 8px !important;
+        padding: 10px !important;
+    }
+
+    .todo-nav-title {
+        font-size: 12px !important;
+        line-height: 1.4 !important;
+    }
+
+    .todo-nav-sub,
+    .todo-nav-tags {
+        gap: 5px !important;
+    }
+
+    .todo-nav-meta,
+    .todo-nav-deadline {
+        font-size: 10px !important;
+    }
+
+    .studio-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    .studio-tile {
+        min-height: 54px !important;
+        padding: 9px !important;
+    }
+
+    .studio-desc,
+    .mentor-zone {
+        display: none !important;
+    }
+}
+
+@media (max-width: 520px) {
+    .nb-studio {
+        display: none !important;
+    }
+
+    .nb-root {
+        padding: 6px !important;
+    }
+
+    .nb-topbar,
+    .nb-chat,
+    .nb-todo-nav {
+        padding: 8px !important;
+    }
+
+    .panel-head--stacked {
+        grid-template-columns: 1fr !important;
+    }
+
+    .todo-add-btn,
+    .chat-back-btn {
+        justify-self: stretch !important;
+        justify-content: center !important;
+        width: 100% !important;
+    }
+
+    .todo-list-workspace,
+    .learning-path-list,
+    .hire-mentor-workspace,
+    .chat-stream {
+        max-height: calc(100dvh - 238px) !important;
+    }
+
+    .nb-todo-nav {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)) !important;
+        grid-auto-flow: row !important;
+        grid-auto-columns: initial !important;
+        overflow-x: hidden !important;
+        gap: 6px !important;
+        padding-bottom: 8px !important;
+    }
+
+    .nb-todo-nav .source-add-btn {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 42px !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        white-space: nowrap !important;
+        line-height: 1.25 !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    .nb-todo-nav .source-add-btn .nav-label {
+        position: absolute !important;
+        width: 1px !important;
+        height: 1px !important;
+        margin: -1px !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        clip: rect(0, 0, 0, 0) !important;
+        white-space: nowrap !important;
+        border: 0 !important;
+    }
+
+    .nb-todo-nav .source-add-btn i {
+        flex: 0 0 auto !important;
+        font-size: 15px !important;
+    }
 }
 
 </style>
