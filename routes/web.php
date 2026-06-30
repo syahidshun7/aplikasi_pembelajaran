@@ -65,6 +65,7 @@ Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
     Route::put('/creations/{creation}', [CreationApiController::class, 'update'])->name('creations.update');
     Route::delete('/creations/{creation}', [CreationApiController::class, 'destroy'])->name('creations.destroy');
     Route::post('/creations/{creation}/hire-mentor', [CreationApiController::class, 'hireMentor'])->name('creations.hire-mentor');
+    Route::post('/dooplab/hire-mentor', [CreationApiController::class, 'hireDirectMentor'])->name('dooplab.hire-mentor');
     Route::post('/creation-mentor-invites/{collaborationRequest}/accept', [CreationApiController::class, 'acceptMentorInvite'])->name('creations.mentor-invites.accept');
     Route::post('/creation-mentor-invites/{collaborationRequest}/reject', [CreationApiController::class, 'rejectMentorInvite'])->name('creations.mentor-invites.reject');
 

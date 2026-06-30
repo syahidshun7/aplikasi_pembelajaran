@@ -16,6 +16,7 @@ const props = defineProps({
     todo_assignable_users: { type: Array, default: () => [] },
     research_workspaces: { type: Array, default: () => [] },
     hireable_creations: { type: Array, default: () => [] },
+    direct_mentors: { type: Array, default: () => [] },
     mentor_invites: { type: Array, default: () => [] },
     learning_paths: { type: Array, default: () => [] },
     logbooks: { type: Array, default: () => [] },
@@ -46,6 +47,7 @@ const mentors = computed(() => Array.isArray(props.mentors) ? props.mentors : []
 const mentorInvites = computed(() => Array.isArray(props.mentor_invites) ? props.mentor_invites : []);
 const researchWorkspaces = computed(() => Array.isArray(props.research_workspaces) ? props.research_workspaces : []);
 const hireableCreations = computed(() => Array.isArray(props.hireable_creations) ? props.hireable_creations : []);
+const directMentors = computed(() => Array.isArray(props.direct_mentors) ? props.direct_mentors : []);
 const selectedHireCreation = computed(() => {
     const creationId = Number(hireMentorForm.value.creation_id || 0);
     return hireableCreations.value.find((creation) => Number(creation?.id || 0) === creationId) || null;
@@ -57,6 +59,9 @@ const availableHireMentors = computed(() => {
             ...(selectedHireCreation.value?.mentor_invites || [])
                 .filter((invite) => String(invite?.status || '').toLowerCase() === 'pending')
                 .map((invite) => Number(invite?.mentor_id || 0)),
+            ...directMentors.value
+                .filter((mentor) => ['pending', 'approved'].includes(String(mentor?.status || '').toLowerCase()))
+                .map((mentor) => Number(mentor?.mentor_id || 0)),
         ]
             .map((id) => Number(id || 0))
             .filter((id) => id > 0)
@@ -65,6 +70,14 @@ const availableHireMentors = computed(() => {
     return mentors.value.filter((mentor) => !unavailableMentorIds.has(Number(mentor?.id || 0)));
 });
 const selectedHireCreationMentors = computed(() => [
+    ...directMentors.value
+        .map((mentor) => ({
+            id: `direct-${mentor.id}`,
+            name: mentor.name,
+            username: mentor.username,
+            profile_photo: mentor.profile_photo,
+            status: String(mentor.status || 'pending').toUpperCase(),
+        })),
     ...(Array.isArray(selectedHireCreation.value?.mentor_invites) ? selectedHireCreation.value.mentor_invites : [])
         .map((invite) => ({
             id: `invite-${invite.id}`,
@@ -601,8 +614,8 @@ const workPanelTitle = computed(() => {
 const workPanelSubtitle = computed(() => {
     if (selectedTodo.value) return 'Catatan dan bukti pengerjaan ditampilkan di bawah.';
     if (panelMode.value === 'learning_paths') return 'Roadmap mentoring yang ditugaskan untukmu.';
-    if (panelMode.value === 'hire_mentor') return 'Hubungkan mentor ke creation tanpa perlu publish terlebih dahulu.';
-    if (panelMode.value === 'mentor_invites') return 'Accept atau reject invite mentor dari pemilik creation.';
+    if (panelMode.value === 'hire_mentor') return 'Hubungkan mentor langsung ke akun DoopLab kamu.';
+    if (panelMode.value === 'mentor_invites') return 'Accept atau reject invite mentor dari member DoopLab.';
     if (panelMode.value === 'logbook') return logbookPanelRef.value?.selectedLogbook ? `${logbookPanelRef.value.selectedLogbook.entries?.length || 0} entri kegiatan` : 'Pilih logbook untuk melihat entri kegiatan.';
     return 'Pilih to-do dari daftar untuk mulai mencatat progres.';
 });
@@ -727,10 +740,9 @@ const submitTodo = () => {
 };
 
 const hireMentor = async () => {
-    const creationId = Number(hireMentorForm.value.creation_id || 0);
     const mentorUserId = Number(hireMentorForm.value.mentor_user_id || 0);
 
-    if (!canHireMentor.value || creationId <= 0 || mentorUserId <= 0 || hiringMentor.value) {
+    if (!canHireMentor.value || mentorUserId <= 0 || hiringMentor.value) {
         return;
     }
 
@@ -738,7 +750,7 @@ const hireMentor = async () => {
 
     try {
         await window.axios.post(
-            route('api.creations.hire-mentor', { creation: creationId }, false),
+            route('api.dooplab.hire-mentor', {}, false),
             { mentor_user_id: mentorUserId }
         );
         hireMentorForm.value.mentor_user_id = null;
@@ -746,7 +758,7 @@ const hireMentor = async () => {
         router.reload({
             preserveScroll: true,
             preserveState: true,
-            only: ['research_workspaces', 'hireable_creations', 'recent_experiments', 'collaboration'],
+            only: ['direct_mentors', 'mentor_invites', 'todo_assignable_users', 'logbook_assignable_users'],
         });
     } catch (error) {
         toast.error('HIRE_FAILED', error?.response?.data?.errors?.mentor_user_id?.[0] || error?.response?.data?.message || 'Gagal hire mentor.');
@@ -765,7 +777,7 @@ const respondMentorInvite = async (invite, decision) => {
         router.reload({
             preserveScroll: true,
             preserveState: true,
-            only: ['mentor_invites', 'research_workspaces', 'hireable_creations', 'todos'],
+            only: ['mentor_invites', 'research_workspaces', 'hireable_creations', 'direct_mentors', 'todos', 'todo_assignable_users', 'logbook_assignable_users'],
         });
     } catch (error) {
         toast.error('ACTION_FAILED', error?.response?.data?.message || 'Gagal memproses invite.');
@@ -1475,8 +1487,7 @@ onUnmounted(() => {
                         <template v-else-if="panelMode === 'hire_mentor'">
                             <section class="hire-mentor-workspace">
                                 <div class="hire-status-inline">
-                                    <span v-if="!selectedHireCreation" class="todo-field-note">Pilih creation untuk melihat status invite.</span>
-                                    <span v-else-if="!selectedHireCreationMentors.length" class="todo-field-note">Belum ada mentor di creation ini.</span>
+                                    <span v-if="!selectedHireCreationMentors.length" class="todo-field-note">Belum ada mentor yang terhubung.</span>
                                     <article
                                         v-for="mentor in selectedHireCreationMentors"
                                         :key="mentor.id"
@@ -1497,17 +1508,6 @@ onUnmounted(() => {
 
                                 <form v-if="canHireMentor" class="hire-mentor-card" @submit.prevent="hireMentor">
                                     <label class="todo-field">
-                                        <span>Creation</span>
-                                        <select v-model="hireMentorForm.creation_id" :disabled="hiringMentor || !hireableCreations.length" required>
-                                            <option :value="null">Pilih creation</option>
-                                            <option v-for="creation in hireableCreations" :key="creation.id" :value="creation.id">
-                                                {{ creation.title }}
-                                            </option>
-                                        </select>
-                                        <small v-if="!hireableCreations.length" class="todo-field-note">Belum ada creation yang bisa dihubungkan.</small>
-                                    </label>
-
-                                    <label class="todo-field">
                                         <span>Mentor</span>
                                         <select v-model="hireMentorForm.mentor_user_id" :disabled="hiringMentor || !availableHireMentors.length" required>
                                             <option :value="null">Pilih mentor</option>
@@ -1516,10 +1516,10 @@ onUnmounted(() => {
                                             </option>
                                         </select>
                                         <small v-if="!mentors.length" class="todo-field-note">Belum ada mentor aktif.</small>
-                                        <small v-else-if="selectedHireCreation && !availableHireMentors.length" class="todo-field-note">Semua mentor sudah terhubung ke creation ini.</small>
+                                        <small v-else-if="!availableHireMentors.length" class="todo-field-note">Semua mentor sudah terhubung atau sedang menunggu accept.</small>
                                     </label>
 
-                                    <button type="submit" class="nb-btn nb-btn--solid" :disabled="hiringMentor || !hireMentorForm.creation_id || !hireMentorForm.mentor_user_id">
+                                    <button type="submit" class="nb-btn nb-btn--solid" :disabled="hiringMentor || !hireMentorForm.mentor_user_id">
                                         {{ hiringMentor ? 'Menghubungkan...' : 'Hire Mentor' }}
                                     </button>
                                 </form>
@@ -1539,7 +1539,7 @@ onUnmounted(() => {
                                             <span>Mentor Invite</span>
                                             <strong>Status: PENDING</strong>
                                         </div>
-                                        <h3>{{ invite.creation_title || 'Untitled Creation' }}</h3>
+                                        <h3>{{ invite.is_direct ? 'Direct Mentorship' : (invite.creation_title || 'Untitled Creation') }}</h3>
                                         <div class="learning-path-meta">
                                             <span>Owner: {{ invite.owner_name || '-' }} (@{{ invite.owner_username || '-' }})</span>
                                         </div>
