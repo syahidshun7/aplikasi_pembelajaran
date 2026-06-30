@@ -568,7 +568,7 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
                     <h3>{{ entryModalMode === 'edit' ? 'Edit Entri' : 'Tambah Entri Kegiatan' }}</h3>
                     <button type="button" class="todo-modal-close" @click="closeEntryModal"><i class="fi fi-rr-cross"></i></button>
                 </div>
-                <form class="todo-modal-body" @submit.prevent="submitEntry">
+                <form class="todo-modal-body logbook-entry-form" @submit.prevent="submitEntry">
                     <div class="todo-date-grid">
                         <label class="todo-field todo-field--date">
                             <span>Tanggal *</span>
@@ -610,7 +610,7 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
                             <img :src="preview" :alt="`Preview dokumentasi ${index + 1}`" class="todo-note-image">
                         </a>
                     </div>
-                    <div class="todo-modal-actions">
+                    <div class="todo-modal-actions logbook-entry-actions">
                         <button type="button" class="nb-btn nb-btn--ghost" @click="closeEntryModal">Batal</button>
                         <button type="submit" class="nb-btn nb-btn--solid" :disabled="entryForm.processing">
                             {{ entryForm.processing ? 'Menyimpan...' : (entryModalMode === 'edit' ? 'Simpan' : 'Tambah') }}
@@ -897,7 +897,13 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
 .logbook-book-desc  { margin: 0 0 4px; font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: Inter, sans-serif; }
 
 /* ── Table ── */
-.logbook-table-wrap { overflow-x: auto; overflow-y: auto; flex: 1; width: 100%; }
+.logbook-table-wrap {
+    overflow-x: auto;
+    overflow-y: auto;
+    flex: 1;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+}
 .logbook-table {
     width: max-content;
     min-width: 100%;
@@ -968,23 +974,36 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
 }
 
 @media (max-width: 620px) {
-    .logbook-table { table-layout: auto; }
-    .logbook-table thead { display: none; }
-    .logbook-table tbody tr {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        grid-template-rows: auto auto auto auto;
-        gap: 4px 8px;
-        padding: 12px 10px;
-        border-bottom: 2px solid var(--line);
+    .logbook-table-wrap {
+        max-width: 100%;
+        border: 1px solid var(--line);
     }
-    .logbook-table td      { padding: 0; overflow: visible; text-overflow: unset; white-space: normal; }
-    .logbook-td-date       { grid-column: 1; grid-row: 1; font-size: 11px; color: var(--cyan); }
-    .logbook-td-time       { grid-column: 2; grid-row: 1; text-align: right; font-size: 11px; }
-    .logbook-td-main       { grid-column: 1 / -1; grid-row: 2; font-weight: 600; font-size: 13px; white-space: normal; }
-    .logbook-td-text       { display: none; }
-    .logbook-td-sig        { grid-column: 1; grid-row: 3; align-self: center; }
-    .logbook-td-actions    { grid-column: 1 / -1; grid-row: 4; display: flex; gap: 6px; justify-content: flex-end; }
+    .logbook-table {
+        width: max-content;
+        min-width: 760px;
+        table-layout: auto;
+    }
+    .logbook-table thead { display: table-header-group; }
+    .logbook-table tbody tr {
+        display: table-row;
+        border-bottom: 1px solid var(--line);
+    }
+    .logbook-table th,
+    .logbook-table td {
+        padding: 8px 10px;
+        white-space: nowrap;
+    }
+    .logbook-td-main,
+    .logbook-td-text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .logbook-td-text { display: table-cell; }
+    .logbook-td-actions {
+        display: table-cell;
+        white-space: nowrap;
+    }
 }
 </style>
 
@@ -1218,6 +1237,7 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
     gap: 8px;
     margin-top: 8px;
     padding-top: 4px;
+    flex: 0 0 auto;
 }
 
 /* ── Form fields ── */
@@ -1351,7 +1371,30 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
     .logbook-detail-thumbs {
         grid-template-columns: repeat(5, minmax(0, 1fr));
     }
-    .logbook-modal .todo-modal-actions { flex-direction: column; }
-    .logbook-modal .nb-btn { width: 100%; justify-content: center; }
+    .logbook-modal .todo-modal-actions {
+        flex-direction: row;
+        align-items: stretch;
+        justify-content: stretch;
+    }
+    .logbook-modal .nb-btn {
+        width: 100%;
+        min-height: 42px;
+        height: auto;
+        justify-content: center;
+        flex: 0 0 auto !important;
+        padding: 10px 14px;
+    }
+    .logbook-modal .logbook-entry-form {
+        min-height: 0;
+    }
+    .logbook-modal .logbook-entry-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 10px;
+    }
+    .logbook-modal .logbook-entry-actions .nb-btn {
+        min-width: 0;
+    }
 }
 </style>
