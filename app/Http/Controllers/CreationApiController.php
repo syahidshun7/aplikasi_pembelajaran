@@ -19,6 +19,9 @@ use Illuminate\Validation\ValidationException;
 
 class CreationApiController extends Controller
 {
+    private const MENTOR_INVITE_MESSAGE = 'MENTOR_INVITE_FROM_DOOPLAB';
+    private const DIRECT_MENTOR_INVITE_MESSAGE = 'DIRECT_MENTOR_INVITE_FROM_DOOPLAB';
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -266,8 +269,71 @@ class CreationApiController extends Controller
             ],
             [
                 'requested_role' => CreationCollaborator::ROLE_VIEWER,
-                'message' => 'MENTOR_INVITE_FROM_DOOPLAB',
+                'message' => self::MENTOR_INVITE_MESSAGE,
                 'processed_by' => $ownerId,
+                'processed_at' => null,
+            ]
+        );
+
+        return response()->json([
+            'message' => 'Invite mentor terkirim. Menunggu accept dari mentor.',
+        ]);
+    }
+
+    public function hireDirectMentor(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user && $user->canAccessDoopLab(), 403, 'DOOPLAB_ACCESS_DENIED');
+
+        if ($user->isStaff()) {
+            throw ValidationException::withMessages([
+                'mentor_user_id' => ['Staff tidak perlu hire mentor.'],
+            ]);
+        }
+
+        $validated = $request->validate([
+            'mentor_user_id' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        $memberId = (int) $user->id;
+        $mentor = User::query()->findOrFail((int) $validated['mentor_user_id']);
+
+        if (! $mentor->isMentor()) {
+            throw ValidationException::withMessages([
+                'mentor_user_id' => ['User yang dipilih bukan mentor.'],
+            ]);
+        }
+
+        if ((int) $mentor->id === $memberId) {
+            throw ValidationException::withMessages([
+                'mentor_user_id' => ['Kamu tidak bisa hire diri sendiri sebagai mentor.'],
+            ]);
+        }
+
+        $alreadyConnected = CreationCollaborationRequest::query()
+            ->whereNull('creation_id')
+            ->where('requester_id', (int) $mentor->id)
+            ->where('processed_by', $memberId)
+            ->where('message', self::DIRECT_MENTOR_INVITE_MESSAGE)
+            ->where('status', CreationCollaborationRequest::STATUS_APPROVED)
+            ->exists();
+
+        if ($alreadyConnected) {
+            throw ValidationException::withMessages([
+                'mentor_user_id' => ['Mentor ini sudah terhubung.'],
+            ]);
+        }
+
+        CreationCollaborationRequest::query()->updateOrCreate(
+            [
+                'creation_id' => null,
+                'requester_id' => (int) $mentor->id,
+                'processed_by' => $memberId,
+                'message' => self::DIRECT_MENTOR_INVITE_MESSAGE,
+                'status' => CreationCollaborationRequest::STATUS_PENDING,
+            ],
+            [
+                'requested_role' => 'mentor',
                 'processed_at' => null,
             ]
         );
@@ -284,23 +350,30 @@ class CreationApiController extends Controller
         abort_unless((int) $collaborationRequest->requester_id === (int) $mentor->id, 403, 'INVITE_FORBIDDEN');
         abort_unless((string) $collaborationRequest->status === CreationCollaborationRequest::STATUS_PENDING, 422, 'INVITE_NOT_PENDING');
 
-        CreationCollaborator::query()->updateOrCreate(
-            [
-                'creation_id' => (int) $collaborationRequest->creation_id,
-                'user_id' => (int) $mentor->id,
-            ],
-            [
-                'role' => (string) ($collaborationRequest->requested_role ?: CreationCollaborator::ROLE_VIEWER),
-                'added_by' => (int) ($collaborationRequest->processed_by ?: $collaborationRequest->creation?->user_id),
-                'joined_at' => now(),
-            ]
-        );
+        if ((int) ($collaborationRequest->creation_id ?? 0) > 0) {
+            CreationCollaborator::query()->updateOrCreate(
+                [
+                    'creation_id' => (int) $collaborationRequest->creation_id,
+                    'user_id' => (int) $mentor->id,
+                ],
+                [
+                    'role' => (string) ($collaborationRequest->requested_role ?: CreationCollaborator::ROLE_VIEWER),
+                    'added_by' => (int) ($collaborationRequest->processed_by ?: $collaborationRequest->creation?->user_id),
+                    'joined_at' => now(),
+                ]
+            );
+        }
 
-        $collaborationRequest->update([
+        $updatePayload = [
             'status' => CreationCollaborationRequest::STATUS_APPROVED,
-            'processed_by' => (int) $mentor->id,
             'processed_at' => now(),
-        ]);
+        ];
+
+        if ((int) ($collaborationRequest->creation_id ?? 0) > 0) {
+            $updatePayload['processed_by'] = (int) $mentor->id;
+        }
+
+        $collaborationRequest->update($updatePayload);
 
         return response()->json(['message' => 'Invite mentor diterima.']);
     }
@@ -312,11 +385,16 @@ class CreationApiController extends Controller
         abort_unless((int) $collaborationRequest->requester_id === (int) $mentor->id, 403, 'INVITE_FORBIDDEN');
         abort_unless((string) $collaborationRequest->status === CreationCollaborationRequest::STATUS_PENDING, 422, 'INVITE_NOT_PENDING');
 
-        $collaborationRequest->update([
+        $updatePayload = [
             'status' => CreationCollaborationRequest::STATUS_REJECTED,
-            'processed_by' => (int) $mentor->id,
             'processed_at' => now(),
-        ]);
+        ];
+
+        if ((int) ($collaborationRequest->creation_id ?? 0) > 0) {
+            $updatePayload['processed_by'] = (int) $mentor->id;
+        }
+
+        $collaborationRequest->update($updatePayload);
 
         return response()->json(['message' => 'Invite mentor ditolak.']);
     }

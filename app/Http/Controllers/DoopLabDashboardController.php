@@ -18,6 +18,9 @@ use Inertia\Response;
 
 class DoopLabDashboardController extends Controller
 {
+    private const MENTOR_INVITE_MESSAGE = 'MENTOR_INVITE_FROM_DOOPLAB';
+    private const DIRECT_MENTOR_INVITE_MESSAGE = 'DIRECT_MENTOR_INVITE_FROM_DOOPLAB';
+
     public function index(Request $request): Response|RedirectResponse
     {
         $user = $request->user();
@@ -269,9 +272,29 @@ class DoopLabDashboardController extends Controller
                 ->all()
             : [];
 
+        $directMentoredOwnerIds = $isMentor
+            ? CreationCollaborationRequest::query()
+                ->whereNull('creation_id')
+                ->where('requester_id', $userId)
+                ->where('message', self::DIRECT_MENTOR_INVITE_MESSAGE)
+                ->where('status', CreationCollaborationRequest::STATUS_APPROVED)
+                ->pluck('processed_by')
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => $id > 0)
+                ->unique()
+                ->values()
+                ->all()
+            : [];
+
+        $assignableUserIds = collect($mentoredOwnerIds)
+            ->merge($directMentoredOwnerIds)
+            ->unique()
+            ->values()
+            ->all();
+
         $assignableUsers = $isMentor
             ? User::query()
-                ->whereIn('id', $mentoredOwnerIds)
+                ->whereIn('id', $assignableUserIds)
                 ->orderBy('name')
                 ->limit(250)
                 ->get(['id', 'name', 'username', 'role'])
@@ -312,16 +335,20 @@ class DoopLabDashboardController extends Controller
             ? CreationCollaborationRequest::query()
                 ->where('requester_id', $userId)
                 ->where('status', CreationCollaborationRequest::STATUS_PENDING)
-                ->where('message', 'MENTOR_INVITE_FROM_DOOPLAB')
-                ->with(['creation:id,title,user_id', 'creation.user:id,name,username'])
+                ->whereIn('message', [
+                    self::MENTOR_INVITE_MESSAGE,
+                    self::DIRECT_MENTOR_INVITE_MESSAGE,
+                ])
+                ->with(['creation:id,title,user_id', 'creation.user:id,name,username', 'processor:id,name,username'])
                 ->latest()
                 ->limit(20)
                 ->get()
                 ->map(fn (CreationCollaborationRequest $item) => [
                     'id' => (int) $item->id,
-                    'creation_title' => (string) ($item->creation?->title ?? ''),
-                    'owner_name' => (string) ($item->creation?->user?->name ?? ''),
-                    'owner_username' => (string) ($item->creation?->user?->username ?? ''),
+                    'creation_title' => (string) ($item->creation?->title ?? 'Direct Mentorship'),
+                    'owner_name' => (string) ($item->creation?->user?->name ?? $item->processor?->name ?? ''),
+                    'owner_username' => (string) ($item->creation?->user?->username ?? $item->processor?->username ?? ''),
+                    'is_direct' => $item->creation_id === null,
                     'requested_role' => (string) ($item->requested_role ?? ''),
                     'created_at' => optional($item->created_at)->toIso8601String(),
                 ])
@@ -335,7 +362,7 @@ class DoopLabDashboardController extends Controller
                 ->with([
                     'collaborators.user:id,name,username,profile_photo',
                     'collaborationRequests' => fn ($query) => $query
-                        ->where('message', 'MENTOR_INVITE_FROM_DOOPLAB')
+                        ->where('message', self::MENTOR_INVITE_MESSAGE)
                         ->whereIn('status', [
                             CreationCollaborationRequest::STATUS_PENDING,
                             CreationCollaborationRequest::STATUS_REJECTED,
@@ -385,6 +412,34 @@ class DoopLabDashboardController extends Controller
                     'progress' => (int) ($creation->progress ?? 0),
                     'updated_at' => $creation->updated_at?->toIso8601String(),
                 ])
+                ->values()
+                ->all();
+
+        $directMentors = $isMentor
+            ? []
+            : CreationCollaborationRequest::query()
+                ->whereNull('creation_id')
+                ->where('processed_by', $userId)
+                ->where('message', self::DIRECT_MENTOR_INVITE_MESSAGE)
+                ->whereIn('status', [
+                    CreationCollaborationRequest::STATUS_PENDING,
+                    CreationCollaborationRequest::STATUS_APPROVED,
+                    CreationCollaborationRequest::STATUS_REJECTED,
+                ])
+                ->with('requester:id,name,username,profile_photo')
+                ->latest()
+                ->limit(40)
+                ->get()
+                ->map(fn (CreationCollaborationRequest $item) => [
+                    'id' => (int) $item->id,
+                    'mentor_id' => (int) ($item->requester?->id ?? 0),
+                    'name' => (string) ($item->requester?->name ?? ''),
+                    'username' => (string) ($item->requester?->username ?? ''),
+                    'profile_photo' => (string) ($item->requester?->profile_photo ?? ''),
+                    'status' => (string) $item->status,
+                    'created_at' => optional($item->created_at)->toIso8601String(),
+                ])
+                ->filter(fn (array $mentor) => $mentor['mentor_id'] > 0)
                 ->values()
                 ->all();
 
@@ -489,6 +544,7 @@ class DoopLabDashboardController extends Controller
             'logbook_assignable_users' => $assignableUsers, // sama dengan todo: user dari mentored creations
             'research_workspaces' => $researchWorkspaces,
             'hireable_creations' => $hireableCreations,
+            'direct_mentors' => $directMentors,
             'mentor_invites' => $mentorInvites,
             'learning_paths' => $learningPaths,
             'logbooks' => $allLogbooks,
