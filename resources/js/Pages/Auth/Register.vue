@@ -122,44 +122,44 @@ onMounted(async () => {
         <Head title="Register | P-QUEST" />
 
         <form @submit.prevent="submit" class="space-y-4">
-            <h2 class="text-yellow-500 text-[10px] text-center mb-6 border-b border-slate-800 pb-4 tracking-widest uppercase">
+            <h2 class="text-yellow-500 text-[10px] text-center mb-6 border-b border-[var(--panel-border)] pb-4 tracking-widest uppercase">
                 -- NEW_HERO_REGISTRATION --
             </h2>
 
             <div>
-                <label class="block text-[#009999] text-[8px] uppercase mb-1">Hero_Name</label>
+                <label class="block text-[var(--accent)] text-[8px] uppercase mb-1">Hero_Name</label>
                 <input type="text" v-model="form.name" :class="[
-                    'w-full bg-black border-2 text-white p-2 focus:ring-0 text-[10px] font-pixel',
-                    form.errors.name ? 'border-red-500 focus:border-red-500' : 'border-[#333333] focus:border-[#009999]'
+                    'w-full bg-[var(--bg)] border-2 text-[var(--text)] p-2 focus:ring-0 text-[10px] font-pixel placeholder:text-[var(--text-muted)]',
+                    form.errors.name ? 'border-red-500 focus:border-red-500' : 'border-[var(--panel-border)] focus:border-[var(--accent)]'
                 ]" required />
                 <div v-if="form.errors.name" class="mt-2 text-red-500 text-[8px] italic">{{ form.errors.name }}</div>
             </div>
 
             <div class="mt-3">
-                <label class="block text-[#009999] text-[8px] uppercase mb-1">Email_Address</label>
+                <label class="block text-[var(--accent)] text-[8px] uppercase mb-1">Email_Address</label>
                 <input type="email" v-model="form.email" :class="[
-                    'w-full bg-black border-2 text-white p-2 focus:ring-0 text-[10px] font-pixel',
-                    form.errors.email ? 'border-red-500 focus:border-red-500' : 'border-[#333333] focus:border-[#009999]'
+                    'w-full bg-[var(--bg)] border-2 text-[var(--text)] p-2 focus:ring-0 text-[10px] font-pixel placeholder:text-[var(--text-muted)]',
+                    form.errors.email ? 'border-red-500 focus:border-red-500' : 'border-[var(--panel-border)] focus:border-[var(--accent)]'
                 ]" required />
                 <div v-if="form.errors.email" class="mt-2 text-red-500 text-[8px] italic">{{ form.errors.email }}</div>
             </div>
 
             <div class="mt-3">
-                <label class="block text-[#009999] text-[8px] uppercase mb-1">Jobs_Path</label>
+                <label class="block text-[var(--accent)] text-[8px] uppercase mb-1">Jobs_Path</label>
                 <div :class="[
-                    'border-2 p-3 bg-black',
-                    form.errors.job_id ? 'border-red-500' : 'border-[#333333]'
+                    'border-2 p-3 bg-[var(--bg)]',
+                    form.errors.job_id ? 'border-red-500' : 'border-[var(--panel-border)]'
                 ]">
                     <button
                         type="button"
                         @click="openJobModal"
-                        class="w-full text-left border-2 border-[#333333] hover:border-[#009999] transition-all p-3 bg-[#0d1117]"
+                        class="w-full text-left border-2 border-[var(--panel-border)] hover:border-[var(--accent)] transition-all p-3 bg-[var(--bg)]"
                     >
                         <div class="flex items-center justify-between gap-3">
                             <div>
-                                <p class="text-[8px] uppercase text-[#009999] mb-1">Selected_Job</p>
-                                <p v-if="selectedJob" class="text-[9px] uppercase text-white">{{ selectedJob.name }}</p>
-                                <p v-else class="text-[9px] uppercase text-slate-500">-- Choose Job Path --</p>
+                                <p class="text-[8px] uppercase text-[var(--accent)] mb-1">Selected_Job</p>
+                                <p v-if="selectedJob" class="text-[9px] uppercase text-[var(--text)]">{{ selectedJob.name }}</p>
+                                <p v-else class="text-[9px] uppercase text-[var(--text-muted)]">-- Choose Job Path --</p>
                             </div>
                             <span class="text-[8px] uppercase px-3 py-1 bg-[#009999] text-black border border-[#006666]">Choose</span>
                         </div>
@@ -168,10 +168,10 @@ onMounted(async () => {
                 </div>
                 <div v-if="isJobModalOpen" class="fixed inset-0 z-[70] flex items-center justify-center p-4">
                     <div class="absolute inset-0 bg-black/80" @click="closeJobModal"></div>
-                    <div class="relative z-10 w-full max-w-6xl border-2 border-white/10 bg-[#1a1c2c]/95 backdrop-blur-md p-4 md:p-6 shadow-2xl max-h-[92vh] overflow-hidden">
+                    <div class="relative z-10 w-full max-w-6xl border-2 border-[var(--text)]/10 bg-[var(--panel)]/95 backdrop-blur-md p-4 md:p-6 shadow-2xl max-h-[92vh] overflow-hidden">
                         <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-[10px] md:text-xs uppercase text-white">Select Job Path</h3>
-                            <button type="button" @click="closeJobModal" class="text-[8px] uppercase px-3 py-1 bg-slate-700 text-white border border-slate-500 hover:bg-slate-600">
+                            <h3 class="text-[10px] md:text-xs uppercase text-[var(--text)]">Select Job Path</h3>
+                            <button type="button" @click="closeJobModal" class="text-[8px] uppercase px-3 py-1 bg-[var(--panel-border)] text-[var(--text)] border border-[var(--panel-border)] hover:brightness-125">
                                 Close
                             </button>
                         </div>
@@ -190,7 +190,7 @@ onMounted(async () => {
                                             'bg-gradient-to-br from-indigo-800 to-violet-700 border-indigo-200/70': index % 4 === 1,
                                             'bg-gradient-to-br from-emerald-800 to-teal-700 border-emerald-200/70': index % 4 === 2,
                                             'bg-gradient-to-br from-cyan-800 to-blue-700 border-cyan-200/70': index % 4 === 3,
-                                            'ring-2 ring-[#4ed4d4]': isSelectedJob(job),
+                                            'ring-2 ring-[var(--accent)]': isSelectedJob(job),
                                         },
                                 ]"
                             >
@@ -252,7 +252,7 @@ onMounted(async () => {
                                 </div>
                             </article>
                         </div>
-                        <div class="mt-4 text-[8px] text-white/70 uppercase">
+                        <div class="mt-4 text-[8px] text-[var(--text-muted)] uppercase">
                             Pilih jobs path yang sesuai, lalu lanjutkan registrasi.
                         </div>
                     </div>
@@ -261,18 +261,18 @@ onMounted(async () => {
             </div>
 
             <div class="mt-3">
-                <label class="block text-[#009999] text-[8px] uppercase mb-1">Password</label>
+                <label class="block text-[var(--accent)] text-[8px] uppercase mb-1">Password</label>
                 <div class="relative">
                     <input :type="showPassword ? 'text' : 'password'" v-model="form.password" :class="[
-                        'w-full bg-black border-2 text-white p-2 pr-12 focus:ring-0 text-[10px] font-pixel',
-                        form.errors.password ? 'border-red-500 focus:border-red-500' : 'border-[#333333] focus:border-[#009999]'
+                        'w-full bg-[var(--bg)] border-2 text-[var(--text)] p-2 pr-12 focus:ring-0 text-[10px] font-pixel placeholder:text-[var(--text-muted)]',
+                        form.errors.password ? 'border-red-500 focus:border-red-500' : 'border-[var(--panel-border)] focus:border-[var(--accent)]'
                     ]" required />
                     <button
                         type="button"
                         @click="showPassword = !showPassword"
                         :aria-label="showPassword ? 'Hide password' : 'Show password'"
                         :title="showPassword ? 'Hide password' : 'Show password'"
-                        class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 inline-flex items-center justify-center border border-slate-500/70 bg-black/35 text-slate-200 hover:text-cyan-300 hover:border-cyan-400 focus:outline-none"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 inline-flex items-center justify-center border border-[var(--text-muted)]/70 bg-[var(--bg)]/35 text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] focus:outline-none"
                     >
                         <svg v-if="!showPassword" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
@@ -291,18 +291,18 @@ onMounted(async () => {
             </div>
 
             <div class="mt-3">
-                <label class="block text-[#009999] text-[8px] uppercase mb-1">Confirm_Password</label>
+                <label class="block text-[var(--accent)] text-[8px] uppercase mb-1">Confirm_Password</label>
                 <div class="relative">
                     <input :type="showPasswordConfirmation ? 'text' : 'password'" v-model="form.password_confirmation" :class="[
-                        'w-full bg-black border-2 text-white p-2 pr-12 focus:ring-0 text-[10px] font-pixel',
-                        form.errors.password_confirmation ? 'border-red-500 focus:border-red-500' : 'border-[#333333] focus:border-[#009999]'
+                        'w-full bg-[var(--bg)] border-2 text-[var(--text)] p-2 pr-12 focus:ring-0 text-[10px] font-pixel placeholder:text-[var(--text-muted)]',
+                        form.errors.password_confirmation ? 'border-red-500 focus:border-red-500' : 'border-[var(--panel-border)] focus:border-[var(--accent)]'
                     ]" required />
                     <button
                         type="button"
                         @click="showPasswordConfirmation = !showPasswordConfirmation"
                         :aria-label="showPasswordConfirmation ? 'Hide password confirmation' : 'Show password confirmation'"
                         :title="showPasswordConfirmation ? 'Hide password confirmation' : 'Show password confirmation'"
-                        class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 inline-flex items-center justify-center border border-slate-500/70 bg-black/35 text-slate-200 hover:text-cyan-300 hover:border-cyan-400 focus:outline-none"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 inline-flex items-center justify-center border border-[var(--text-muted)]/70 bg-[var(--bg)]/35 text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] focus:outline-none"
                     >
                         <svg v-if="!showPasswordConfirmation" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
@@ -321,8 +321,8 @@ onMounted(async () => {
             </div>
 
             <div v-if="isTurnstileEnabled" class="mt-3">
-                <label class="block text-[#009999] text-[8px] uppercase mb-2">Anti_Bot_Verification</label>
-                <div class="border-[#333333] p-2">
+                <label class="block text-[var(--accent)] text-[8px] uppercase mb-2">Anti_Bot_Verification</label>
+                <div class="border-[var(--panel-border)] p-2">
                     <div class="w-full flex justify-center">
                         <div ref="turnstileContainer"></div>
                     </div>
@@ -347,7 +347,7 @@ onMounted(async () => {
                 </button>
             </div>
 
-            <Link :href="route('login')" class="block text-center text-[8px] text-slate-500 uppercase mt-4 hover:text-[#009999]">
+            <Link :href="route('login')" class="block text-center text-[8px] text-[var(--text-muted)] uppercase mt-4 hover:text-[var(--accent)]">
                 Already Registered? Login_Here
             </Link>
         </form>
@@ -357,7 +357,7 @@ onMounted(async () => {
 <style scoped>
 .jobs-carousel {
     scrollbar-width: thin;
-    scrollbar-color: #475569 #1f2937;
+    scrollbar-color: var(--panel-border) var(--bg);
 }
 
 .jobs-carousel::-webkit-scrollbar {
@@ -365,11 +365,11 @@ onMounted(async () => {
 }
 
 .jobs-carousel::-webkit-scrollbar-track {
-    background: #1f2937;
+    background: var(--bg);
 }
 
 .jobs-carousel::-webkit-scrollbar-thumb {
-    background: #475569;
+    background: var(--panel-border);
 }
 
 .job-card {

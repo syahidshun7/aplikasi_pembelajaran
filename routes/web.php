@@ -16,6 +16,7 @@ use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminDailyQuestDefinitionController;
 use App\Http\Controllers\AdminCreationReviewController;
 use App\Http\Controllers\AdminOptionalQuestAiController;
+use App\Http\Controllers\DoopLabLogbookController;
 use App\Http\Controllers\DoopLabDashboardController;
 use App\Http\Controllers\DoopLabRoadmapController;
 use App\Http\Controllers\DoopLabRoadmapEnrollmentController;
@@ -206,6 +207,14 @@ Route::middleware('auth')->group(function () {
     Route::patch('/dooplab/todos/{todo}/review', [DoopLabTodoController::class, 'reviewCheckpoint'])->name('dooplab.todos.review');
     Route::delete('/dooplab/todos/{todo}', [DoopLabTodoController::class, 'destroy'])->name('dooplab.todos.destroy');
     Route::post('/dooplab/todos/{todo}/notes', [DoopLabTodoController::class, 'storeNote'])->name('dooplab.todos.notes.store');
+    Route::post('/dooplab/logbooks', [DoopLabLogbookController::class, 'store'])->name('dooplab.logbooks.store');
+    Route::post('/dooplab/logbooks/assign', [DoopLabLogbookController::class, 'assign'])->name('dooplab.logbooks.assign');
+    Route::patch('/dooplab/logbooks/{logbook}', [DoopLabLogbookController::class, 'update'])->name('dooplab.logbooks.update');
+    Route::delete('/dooplab/logbooks/{logbook}', [DoopLabLogbookController::class, 'destroy'])->name('dooplab.logbooks.destroy');
+    Route::post('/dooplab/logbooks/{logbook}/entries', [DoopLabLogbookController::class, 'storeEntry'])->name('dooplab.logbooks.entries.store');
+    Route::patch('/dooplab/logbooks/{logbook}/entries/{entry}', [DoopLabLogbookController::class, 'updateEntry'])->name('dooplab.logbooks.entries.update');
+    Route::patch('/dooplab/logbooks/{logbook}/entries/{entry}/approve', [DoopLabLogbookController::class, 'approveEntry'])->name('dooplab.logbooks.entries.approve');
+    Route::delete('/dooplab/logbooks/{logbook}/entries/{entry}', [DoopLabLogbookController::class, 'destroyEntry'])->name('dooplab.logbooks.entries.destroy');
 
     Route::get('/my-creations', [CreationPageController::class, 'index'])->name('creations.index');
     Route::get('/profile/creations', [CreationPageController::class, 'profileCreations'])->name('profile.creations');

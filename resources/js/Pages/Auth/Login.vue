@@ -104,16 +104,16 @@ onMounted(async () => {
         <Head title="Log In | P-QUEST" />
  
         <form @submit.prevent="submit" class="space-y-6">
-            <h2 class="text-yellow-500 text-[10px] text-center mb-6 border-b border-slate-800 pb-4 tracking-widest uppercase">
+            <h2 class="text-yellow-500 text-[10px] text-center mb-6 border-b border-[var(--panel-border)] pb-4 tracking-widest uppercase">
                 -- LOGIN_ACCESS --
             </h2>
 
             <div>
-                <label class="block text-[#009999] text-[10px] uppercase mb-2">> USER_ID (EMAIL)</label>
+                <label class="block text-[var(--accent)] text-[10px] uppercase mb-2">> USER_ID (EMAIL)</label>
                 <input 
                     type="email" 
                     v-model="form.email"
-                    class="w-full bg-black border-2 border-[#333333] text-[#F7F7F7] p-3 focus:border-[#009999] focus:ring-0 text-[10px] font-pixel"
+                    class="w-full bg-[var(--bg)] border-2 border-[var(--panel-border)] text-[var(--text)] p-3 focus:border-[var(--accent)] focus:ring-0 text-[10px] font-pixel placeholder:text-[var(--text-muted)]"
                     placeholder="ENTER_EMAIL..."
                     required
                 />
@@ -121,12 +121,12 @@ onMounted(async () => {
             </div>
 
             <div class="mt-4">
-                <label class="block text-[#009999] text-[10px] uppercase mb-2">> ACCESS_CODE</label>
+                <label class="block text-[var(--accent)] text-[10px] uppercase mb-2">> ACCESS_CODE</label>
                 <div class="relative">
                     <input 
                         :type="showPassword ? 'text' : 'password'" 
                         v-model="form.password"
-                        class="w-full bg-black border-2 border-[#333333] text-[#F7F7F7] p-3 pr-12 focus:border-[#009999] focus:ring-0 text-[10px] font-pixel"
+                        class="w-full bg-[var(--bg)] border-2 border-[var(--panel-border)] text-[var(--text)] p-3 pr-12 focus:border-[var(--accent)] focus:ring-0 text-[10px] font-pixel placeholder:text-[var(--text-muted)]"
                         placeholder="********"
                         required
                     />
@@ -135,7 +135,7 @@ onMounted(async () => {
                         @click="showPassword = !showPassword"
                         :aria-label="showPassword ? 'Hide password' : 'Show password'"
                         :title="showPassword ? 'Hide password' : 'Show password'"
-                        class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 inline-flex items-center justify-center border border-slate-500/70 bg-black/35 text-slate-200 hover:text-cyan-300 hover:border-cyan-400 focus:outline-none"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 inline-flex items-center justify-center border border-[var(--text-muted)]/70 bg-[var(--bg)]/35 text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] focus:outline-none"
                     >
                         <svg v-if="!showPassword" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
@@ -155,11 +155,11 @@ onMounted(async () => {
 
             <div class="flex items-center justify-between mt-4">
                 <label class="flex items-center cursor-pointer">
-                    <input type="checkbox" v-model="form.remember" class="bg-black border-[#333333] text-[#009999] focus:ring-0 rounded-none">
-                    <span class="ms-2 text-[8px] text-slate-400 uppercase">Keep_Session</span>
+                    <input type="checkbox" v-model="form.remember" class="bg-[var(--bg)] border-[var(--panel-border)] text-[var(--accent)] focus:ring-0 rounded-none">
+                    <span class="ms-2 text-[8px] text-[var(--text-muted)] uppercase">Keep_Session</span>
                 </label>
                 
-                <Link v-if="canResetPassword" :href="route('password.request')" class="text-[8px] text-slate-500 hover:text-[#009999] uppercase">
+                <Link v-if="canResetPassword" :href="route('password.request')" class="text-[8px] text-[var(--text-muted)] hover:text-[var(--accent)] uppercase">
                     Forgot?
                 </Link>
             </div>
@@ -184,15 +184,15 @@ onMounted(async () => {
                     type="submit" 
                     :class="{ 'opacity-60': form.processing }" 
                     :disabled="form.processing"
-                    class="w-full bg-[#009999] text-black py-4 btn-pixel border-[#006666] font-bold uppercase text-[10px] hover:bg-[#4ed4d4] transition-all flex items-center justify-center gap-2"
+                    class="w-full bg-[#009999] text-black py-4 btn-pixel border-[#006666] font-bold uppercase text-[10px] hover:brightness-125 transition-all flex items-center justify-center gap-2"
                 >
                     <span v-if="form.processing" class="inline-block h-4 w-4 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
                     <span>{{ form.processing ? 'Processing...' : 'Confirm_Access [ENTER]' }}</span>
                 </button>
             </div>
 
-            <p class="text-center text-[8px] text-slate-600 mt-6 uppercase tracking-widest">
-                No Account? <Link :href="route('register')" class="text-[#009999] hover:underline">Create_New_Hero</Link>
+            <p class="text-center text-[8px] text-[var(--text-muted)] mt-6 uppercase tracking-widest">
+                No Account? <Link :href="route('register')" class="text-[var(--accent)] hover:underline">Create_New_Hero</Link>
             </p>
         </form>
     </GuestLayout>

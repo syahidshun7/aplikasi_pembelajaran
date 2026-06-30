@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\DoopLabTodo;
 use App\Models\DoopLabTodoNote;
+use App\Models\DoopLabLogbook;
+use App\Models\DoopLabLogbookEntry;
 use App\Models\Creation;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -28,6 +30,7 @@ class DoopLabTodoController extends Controller
             'assignment_mode' => ['nullable', Rule::in([DoopLabTodo::MODE_SELF, DoopLabTodo::MODE_MENTOR])],
             'owner_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'creation_id' => ['nullable', 'integer', 'exists:creations,id'],
+            'logbook_id'  => ['nullable', 'integer', 'exists:dooplab_logbooks,id'],
             'milestone_type' => ['nullable', Rule::in(DoopLabTodo::milestoneOptions())],
             'workflow_status' => ['nullable', Rule::in(DoopLabTodo::workflowOptions())],
         ]);
@@ -37,6 +40,51 @@ class DoopLabTodoController extends Controller
 
         $ownerUserId = (int) $user->id;
         $mentorUserId = null;
+
+        $milestoneType = (string) ($validated['milestone_type'] ?? DoopLabTodo::MILESTONE_TASK);
+        $logbookId = (int) ($validated['logbook_id'] ?? 0) ?: null;
+
+        // Tipe logbook: buat todo untuk semua member logbook sekaligus
+        if ($milestoneType === DoopLabTodo::MILESTONE_LOGBOOK && $user->isMentor() && $logbookId) {
+            abort_unless($user->isMentor() || $user->isAdmin(), 403);
+
+            $logbook = DoopLabLogbook::query()->findOrFail($logbookId);
+            $memberIds = $logbook->members()->pluck('users.id')->all();
+
+            if (empty($memberIds)) {
+                throw ValidationException::withMessages([
+                    'logbook_id' => 'Logbook ini belum memiliki member.',
+                ]);
+            }
+
+            $startAt   = ! empty($validated['start_at']) ? Carbon::parse((string) $validated['start_at']) : null;
+            $deadline  = ! empty($validated['deadline'])  ? Carbon::parse((string) $validated['deadline'])  : null;
+            $notifyDeadlineEmail = $deadline !== null ? (bool) ($validated['notify_deadline_email'] ?? false) : false;
+
+            $base = [
+                'title'                => trim((string) $validated['title']),
+                'description'          => trim((string) ($validated['description'] ?? '')) ?: null,
+                'start_at'             => $startAt,
+                'deadline'             => $deadline,
+                'notify_deadline_email'=> $notifyDeadlineEmail,
+                'deadline_reminded_at' => null,
+                'assignment_mode'      => DoopLabTodo::MODE_MENTOR,
+                'milestone_type'       => $milestoneType,
+                'workflow_status'      => DoopLabTodo::STATUS_TODO,
+                'logbook_id'           => $logbookId,
+                'mentor_user_id'       => (int) $user->id,
+                'is_completed'         => false,
+            ];
+
+            foreach ($memberIds as $memberId) {
+                $todo = DoopLabTodo::query()->create(array_merge($base, [
+                    'owner_user_id' => (int) $memberId,
+                ]));
+                $this->createLogbookEntryFromTodo($todo);
+            }
+
+            return back()->with('message', 'DOOPLAB_TODO_CREATED');
+        }
 
         if ($mode === DoopLabTodo::MODE_MENTOR) {
             if ($user->isMentor()) {
@@ -87,7 +135,7 @@ class DoopLabTodoController extends Controller
             : false;
         $workflowStatus = (string) ($validated['workflow_status'] ?? DoopLabTodo::STATUS_TODO);
 
-        DoopLabTodo::query()->create([
+        $todo = DoopLabTodo::query()->create([
             'title' => trim((string) $validated['title']),
             'description' => trim((string) ($validated['description'] ?? '')) ?: null,
             'start_at' => $startAt,
@@ -98,6 +146,7 @@ class DoopLabTodoController extends Controller
             'milestone_type' => (string) ($validated['milestone_type'] ?? DoopLabTodo::MILESTONE_TASK),
             'workflow_status' => $workflowStatus,
             'creation_id' => (int) ($validated['creation_id'] ?? 0) ?: null,
+            'logbook_id'  => (int) ($validated['logbook_id']  ?? 0) ?: null,
             'owner_user_id' => $ownerUserId,
             'mentor_user_id' => $mentorUserId,
             'is_completed' => in_array($workflowStatus, [DoopLabTodo::STATUS_DONE, DoopLabTodo::STATUS_APPROVED], true),
@@ -107,6 +156,11 @@ class DoopLabTodoController extends Controller
             'reviewed_at' => in_array($workflowStatus, [DoopLabTodo::STATUS_APPROVED, DoopLabTodo::STATUS_REJECTED], true) ? now() : null,
             'reviewed_by_user_id' => in_array($workflowStatus, [DoopLabTodo::STATUS_APPROVED, DoopLabTodo::STATUS_REJECTED], true) ? (int) $user->id : null,
         ]);
+
+        // Saat todo tipe logbook dibuat → langsung buat entry pending di logbook target
+        if ((string) ($validated['milestone_type'] ?? '') === DoopLabTodo::MILESTONE_LOGBOOK) {
+            $this->createLogbookEntryFromTodo($todo);
+        }
 
         return back()->with('message', 'DOOPLAB_TODO_CREATED');
     }
@@ -133,6 +187,17 @@ class DoopLabTodoController extends Controller
             'review_note' => $next === DoopLabTodo::STATUS_DONE ? $todo->review_note : null,
         ]);
 
+        // Hook: todo type logbook — approve/pending entry yang sudah ada
+        if ((string) $todo->milestone_type === DoopLabTodo::MILESTONE_LOGBOOK) {
+            $newStatus = $next === DoopLabTodo::STATUS_DONE
+                ? DoopLabLogbookEntry::STATUS_APPROVED
+                : DoopLabLogbookEntry::STATUS_PENDING;
+
+            DoopLabLogbookEntry::query()
+                ->where('todo_id', $todo->id)
+                ->update(['status' => $newStatus]);
+        }
+
         return back()->with('message', $next === DoopLabTodo::STATUS_DONE ? 'DOOPLAB_TODO_COMPLETED' : 'DOOPLAB_TODO_REOPENED');
     }
 
@@ -149,6 +214,7 @@ class DoopLabTodoController extends Controller
             'deadline' => ['nullable', 'date', 'after_or_equal:start_at'],
             'notify_deadline_email' => ['nullable', 'boolean'],
             'creation_id' => ['nullable', 'integer', 'exists:creations,id'],
+            'logbook_id'  => ['nullable', 'integer', 'exists:dooplab_logbooks,id'],
             'mentor_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'milestone_type' => ['nullable', Rule::in(DoopLabTodo::milestoneOptions())],
             'workflow_status' => ['nullable', Rule::in(DoopLabTodo::workflowOptions())],
@@ -183,6 +249,7 @@ class DoopLabTodoController extends Controller
             'notify_deadline_email' => $notifyDeadlineEmail,
             'deadline_reminded_at' => $notifyDeadlineEmail ? $todo->deadline_reminded_at : null,
             'creation_id' => (int) ($validated['creation_id'] ?? 0) ?: null,
+            'logbook_id'  => array_key_exists('logbook_id', $validated) ? ((int) ($validated['logbook_id'] ?? 0) ?: null) : $todo->logbook_id,
             'mentor_user_id' => $mentorUserId > 0 ? $mentorUserId : $todo->mentor_user_id,
             'milestone_type' => (string) ($validated['milestone_type'] ?? $todo->milestone_type ?? DoopLabTodo::MILESTONE_TASK),
             'workflow_status' => $workflowStatus,
@@ -253,7 +320,38 @@ class DoopLabTodoController extends Controller
             'completed_by_user_id' => $approved ? (int) $user->id : null,
         ]);
 
+        // Hook: todo type logbook — approve semua pending entry yang terkait
+        if ($approved && (string) $todo->milestone_type === DoopLabTodo::MILESTONE_LOGBOOK) {
+            DoopLabLogbookEntry::query()
+                ->where('todo_id', $todo->id)
+                ->where('status', DoopLabLogbookEntry::STATUS_PENDING)
+                ->update(['status' => DoopLabLogbookEntry::STATUS_APPROVED]);
+        }
+
         return back()->with('message', $approved ? 'DOOPLAB_CHECKPOINT_APPROVED' : 'DOOPLAB_CHECKPOINT_REJECTED');
+    }
+
+    /** Buat entry logbook (pending) otomatis dari todo type logbook. */
+    private function createLogbookEntryFromTodo(DoopLabTodo $todo): void
+    {
+        $logbookId = (int) ($todo->logbook_id ?? 0);
+        if (! $logbookId) return;
+
+        // Hindari duplikat
+        $exists = DoopLabLogbookEntry::query()
+            ->where('logbook_id', $logbookId)
+            ->where('todo_id', $todo->id)
+            ->exists();
+        if ($exists) return;
+
+        DoopLabLogbookEntry::query()->create([
+            'logbook_id'    => $logbookId,
+            'todo_id'       => (int) $todo->id,
+            'activity_date' => now()->toDateString(),
+            'activity'      => (string) $todo->title,
+            'purpose'       => (string) ($todo->description ?? ''),
+            'status'        => DoopLabLogbookEntry::STATUS_PENDING,
+        ]);
     }
 
     public function storeNote(Request $request, DoopLabTodo $todo): RedirectResponse

@@ -4,10 +4,8 @@ import { computed } from 'vue';
 import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
 import { toast } from '@/Utils/Alert';
 
-// 1. Ambil data page props
 const page = usePage();
 
-// 2. Definisikan variabel auth yang menyebabkan error tadi
 const auth = computed(() => page.props.auth || {});
 const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(String(auth.value?.user?.role || '').toLowerCase()));
 
@@ -22,16 +20,19 @@ const handleLogout = () => {
 </script>
 
 <template>
-    <div class="min-h-screen font-['Press_Start_2P'] selection:bg-[#009999] relative isolate overflow-x-hidden text-[#4ed4d4]">
+    <div
+        data-app-surface="user"
+        class="min-h-screen font-['Press_Start_2P'] selection:bg-[#009999] relative isolate overflow-x-hidden text-[var(--accent)]"
+    >
         <AppBackgroundLayer overlay-class="bg-black/60" />
 
-        <nav class="bg-[#1a1c2c]/90 backdrop-blur-sm border-b-4 border-[#3d415f] p-4 md:px-8 flex justify-between items-center shadow-2xl sticky top-0 z-50">
+        <nav class="bg-[var(--panel)]/90 backdrop-blur-sm border-b-4 border-[var(--panel-border)] p-4 md:px-8 flex justify-between items-center shadow-2xl sticky top-0 z-50">
             <div class="flex items-center gap-4">
                 <Link :href="route('lobby')" class="flex items-center gap-4 group">
-                    <div class="w-10 h-10 bg-[#0a0c10] flex items-center justify-center border-b-4 border-r-4 border-[#4ed4d4] overflow-hidden group-hover:scale-110 transition-transform">
+                    <div class="w-10 h-10 bg-[var(--bg)] flex items-center justify-center border-b-4 border-r-4 border-[var(--accent)] overflow-hidden group-hover:scale-110 transition-transform">
                         <img src="/images/logo.png" alt="Logo" class="w-7 h-7 object-contain pixelated">
                     </div>
-                    <h1 class="text-[#009999] text-[8px] md:text-sm tracking-tighter uppercase group-hover:text-[#4ed4d4]">
+                    <h1 class="text-[var(--accent)] text-[8px] md:text-sm tracking-tighter uppercase group-hover:brightness-125">
                         DOOPTECH
                     </h1>
                 </Link>
@@ -45,7 +46,7 @@ const handleLogout = () => {
                     </Link>
 
                     <Link :href="route('profile.dashboard')"
-                        class="text-[8px] bg-[#3d415f]/80 text-white px-3 py-2 btn-pixel border-[#1a1c2c] uppercase font-bold hover:bg-slate-600 transition-colors">
+                        class="text-[8px] bg-[var(--panel-border)]/80 text-[var(--text)] px-3 py-2 btn-pixel border-[var(--panel)] uppercase font-bold hover:brightness-125 transition-colors">
                         Profile
                     </Link>
 
@@ -57,7 +58,7 @@ const handleLogout = () => {
 
                 <template v-else>
                     <Link :href="route('login')"
-                        class="text-[8px] bg-[#009999] text-black px-4 py-2 btn-pixel border-[#006666] uppercase font-bold hover:bg-[#4ed4d4] transition-all">
+                        class="text-[8px] bg-[#009999] text-black px-4 py-2 btn-pixel border-[#006666] uppercase font-bold hover:brightness-125 transition-all">
                         Login
                     </Link>
                     <Link :href="route('register')"
@@ -70,24 +71,23 @@ const handleLogout = () => {
 
         <main class="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] p-6 relative z-10">
             <div class="flex flex-col items-center mb-6">
-                <h2 class="text-[#009999] text-[10px] tracking-[0.2em] animate-pulse">
-                    > AUTHENTICATION_REQUIRED < 
+                <h2 class="text-[var(--accent)] text-[10px] tracking-[0.2em] animate-pulse">
+                    > AUTHENTICATION_REQUIRED <
                 </h2>
             </div>
 
-            <div class="w-full sm:max-w-md p-8 rpg-panel shadow-[0_0_50px_rgba(0,0,0,0.9)] border-4 border-[#3d415f] bg-[#1a1c2c]/95 backdrop-blur-md">
+            <div class="w-full sm:max-w-md p-8 rpg-panel shadow-[0_0_50px_rgba(0,0,0,0.9)] border-4 border-[var(--panel-border)] bg-[var(--panel)]/95 backdrop-blur-md">
                 <slot />
             </div>
         </main>
 
-        <footer class="p-8 text-center bg-[#1a1c2c]/50 backdrop-blur-md border-t-2 border-white/10 mt-auto">
-            <p class="text-[8px] text-white/50 uppercase tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
+        <footer class="p-8 text-center bg-[var(--panel)]/50 backdrop-blur-md border-t-2 border-[var(--text)]/10 mt-auto">
+            <p class="text-[8px] text-[var(--text)]/50 uppercase tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
         </footer>
     </div>
 </template>
 
 <style scoped>
-/* Style tetap sama */
 .rpg-panel {
     position: relative;
     box-shadow: 12px 12px 0px 0px rgba(0, 0, 0, 0.5);

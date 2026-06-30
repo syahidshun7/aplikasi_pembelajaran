@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use App\Models\DoopLabLogbook;
 
 class DoopLabTodo extends Model
 {
@@ -39,6 +40,7 @@ class DoopLabTodo extends Model
         'owner_user_id',
         'mentor_user_id',
         'creation_id',
+        'logbook_id',
         'is_completed',
         'completed_at',
         'completed_by_user_id',
@@ -139,6 +141,11 @@ class DoopLabTodo extends Model
     public function creation()
     {
         return $this->belongsTo(Creation::class, 'creation_id');
+    }
+
+    public function logbook()
+    {
+        return $this->belongsTo(DoopLabLogbook::class, 'logbook_id');
     }
 
     public function notes()

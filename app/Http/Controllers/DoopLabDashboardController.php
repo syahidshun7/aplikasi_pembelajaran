@@ -7,9 +7,12 @@ use App\Models\CreationCollaborator;
 use App\Models\CreationCollaborationRequest;
 use App\Models\DoopLabRoadmapEnrollment;
 use App\Models\DoopLabTodo;
+use App\Models\DoopLabLogbook;
+use App\Models\DoopLabLogbookEntry;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -211,6 +214,7 @@ class DoopLabDashboardController extends Controller
                         'status' => (string) ($todo->creation?->status ?? ''),
                         'progress' => (int) ($todo->creation?->progress ?? 0),
                     ],
+                    'logbook_id' => (int) ($todo->logbook_id ?? 0) ?: null,
                     'reviewed_by' => [
                         'id' => (int) ($todo->reviewedBy?->id ?? 0),
                         'name' => (string) ($todo->reviewedBy?->name ?? ''),
@@ -403,6 +407,56 @@ class DoopLabDashboardController extends Controller
             ->values()
             ->all();
 
+        $logbookWith = [
+            'owner:id,name,username',
+            'membersAll' => fn ($q) => $q->select('users.id', 'users.name', 'users.username'),
+            'entries' => fn ($q) => $q->with('todo:id,uuid,title')->limit(200),
+        ];
+
+        $logbookSerializer = fn (DoopLabLogbook $lb) => [
+            'id'          => (int) $lb->id,
+            'uuid'        => (string) $lb->uuid,
+            'title'       => (string) ($lb->title ?? ''),
+            'description' => (string) ($lb->description ?? ''),
+            'owner'       => ['id' => (int) ($lb->owner?->id ?? 0), 'name' => (string) ($lb->owner?->name ?? ''), 'username' => (string) ($lb->owner?->username ?? '')],
+            'members'     => $lb->membersAll->where('pivot.role', 'member')->map(fn ($u) => ['id' => (int) $u->id, 'name' => (string) ($u->name ?? ''), 'username' => (string) ($u->username ?? '')])->values()->all(),
+            'mentors'     => $lb->membersAll->where('pivot.role', 'mentor')->map(fn ($u) => ['id' => (int) $u->id, 'name' => (string) ($u->name ?? ''), 'username' => (string) ($u->username ?? '')])->values()->all(),
+            'is_assigned' => $lb->membersAll->isNotEmpty(),
+            'is_owner'    => (int) $lb->owner_user_id === $userId || $user->isAdmin(),
+            'can_edit'    => $lb->canEditBy($user),
+            'can_delete'  => $lb->canDeleteBy($user),
+            'created_at'  => $lb->created_at?->toIso8601String(),
+            'entries'     => $lb->entries->map(fn ($e) => [
+                'id'                 => (int) $e->id,
+                'uuid'               => (string) $e->uuid,
+                'activity_date'      => $e->activity_date?->toDateString(),
+                'activity_time'      => (string) ($e->activity_time ?? ''),
+                'activity'           => (string) ($e->activity ?? ''),
+                'purpose'            => (string) ($e->purpose ?? ''),
+                'result'             => (string) ($e->result ?? ''),
+                'status'             => (string) ($e->status ?? DoopLabLogbookEntry::STATUS_PENDING),
+                'documentation_url'  => $e->documentation_path ? asset('storage/'.ltrim((string) $e->documentation_path, '/')) : null,
+                'todo'               => $e->todo ? ['uuid' => (string) $e->todo->uuid, 'title' => (string) ($e->todo->title ?? '')] : null,
+                'created_at'         => $e->created_at?->toIso8601String(),
+            ])->values()->all(),
+        ];
+
+        // Logbook milik sendiri + logbook dimana user adalah member/mentor di pivot
+        $ownLogbookIds = DoopLabLogbook::query()->where('owner_user_id', $userId)->pluck('id');
+        $pivotLogbookIds = \Illuminate\Support\Facades\DB::table('dooplab_logbook_members')
+            ->where('user_id', $userId)->pluck('logbook_id');
+        $allLogbookIds = $ownLogbookIds->merge($pivotLogbookIds)->unique()->values();
+
+        $allLogbooks = DoopLabLogbook::query()
+            ->whereIn('id', $allLogbookIds)
+            ->with($logbookWith)
+            ->latest('id')
+            ->limit(80)
+            ->get()
+            ->map($logbookSerializer)
+            ->values()
+            ->all();
+
         return Inertia::render('DoopLab/Dashboard', [
             'overview' => [
                 'system_core' => 'OFFLINE',
@@ -425,10 +479,12 @@ class DoopLabDashboardController extends Controller
                 'can_create_mentor' => $isMentor,
             ],
             'todo_assignable_users' => $assignableUsers,
+            'logbook_assignable_users' => $assignableUsers, // sama dengan todo: user dari mentored creations
             'research_workspaces' => $researchWorkspaces,
             'hireable_creations' => $hireableCreations,
             'mentor_invites' => $mentorInvites,
             'learning_paths' => $learningPaths,
+            'logbooks' => $allLogbooks,
         ]);
     }
 }
