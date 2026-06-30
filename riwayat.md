@@ -277,3 +277,59 @@
 - **`assignment_mode` & `owner_user_id` lock di edit** - tidak bisa reassign todo mentor ke orang lain, harus delete + create ulang.
 - **Submission-to-todo link tidak ada** - `EnrollmentShow` punya resolve submission untuk quest, tapi todo tidak auto-create dari submission sebagai "task lanjutan".
 - **Deadline cron** - `SendDoopLabTodoDeadlineReminderNotifications` ada & ada test, tapi scheduler registration belum terlihat (perlu cek `routes/console.php` atau `app/Console/Kernel.php`).
+
+
+## 2026-06-27
+
+### Fix: Review Checkpoint Todo — Ganti window.prompt() dengan Inline Form
+
+- Root cause: `reviewTodoCheckpoint()` di `Dashboard.vue` menggunakan `window.prompt()` — UX buruk, tidak accessible, dan klik Cancel tetap submit request (bug).
+- Fix: tambah state `reviewForm { show, decision, note }`, fungsi `openReviewForm(decision)` dan `submitReviewCheckpoint()`.
+- Tombol approve/reject sekarang trigger `openReviewForm` → muncul inline form textarea + tombol Batal/Approve/Reject di atas area notes.
+- Tambah CSS: `.review-inline-form`, `nb-btn--success`, `nb-btn--danger`.
+- Verifikasi berhasil: `npm.cmd run build`.
+
+### Fix: Card Todo List Sensitif saat Copy Teks
+
+- Root cause: `@click="openTodoDetail(item)"` di `todo-nav-item` terpicu saat user drag-select teks judul.
+- Pendekatan pertama (`getSelection().toString()`) gagal karena selection masih tersisa dari klik sebelumnya.
+- Fix final: track `mousedown` posisi awal di `_dragStartX/_dragStartY` pada elemen, cek di `@click` apakah perpindahan pointer < 5px. Jika ≥ 5px (drag/select), `openTodoDetail` tidak dipanggil.
+- Verifikasi berhasil: `npm.cmd run build`.
+
+### Fitur: Logbook DoopLab
+
+- Menambahkan subsistem Logbook sebagai catatan riwayat kegiatan student dan mentor, terintegrasi dengan Todo List.
+- Entry logbook bisa dibuat mandiri oleh student atau dikaitkan dengan todo mentor.
+
+#### Skema Data (1 Tabel)
+
+**`dooplab_logbooks`**
+- `uuid` (UUID route binding), `owner_user_id` (FK users), `mentor_user_id` (FK users, nullable), `todo_id` (FK dooplab_todos, nullable).
+- `activity_date` (date), `activity_time` (time, nullable).
+- `activity` (string max 500) — deskripsi kegiatan.
+- `purpose` (text, nullable) — tujuan kegiatan.
+- `result` (text, nullable) — hasil kegiatan.
+- `mentor_signature` (string max 255, nullable) — nama/paraf teks mentor.
+- `documentation_path` (string, nullable) — path file upload (jpg/png/webp/pdf, maks 5MB).
+- Index: `(owner_user_id, activity_date)`, `(mentor_user_id, activity_date)`.
+
+#### Backend
+- Model `DoopLabLogbook` — auto-UUID, `canEditBy`/`canDeleteBy` (owner atau mentor yang ditugaskan).
+- `DoopLabLogbookController` — `store`, `update`, `destroy`. Saat store, jika `todo_id` dikaitkan dan todo punya `mentor_user_id`, field `mentor_user_id` logbook otomatis terisi dari todo.
+- 3 route baru di `web.php` (auth middleware): `POST /dooplab/logbooks`, `PATCH /dooplab/logbooks/{logbook}`, `DELETE /dooplab/logbooks/{logbook}`.
+- `DoopLabDashboardController::index` — tambah prop `logbooks` (max 100, latest by activity_date, eager load owner/mentor/todo, computed `can_edit`/`can_delete`/`documentation_url`).
+
+#### Frontend (Dashboard.vue)
+- Tombol **Logbook (N)** di sidebar kiri, di bawah To-Do List.
+- Panel list logbook: tampil tanggal, waktu, kegiatan, tujuan, hasil, paraf mentor, todo terkait, link dokumentasi, tombol edit/hapus.
+- Modal form create/edit — semua field + dropdown todo terkait (create only) + upload dokumentasi dengan preview.
+- State: `allLogbooks`, `showLogbookModal`, `logbookModalMode`, `editingLogbookUuid`, `logbookForm` (useForm), `logbookDocPreview`.
+- `panelMode` enum diperluas dengan `'logbook'`.
+- CSS baru: `.logbook-card`, `.logbook-card-head`, `.logbook-date`, `.logbook-activity`, `.logbook-card-actions`, `.logbook-card-body`, `.logbook-field`, `.logbook-doc-link`.
+- Verifikasi berhasil: `php artisan migrate` (tabel baru) + `npm.cmd run build`.
+
+#### Catatan Teknis
+- `mentor_user_id` di logbook otomatis diisi dari todo terkait saat create — tidak perlu mentor pilih sendiri.
+- File dokumentasi disimpan di `storage/app/public/dooplab/logbooks/`.
+- `forceFormData: true` dipakai di Inertia form karena ada file upload.
+- Tidak ada notifikasi real-time saat logbook dibuat/diedit — silent seperti todo notes.

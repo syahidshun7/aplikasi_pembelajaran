@@ -1,6 +1,6 @@
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import NotificationBell from '@/Components/NotificationBell.vue';
 import { toast } from '@/Utils/Alert';
 
@@ -12,11 +12,8 @@ const props = defineProps({
 });
 
 const page = usePage();
-const USER_THEME_STORAGE_KEY = 'dooptech-user-theme';
-const USER_THEME_EVENT = 'dooptech:user-theme-change';
 const auth = computed(() => page.props.auth || {});
 const mobileMenuOpen = ref(false);
-const userTheme = ref('dark');
 
 const normalizedUserRole = computed(() => String(auth.value?.user?.role || '').trim().toLowerCase());
 const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(normalizedUserRole.value));
@@ -33,38 +30,6 @@ const closeMobileMenu = () => {
     mobileMenuOpen.value = false;
 };
 
-const normalizeTheme = (value) => (String(value || '')  .toLowerCase() === 'light' ? 'light' : 'dark');
-
-const setUserTheme = (nextTheme, options = {}) => {
-    const { persist = true, broadcast = true } = options;
-    const normalizedTheme = normalizeTheme(nextTheme);
-    userTheme.value = normalizedTheme;
-
-    if (typeof window === 'undefined') {
-        return;
-    }
-
-    if (persist) {
-        window.localStorage.setItem(USER_THEME_STORAGE_KEY, normalizedTheme);
-    }
-
-    if (broadcast) {
-        window.dispatchEvent(new CustomEvent(USER_THEME_EVENT, { detail: { theme: normalizedTheme } }));
-    }
-};
-
-const syncThemeFromStorage = (event) => {
-    if (event.key !== USER_THEME_STORAGE_KEY) {
-        return;
-    }
-
-    setUserTheme(event.newValue, { persist: false, broadcast: false });
-};
-
-const syncThemeFromBroadcast = (event) => {
-    setUserTheme(event?.detail?.theme, { persist: false, broadcast: false });
-};
-
 const handleLogout = () => {
     toast.confirm('QUIT GAME?', 'Are you sure you want to exit?')
         .then((result) => {
@@ -74,29 +39,10 @@ const handleLogout = () => {
             }
         });
 };
-
-onMounted(() => {
-    if (typeof window === 'undefined') {
-        return;
-    }
-
-    setUserTheme(window.localStorage.getItem(USER_THEME_STORAGE_KEY), { persist: false, broadcast: false });
-    window.addEventListener('storage', syncThemeFromStorage);
-    window.addEventListener(USER_THEME_EVENT, syncThemeFromBroadcast);
-});
-
-onBeforeUnmount(() => {
-    if (typeof window === 'undefined') {
-        return;
-    }
-
-    window.removeEventListener('storage', syncThemeFromStorage);
-    window.removeEventListener(USER_THEME_EVENT, syncThemeFromBroadcast);
-});
 </script>
 
 <template>
-    <div data-app-surface="user" :data-theme="userTheme" class="user-navbar-theme-scope relative">
+    <div data-app-surface="user" class="user-navbar-theme-scope relative">
     <nav class="user-navbar-shell sticky top-0 z-50 flex items-center justify-between border-b-4 border-[var(--panel-border)] bg-[var(--panel)] p-4 text-[var(--text)] shadow-2xl md:bg-[var(--panel-soft)] md:backdrop-blur-sm md:px-8">
         <div class="flex items-center gap-4">
             <Link :href="route('lobby')" class="group flex items-center gap-4" @click="closeMobileMenu">

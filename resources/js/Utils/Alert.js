@@ -3,16 +3,27 @@ import Swal from 'sweetalert2';
 const RPGAlert = Swal.mixin({
     background: '#161b22',
     color: '#4ed4d4',
-    // Mematikan style bawaan agar tidak jadi bulat/biru
-    buttonsStyling: false, 
+    buttonsStyling: false,
     customClass: {
         popup: 'rpg-popup-box',
         title: 'rpg-title',
         htmlContainer: 'rpg-text',
         confirmButton: 'btn-pixel-alert btn-confirm-rpg',
         cancelButton: 'btn-pixel-alert btn-cancel-rpg',
-        actions: 'rpg-actions' // Tambahan untuk merapikan posisi tombol
+        actions: 'rpg-actions'
     }
+});
+
+const RPGToast = Swal.mixin({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timerProgressBar: true,
+    background: '#101826',
+    color: '#d9f8ff',
+    customClass: {
+        popup: 'border-2 border-cyan-900 font-mono text-[10px]',
+    },
 });
 
 export const swal = RPGAlert;
@@ -29,17 +40,21 @@ export const toast = {
         });
     },
     success: (title, text) => {
-        return RPGAlert.fire({
+        return RPGToast.fire({
             icon: 'success',
-            title: title || 'LOGGED!',
+            iconColor: '#34d399',
+            title: title || 'SUCCESS!',
             text: text,
+            timer: 2500,
         });
     },
     error: (title, text) => {
-        return RPGAlert.fire({
+        return RPGToast.fire({
             icon: 'error',
+            iconColor: '#f87171',
             title: title || 'FAILURE!',
             text: text,
+            timer: 3500,
         });
     }
 };

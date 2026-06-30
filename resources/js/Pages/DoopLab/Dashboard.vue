@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import LogbookPanel from '@/Components/Dashboard/LogbookPanel.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { toast } from '@/Utils/Alert';
@@ -17,6 +18,8 @@ const props = defineProps({
     hireable_creations: { type: Array, default: () => [] },
     mentor_invites: { type: Array, default: () => [] },
     learning_paths: { type: Array, default: () => [] },
+    logbooks: { type: Array, default: () => [] },
+    logbook_assignable_users: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -90,11 +93,14 @@ const visibleResearchWorkspaces = computed(() => {
     return researchWorkspaces.value.filter((workspace) => Number(workspace?.owner_user_id || 0) === ownerUserId);
 });
 const learningPaths = computed(() => Array.isArray(props.learning_paths) ? props.learning_paths : []);
+const allLogbooks = computed(() => Array.isArray(props.logbooks) ? props.logbooks : []);
+// Logbook milik mentor sendiri (untuk di-assign ke member saat buat todo type logbook)
+const mentorLogbooks = computed(() => allLogbooks.value.filter(lb => lb.is_owner));
 const todoSearch = ref(String(initialDashboardState.todoSearch || ''));
 const todoFilter = ref(['all', 'self', 'mentor'].includes(String(initialDashboardState.todoFilter || ''))
     ? String(initialDashboardState.todoFilter)
     : 'all');
-const panelMode = ref(['summary', 'todo', 'learning_paths', 'hire_mentor', 'mentor_invites'].includes(String(initialDashboardState.panelMode || ''))
+const panelMode = ref(['summary', 'todo', 'learning_paths', 'hire_mentor', 'mentor_invites', 'logbook'].includes(String(initialDashboardState.panelMode || ''))
     ? String(initialDashboardState.panelMode)
     : 'learning_paths');
 const showTodoModal = ref(false);
@@ -135,6 +141,7 @@ const todoForm = useForm({
     assignment_mode: 'self',
     owner_user_id: null,
     creation_id: null,
+    logbook_id: null,
     milestone_type: 'task',
 });
 
@@ -142,6 +149,34 @@ const todoNoteForm = useForm({
     note: '',
     image: null,
 });
+
+const reviewForm = ref({
+    show: false,
+    decision: null,
+    note: '',
+});
+
+const openReviewForm = (decision) => {
+    reviewForm.value = { show: true, decision, note: '' };
+};
+
+const closeReviewForm = () => {
+    reviewForm.value = { show: false, decision: null, note: '' };
+};
+
+// ── END LOGBOOK STATE ─────────────────────────────────────────────────────
+const logbookPanelRef = ref(null);
+
+const showLogbook = () => {
+    selectedTodoUuid.value = null;
+    if (logbookPanelRef.value) logbookPanelRef.value.selectedLogbookUuid = null;
+    panelMode.value = 'logbook';
+    nextTick(() => {
+        if (typeof window !== 'undefined' && todoChatPanelRef.value?.scrollIntoView) {
+            todoChatPanelRef.value.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+};
 
 const todoNoteImagePreview = ref('');
 const selectedTodoChatStreamRef = ref(null);
@@ -493,6 +528,7 @@ const openTodoEditModal = (todo) => {
     todoForm.assignment_mode = String(todo?.assignment_mode || 'self');
     todoForm.owner_user_id = Number(todo?.owner?.id || 0) || null;
     todoForm.creation_id = Number(todo?.creation?.id || 0) || null;
+    todoForm.logbook_id = Number(todo?.logbook_id || 0) || null;
     todoForm.milestone_type = String(todo?.milestone_type || 'task');
     todoForm.clearErrors();
     showTodoModal.value = true;
@@ -558,6 +594,7 @@ const workPanelTitle = computed(() => {
     if (panelMode.value === 'learning_paths') return 'My Learning Path';
     if (panelMode.value === 'hire_mentor') return 'Hire Mentor';
     if (panelMode.value === 'mentor_invites') return 'Mentor Invites';
+    if (panelMode.value === 'logbook') return logbookPanelRef.value?.selectedLogbook ? logbookPanelRef.value.selectedLogbook.title : 'Logbook';
     return 'To-Do List';
 });
 
@@ -566,6 +603,7 @@ const workPanelSubtitle = computed(() => {
     if (panelMode.value === 'learning_paths') return 'Roadmap mentoring yang ditugaskan untukmu.';
     if (panelMode.value === 'hire_mentor') return 'Hubungkan mentor ke creation tanpa perlu publish terlebih dahulu.';
     if (panelMode.value === 'mentor_invites') return 'Accept atau reject invite mentor dari pemilik creation.';
+    if (panelMode.value === 'logbook') return logbookPanelRef.value?.selectedLogbook ? `${logbookPanelRef.value.selectedLogbook.entries?.length || 0} entri kegiatan` : 'Pilih logbook untuk melihat entri kegiatan.';
     return 'Pilih to-do dari daftar untuk mulai mencatat progres.';
 });
 
@@ -649,7 +687,8 @@ const submitTodo = () => {
             start_at: toIsoOrNull(todoForm.start_at),
             deadline: toIsoOrNull(todoForm.deadline),
             notify_deadline_email: Boolean(todoForm.notify_deadline_email),
-            creation_id: todoForm.creation_id || null,
+            creation_id: todoForm.milestone_type !== 'logbook' ? (todoForm.creation_id || null) : null,
+            logbook_id: todoForm.milestone_type === 'logbook' ? (todoForm.logbook_id || null) : null,
             milestone_type: todoForm.milestone_type,
         })).patch(route('dooplab.todos.update', targetUuid), {
             preserveScroll: true,
@@ -668,12 +707,14 @@ const submitTodo = () => {
         start_at: toIsoOrNull(todoForm.start_at),
         deadline: toIsoOrNull(todoForm.deadline),
         notify_deadline_email: Boolean(todoForm.notify_deadline_email),
-        creation_id: todoForm.creation_id || null,
+        creation_id: todoForm.milestone_type !== 'logbook' ? (todoForm.creation_id || null) : null,
+        logbook_id: todoForm.milestone_type === 'logbook' ? (todoForm.logbook_id || null) : null,
         milestone_type: todoForm.milestone_type,
-        assignment_mode: canCreateMentorTodo.value ? todoForm.assignment_mode : 'self',
-        owner_user_id: (canCreateMentorTodo.value && todoForm.assignment_mode === 'mentor')
-            ? todoForm.owner_user_id
-            : null,
+        // tipe logbook selalu mentor-assigned karena ditujukan ke member
+        assignment_mode: (todoForm.milestone_type === 'logbook' || (canCreateMentorTodo.value && todoForm.assignment_mode === 'mentor')) ? 'mentor' : 'self',
+        owner_user_id: todoForm.milestone_type === 'logbook'
+            ? null  // backend handle broadcast ke semua member logbook
+            : ((canCreateMentorTodo.value && todoForm.assignment_mode === 'mentor') ? todoForm.owner_user_id : null),
     };
 
     todoForm.transform(() => payload).post(route('dooplab.todos.store'), {
@@ -764,20 +805,19 @@ const submitTodoForReview = (todo) => {
 
 const reviewTodoCheckpoint = (todo, decision) => {
     if (!todo?.can_review) return;
+    openReviewForm(decision);
+};
 
-    const note = window.prompt(
-        decision === 'approve'
-            ? 'Catatan approval (opsional):'
-            : 'Alasan reject/revisi (opsional):',
-        '',
-    );
+const submitReviewCheckpoint = () => {
+    if (!selectedTodo.value?.can_review || !reviewForm.value.decision) return;
 
-    router.patch(route('dooplab.todos.review', todo.uuid), {
-        decision,
-        review_note: String(note || '').trim() || null,
+    router.patch(route('dooplab.todos.review', selectedTodo.value.uuid), {
+        decision: reviewForm.value.decision,
+        review_note: reviewForm.value.note.trim() || null,
     }, {
         preserveScroll: true,
         preserveState: true,
+        onSuccess: () => closeReviewForm(),
     });
 };
 
@@ -926,6 +966,16 @@ onUnmounted(() => {
                             To-Do List
                         </button>
 
+                        <button
+                            type="button"
+                            class="source-add-btn"
+                            :class="{ 'is-active': panelMode === 'logbook' }"
+                            @click="showLogbook"
+                        >
+                            <i class="fi fi-rr-book-alt"></i>
+                            Logbook ({{ allLogbooks.length }})
+                        </button>
+
                     </aside>
 
                     <main ref="todoChatPanelRef" class="nb-panel nb-chat">
@@ -945,6 +995,45 @@ onUnmounted(() => {
                                 <i class="fi fi-rr-plus"></i>
                                 Tambahkan to-do
                             </button>
+                            <button
+                                v-if="panelMode === 'logbook' && !logbookPanelRef?.selectedLogbook"
+                                type="button"
+                                class="source-add-btn todo-add-btn"
+                                @click="logbookPanelRef?.openLogbookModal()"
+                            >
+                                <i class="fi fi-rr-plus"></i>
+                                Buat Logbook
+                            </button>
+                            <button
+                                v-if="panelMode === 'logbook' && !logbookPanelRef?.selectedLogbook && canCreateMentorTodo"
+                                type="button"
+                                class="source-add-btn todo-add-btn"
+                                style="background:var(--violet,#7c3aed)"
+                                @click="logbookPanelRef?.openLogbookAssignModal()"
+                            >
+                                <i class="fi fi-rr-user-add"></i>
+                                Assign ke User
+                            </button>
+                            <div v-if="panelMode === 'logbook' && logbookPanelRef?.selectedLogbook" class="logbook-toolbar">
+                                <button type="button" class="chat-back-btn" @click="logbookPanelRef.selectedLogbookUuid = null">
+                                    <i class="fi fi-rr-arrow-small-left"></i>
+                                    Kembali
+                                </button>
+                                <button type="button" class="source-add-btn todo-add-btn" @click="logbookPanelRef?.openEntryModal()">
+                                    <i class="fi fi-rr-plus"></i>
+                                    Tambah Entri
+                                </button>
+                                <button
+                                    v-if="logbookPanelRef?.selectedLogbook?.entries?.length"
+                                    type="button"
+                                    class="source-add-btn todo-add-btn"
+                                    style="background:rgba(87,214,255,0.08);color:var(--cyan)"
+                                    @click="logbookPanelRef?.exportEntryCsv()"
+                                >
+                                    <i class="fi fi-rr-file-csv"></i>
+                                    Export CSV
+                                </button>
+                            </div>
                             <button v-if="selectedTodo" type="button" class="chat-back-btn" @click="clearSelectedTodo">
                                 <i class="fi fi-rr-arrow-small-left"></i>
                                 Kembali
@@ -991,6 +1080,17 @@ onUnmounted(() => {
 
                                     <div class="todo-date-grid">
                                         <label class="todo-field todo-field--date">
+                                            <span>Tipe Item</span>
+                                            <select v-model="todoForm.milestone_type">
+                                                <option value="task">Task</option>
+                                                <option value="milestone">Milestone</option>
+                                                <option value="checkpoint">Checkpoint</option>
+                                                <option value="logbook">Logbook</option>
+                                            </select>
+                                            <small v-if="todoForm.errors.milestone_type" class="todo-error">{{ todoForm.errors.milestone_type }}</small>
+                                        </label>
+
+                                        <label v-if="todoForm.milestone_type !== 'logbook'" class="todo-field todo-field--date">
                                             <span>Creation Riset</span>
                                             <select v-model="todoForm.creation_id">
                                                 <option :value="null">Tanpa creation</option>
@@ -1003,16 +1103,13 @@ onUnmounted(() => {
                                             </small>
                                             <small v-if="todoForm.errors.creation_id" class="todo-error">{{ todoForm.errors.creation_id }}</small>
                                         </label>
-
-                                        <label class="todo-field todo-field--date">
-                                            <span>Tipe Item</span>
-                                            <select v-model="todoForm.milestone_type">
-                                                <option value="task">Task</option>
-                                                <option value="milestone">Milestone</option>
-                                                <option value="checkpoint">Checkpoint</option>
-                                                <option value="logbook">Logbook</option>
+                                        <label v-else class="todo-field todo-field--date">
+                                            <span>Target Logbook</span>
+                                            <select v-model="todoForm.logbook_id" required>
+                                                <option :value="null">Pilih logbook</option>
+                                                <option v-for="lb in mentorLogbooks" :key="lb.uuid" :value="lb.id">{{ lb.title }}</option>
                                             </select>
-                                            <small v-if="todoForm.errors.milestone_type" class="todo-error">{{ todoForm.errors.milestone_type }}</small>
+                                            <small v-if="todoForm.errors.logbook_id" class="todo-error">{{ todoForm.errors.logbook_id }}</small>
                                         </label>
                                     </div>
 
@@ -1035,7 +1132,7 @@ onUnmounted(() => {
                                     </label>
 
                                     <label
-                                        v-if="canCreateMentorTodo && todoForm.assignment_mode === 'mentor'"
+                                        v-if="canCreateMentorTodo && (todoForm.assignment_mode === 'mentor')"
                                         class="todo-field"
                                     >
                                         <span>Target Member</span>
@@ -1096,6 +1193,30 @@ onUnmounted(() => {
                                     </div>
                                 </article>
                             </section>
+
+                            <div v-if="reviewForm.show" class="review-inline-form">
+                                <p class="review-inline-title">
+                                    <i :class="reviewForm.decision === 'approve' ? 'fi fi-rr-badge-check' : 'fi fi-rr-cross-circle'"></i>
+                                    {{ reviewForm.decision === 'approve' ? 'Approve Checkpoint' : 'Reject Checkpoint' }}
+                                </p>
+                                <textarea
+                                    v-model="reviewForm.note"
+                                    rows="3"
+                                    maxlength="1200"
+                                    class="todo-note-textarea"
+                                    :placeholder="reviewForm.decision === 'approve' ? 'Catatan approval (opsional)' : 'Alasan reject/revisi (opsional)'"
+                                ></textarea>
+                                <div class="review-inline-actions">
+                                    <button type="button" class="nb-btn nb-btn--ghost" @click="closeReviewForm">Batal</button>
+                                    <button
+                                        type="button"
+                                        :class="reviewForm.decision === 'approve' ? 'nb-btn nb-btn--success' : 'nb-btn nb-btn--danger'"
+                                        @click="submitReviewCheckpoint"
+                                    >
+                                        {{ reviewForm.decision === 'approve' ? 'Approve' : 'Reject' }}
+                                    </button>
+                                </div>
+                            </div>
 
                             <div class="chat-composer chat-composer--todo">
                                 <form class="todo-note-form" @submit.prevent="submitTodoNote">
@@ -1277,7 +1398,8 @@ onUnmounted(() => {
                                         }"
                                         role="button"
                                         tabindex="0"
-                                        @click="openTodoDetail(item)"
+                                        @mousedown="$event.currentTarget._dragStartX = $event.clientX; $event.currentTarget._dragStartY = $event.clientY"
+                                        @click="(Math.abs($event.clientX - ($event.currentTarget._dragStartX||$event.clientX)) + Math.abs($event.clientY - ($event.currentTarget._dragStartY||$event.clientY)) < 5) && openTodoDetail(item)"
                                         @keydown.enter.prevent="openTodoDetail(item)"
                                         @keydown.space.prevent="openTodoDetail(item)"
                                     >
@@ -1431,6 +1553,16 @@ onUnmounted(() => {
                             </section>
                         </template>
 
+                        <template v-else-if="panelMode === 'logbook'">
+                            <LogbookPanel
+                                ref="logbookPanelRef"
+                                :logbooks="allLogbooks"
+                                :assignable-users="props.logbook_assignable_users"
+                                :mentors="mentors"
+                                :can-approve-mentor="canCreateMentorTodo"
+                            />
+                        </template>
+
                         <template v-else></template>
                     </main>
 
@@ -1533,6 +1665,17 @@ onUnmounted(() => {
 
                         <div class="todo-date-grid">
                             <label class="todo-field todo-field--date">
+                                <span>Tipe Item</span>
+                                <select v-model="todoForm.milestone_type">
+                                    <option value="task">Task</option>
+                                    <option value="milestone">Milestone</option>
+                                    <option value="checkpoint">Checkpoint</option>
+                                    <option value="logbook">Logbook</option>
+                                </select>
+                                <small v-if="todoForm.errors.milestone_type" class="todo-error">{{ todoForm.errors.milestone_type }}</small>
+                            </label>
+
+                            <label v-if="todoForm.milestone_type !== 'logbook'" class="todo-field todo-field--date">
                                 <span>Creation Riset</span>
                                 <select v-model="todoForm.creation_id">
                                     <option :value="null">Tanpa creation</option>
@@ -1545,16 +1688,13 @@ onUnmounted(() => {
                                 </small>
                                 <small v-if="todoForm.errors.creation_id" class="todo-error">{{ todoForm.errors.creation_id }}</small>
                             </label>
-
-                            <label class="todo-field todo-field--date">
-                                <span>Tipe Item</span>
-                                <select v-model="todoForm.milestone_type">
-                                    <option value="task">Task</option>
-                                    <option value="milestone">Milestone</option>
-                                    <option value="checkpoint">Checkpoint</option>
-                                    <option value="logbook">Logbook</option>
+                            <label v-else class="todo-field todo-field--date">
+                                <span>Target Logbook</span>
+                                <select v-model="todoForm.logbook_id" required>
+                                    <option :value="null">Pilih logbook</option>
+                                    <option v-for="lb in mentorLogbooks" :key="lb.uuid" :value="lb.id">{{ lb.title }}</option>
                                 </select>
-                                <small v-if="todoForm.errors.milestone_type" class="todo-error">{{ todoForm.errors.milestone_type }}</small>
+                                <small v-if="todoForm.errors.logbook_id" class="todo-error">{{ todoForm.errors.logbook_id }}</small>
                             </label>
                         </div>
 
@@ -1569,7 +1709,7 @@ onUnmounted(() => {
                         </small>
                         <small v-if="todoForm.errors.notify_deadline_email" class="todo-error">{{ todoForm.errors.notify_deadline_email }}</small>
 
-                        <label v-if="todoModalMode === 'create' && canCreateMentorTodo" class="todo-field">
+                        <label v-if="canCreateMentorTodo && todoForm.milestone_type !== 'logbook'" class="todo-field">
                             <span>Jenis Penugasan</span>
                             <select v-model="todoForm.assignment_mode">
                                 <option value="self">Self (saya centang sendiri)</option>
@@ -1579,7 +1719,7 @@ onUnmounted(() => {
                         </label>
 
                         <label
-                            v-if="todoModalMode === 'create' && canCreateMentorTodo && todoForm.assignment_mode === 'mentor'"
+                            v-if="canCreateMentorTodo && (todoForm.assignment_mode === 'mentor')"
                             class="todo-field"
                         >
                             <span>Target Member</span>
@@ -1752,6 +1892,53 @@ onUnmounted(() => {
 
 .nb-btn--solid:hover {
     opacity: 0.9;
+}
+
+.nb-btn--success {
+    color: #0a1a10;
+    border-color: rgba(0, 0, 0, 0.2);
+    background: linear-gradient(120deg, #4ade80, #22c55e);
+}
+
+.nb-btn--success:hover {
+    opacity: 0.9;
+}
+
+.nb-btn--danger {
+    color: #1a0a0a;
+    border-color: rgba(0, 0, 0, 0.2);
+    background: linear-gradient(120deg, #f87171, #ef4444);
+}
+
+.nb-btn--danger:hover {
+    opacity: 0.9;
+}
+
+.review-inline-form {
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    background: rgba(10, 17, 30, 0.8);
+    margin-bottom: 10px;
+}
+
+.review-inline-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--cyan);
+    margin: 0 0 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.review-inline-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
 }
 
 .nb-metrics {
@@ -2573,6 +2760,25 @@ onUnmounted(() => {
     background: rgba(87, 214, 255, 0.14);
 }
 
+.logbook-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+@media (max-width: 520px) {
+    .logbook-toolbar {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .logbook-toolbar > * {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
 .chat-hero h3 {
     margin: 0 0 8px;
     font-size: 22px;
@@ -3243,7 +3449,10 @@ onUnmounted(() => {
     align-items: start;
     justify-items: center;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: clamp(10px, 2.6vw, 18px);
+    padding-top: max(clamp(10px, 2.6vw, 18px), env(safe-area-inset-top));
+    padding-bottom: max(clamp(10px, 2.6vw, 18px), env(safe-area-inset-bottom));
 }
 
 .todo-modal-card {
@@ -3256,6 +3465,15 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.todo-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-right: 4px;
 }
 
 .todo-modal-head {
@@ -3418,19 +3636,45 @@ onUnmounted(() => {
 
     .todo-modal {
         padding: 8px;
+        padding-top: max(8px, env(safe-area-inset-top));
+        align-items: start;
     }
 
     .todo-modal-card {
+        width: 100%;
         max-height: calc(100dvh - 16px);
-        padding: 12px;
+        padding: 14px 12px;
+    }
+
+    .todo-modal-head {
+        margin-bottom: 14px;
+        padding-bottom: 12px;
     }
 
     .todo-modal-head h3 {
-        font-size: 14px;
+        font-size: 9px;
+        line-height: 1.5;
+        max-width: calc(100% - 44px);
+    }
+
+    .todo-modal-body {
+        gap: 12px;
     }
 
     .todo-date-grid {
         grid-template-columns: 1fr;
+    }
+
+    /* Prevent iOS auto-zoom on input focus */
+    .todo-field input,
+    .todo-field textarea,
+    .todo-field select {
+        font-size: 16px;
+        padding: 10px;
+    }
+
+    .todo-field span {
+        font-size: 9px;
     }
 }
 
@@ -3846,4 +4090,5 @@ onUnmounted(() => {
     .nb-panel small, .nb-panel label { font-size: 10px !important; }
     .nb-panel h1, .nb-panel h2, .nb-panel h3, .nb-panel h4 { font-size: 11px !important; }
 }
+
 </style>

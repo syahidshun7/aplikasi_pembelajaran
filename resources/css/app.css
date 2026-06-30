@@ -525,6 +525,87 @@
     padding: 2rem !important;
 }
 
+/* Toast mode — lebih ramping */
+.rpg-toast-box {
+    padding: 10px 14px !important;
+    border: 2px solid #3d4153 !important;
+    border-radius: 0 !important;
+    box-shadow: 4px 4px 0 rgba(0,0,0,0.5) !important;
+    background: #161b22 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 10px !important;
+    min-height: 0 !important;
+    height: auto !important;
+}
+.rpg-toast-box .swal2-icon {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+    border-width: 2px !important;
+    position: relative !important;
+}
+/* Success checkmark */
+.rpg-toast-box .swal2-icon.swal2-success .swal2-success-ring {
+    width: 32px !important;
+    height: 32px !important;
+    top: -2px !important;
+    left: -2px !important;
+}
+.rpg-toast-box .swal2-icon.swal2-success [class^='swal2-success-line'] {
+    top: 50% !important;
+}
+.rpg-toast-box .swal2-icon.swal2-success .swal2-success-line-tip {
+    width: 8px !important;
+    left: 4px !important;
+    top: 14px !important;
+}
+.rpg-toast-box .swal2-icon.swal2-success .swal2-success-line-long {
+    width: 14px !important;
+    right: 3px !important;
+    top: 11px !important;
+}
+/* Error X */
+.rpg-toast-box .swal2-icon.swal2-error [class^='swal2-x-mark-line'] {
+    width: 14px !important;
+    top: 13px !important;
+}
+.rpg-toast-box .swal2-icon.swal2-error .swal2-x-mark-line-left {
+    left: 6px !important;
+}
+.rpg-toast-box .swal2-icon.swal2-error .swal2-x-mark-line-right {
+    right: 6px !important;
+}
+/* Warning */
+.rpg-toast-box .swal2-icon .swal2-icon-content {
+    font-size: 18px !important;
+    line-height: 32px !important;
+}
+.rpg-toast-box .swal2-title {
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 9px !important;
+    text-transform: uppercase !important;
+    color: #4ed4d4 !important;
+    margin: 0 0 2px !important;
+    text-align: left !important;
+}
+.rpg-toast-box .swal2-html-container {
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 7px !important;
+    text-transform: uppercase !important;
+    color: #94a3b8 !important;
+    margin: 0 !important;
+    text-align: left !important;
+    line-height: 1.5 !important;
+}
+.rpg-toast-box .swal2-timer-progress-bar {
+    background: rgba(87, 214, 255, 0.5) !important;
+    height: 2px !important;
+}
+
 /* 2. Judul dan Teks */
 .rpg-title, .swal2-title {
     font-family: 'Press Start 2P', cursive !important;
