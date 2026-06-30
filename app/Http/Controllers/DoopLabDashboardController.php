@@ -413,6 +413,12 @@ class DoopLabDashboardController extends Controller
             'entries' => fn ($q) => $q->with('todo:id,uuid,title')->limit(200),
         ];
 
+        $documentationUrls = fn (DoopLabLogbookEntry $e) => collect($e->documentation_paths ?: ($e->documentation_path ? [$e->documentation_path] : []))
+            ->filter()
+            ->map(fn ($path) => asset('storage/'.ltrim((string) $path, '/')))
+            ->values()
+            ->all();
+
         $logbookSerializer = fn (DoopLabLogbook $lb) => [
             'id'          => (int) $lb->id,
             'uuid'        => (string) $lb->uuid,
@@ -435,7 +441,8 @@ class DoopLabDashboardController extends Controller
                 'purpose'            => (string) ($e->purpose ?? ''),
                 'result'             => (string) ($e->result ?? ''),
                 'status'             => (string) ($e->status ?? DoopLabLogbookEntry::STATUS_PENDING),
-                'documentation_url'  => $e->documentation_path ? asset('storage/'.ltrim((string) $e->documentation_path, '/')) : null,
+                'documentation_url'  => $documentationUrls($e)[0] ?? null,
+                'documentation_urls' => $documentationUrls($e),
                 'todo'               => $e->todo ? ['uuid' => (string) $e->todo->uuid, 'title' => (string) ($e->todo->title ?? '')] : null,
                 'created_at'         => $e->created_at?->toIso8601String(),
             ])->values()->all(),

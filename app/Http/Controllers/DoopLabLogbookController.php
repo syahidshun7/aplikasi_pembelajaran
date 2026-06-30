@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\UploadedFile;
 
 class DoopLabLogbookController extends Controller
 {
@@ -159,12 +160,11 @@ class DoopLabLogbookController extends Controller
             'activity'      => ['required', 'string', 'max:500'],
             'purpose'       => ['nullable', 'string', 'max:2000'],
             'result'        => ['nullable', 'string', 'max:2000'],
-            'documentation' => ['nullable', 'file', 'max:5120', 'mimes:jpg,jpeg,png,webp,pdf'],
+            'documentation' => ['nullable', 'array', 'max:5'],
+            'documentation.*' => ['file', 'max:5120', 'mimes:jpg,jpeg,png,webp'],
         ]);
 
-        $docPath = $request->hasFile('documentation')
-            ? $request->file('documentation')->store('dooplab/logbooks', 'public')
-            : null;
+        $docPaths = $this->storeDocumentationFiles($request);
 
         // Mentor/owner langsung approved, member biasa pending
         $status = $this->isMentorOfLogbook($logbook, $user)
@@ -179,7 +179,8 @@ class DoopLabLogbookController extends Controller
             'purpose'            => trim((string) ($v['purpose'] ?? '')) ?: null,
             'result'             => trim((string) ($v['result'] ?? '')) ?: null,
             'status'             => $status,
-            'documentation_path' => $docPath,
+            'documentation_path'  => $docPaths[0] ?? null,
+            'documentation_paths' => $docPaths ?: null,
         ]);
 
         return back()->with('message', 'DOOPLAB_LOGBOOK_ENTRY_CREATED');
@@ -197,12 +198,13 @@ class DoopLabLogbookController extends Controller
             'activity'      => ['required', 'string', 'max:500'],
             'purpose'       => ['nullable', 'string', 'max:2000'],
             'result'        => ['nullable', 'string', 'max:2000'],
-            'documentation' => ['nullable', 'file', 'max:5120', 'mimes:jpg,jpeg,png,webp,pdf'],
+            'documentation' => ['nullable', 'array', 'max:5'],
+            'documentation.*' => ['file', 'max:5120', 'mimes:jpg,jpeg,png,webp'],
         ]);
 
-        $docPath = $request->hasFile('documentation')
-            ? $request->file('documentation')->store('dooplab/logbooks', 'public')
-            : $entry->documentation_path;
+        $docPaths = $request->hasFile('documentation')
+            ? $this->storeDocumentationFiles($request)
+            : ($entry->documentation_paths ?: ($entry->documentation_path ? [$entry->documentation_path] : []));
 
         $entry->update([
             'activity_date'      => $v['activity_date'],
@@ -210,7 +212,8 @@ class DoopLabLogbookController extends Controller
             'activity'           => trim($v['activity']),
             'purpose'            => trim((string) ($v['purpose'] ?? '')) ?: null,
             'result'             => trim((string) ($v['result'] ?? '')) ?: null,
-            'documentation_path' => $docPath,
+            'documentation_path'  => $docPaths[0] ?? null,
+            'documentation_paths' => $docPaths ?: null,
         ]);
 
         return back()->with('message', 'DOOPLAB_LOGBOOK_ENTRY_UPDATED');
@@ -237,5 +240,20 @@ class DoopLabLogbookController extends Controller
         $entry->delete();
 
         return back()->with('message', 'DOOPLAB_LOGBOOK_ENTRY_DELETED');
+    }
+
+    private function storeDocumentationFiles(Request $request): array
+    {
+        $files = $request->file('documentation', []);
+        if ($files instanceof UploadedFile) {
+            $files = [$files];
+        }
+
+        return collect($files)
+            ->filter(fn ($file) => $file instanceof UploadedFile)
+            ->take(5)
+            ->map(fn (UploadedFile $file) => $file->store('dooplab/logbooks', 'public'))
+            ->values()
+            ->all();
     }
 }
