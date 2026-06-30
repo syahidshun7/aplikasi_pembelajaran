@@ -137,11 +137,19 @@ const deleteLogbook = async (logbook) => {
 };
 
 // ── Entry CRUD ────────────────────────────────────────────────────────────
-const entryForm = useForm({ activity_date: '', activity_time: '', activity: '', purpose: '', result: '', documentation: null });
+const entryForm = useForm({ activity_date: '', activity_time: '', activity: '', purpose: '', result: '', documentation: [] });
 const showEntryModal = ref(false);
 const entryModalMode = ref('create');
 const editingEntryUuid = ref(null);
-const entryDocPreview = ref('');
+const entryDocPreviews = ref([]);
+const showEntryDetailModal = ref(false);
+const detailEntry = ref(null);
+const detailImageIndex = ref(0);
+const detailImages = computed(() => {
+    const urls = detailEntry.value?.documentation_urls;
+    if (Array.isArray(urls) && urls.length) return urls;
+    return detailEntry.value?.documentation_url ? [detailEntry.value.documentation_url] : [];
+});
 
 const openEntryModal = (entry = null) => {
     if (entry) {
@@ -152,31 +160,41 @@ const openEntryModal = (entry = null) => {
         entryForm.activity = String(entry.activity || '');
         entryForm.purpose = String(entry.purpose || '');
         entryForm.result = String(entry.result || '');
-        entryForm.documentation = null;
+        entryForm.documentation = [];
     } else {
         entryModalMode.value = 'create';
         editingEntryUuid.value = null;
         entryForm.reset();
+        entryForm.documentation = [];
         entryForm.activity_date = new Date().toISOString().slice(0, 10);
         entryForm.activity_time = new Date().toTimeString().slice(0, 5);
     }
     entryForm.clearErrors();
-    entryDocPreview.value = '';
+    clearEntryDocPreviews();
     showEntryModal.value = true;
+};
+
+const clearEntryDocPreviews = () => {
+    entryDocPreviews.value.forEach((url) => {
+        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+    });
+    entryDocPreviews.value = [];
 };
 
 const closeEntryModal = () => {
     showEntryModal.value = false;
     entryForm.clearErrors();
-    if (entryDocPreview.value.startsWith('blob:')) URL.revokeObjectURL(entryDocPreview.value);
-    entryDocPreview.value = '';
+    clearEntryDocPreviews();
 };
 
 const onEntryDocChange = (e) => {
-    const file = e.target?.files?.[0] || null;
-    if (entryDocPreview.value.startsWith('blob:')) URL.revokeObjectURL(entryDocPreview.value);
-    entryForm.documentation = file;
-    entryDocPreview.value = file ? URL.createObjectURL(file) : '';
+    const files = Array.from(e.target?.files || []).slice(0, 5);
+    clearEntryDocPreviews();
+    entryForm.documentation = files;
+    entryDocPreviews.value = files.map((file) => URL.createObjectURL(file));
+    if (e.target?.files?.length > 5) {
+        toast.error('MAKSIMAL 5 FOTO', 'Hanya 5 foto pertama yang akan diupload.');
+    }
 };
 
 const submitEntry = () => {
@@ -217,6 +235,28 @@ const deleteEntry = async (entry) => {
     );
 };
 
+const openEntryDetailModal = (entry) => {
+    detailEntry.value = entry;
+    detailImageIndex.value = 0;
+    showEntryDetailModal.value = true;
+};
+
+const closeEntryDetailModal = () => {
+    showEntryDetailModal.value = false;
+    detailEntry.value = null;
+    detailImageIndex.value = 0;
+};
+
+const showPreviousDetailImage = () => {
+    if (!detailImages.value.length) return;
+    detailImageIndex.value = (detailImageIndex.value + detailImages.value.length - 1) % detailImages.value.length;
+};
+
+const showNextDetailImage = () => {
+    if (!detailImages.value.length) return;
+    detailImageIndex.value = (detailImageIndex.value + 1) % detailImages.value.length;
+};
+
 const approveEntry = (entry) => {
     if (!selectedLogbook.value) return;
     router.patch(
@@ -229,6 +269,11 @@ const approveEntry = (entry) => {
             onError: () => toast.error('GAGAL!', 'Gagal approve entri.'),
         }
     );
+};
+
+const updateEntryStatus = (entry, status) => {
+    if (status !== 'approved' || entry.status === 'approved') return;
+    approveEntry(entry);
 };
 
 const exportEntryCsv = () => {
@@ -335,7 +380,6 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
                         <th>Tujuan</th>
                         <th>Hasil</th>
                         <th>Status</th>
-                        <th>Dokumen</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -347,26 +391,27 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
                         <td class="logbook-td-text">{{ entry.purpose || '-' }}</td>
                         <td class="logbook-td-text">{{ entry.result || '-' }}</td>
                         <td class="logbook-td-sig">
+                            <select
+                                v-if="canApproveMentor"
+                                :value="entry.status || 'pending'"
+                                class="logbook-status-select"
+                                :class="entry.status === 'approved' ? 'logbook-status-select--approved' : 'logbook-status-select--pending'"
+                                title="Ubah status entri"
+                                @change="updateEntryStatus(entry, $event.target.value)"
+                            >
+                                <option value="pending">Pending</option>
+                                <option value="approved">Approved</option>
+                            </select>
                             <span
+                                v-if="!canApproveMentor"
                                 class="logbook-status-badge"
                                 :class="entry.status === 'approved' ? 'logbook-status-badge--approved' : 'logbook-status-badge--pending'"
                             >{{ entry.status === 'approved' ? '✓ Approved' : '⏳ Pending' }}</span>
-                            <button
-                                v-if="entry.status === 'pending' && canApproveMentor"
-                                type="button"
-                                class="todo-icon-btn"
-                                style="margin-left:4px;color:var(--green,#57f6b9)"
-                                title="Approve entri ini"
-                                @click="approveEntry(entry)"
-                            ><i class="fi fi-rr-check"></i></button>
-                        </td>
-                        <td class="logbook-td-doc">
-                            <a v-if="entry.documentation_url" :href="entry.documentation_url" target="_blank" rel="noopener noreferrer" class="logbook-doc-link" title="Lihat file">
-                                <i class="fi fi-rr-file"></i>
-                            </a>
-                            <span v-else>-</span>
                         </td>
                         <td class="logbook-td-actions">
+                            <button type="button" class="todo-icon-btn" title="Detail" @click="openEntryDetailModal(entry)">
+                                <i class="fi fi-rr-eye"></i>
+                            </button>
                             <button v-if="selectedLogbook.can_edit" type="button" class="todo-icon-btn" title="Edit" @click="openEntryModal(entry)">
                                 <i class="fi fi-rr-pencil"></i>
                             </button>
@@ -549,13 +594,22 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
                         <textarea v-model="entryForm.result" rows="2" maxlength="2000" placeholder="Apa yang dicapai / dihasilkan?"></textarea>
                     </label>
                     <label class="todo-field">
-                        <span>Dokumentasi (jpg/png/webp/pdf, maks 5MB)</span>
-                        <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf" @change="onEntryDocChange">
+                        <span>Dokumentasi (maks 5 foto, 5MB/foto)</span>
+                        <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" multiple @change="onEntryDocChange">
                         <small v-if="entryForm.errors.documentation" class="todo-error">{{ entryForm.errors.documentation }}</small>
+                        <small v-if="entryForm.errors['documentation.0']" class="todo-error">{{ entryForm.errors['documentation.0'] }}</small>
                     </label>
-                    <a v-if="entryDocPreview && !entryDocPreview.endsWith('.pdf')" :href="entryDocPreview" target="_blank" rel="noopener noreferrer">
-                        <img :src="entryDocPreview" alt="Preview dokumentasi" class="todo-note-image" style="margin-top:6px;">
-                    </a>
+                    <div v-if="entryDocPreviews.length" class="logbook-doc-preview-grid">
+                        <a
+                            v-for="(preview, index) in entryDocPreviews"
+                            :key="preview"
+                            :href="preview"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <img :src="preview" :alt="`Preview dokumentasi ${index + 1}`" class="todo-note-image">
+                        </a>
+                    </div>
                     <div class="todo-modal-actions">
                         <button type="button" class="nb-btn nb-btn--ghost" @click="closeEntryModal">Batal</button>
                         <button type="submit" class="nb-btn nb-btn--solid" :disabled="entryForm.processing">
@@ -563,6 +617,90 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </Teleport>
+
+    <!-- Modal: Detail Entri -->
+    <Teleport to="body">
+        <div v-if="showEntryDetailModal && detailEntry" class="todo-modal logbook-modal" role="dialog" aria-modal="true">
+            <div class="todo-modal-backdrop" @click="closeEntryDetailModal"></div>
+            <div class="todo-modal-card logbook-detail-card">
+                <div class="todo-modal-head">
+                    <h3>Detail Entri</h3>
+                    <button type="button" class="todo-modal-close" @click="closeEntryDetailModal"><i class="fi fi-rr-cross"></i></button>
+                </div>
+                <div class="todo-modal-body">
+                    <section class="logbook-detail-hero">
+                        <div v-if="detailImages.length" class="logbook-detail-slider">
+                            <a :href="detailImages[detailImageIndex]" target="_blank" rel="noopener noreferrer" class="logbook-detail-image-link">
+                                <img :src="detailImages[detailImageIndex]" :alt="`Dokumentasi ${detailImageIndex + 1}`" class="logbook-detail-image">
+                            </a>
+                            <template v-if="detailImages.length > 1">
+                                <button type="button" class="logbook-slider-btn logbook-slider-btn--prev" title="Foto sebelumnya" @click="showPreviousDetailImage">
+                                    <i class="fi fi-rr-angle-left"></i>
+                                </button>
+                                <button type="button" class="logbook-slider-btn logbook-slider-btn--next" title="Foto berikutnya" @click="showNextDetailImage">
+                                    <i class="fi fi-rr-angle-right"></i>
+                                </button>
+                                <div class="logbook-slider-counter">{{ detailImageIndex + 1 }} / {{ detailImages.length }}</div>
+                            </template>
+                        </div>
+                        <div v-else class="logbook-detail-empty-image">
+                            <i class="fi fi-rr-picture"></i>
+                            <span>Tidak ada dokumentasi</span>
+                        </div>
+                    </section>
+
+                    <div v-if="detailImages.length > 1" class="logbook-detail-thumbs">
+                        <button
+                            v-for="(url, index) in detailImages"
+                            :key="url"
+                            type="button"
+                            class="logbook-detail-thumb"
+                            :class="{ 'is-active': index === detailImageIndex }"
+                            :title="`Lihat foto ${index + 1}`"
+                            @click="detailImageIndex = index"
+                        >
+                            <img :src="url" :alt="`Thumbnail dokumentasi ${index + 1}`">
+                        </button>
+                    </div>
+
+                    <section class="logbook-detail-grid">
+                        <div class="logbook-detail-item">
+                            <span>Tanggal</span>
+                            <strong>{{ detailEntry.activity_date || '-' }}</strong>
+                        </div>
+                        <div class="logbook-detail-item">
+                            <span>Waktu</span>
+                            <strong>{{ detailEntry.activity_time || '-' }}</strong>
+                        </div>
+                        <div class="logbook-detail-item">
+                            <span>Status</span>
+                            <strong>
+                                <span
+                                    class="logbook-status-badge"
+                                    :class="detailEntry.status === 'approved' ? 'logbook-status-badge--approved' : 'logbook-status-badge--pending'"
+                                >{{ detailEntry.status === 'approved' ? 'Approved' : 'Pending' }}</span>
+                            </strong>
+                        </div>
+                    </section>
+
+                    <section class="logbook-detail-copy">
+                        <div>
+                            <span>Kegiatan</span>
+                            <p>{{ detailEntry.activity || '-' }}</p>
+                        </div>
+                        <div>
+                            <span>Tujuan</span>
+                            <p>{{ detailEntry.purpose || '-' }}</p>
+                        </div>
+                        <div>
+                            <span>Hasil</span>
+                            <p>{{ detailEntry.result || '-' }}</p>
+                        </div>
+                    </section>
+                </div>
             </div>
         </div>
     </Teleport>
@@ -698,15 +836,17 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
     gap: 4px;
     flex-shrink: 0;
 }
-.logbook-doc-link {
-    font-size: 12px;
-    color: var(--cyan);
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+.logbook-doc-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+    gap: 8px;
 }
-.logbook-doc-link:hover { opacity: 0.8; }
+.logbook-doc-preview-grid .todo-note-image {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    margin-top: 0;
+}
 .logbook-badge {
     display: inline-flex;
     align-items: center;
@@ -787,7 +927,7 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
 .logbook-td-text    { min-width: 110px; max-width: 180px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .logbook-td-sig     { white-space: nowrap; min-width: 110px; }
 .logbook-td-doc     { text-align: center; min-width: 60px; }
-.logbook-td-actions { white-space: nowrap; text-align: right; min-width: 56px; }
+.logbook-td-actions { white-space: nowrap; text-align: right; min-width: 96px; }
 
 .logbook-status-badge {
     display: inline-block;
@@ -800,6 +940,32 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
 }
 .logbook-status-badge--approved { background: rgba(87,246,185,0.15); color: #57f6b9; border: 1px solid rgba(87,246,185,0.3); }
 .logbook-status-badge--pending  { background: rgba(248,198,92,0.12); color: #f8c65c; border: 1px solid rgba(248,198,92,0.3); }
+
+.logbook-status-select {
+    min-width: 120px;
+    height: 30px;
+    padding: 3px 28px 3px 10px;
+    border-radius: 0;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: Inter, sans-serif;
+    outline: none;
+    cursor: pointer;
+}
+.logbook-status-select--approved {
+    background: rgba(87,246,185,0.15);
+    color: #57f6b9;
+    border: 1px solid rgba(87,246,185,0.3);
+}
+.logbook-status-select--pending {
+    background: rgba(248,198,92,0.12);
+    color: #f8c65c;
+    border: 1px solid rgba(248,198,92,0.3);
+}
+.logbook-status-select option {
+    color: #101522;
+    background: #ffffff;
+}
 
 @media (max-width: 620px) {
     .logbook-table { table-layout: auto; }
@@ -818,7 +984,6 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
     .logbook-td-main       { grid-column: 1 / -1; grid-row: 2; font-weight: 600; font-size: 13px; white-space: normal; }
     .logbook-td-text       { display: none; }
     .logbook-td-sig        { grid-column: 1; grid-row: 3; align-self: center; }
-    .logbook-td-doc        { grid-column: 2; grid-row: 3; text-align: right; align-self: center; }
     .logbook-td-actions    { grid-column: 1 / -1; grid-row: 4; display: flex; gap: 6px; justify-content: flex-end; }
 }
 </style>
@@ -907,6 +1072,145 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
     flex-direction: column;
     gap: 14px;
     padding-right: 4px;
+}
+.logbook-detail-card {
+    width: min(920px, 100%);
+}
+.logbook-detail-hero {
+    min-width: 0;
+}
+.logbook-detail-slider {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    border: 2px solid #3d415f;
+    background: #0d1117;
+}
+.logbook-detail-image-link {
+    display: block;
+    width: 100%;
+}
+.logbook-detail-image {
+    display: block;
+    width: 100%;
+    max-height: min(48vh, 420px);
+    aspect-ratio: 16 / 9;
+    object-fit: contain;
+    background: #070b12;
+}
+.logbook-detail-empty-image {
+    min-height: 220px;
+    border: 2px dashed #3d415f;
+    background: #0d1117;
+    color: #8ea8bb;
+    display: grid;
+    place-items: center;
+    gap: 8px;
+    align-content: center;
+    font-family: Inter, sans-serif;
+    font-size: 12px;
+}
+.logbook-detail-empty-image i {
+    color: var(--cyan);
+    font-size: 24px;
+}
+.logbook-slider-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(87,214,255,0.55);
+    background: rgba(13,17,23,0.82);
+    color: #bdeeff;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+.logbook-slider-btn:hover {
+    background: rgba(87,214,255,0.2);
+}
+.logbook-slider-btn--prev { left: 10px; }
+.logbook-slider-btn--next { right: 10px; }
+.logbook-slider-counter {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    padding: 4px 8px;
+    border: 1px solid rgba(87,214,255,0.42);
+    background: rgba(13,17,23,0.82);
+    color: #d9f8ff;
+    font-family: Inter, sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+}
+.logbook-detail-thumbs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+    gap: 8px;
+}
+.logbook-detail-thumb {
+    border: 2px solid #3d415f;
+    background: #0d1117;
+    padding: 0;
+    aspect-ratio: 1 / 1;
+    cursor: pointer;
+    overflow: hidden;
+}
+.logbook-detail-thumb.is-active {
+    border-color: var(--cyan);
+}
+.logbook-detail-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.logbook-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+.logbook-detail-item {
+    border: 1px solid #3d415f;
+    background: #0d1117;
+    padding: 10px 12px;
+    min-width: 0;
+}
+.logbook-detail-item span,
+.logbook-detail-copy span {
+    display: block;
+    margin-bottom: 5px;
+    color: #8ea8bb;
+    font-family: Inter, sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+.logbook-detail-item strong {
+    color: #e5f7ff;
+    font-family: Inter, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+}
+.logbook-detail-copy {
+    display: grid;
+    gap: 10px;
+}
+.logbook-detail-copy > div {
+    border: 1px solid #3d415f;
+    background: #0d1117;
+    padding: 12px;
+}
+.logbook-detail-copy p {
+    margin: 0;
+    color: #d7e7f2;
+    font-family: Inter, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 .logbook-modal .todo-modal-actions {
     display: flex;
@@ -1037,6 +1341,16 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
     .logbook-modal .todo-field input,
     .logbook-modal .todo-field textarea,
     .logbook-modal .todo-field select { font-size: 16px; }
+    .logbook-detail-image {
+        max-height: 310px;
+        aspect-ratio: 4 / 3;
+    }
+    .logbook-detail-grid {
+        grid-template-columns: 1fr;
+    }
+    .logbook-detail-thumbs {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
     .logbook-modal .todo-modal-actions { flex-direction: column; }
     .logbook-modal .nb-btn { width: 100%; justify-content: center; }
 }

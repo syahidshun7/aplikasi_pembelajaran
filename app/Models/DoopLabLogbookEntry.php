@@ -16,10 +16,13 @@ class DoopLabLogbookEntry extends Model
         'uuid', 'logbook_id', 'todo_id',
         'activity_date', 'activity_time',
         'activity', 'purpose', 'result',
-        'status', 'documentation_path',
+        'status', 'documentation_path', 'documentation_paths',
     ];
 
-    protected $casts = ['activity_date' => 'date'];
+    protected $casts = [
+        'activity_date' => 'date',
+        'documentation_paths' => 'array',
+    ];
 
     protected static function booted(): void
     {
