@@ -333,3 +333,165 @@
 - File dokumentasi disimpan di `storage/app/public/dooplab/logbooks/`.
 - `forceFormData: true` dipakai di Inertia form karena ada file upload.
 - Tidak ada notifikasi real-time saat logbook dibuat/diedit — silent seperti todo notes.
+
+
+## 2026-07-07
+
+### DoopLab: Navigation, Mentor Invites, Hire Mentor, dan Logbook
+
+#### Navigation DoopLab
+- Mobile bottom navigation dibuat tetap terlihat saat halaman di-scroll (`position: fixed`) dan layout mobile diberi padding bawah agar konten tidak ketutup nav.
+- Halaman admin **Roadmap Lab** disamakan dengan gaya navigasi DoopLab yang lain, tanpa mengubah fitur roadmap.
+- Active state navigation diperbaiki untuk mobile dan desktop:
+  - **Mentor Invites** aktif saat `panelMode === 'mentor_invites'`.
+  - **My Learning Path** aktif saat `panelMode === 'learning_paths'`.
+  - **To-Do List** aktif saat `panelMode` berada di `summary`, `todo`, atau `todo_form`.
+  - **Hire Mentor** aktif saat `panelMode === 'hire_mentor'`.
+  - **Logbook** aktif saat `panelMode === 'logbook'`.
+- Bug active style desktop diperbaiki karena sebelumnya tertimpa style global pixel button.
+
+#### Mentor Invites
+- Menu **Mentor Invites** diubah dari tampilan riwayat menjadi list user yang hire mentor.
+- Card dibuat lebih sederhana: avatar, nama user, username, tipe invite, status, dan tombol aksi.
+- Pending invite hanya menampilkan tombol **Accept** dan **Reject**.
+- Approved invite menampilkan tombol **Cancel**.
+- Tombol **Reject** diberi warna merah agar makna aksinya jelas.
+- Pending invite tidak bisa di-cancel, sesuai flow yang diinginkan.
+- Backend menambahkan route cancel invite:
+  - `POST /creation-mentor-invites/{collaborationRequest}/cancel`
+  - route name: `creations.mentor-invites.cancel`
+- Cancel hanya boleh dilakukan mentor dan hanya untuk invite berstatus approved.
+
+#### Hire Mentor User
+- Menu user **Hire Mentor** dibuat menampilkan mentor aktif/pending saja, bukan riwayat invite.
+- Pilihan **Pilih Mentor** disembunyikan jika user sudah punya mentor direct pending atau approved.
+- Backend `hireDirectMentor()` membatasi user hanya bisa punya satu direct mentor yang pending/approved pada fitur saat ini.
+- Data rejected/riwayat lama tidak lagi ditampilkan pada panel user.
+
+#### Logbook DoopLab
+- Edit entry logbook diperbaiki karena payload `PATCH` + multipart/form-data tidak terbaca konsisten oleh Laravel/PHP.
+- Ditambahkan route POST khusus update entry:
+  - `POST /dooplab/logbooks/{logbook}/entries/{entry}`
+  - route name: `dooplab.logbooks.entries.update-post`
+- Frontend edit entry sekarang memakai route update POST tersebut.
+- Pesan error toast dibuat menampilkan error validasi pertama, bukan hanya alert umum "input gagal".
+- Validasi waktu diperbaiki dengan normalisasi `activity_time`:
+  - menerima format seperti `07:18 PM`, `19:18:00`, dan `19:18`;
+  - disimpan/validasi sebagai format `H:i`.
+- Foto dokumentasi yang sudah di-upload sekarang muncul saat entry dibuka di mode edit.
+- Foto dokumentasi existing bisa dihapus dari edit form:
+  - frontend menyimpan `keep_documentation_paths`;
+  - backend hanya mempertahankan path yang masih dipilih;
+  - upload foto baru tetap mengganti dokumentasi lama.
+- Section logbook aktif dipertahankan setelah refresh, edit berhasil, create berhasil, delete, dan navigasi balik:
+  - selected logbook disimpan di localStorage key `dooplab.logbook.selected-uuid`;
+  - tombol Back membersihkan selected logbook dan kembali ke list utama logbook.
+
+#### Fix: Roadmap Canvas Berantakan Setelah Refresh
+- Investigasi bug: setelah edit/save node atau section di canvas Roadmap, posisi terlihat aman di UI, tetapi setelah refresh node/section bisa berantakan.
+- Root cause utama: `saveLayoutChanges()` mengirim banyak `router.patch()` paralel lewat `Promise.allSettled()`. Inertia request paralel rawan saling cancel/overwrite response, sementara dirty state sudah dibersihkan sebelum server benar-benar sukses menyimpan semua item.
+- Root cause tambahan: form edit node/section ikut membawa `x`, `y`, `width`, dan `height`; saat form memakai data stale, edit judul/section bisa menimpa posisi layout terbaru.
+- Fix `resources/js/Pages/DoopLab/Roadmaps/Index.vue`:
+  - save layout dibuat sequential (`await` satu item selesai sebelum lanjut item berikutnya);
+  - dirty state item hanya dihapus setelah request item tersebut sukses;
+  - jika sebagian save gagal/cancel, dirty state tetap ada dan toolbar menampilkan pesan error agar user tidak refresh sebelum klik Save lagi;
+  - jika user mengubah item saat save masih berjalan, dirty state tidak dihapus bila signature layout saat ini sudah berbeda dari payload yang baru tersimpan;
+  - sebelum submit edit node/section, form disinkronkan ulang dari draft canvas terbaru agar tidak mengirim koordinat stale.
+
+#### Rencana/Fix: Zoom In-Out Roadmap Canvas
+- Kebutuhan baru: canvas Roadmap perlu zoom in/out agar editor nyaman untuk roadmap besar dan tetap responsif di desktop/mobile.
+- Keputusan desain:
+  - zoom hanya memengaruhi tampilan visual, bukan data `x`, `y`, `width`, dan `height` yang disimpan ke database;
+  - board memakai CSS `transform: scale(...)`, sedangkan wrapper stage menghitung ukuran visual `boardWidth * zoomScale` dan `boardHeight * zoomScale`;
+  - drag dan resize wajib membagi delta pointer dengan `zoomScale` agar posisi tersimpan tetap akurat;
+  - ukuran minimum canvas diperbesar supaya area kerja tidak terasa sempit saat mulai membuat roadmap;
+  - kontrol zoom dibuat responsif: tombol zoom out, reset/persentase, zoom in, dan fit width.
+- Implementasi selesai di `resources/js/Pages/DoopLab/Roadmaps/Index.vue`:
+  - menambahkan `zoomScale`, `zoomPercent`, `visualBoardWidth`, `visualBoardHeight`, `zoomInCanvas`, `zoomOutCanvas`, `resetCanvasZoom`, dan `fitCanvasToWidth`;
+  - canvas minimum diperlebar menjadi basis 1600x1000 plus padding otomatis;
+  - `.canvas-stage` menjadi wrapper ukuran visual hasil zoom dan tetap center di halaman;
+  - `.roadmap-board` memakai `transform-origin: top left` dan `transform: scale(...)`;
+  - `onDragMove()` memakai screen delta untuk threshold, lalu membagi delta canvas dengan zoom aktif supaya drag/resize tetap presisi;
+  - kontrol zoom dibuat wrap-friendly di mobile agar toolbar tidak overflow.
+- Follow-up fix karena zoom belum terasa bekerja konsisten:
+  - binding style stage/board dipindah ke computed `canvasStageStyle` dan `roadmapBoardStyle` agar `scale(zoomScale.value)` eksplisit reaktif;
+  - event wheel canvas diubah dari passive menjadi non-passive agar `Ctrl + wheel` bisa zoom tanpa browser/page ikut menangani scroll;
+  - menambahkan `zoomCanvasFromWheel()` untuk shortcut zoom via `Ctrl + scroll`;
+  - menambahkan `will-change: transform` pada board.
+- Follow-up zoom Learning Path user:
+  - zoom canvas ditambahkan juga ke `resources/js/Pages/DoopLab/Roadmaps/EnrollmentShow.vue`, bukan hanya editor admin/mentor;
+  - viewer user memakai pola yang sama: `zoomScale`, `canvasStageStyle`, `roadmapBoardStyle`, tombol `-`, persentase/reset, `+`, dan `Fit`;
+  - `Ctrl + wheel` dibuat lebih halus dengan akumulasi delta (`WHEEL_ZOOM_THRESHOLD`) dan step kecil 5%, sehingga touchpad tidak terlalu agresif;
+  - kontrol zoom dibuat nyaman di mobile dengan tombol full-width/wrap, sehingga tetap bisa dipakai tanpa mouse/keyboard.
+- Follow-up fix touchpad/pinch:
+  - mekanisme `Ctrl + wheel` tidak lagi memakai threshold besar karena beberapa touchpad presisi mengirim delta kecil sehingga terasa tidak bekerja;
+  - zoom wheel sekarang memakai delta langsung yang dinormalisasi dan dibatasi, sehingga pinch/trackpad lebih responsif tetapi tetap halus;
+  - fallback `Meta/Alt + scroll` ikut didukung untuk browser/perangkat yang tidak mengirim `ctrlKey` saat gesture;
+  - event `gesturestart/gesturechange` dan two-touch pinch ditambahkan di editor Roadmap dan viewer Learning Path user;
+  - wrapper canvas memakai `touch-action: pan-x pan-y` agar scroll/pan tetap bisa berjalan, sementara pinch zoom ditangani oleh canvas.
+- Follow-up responsive mobile editor Roadmap:
+  - drag node dan section diperbaiki untuk layar sentuh; pointer touch/pen sekarang langsung di-capture saat drag dimulai agar browser mobile tidak membatalkan gerakan;
+  - area judul node dan section sekarang ikut bisa menjadi area drag, karena sebelumnya `pointerdown.stop` pada title membuat sentuhan mobile di area utama item tidak memulai drag;
+  - node dan section memakai `touch-action: none` saat disentuh agar drag/drop lebih stabil di mobile;
+  - kontrol item dan resize handle muncul saat item selected, bukan hanya hover, sehingga tetap bisa dipakai di perangkat tanpa hover;
+  - ukuran target tombol item dan resize handle diperbesar pada viewport mobile.
+- Follow-up focal zoom:
+  - zoom canvas sekarang mengikuti titik fokus pointer/cubit, bukan selalu membesar dari origin kiri-atas;
+  - saat `Ctrl/Meta/Alt + scroll` dengan touchpad/mouse, posisi canvas di bawah cursor dipertahankan lewat penyesuaian `scrollLeft` dan `scrollTop`;
+  - saat pinch mobile atau gesture browser, titik tengah cubitan menjadi anchor zoom;
+  - tombol zoom/reset/fit memakai titik tengah viewport canvas sebagai anchor agar perubahan zoom tetap terasa stabil;
+  - diterapkan konsisten di editor Roadmap dan viewer Learning Path user.
+- Follow-up aksi User View di editor Roadmap:
+  - toolbar Visual Preview di editor Roadmap sekarang memiliki tombol `User View` untuk membuka tampilan roadmap versi user dari enrollment aktif pertama;
+  - jika roadmap belum di-assign ke student, tombol `User View` tampil disabled dengan tooltip agar mentor tahu perlu assign terlebih dahulu;
+  - modal Manage Roadmaps per student ditambahkan tombol `View` pada setiap enrollment agar mentor bisa memilih tampilan user tertentu;
+  - aksi memakai route existing `dooplab.roadmaps.enrollments.show`, sehingga membuka viewer user/progress yang sama dengan Learning Path user.
+- Fix mentor lock/unlock node Roadmap:
+  - ditemukan bug: action mentor `Unlock Node` dan `Relock Node` sempat menyimpan status, tetapi saat halaman reload `recomputeUnlocks()` menghitung ulang dependency dan menimpa status manual;
+  - ditambahkan kolom `mentor_override_status` pada tabel `dooplab_roadmap_node_progress` untuk menyimpan keputusan manual mentor;
+  - action unlock sekarang menyimpan status `unlocked` sekaligus override `unlocked`;
+  - action lock/reblock sekarang menyimpan status `locked` sekaligus override `locked`;
+  - `recomputeUnlocks()` tetap mengurus auto-unlock normal, tetapi tidak lagi menimpa node yang punya override manual mentor;
+  - override manual dibersihkan saat student submit node atau mentor review node, supaya workflow submitted/revision/approved tetap berjalan normal.
+- Fix tombol Back Enrollment Roadmap:
+  - tombol Back di `resources/js/Pages/DoopLab/Roadmaps/EnrollmentShow.vue` tidak lagi hardcoded ke Dashboard;
+  - mentor/admin diarahkan kembali ke dashboard/list Roadmap DoopLab (`dooplab.roadmaps.index`) dengan roadmap aktif, tanpa membuka workspace editor langsung;
+  - user/student diarahkan kembali ke daftar Learning Path/My Roadmaps (`dooplab.roadmaps.enrollments.index`);
+  - label tombol dibedakan menjadi `Back Roadmap` untuk mentor/admin dan `Back Paths` untuk user.
+
+#### Rencana: Wajib Verifikasi Email Sebelum Masuk Lobby
+- Kebutuhan baru: user yang sudah register/login tetapi belum verifikasi email tidak boleh masuk lobby utama.
+- Kondisi saat ini:
+  - `User` sudah memakai `MustVerifyEmail` dan event `Registered` sudah mengirim email verifikasi;
+  - setelah register, user langsung `Auth::login()` lalu diarahkan ke `lobby`;
+  - setelah login, user yang belum verified tetap diarahkan ke `lobby`;
+  - route lobby `/` masih public dan tidak memakai middleware `verified`;
+  - `EmailVerificationPromptController` saat user belum verified justru redirect balik ke `lobby`, sehingga halaman `Auth/VerifyEmail` tidak menjadi halaman tahan/holding page.
+- Rencana perubahan:
+  - guest tetap boleh membuka lobby/landing seperti biasa;
+  - user login yang belum verified akan dicegah masuk lobby dan diarahkan ke `verification.notice`;
+  - setelah register, user tetap boleh auto-login, tetapi diarahkan ke halaman `verification.notice`, bukan lobby;
+  - setelah login, jika email belum verified diarahkan ke `verification.notice`, jika sudah verified lanjut ke intended route/lobby/dashboard;
+  - `EmailVerificationPromptController` akan render `Auth/VerifyEmail` untuk user belum verified, bukan redirect ke lobby;
+  - setelah link verifikasi email diklik, redirect ke lobby dengan `verified=1` tetap dipertahankan.
+- File yang kemungkinan diubah saat eksekusi:
+  - `app/Http/Controllers/Auth/RegisteredUserController.php`
+  - `app/Http/Controllers/Auth/AuthenticatedSessionController.php`
+  - `app/Http/Controllers/Auth/EmailVerificationPromptController.php`
+  - `app/Http/Controllers/HomeController.php`
+- Catatan keputusan:
+  - rule ini sebaiknya berlaku juga untuk staff/admin/mentor yang belum verified, kecuali nanti diputuskan ada pengecualian khusus.
+- Verifikasi berhasil: `npm.cmd run build`.
+
+#### File Utama yang Terdampak
+- `resources/js/Pages/DoopLab/Dashboard.vue`
+- `resources/js/Pages/DoopLab/Roadmaps/Index.vue`
+- `resources/js/Components/Dashboard/LogbookPanel.vue`
+- `app/Http/Controllers/DoopLabDashboardController.php`
+- `app/Http/Controllers/DoopLabLogbookController.php`
+- `app/Http/Controllers/CreationApiController.php`
+- `routes/web.php`
+
+#### Verifikasi
+- `npm.cmd run build` berhasil setelah batch perubahan frontend.
+- `php -l` berhasil untuk route dan controller yang diubah.

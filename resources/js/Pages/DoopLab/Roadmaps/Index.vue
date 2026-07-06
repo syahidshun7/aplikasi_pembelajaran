@@ -15,9 +15,15 @@ const props = defineProps({
 });
 
 const page = usePage();
+const DOOPLAB_DASHBOARD_STATE_KEY = 'dooplab.dashboard.ui-state';
+const authUser = computed(() => page.props?.auth?.user ?? null);
 const flashMessage = computed(() => String(page.props?.flash?.message || ''));
 const pageUrl = computed(() => String(page.url || ''));
 const workspaceMode = ref(false);
+const canCreateMentorTodo = computed(() => {
+    const role = String(authUser.value?.role || '').toLowerCase();
+    return ['mentor', 'admin', 'super_admin'].includes(role);
+});
 
 const syncWorkspaceModeFromUrl = () => {
     const rawUrl = pageUrl.value;
@@ -41,11 +47,21 @@ const sections = computed(() => draftSections.value);
 const nodes = computed(() => draftNodes.value);
 const textBlocks = computed(() => draftTextBlocks.value);
 const edges = computed(() => Array.isArray(activeRoadmap.value?.edges) ? activeRoadmap.value.edges : []);
+const defaultUserViewEnrollment = computed(() => {
+    if (!Array.isArray(props.enrolledUsers) || !props.enrolledUsers.length) return null;
+    return props.enrolledUsers[0] || null;
+});
+const userViewButtonLabel = computed(() => {
+    const enrollment = defaultUserViewEnrollment.value;
+    if (!enrollment?.name) return 'User View';
+    return `User View: ${enrollment.name}`;
+});
 
 const boardRef = ref(null);
 const dragState = ref(null);
 const showCreateForm = ref(false);
 const layoutSaving = ref(false);
+const layoutSaveError = ref('');
 const dirtySectionUuids = ref(new Set());
 const dirtyNodeUuids = ref(new Set());
 const dirtyTextBlockUuids = ref(new Set());
@@ -98,21 +114,185 @@ const nodeMap = computed(() => {
     return new Map(pairs);
 });
 
+const MIN_BOARD_WIDTH = 1600;
+const MIN_BOARD_HEIGHT = 1000;
+const MIN_ZOOM_SCALE = 0.4;
+const MAX_ZOOM_SCALE = 2;
+const ZOOM_STEP = 0.1;
+const WHEEL_ZOOM_SENSITIVITY = 0.0022;
+const MAX_WHEEL_DELTA = 42;
+
+const zoomScale = ref(1);
+const canvasWrapperRef = ref(null);
+const zoomGestureStartScale = ref(1);
+const pinchStartDistance = ref(0);
+const pinchStartScale = ref(1);
+
 const boardWidth = computed(() => {
     const sectionMax = sections.value.map((section) => Number(section.x || 0) + Number(section.width || 0));
     const nodeMax = nodes.value.map((node) => Number(node.x || 0) + Number(node.width || 0));
     const textMax = textBlocks.value.map((textBlock) => Number(textBlock.x || 0) + Number(textBlock.width || 0));
-    const maxValue = Math.max(1000, ...sectionMax, ...nodeMax, ...textMax);
-    return maxValue + 120;
+    const maxValue = Math.max(MIN_BOARD_WIDTH, ...sectionMax, ...nodeMax, ...textMax);
+    return maxValue + 180;
 });
 
 const boardHeight = computed(() => {
     const sectionMax = sections.value.map((section) => Number(section.y || 0) + Number(section.height || 0));
     const nodeMax = nodes.value.map((node) => Number(node.y || 0) + Number(node.height || 0));
     const textMax = textBlocks.value.map((textBlock) => Number(textBlock.y || 0) + Number(textBlock.height || 0));
-    const maxValue = Math.max(680, ...sectionMax, ...nodeMax, ...textMax);
-    return maxValue + 120;
+    const maxValue = Math.max(MIN_BOARD_HEIGHT, ...sectionMax, ...nodeMax, ...textMax);
+    return maxValue + 180;
 });
+
+const visualBoardWidth = computed(() => Math.round(boardWidth.value * zoomScale.value));
+const visualBoardHeight = computed(() => Math.round(boardHeight.value * zoomScale.value));
+const zoomPercent = computed(() => `${Math.round(zoomScale.value * 100)}%`);
+const canvasStageStyle = computed(() => ({
+    width: `${visualBoardWidth.value}px`,
+    height: `${visualBoardHeight.value}px`,
+}));
+const roadmapBoardStyle = computed(() => ({
+    width: `${boardWidth.value}px`,
+    height: `${boardHeight.value}px`,
+    transform: `scale(${zoomScale.value})`,
+}));
+
+const resolveCanvasFocalPoint = (clientX = null, clientY = null) => {
+    const wrapper = canvasWrapperRef.value;
+    if (!wrapper) return null;
+
+    const rect = wrapper.getBoundingClientRect();
+    return {
+        clientX: Number(clientX ?? rect.left + (wrapper.clientWidth / 2)),
+        clientY: Number(clientY ?? rect.top + (wrapper.clientHeight / 2)),
+    };
+};
+
+const setZoomScale = (value) => {
+    const nextScale = Math.round(clampValue(Number(value || 1), MIN_ZOOM_SCALE, MAX_ZOOM_SCALE) * 100) / 100;
+    zoomScale.value = nextScale;
+    return nextScale;
+};
+
+const setZoomScaleAtPoint = (value, clientX = null, clientY = null) => {
+    const wrapper = canvasWrapperRef.value;
+    const focalPoint = resolveCanvasFocalPoint(clientX, clientY);
+    if (!wrapper || !focalPoint) return setZoomScale(value);
+
+    const rect = wrapper.getBoundingClientRect();
+    const oldScale = Math.max(MIN_ZOOM_SCALE, Number(zoomScale.value || 1));
+    const offsetX = focalPoint.clientX - rect.left;
+    const offsetY = focalPoint.clientY - rect.top;
+    const canvasX = (wrapper.scrollLeft + offsetX) / oldScale;
+    const canvasY = (wrapper.scrollTop + offsetY) / oldScale;
+    const nextScale = setZoomScale(value);
+
+    requestAnimationFrame(() => {
+        const maxScrollLeft = Math.max(0, Math.round(boardWidth.value * nextScale) - wrapper.clientWidth);
+        const maxScrollTop = Math.max(0, Math.round(boardHeight.value * nextScale) - wrapper.clientHeight);
+        wrapper.scrollLeft = clampValue(Math.round((canvasX * nextScale) - offsetX), 0, maxScrollLeft);
+        wrapper.scrollTop = clampValue(Math.round((canvasY * nextScale) - offsetY), 0, maxScrollTop);
+    });
+
+    return nextScale;
+};
+
+const zoomInCanvas = () => {
+    setZoomScaleAtPoint(zoomScale.value + ZOOM_STEP);
+};
+
+const zoomOutCanvas = () => {
+    setZoomScaleAtPoint(zoomScale.value - ZOOM_STEP);
+};
+
+const resetCanvasZoom = () => {
+    setZoomScaleAtPoint(1);
+};
+
+const fitCanvasToWidth = () => {
+    const wrapperWidth = Number(canvasWrapperRef.value?.clientWidth || 0);
+    if (!wrapperWidth || !boardWidth.value) {
+        resetCanvasZoom();
+        return;
+    }
+
+    setZoomScaleAtPoint((wrapperWidth - 28) / boardWidth.value);
+};
+
+const normalizeWheelDelta = (event) => {
+    let delta = Number(event.deltaY || 0);
+    if (event.deltaMode === 1) delta *= 16;
+    if (event.deltaMode === 2) delta *= Number(canvasWrapperRef.value?.clientHeight || 800);
+
+    return clampValue(delta, -MAX_WHEEL_DELTA, MAX_WHEEL_DELTA);
+};
+
+const zoomCanvasFromWheel = (event) => {
+    if (!event.ctrlKey && !event.metaKey && !event.altKey) return false;
+
+    event.preventDefault();
+
+    const delta = normalizeWheelDelta(event);
+    const nextScale = zoomScale.value * Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
+    setZoomScaleAtPoint(nextScale, event.clientX, event.clientY);
+
+    return true;
+};
+
+const onCanvasGestureStart = (event) => {
+    event.preventDefault();
+    zoomGestureStartScale.value = zoomScale.value;
+};
+
+const onCanvasGestureChange = (event) => {
+    event.preventDefault();
+    setZoomScaleAtPoint(zoomGestureStartScale.value * Number(event.scale || 1), event.clientX, event.clientY);
+};
+
+const getTouchDistance = (touches) => {
+    if (!touches || touches.length < 2) return 0;
+
+    const [first, second] = touches;
+    return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+};
+
+const getTouchCenter = (touches) => {
+    if (!touches || touches.length < 2) return resolveCanvasFocalPoint();
+
+    const [first, second] = touches;
+    return {
+        clientX: (first.clientX + second.clientX) / 2,
+        clientY: (first.clientY + second.clientY) / 2,
+    };
+};
+
+const onCanvasTouchStart = (event) => {
+    if (event.touches.length !== 2) return;
+
+    pinchStartDistance.value = getTouchDistance(event.touches);
+    pinchStartScale.value = zoomScale.value;
+};
+
+const onCanvasTouchMove = (event) => {
+    if (event.touches.length !== 2 || !pinchStartDistance.value) return;
+
+    event.preventDefault();
+    const distance = getTouchDistance(event.touches);
+    if (!distance) return;
+    const touchCenter = getTouchCenter(event.touches);
+
+    setZoomScaleAtPoint(
+        pinchStartScale.value * (distance / pinchStartDistance.value),
+        touchCenter.clientX,
+        touchCenter.clientY,
+    );
+};
+
+const onCanvasTouchEnd = (event) => {
+    if (event.touches.length >= 2) return;
+
+    pinchStartDistance.value = 0;
+};
 
 const edgePaths = computed(() => {
     return edges.value
@@ -222,6 +402,30 @@ const pickRoadmap = (roadmapUuid, workspace = false) => {
     });
 };
 
+const openDashboardPanel = (panelMode) => {
+    if (typeof window !== 'undefined') {
+        window.localStorage.setItem(DOOPLAB_DASHBOARD_STATE_KEY, JSON.stringify({
+            panelMode,
+            selectedTodoUuid: null,
+            todoFilter: 'all',
+            todoSearch: '',
+            hireCreationId: null,
+            scrollY: 0,
+        }));
+    }
+
+    router.get(route('dooplab.dashboard'));
+};
+
+const openRoadmapPanel = () => {
+    if (hasActiveRoadmap.value) {
+        pickRoadmap(activeRoadmap.value.uuid, isWorkspaceMode.value);
+        return;
+    }
+
+    router.get(route('dooplab.roadmaps.index'));
+};
+
 const openWorkspace = () => {
     if (!hasActiveRoadmap.value) return;
     workspaceMode.value = true;
@@ -287,6 +491,12 @@ const unassignUser = (enrollmentUuid) => {
 const manageEnrollment = (enrollmentUuid) => {
     if (!enrollmentUuid) return;
     router.get(route('dooplab.roadmaps.enrollments.show', enrollmentUuid));
+};
+
+const openUserView = (enrollmentUuid = '') => {
+    const targetUuid = String(enrollmentUuid || defaultUserViewEnrollment.value?.enrollment_uuid || '');
+    if (!targetUuid) return;
+    router.get(route('dooplab.roadmaps.enrollments.show', targetUuid));
 };
 
 const selectedStudentOverview = computed(() => {
@@ -363,6 +573,19 @@ const startEditSection = (section) => {
     sectionForm.sort_order = Number(section.sort_order || 0);
 };
 
+const syncSectionFormFromDraft = () => {
+    const target = draftSections.value.find((item) => String(item.uuid) === String(sectionEditUuid.value || ''));
+    if (!target) return;
+
+    sectionForm.x = Number(target.x || 24);
+    sectionForm.y = Number(target.y || 24);
+    sectionForm.width = Number(target.width || 500);
+    sectionForm.height = Number(target.height || 260);
+    sectionForm.bg_color = String(target.bg_color || '#dbeafe');
+    sectionForm.text_color = String(target.text_color || '#1e3a8a');
+    sectionForm.sort_order = Number(target.sort_order || 0);
+};
+
 const resetSectionForm = () => {
     sectionEditUuid.value = '';
     sectionForm.reset();
@@ -378,6 +601,7 @@ const resetSectionForm = () => {
 const submitSection = () => {
     if (!hasActiveRoadmap.value) return;
     if (sectionEditUuid.value !== '') {
+        syncSectionFormFromDraft();
         sectionForm.patch(route('dooplab.roadmaps.sections.update', sectionEditUuid.value), {
             preserveState: true,
             preserveScroll: true,
@@ -426,6 +650,19 @@ const startEditNode = (node) => {
     nodeForm.sort_order = Number(node.sort_order || 0);
 };
 
+const syncNodeFormFromDraft = () => {
+    const target = draftNodes.value.find((item) => String(item.uuid) === String(nodeEditUuid.value || ''));
+    if (!target) return;
+
+    nodeForm.x = Number(target.x || 64);
+    nodeForm.y = Number(target.y || 64);
+    nodeForm.width = Number(target.width || 180);
+    nodeForm.height = Number(target.height || 72);
+    nodeForm.bg_color = String(target.bg_color || '#93c5fd');
+    nodeForm.text_color = String(target.text_color || '#0f172a');
+    nodeForm.sort_order = Number(target.sort_order || 0);
+};
+
 const resetNodeForm = () => {
     nodeEditUuid.value = '';
     nodeForm.reset();
@@ -442,6 +679,7 @@ const resetNodeForm = () => {
 const submitNode = () => {
     if (!hasActiveRoadmap.value) return;
     if (nodeEditUuid.value !== '') {
+        syncNodeFormFromDraft();
         nodeForm.patch(route('dooplab.roadmaps.nodes.update', nodeEditUuid.value), {
             preserveState: true,
             preserveScroll: true,
@@ -859,10 +1097,53 @@ const commitInlineTitleEdit = () => {
     inlineTitleDraft.value = null;
 };
 
-const clearLayoutDirty = () => {
-    dirtySectionUuids.value = new Set();
-    dirtyNodeUuids.value = new Set();
-    dirtyTextBlockUuids.value = new Set();
+const removeLayoutDirty = (type, uuid) => {
+    const normalizedUuid = String(uuid || '');
+    if (!normalizedUuid) return;
+
+    if (type === 'section') {
+        const next = new Set(dirtySectionUuids.value);
+        next.delete(normalizedUuid);
+        dirtySectionUuids.value = next;
+        return;
+    }
+
+    if (type === 'text') {
+        const next = new Set(dirtyTextBlockUuids.value);
+        next.delete(normalizedUuid);
+        dirtyTextBlockUuids.value = next;
+        return;
+    }
+
+    const next = new Set(dirtyNodeUuids.value);
+    next.delete(normalizedUuid);
+    dirtyNodeUuids.value = next;
+};
+
+const layoutSignature = (item) => [
+    Number(item?.x || 0),
+    Number(item?.y || 0),
+    Number(item?.width || 0),
+    Number(item?.height || 0),
+    Number(item?.font_size || 0),
+    String(item?.text_align || ''),
+    String(item?.text_valign || ''),
+    String(item?.bg_color || ''),
+    String(item?.text_color || ''),
+    String(item?.title || item?.content || ''),
+    String(item?.section_id || ''),
+    JSON.stringify(item?.resource_items || []),
+].join('|');
+
+const removeDirtyIfUnchanged = (type, uuid, savedSignature) => {
+    const sourceList = type === 'section'
+        ? draftSections.value
+        : (type === 'text' ? draftTextBlocks.value : draftNodes.value);
+    const current = sourceList.find((item) => String(item.uuid) === String(uuid || ''));
+
+    if (!current || layoutSignature(current) === savedSignature) {
+        removeLayoutDirty(type, uuid);
+    }
 };
 
 const persistSectionPosition = (section) => {
@@ -949,33 +1230,69 @@ const saveLayoutChanges = async () => {
     if (!hasActiveRoadmap.value || !hasPendingLayoutChanges.value || layoutSaving.value) return;
 
     layoutSaving.value = true;
+    layoutSaveError.value = '';
 
     const sectionUuids = [...dirtySectionUuids.value];
     const nodeUuids = [...dirtyNodeUuids.value];
     const textBlockUuids = [...dirtyTextBlockUuids.value];
-
-    // Clear dirty set segera agar drag berikutnya bisa langsung tandai dirty
-    // lagi tanpa menunggu round-trip server selesai.
-    clearLayoutDirty();
+    let failed = false;
 
     try {
-        const tasks = [];
         for (const uuid of sectionUuids) {
             const section = draftSections.value.find((item) => String(item.uuid) === uuid);
-            if (section) tasks.push(persistSectionPosition(section));
+            if (!section) {
+                removeLayoutDirty('section', uuid);
+                continue;
+            }
+
+            const savedSignature = layoutSignature(section);
+            try {
+                await persistSectionPosition({ ...section });
+                removeDirtyIfUnchanged('section', uuid, savedSignature);
+            } catch {
+                failed = true;
+            }
         }
+
         for (const uuid of nodeUuids) {
             const node = draftNodes.value.find((item) => String(item.uuid) === uuid);
-            if (node) tasks.push(persistNodePosition(node));
+            if (!node) {
+                removeLayoutDirty('node', uuid);
+                continue;
+            }
+
+            const savedSignature = layoutSignature(node);
+            try {
+                await persistNodePosition({ ...node, resource_items: [...(node.resource_items || [])] });
+                removeDirtyIfUnchanged('node', uuid, savedSignature);
+            } catch {
+                failed = true;
+            }
         }
+
         for (const uuid of textBlockUuids) {
             const textBlock = draftTextBlocks.value.find((item) => String(item.uuid) === uuid);
-            if (textBlock) tasks.push(persistTextBlockPosition(textBlock));
+            if (!textBlock) {
+                removeLayoutDirty('text', uuid);
+                continue;
+            }
+
+            const savedSignature = layoutSignature(textBlock);
+            try {
+                await persistTextBlockPosition({ ...textBlock });
+                removeDirtyIfUnchanged('text', uuid, savedSignature);
+            } catch {
+                failed = true;
+            }
         }
-        await Promise.allSettled(tasks);
-    } catch {
     } finally {
         layoutSaving.value = false;
+        if (failed) {
+            layoutSaveError.value = 'Gagal menyimpan sebagian layout. Klik Save lagi sebelum refresh.';
+        } else if (hasPendingLayoutChanges.value && !dragState.value) {
+            clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(() => saveLayoutChanges(), 600);
+        }
     }
 };
 
@@ -1000,13 +1317,16 @@ const onDragMove = (event) => {
     if (!dragState.value) return;
     if (Number(event.pointerId || 0) !== Number(dragState.value.pointerId || 0)) return;
 
-    const deltaX = event.clientX - dragState.value.startClientX;
-    const deltaY = event.clientY - dragState.value.startClientY;
+    const screenDeltaX = event.clientX - dragState.value.startClientX;
+    const screenDeltaY = event.clientY - dragState.value.startClientY;
+    const activeZoom = Math.max(MIN_ZOOM_SCALE, Number(dragState.value.zoomScale || zoomScale.value || 1));
+    const deltaX = screenDeltaX / activeZoom;
+    const deltaY = screenDeltaY / activeZoom;
 
     // Threshold 4px: baru mulai drag setelah pointer benar-benar bergerak.
     // Sebelum threshold, biarkan scroll container tetap bisa di-scroll.
     if (!dragState.value.started) {
-        if (Math.abs(deltaX) < 4 && Math.abs(deltaY) < 4) return;
+        if (Math.abs(screenDeltaX) < 4 && Math.abs(screenDeltaY) < 4) return;
         dragState.value.started = true;
         // Sekarang ambil pointer capture dan blokir scroll.
         if (dragState.value.sourceElement?.setPointerCapture) {
@@ -1151,6 +1471,7 @@ const startDrag = (type, item, event, mode = 'move') => {
     if (connectMode.value && type === 'node' && mode === 'move') return;
     if (!event.isPrimary) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const isTouchPointer = event.pointerType === 'touch' || event.pointerType === 'pen';
 
     const itemWidth = Number(item.width || (type === 'section' ? 500 : (type === 'text' ? 320 : 180)));
     const itemHeight = Number(item.height || (type === 'section' ? 260 : (type === 'text' ? 120 : 72)));
@@ -1180,9 +1501,10 @@ const startDrag = (type, item, event, mode = 'move') => {
     );
     const sourceElement = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
 
-    // Jangan preventDefault di sini agar scroll tetap bisa berjalan.
-    // preventDefault baru dipanggil di onDragMove saat drag benar-benar dimulai
-    // (pointer bergerak melewati threshold 4px).
+    if (isTouchPointer) {
+        event.preventDefault();
+        sourceElement?.setPointerCapture?.(Number(event.pointerId || 0));
+    }
 
     dragState.value = {
         type,
@@ -1206,6 +1528,8 @@ const startDrag = (type, item, event, mode = 'move') => {
         minY,
         // Flag: apakah drag benar-benar sudah dimulai (threshold terlampaui)
         started: false,
+        isTouchPointer,
+        zoomScale: Number(zoomScale.value || 1),
     };
 
     window.addEventListener('pointermove', onDragMove);
@@ -1317,6 +1641,8 @@ watch(pageUrl, () => {
 // Saat scroll di area canvas, jika canvas sudah mentok (atau scroll vertikal),
 // teruskan ke halaman agar user tetap bisa scroll halaman.
 const onCanvasWheel = (event) => {
+    if (zoomCanvasFromWheel(event)) return;
+
     const el = event.currentTarget;
     const atTop = el.scrollTop === 0;
     const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
@@ -1363,6 +1689,64 @@ onUnmounted(() => {
                     <Link :href="route('dooplab.dashboard')" class="lab-btn lab-btn--ghost">Back Dashboard</Link>
                 </div>
             </div>
+
+            <nav class="lab-bottom-nav" aria-label="DoopLab navigation">
+                <button
+                    v-if="canCreateMentorTodo"
+                    type="button"
+                    class="source-add-btn"
+                    title="Mentor Invites"
+                    aria-label="Mentor Invites"
+                    @click="openDashboardPanel('mentor_invites')"
+                >
+                    <i class="fi fi-rr-envelope"></i>
+                    <span class="nav-label">Mentor Invites</span>
+                </button>
+
+                <button
+                    type="button"
+                    class="source-add-btn"
+                    title="My Learning Path"
+                    aria-label="My Learning Path"
+                    @click="openDashboardPanel('learning_paths')"
+                >
+                    <i class="fi fi-rr-road"></i>
+                    <span class="nav-label">My Learning Path</span>
+                </button>
+
+                <button
+                    type="button"
+                    class="source-add-btn is-active"
+                    title="Roadmap Lab"
+                    aria-label="Roadmap Lab"
+                    @click="openRoadmapPanel"
+                >
+                    <i class="fi fi-rr-route"></i>
+                    <span class="nav-label">Roadmap Lab</span>
+                </button>
+
+                <button
+                    type="button"
+                    class="source-add-btn"
+                    title="To-Do List"
+                    aria-label="To-Do List"
+                    @click="openDashboardPanel('summary')"
+                >
+                    <i class="fi fi-rr-list-check"></i>
+                    <span class="nav-label">To-Do List</span>
+                </button>
+
+                <button
+                    type="button"
+                    class="source-add-btn"
+                    title="Logbook"
+                    aria-label="Logbook"
+                    @click="openDashboardPanel('logbook')"
+                >
+                    <i class="fi fi-rr-book-alt"></i>
+                    <span class="nav-label">Logbook</span>
+                </button>
+            </nav>
 
             <div v-if="flashMessage" class="lab-flash">
                 {{ flashMessage }}
@@ -1452,7 +1836,23 @@ onUnmounted(() => {
                     <div class="visual-preview-head">
                         <h2 class="title">Visual Preview</h2>
                         <div class="visual-preview-actions">
+                            <span v-if="layoutSaveError" class="visual-save-state visual-save-state--error">{{ layoutSaveError }}</span>
                             <span v-if="hasPendingLayoutChanges" class="visual-save-state">Unsaved Layout</span>
+                            <button
+                                type="button"
+                                class="btn-secondary user-view-btn"
+                                :disabled="!defaultUserViewEnrollment"
+                                :title="defaultUserViewEnrollment ? 'Lihat tampilan roadmap versi user' : 'Assign roadmap ke student dulu untuk melihat User View'"
+                                @click="openUserView()"
+                            >
+                                {{ userViewButtonLabel }}
+                            </button>
+                            <div class="zoom-controls" aria-label="Canvas zoom controls">
+                                <button type="button" class="btn-secondary zoom-btn" title="Zoom out" @click="zoomOutCanvas">-</button>
+                                <button type="button" class="btn-secondary zoom-value" title="Reset zoom to 100%" @click="resetCanvasZoom">{{ zoomPercent }}</button>
+                                <button type="button" class="btn-secondary zoom-btn" title="Zoom in" @click="zoomInCanvas">+</button>
+                                <button type="button" class="btn-secondary zoom-fit" title="Fit canvas width" @click="fitCanvasToWidth">Fit</button>
+                            </div>
                             <button class="btn-secondary" type="button" @click="backToRoadmapTable">Kembali</button>
                             <button
                                 type="button"
@@ -1584,8 +1984,25 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <div v-if="hasActiveRoadmap" class="panel canvas-wrapper" @wheel.passive="onCanvasWheel">
-                    <div ref="boardRef" class="roadmap-board" :style="{ width: `${boardWidth}px`, height: `${boardHeight}px` }" @pointerdown.self="clearSelectedItem">
+                <div
+                    v-if="hasActiveRoadmap"
+                    ref="canvasWrapperRef"
+                    class="panel canvas-wrapper"
+                    @wheel="onCanvasWheel"
+                    @gesturestart="onCanvasGestureStart"
+                    @gesturechange="onCanvasGestureChange"
+                    @touchstart="onCanvasTouchStart"
+                    @touchmove="onCanvasTouchMove"
+                    @touchend="onCanvasTouchEnd"
+                    @touchcancel="onCanvasTouchEnd"
+                >
+                    <div class="canvas-stage" :style="canvasStageStyle">
+                    <div
+                        ref="boardRef"
+                        class="roadmap-board"
+                        :style="roadmapBoardStyle"
+                        @pointerdown.self="clearSelectedItem"
+                    >
                         <svg class="edge-layer" :width="boardWidth" :height="boardHeight">
                             <defs>
                                 <marker id="arrowHead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
@@ -1641,7 +2058,7 @@ onUnmounted(() => {
                                 background: section.bg_color,
                                 color: section.text_color,
                                 justifyContent: resolveVerticalJustify(section.text_valign, 'top'),
-                                touchAction: isDragging('section', section.uuid) ? 'none' : 'pan-x pan-y',
+                                touchAction: 'none',
                             }"
                             @click.stop="selectItem('section', section)"
                             @pointerdown="startDrag('section', section, $event)"
@@ -1649,7 +2066,6 @@ onUnmounted(() => {
                             <p
                                 v-if="!isInlineEditing('section', section.uuid)"
                                 class="section-title"
-                                @pointerdown.stop
                                 @dblclick.stop="startInlineTitleEdit('section', section)"
                                 :style="{ fontSize: `${section.font_size || 20}px`, textAlign: section.text_align || 'left' }"
                             >
@@ -1739,7 +2155,7 @@ onUnmounted(() => {
                                 background: node.bg_color,
                                 color: node.text_color,
                                 justifyContent: resolveVerticalJustify(node.text_valign, 'middle'),
-                                touchAction: isDragging('node', node.uuid) ? 'none' : 'pan-x pan-y',
+                                touchAction: 'none',
                             }"
                             @click.stop="handleNodeClickForConnect(node) || selectItem('node', node)"
                             @pointerdown="startDrag('node', node, $event)"
@@ -1747,7 +2163,6 @@ onUnmounted(() => {
                             <div
                                 v-if="!isInlineEditing('node', node.uuid)"
                                 class="node-title"
-                                @pointerdown.stop
                                 @dblclick.stop="startInlineTitleEdit('node', node)"
                                 :style="{ fontSize: `${node.font_size || 28}px`, textAlign: node.text_align || 'center' }"
                             >
@@ -1783,6 +2198,7 @@ onUnmounted(() => {
                             <div class="resize-handle" @pointerdown.stop="startDrag('node', node, $event, 'resize')"></div>
                         </div>
                     </div>
+                </div>
                 </div>
 
                 <div v-if="!hasActiveRoadmap" class="panel text-slate-400 uppercase text-[8px]">
@@ -1856,6 +2272,7 @@ onUnmounted(() => {
                     <div v-for="enr in selectedStudentOverview.enrollments" :key="enr.enrollment_uuid" class="modal-enroll-row">
                         <span>{{ enr.roadmap_title }}</span>
                         <div class="flex gap-2">
+                            <button type="button" class="btn-secondary" @click="openUserView(enr.enrollment_uuid)">View</button>
                             <button type="button" class="btn-secondary" @click="manageEnrollment(enr.enrollment_uuid)">Manage</button>
                             <button type="button" class="btn-danger" @click="unassignUser(enr.enrollment_uuid)">Unassign</button>
                         </div>
@@ -2042,10 +2459,49 @@ onUnmounted(() => {
     flex-shrink: 1;
 }
 
+.visual-preview-actions .user-view-btn {
+    max-width: min(220px, 100%);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .visual-save-state {
     color: #fcd34d;
     font-size: 8px;
     text-transform: uppercase;
+}
+
+.visual-save-state--error {
+    color: #fca5a5;
+}
+
+.zoom-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    flex-wrap: nowrap;
+}
+
+.zoom-controls .btn-secondary {
+    min-height: 28px;
+    padding: 5px 8px;
+    line-height: 1;
+}
+
+.zoom-btn {
+    width: 30px;
+    min-width: 30px;
+}
+
+.zoom-value {
+    min-width: 56px;
+    text-align: center;
+}
+
+.zoom-fit {
+    min-width: 42px;
 }
 
 .btn-save-icon {
@@ -2447,7 +2903,10 @@ onUnmounted(() => {
 
 .section-box:hover .item-actions,
 .node-box:hover .item-actions,
-.text-block-box:hover .item-actions {
+.text-block-box:hover .item-actions,
+.section-box.is-selected .item-actions,
+.node-box.is-selected .item-actions,
+.text-block-box.is-selected .item-actions {
     opacity: 1;
 }
 
@@ -2530,6 +2989,8 @@ onUnmounted(() => {
 .section-box:hover .resize-handle,
 .node-box:hover .resize-handle,
 .text-block-box:hover .resize-handle,
+.section-box.is-selected .resize-handle,
+.node-box.is-selected .resize-handle,
 .text-block-box.is-selected .resize-handle {
     opacity: 1;
 }
@@ -2705,6 +3166,53 @@ onUnmounted(() => {
     color: #fff;
 }
 
+.lab-bottom-nav {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    gap: 8px;
+    align-items: center;
+    overflow-x: auto;
+    padding: 10px;
+    border: 2px solid var(--line);
+    background: linear-gradient(165deg, rgba(14, 20, 34, 0.94), rgba(10, 18, 32, 0.88));
+    box-shadow: 4px 4px 0 rgba(1, 6, 14, 0.9), inset 0 0 0 1px rgba(87, 214, 255, 0.08);
+}
+
+.lab-bottom-nav .source-add-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 38px;
+    min-width: 128px;
+    margin: 0;
+    padding: 8px 10px;
+    border: 2px solid var(--line-soft);
+    background: rgba(2, 8, 23, 0.72);
+    color: #d6e4f8;
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+    box-shadow: 2px 2px 0 rgba(1, 6, 14, 0.9);
+    transition: all 0.14s ease;
+}
+
+.lab-bottom-nav .source-add-btn:hover,
+.lab-bottom-nav .source-add-btn.is-active {
+    border-color: #006666;
+    background: #009999;
+    color: #fff;
+}
+
+.lab-bottom-nav .source-add-btn i {
+    flex: 0 0 auto;
+    font-size: 14px;
+    line-height: 1;
+}
+
 .lab-flash {
     padding: 8px 10px;
     border: 1px solid rgba(87, 246, 185, 0.35);
@@ -2830,6 +3338,11 @@ onUnmounted(() => {
     border-radius: 0;
     background-color: #091224;
     box-shadow: inset 0 0 0 1px rgba(87, 214, 255, 0.06);
+    left: 0;
+    position: absolute;
+    top: 0;
+    transform-origin: top left;
+    will-change: transform;
 }
 
 .section-box,
@@ -3082,6 +3595,7 @@ onUnmounted(() => {
 @media (max-width: 600px) {
     .lab-root {
         padding: 8px;
+        padding-bottom: calc(74px + env(safe-area-inset-bottom));
     }
 
     .lab-topbar {
@@ -3116,6 +3630,47 @@ onUnmounted(() => {
         font-size: 8px;
         padding: 6px 8px;
     }
+
+    .lab-bottom-nav {
+        position: fixed;
+        left: 8px;
+        right: 8px;
+        bottom: max(8px, env(safe-area-inset-bottom));
+        z-index: 80;
+        grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+        grid-auto-flow: row;
+        grid-auto-columns: initial;
+        gap: 6px;
+        overflow-x: hidden;
+        padding: 8px;
+        background: rgba(14, 20, 34, 0.94);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.36);
+    }
+
+    .lab-bottom-nav .source-add-btn {
+        width: 100%;
+        min-width: 0;
+        min-height: 42px;
+        padding: 0;
+        gap: 0;
+    }
+
+    .lab-bottom-nav .source-add-btn .nav-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .lab-bottom-nav .source-add-btn i {
+        font-size: 15px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -3147,13 +3702,74 @@ onUnmounted(() => {
     overflow-y: visible;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
+    touch-action: pan-x pan-y;
+}
+
+.canvas-stage {
+    margin-inline: auto;
+    position: relative;
+    transition: width 0.16s ease, height 0.16s ease;
 }
 
 @media (max-width: 768px) {
     .canvas-wrapper {
-        max-height: 60vh;
+        max-height: calc(100dvh - 190px);
+        min-height: 56dvh;
         overflow-y: auto;
         overscroll-behavior: contain;
+    }
+
+    .canvas-stage {
+        margin-inline: 0;
+    }
+
+    .section-box,
+    .node-box {
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+
+    .section-title,
+    .node-title {
+        cursor: grab;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+
+    .section-box.is-dragging .section-title,
+    .node-box.is-dragging .node-title {
+        cursor: grabbing;
+    }
+
+    .item-actions {
+        top: 6px;
+        right: 6px;
+        gap: 6px;
+    }
+
+    .item-actions button {
+        min-width: 42px;
+        min-height: 34px;
+        padding: 6px 8px;
+        font-size: 10px;
+    }
+
+    .resize-handle {
+        width: 34px;
+        height: 34px;
+        opacity: 0.65;
+        background:
+            linear-gradient(135deg, transparent 0 46%, rgba(103, 232, 249, 0.95) 46% 54%, transparent 54% 62%, rgba(103, 232, 249, 0.95) 62% 70%, transparent 70% 78%, rgba(103, 232, 249, 0.95) 78% 86%, transparent 86%);
+    }
+
+    .zoom-controls {
+        order: 3;
+        width: 100%;
+    }
+
+    .zoom-controls .btn-secondary {
+        flex: 1 1 0;
     }
 }
 </style>

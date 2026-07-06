@@ -160,6 +160,10 @@ class DoopLabLogbookController extends Controller
         abort_unless($user && $user->canAccessDoopLab(), 403);
         abort_unless($logbook->canEditBy($user), 403);
 
+        $request->merge([
+            'activity_time' => $this->normalizeActivityTime($request->input('activity_time')),
+        ]);
+
         $v = $request->validate([
             'activity_date' => ['required', 'date'],
             'activity_time' => ['nullable', 'date_format:H:i'],
@@ -198,6 +202,10 @@ class DoopLabLogbookController extends Controller
         abort_unless($user && $user->canAccessDoopLab(), 403);
         abort_unless($logbook->canEditBy($user) && (int) $entry->logbook_id === (int) $logbook->id, 403);
 
+        $request->merge([
+            'activity_time' => $this->normalizeActivityTime($request->input('activity_time')),
+        ]);
+
         $v = $request->validate([
             'activity_date' => ['required', 'date'],
             'activity_time' => ['nullable', 'date_format:H:i'],
@@ -206,11 +214,24 @@ class DoopLabLogbookController extends Controller
             'result'        => ['nullable', 'string', 'max:2000'],
             'documentation' => ['nullable', 'array', 'max:5'],
             'documentation.*' => ['file', 'max:' . self::DOCUMENTATION_MAX_UPLOAD_KB, 'mimes:jpg,jpeg,png,webp'],
+            'keep_documentation_paths' => ['nullable', 'array', 'max:5'],
+            'keep_documentation_paths.*' => ['string', 'max:500'],
         ]);
+
+        $currentDocPaths = collect($entry->documentation_paths ?: ($entry->documentation_path ? [$entry->documentation_path] : []))
+            ->filter()
+            ->map(fn ($path) => (string) $path)
+            ->values();
+
+        $keptDocPaths = collect($v['keep_documentation_paths'] ?? [])
+            ->map(fn ($path) => (string) $path)
+            ->filter(fn ($path) => $currentDocPaths->contains($path))
+            ->values()
+            ->all();
 
         $docPaths = $request->hasFile('documentation')
             ? $this->storeDocumentationFiles($request)
-            : ($entry->documentation_paths ?: ($entry->documentation_path ? [$entry->documentation_path] : []));
+            : $keptDocPaths;
 
         $entry->update([
             'activity_date'      => $v['activity_date'],
@@ -246,6 +267,36 @@ class DoopLabLogbookController extends Controller
         $entry->delete();
 
         return back()->with('message', 'DOOPLAB_LOGBOOK_ENTRY_DELETED');
+    }
+
+    private function normalizeActivityTime(mixed $value): ?string
+    {
+        $time = trim((string) ($value ?? ''));
+        if ($time === '') return null;
+
+        if (preg_match('/^(\d{1,2}):(\d{2})(?::\d{2})?$/', $time, $matches)) {
+            $hour = (int) $matches[1];
+            $minute = (int) $matches[2];
+
+            if ($hour >= 0 && $hour <= 23 && $minute >= 0 && $minute <= 59) {
+                return sprintf('%02d:%02d', $hour, $minute);
+            }
+        }
+
+        if (preg_match('/^(\d{1,2}):(\d{2})\s*([ap]m)$/i', $time, $matches)) {
+            $hour = (int) $matches[1];
+            $minute = (int) $matches[2];
+            $period = strtolower($matches[3]);
+
+            if ($hour >= 1 && $hour <= 12 && $minute >= 0 && $minute <= 59) {
+                if ($period === 'pm' && $hour !== 12) $hour += 12;
+                if ($period === 'am' && $hour === 12) $hour = 0;
+
+                return sprintf('%02d:%02d', $hour, $minute);
+            }
+        }
+
+        return $time;
     }
 
     private function storeDocumentationFiles(Request $request): array

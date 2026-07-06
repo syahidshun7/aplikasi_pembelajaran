@@ -45,9 +45,11 @@ const canOpenRoadmapLab = computed(() => {
 const allTodos = computed(() => Array.isArray(props.todos) ? props.todos : []);
 const mentors = computed(() => Array.isArray(props.mentors) ? props.mentors : []);
 const mentorInvites = computed(() => Array.isArray(props.mentor_invites) ? props.mentor_invites : []);
+const pendingMentorInviteCount = computed(() => mentorInvites.value.filter((invite) => String(invite?.status || '').toLowerCase() === 'pending').length);
 const researchWorkspaces = computed(() => Array.isArray(props.research_workspaces) ? props.research_workspaces : []);
 const hireableCreations = computed(() => Array.isArray(props.hireable_creations) ? props.hireable_creations : []);
 const directMentors = computed(() => Array.isArray(props.direct_mentors) ? props.direct_mentors : []);
+const activeDirectMentors = computed(() => directMentors.value.filter((mentor) => ['pending', 'approved'].includes(String(mentor?.status || '').toLowerCase())));
 const selectedHireCreation = computed(() => {
     const creationId = Number(hireMentorForm.value.creation_id || 0);
     return hireableCreations.value.find((creation) => Number(creation?.id || 0) === creationId) || null;
@@ -70,29 +72,13 @@ const availableHireMentors = computed(() => {
     return mentors.value.filter((mentor) => !unavailableMentorIds.has(Number(mentor?.id || 0)));
 });
 const selectedHireCreationMentors = computed(() => [
-    ...directMentors.value
+    ...activeDirectMentors.value
         .map((mentor) => ({
             id: `direct-${mentor.id}`,
             name: mentor.name,
             username: mentor.username,
             profile_photo: mentor.profile_photo,
             status: String(mentor.status || 'pending').toUpperCase(),
-        })),
-    ...(Array.isArray(selectedHireCreation.value?.mentor_invites) ? selectedHireCreation.value.mentor_invites : [])
-        .map((invite) => ({
-            id: `invite-${invite.id}`,
-            name: invite.name,
-            username: invite.username,
-            profile_photo: invite.profile_photo,
-            status: String(invite.status || 'pending').toUpperCase(),
-        })),
-    ...(Array.isArray(selectedHireCreation.value?.hired_mentors) ? selectedHireCreation.value.hired_mentors : [])
-        .map((mentor) => ({
-            id: `connected-${mentor.id}`,
-            name: mentor.name,
-            username: mentor.username,
-            profile_photo: mentor.profile_photo,
-            status: 'CONNECTED',
         })),
 ]);
 const visibleResearchWorkspaces = computed(() => {
@@ -131,6 +117,10 @@ const selectedTodo = computed(() => {
 
     return allTodos.value.find((item) => String(item?.uuid || '') === uuid) || null;
 });
+const isTodoNavActive = computed(() => ['summary', 'todo', 'todo_form'].includes(String(panelMode.value || '')));
+const isLearningPathNavActive = computed(() => String(panelMode.value || '') === 'learning_paths');
+const isMentorInvitesNavActive = computed(() => String(panelMode.value || '') === 'mentor_invites');
+const isHireMentorNavActive = computed(() => String(panelMode.value || '') === 'hire_mentor');
 
 const persistDashboardState = () => {
     if (typeof window === 'undefined') return;
@@ -182,7 +172,6 @@ const logbookPanelRef = ref(null);
 
 const showLogbook = () => {
     selectedTodoUuid.value = null;
-    if (logbookPanelRef.value) logbookPanelRef.value.selectedLogbookUuid = null;
     panelMode.value = 'logbook';
     nextTick(() => {
         if (typeof window !== 'undefined' && todoChatPanelRef.value?.scrollIntoView) {
@@ -262,6 +251,7 @@ const canHireMentor = computed(() => {
     const role = String(authUser.value?.role || '').toLowerCase();
     return !['mentor', 'admin', 'super_admin'].includes(role);
 });
+const canChooseMentor = computed(() => canHireMentor.value && activeDirectMentors.value.length === 0);
 
 const studioTiles = computed(() => ([
     {
@@ -742,7 +732,7 @@ const submitTodo = () => {
 const hireMentor = async () => {
     const mentorUserId = Number(hireMentorForm.value.mentor_user_id || 0);
 
-    if (!canHireMentor.value || mentorUserId <= 0 || hiringMentor.value) {
+    if (!canChooseMentor.value || mentorUserId <= 0 || hiringMentor.value) {
         return;
     }
 
@@ -773,7 +763,13 @@ const respondMentorInvite = async (invite, decision) => {
 
     try {
         await window.axios.post(route(`api.creations.mentor-invites.${decision}`, { collaborationRequest: inviteId }, false));
-        toast.success(decision === 'accept' ? 'INVITE_ACCEPTED' : 'INVITE_REJECTED', decision === 'accept' ? 'Creation sudah terhubung.' : 'Invite sudah ditolak.');
+        const successTitle = decision === 'accept'
+            ? 'INVITE_ACCEPTED'
+            : (decision === 'cancel' ? 'INVITE_CANCELED' : 'INVITE_REJECTED');
+        const successMessage = decision === 'accept'
+            ? 'Mentorship sudah terhubung.'
+            : (decision === 'cancel' ? 'Mentorship dibatalkan.' : 'Invite sudah ditolak.');
+        toast.success(successTitle, successMessage);
         router.reload({
             preserveScroll: true,
             preserveState: true,
@@ -943,6 +939,7 @@ onUnmounted(() => {
                             v-if="canHireMentor"
                             type="button"
                             class="source-add-btn"
+                            :class="{ 'is-active': isHireMentorNavActive }"
                             title="Hire Mentor"
                             aria-label="Hire Mentor"
                             @click="showHireMentor"
@@ -955,17 +952,19 @@ onUnmounted(() => {
                             v-if="canCreateMentorTodo"
                             type="button"
                             class="source-add-btn"
+                            :class="{ 'is-active': isMentorInvitesNavActive }"
                             title="Mentor Invites"
                             aria-label="Mentor Invites"
                             @click="showMentorInvites"
                         >
                             <i class="fi fi-rr-envelope"></i>
-                            <span class="nav-label">Mentor Invites ({{ mentorInvites.length }})</span>
+                            <span class="nav-label">Mentor Invites ({{ pendingMentorInviteCount }})</span>
                         </button>
 
                         <button
                             type="button"
                             class="source-add-btn"
+                            :class="{ 'is-active': isLearningPathNavActive }"
                             title="My Learning Path"
                             aria-label="My Learning Path"
                             @click="showLearningPaths"
@@ -988,7 +987,7 @@ onUnmounted(() => {
                         <button
                             type="button"
                             class="source-add-btn"
-                            :class="{ 'is-active': panelMode === 'summary' }"
+                            :class="{ 'is-active': isTodoNavActive }"
                             title="To-Do List"
                             aria-label="To-Do List"
                             @click="showTodoList"
@@ -1048,7 +1047,7 @@ onUnmounted(() => {
                                 Assign ke User
                             </button>
                             <div v-if="panelMode === 'logbook' && logbookPanelRef?.selectedLogbook" class="logbook-toolbar">
-                                <button type="button" class="chat-back-btn" @click="logbookPanelRef.selectedLogbookUuid = null">
+                                <button type="button" class="chat-back-btn" @click="logbookPanelRef.clearSelectedLogbook()">
                                     <i class="fi fi-rr-arrow-small-left"></i>
                                     Kembali
                                 </button>
@@ -1507,27 +1506,35 @@ onUnmounted(() => {
 
                         <template v-else-if="panelMode === 'hire_mentor'">
                             <section class="hire-mentor-workspace">
-                                <div class="hire-status-inline">
+                                <div class="mentor-user-list">
                                     <span v-if="!selectedHireCreationMentors.length" class="todo-field-note">Belum ada mentor yang terhubung.</span>
                                     <article
                                         v-for="mentor in selectedHireCreationMentors"
                                         :key="mentor.id"
-                                        class="hire-status-pill"
-                                        :class="`is-${String(mentor.status || '').toLowerCase()}`"
+                                        class="mentor-user-card"
                                     >
-                                        <span class="hire-status-avatar">
+                                        <span class="mentor-invite-avatar">
                                             <img v-if="mentor.profile_photo" :src="`/storage/${mentor.profile_photo}`" :alt="mentor.name">
                                             <span v-else>{{ String(mentor.name || 'M').slice(0, 1).toUpperCase() }}</span>
                                         </span>
-                                        <span class="hire-status-info">
-                                            <strong>{{ mentor.name || 'Mentor' }}</strong>
-                                            <small>@{{ mentor.username || '-' }}</small>
-                                        </span>
-                                        <em>{{ mentor.status }}</em>
+
+                                        <div class="mentor-user-info">
+                                            <h3>{{ mentor.name || 'Mentor' }}</h3>
+                                            <p>@{{ mentor.username || '-' }}</p>
+                                            <small>DoopLab mentor</small>
+                                        </div>
+
+                                        <div class="mentor-user-actions">
+                                            <div class="mentor-user-status-row">
+                                                <span class="mentor-user-status" :class="`is-${String(mentor.status || '').toLowerCase()}`">
+                                                    {{ String(mentor.status || 'pending').toUpperCase() }}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </article>
                                 </div>
 
-                                <form v-if="canHireMentor" class="hire-mentor-card" @submit.prevent="hireMentor">
+                                <form v-if="canChooseMentor" class="hire-mentor-card" @submit.prevent="hireMentor">
                                     <label class="todo-field">
                                         <span>Mentor</span>
                                         <select v-model="hireMentorForm.mentor_user_id" :disabled="hiringMentor || !availableHireMentors.length" required>
@@ -1549,27 +1556,56 @@ onUnmounted(() => {
                         </template>
 
                         <template v-else-if="panelMode === 'mentor_invites'">
-                            <section class="learning-path-list custom-scroll">
+                            <section class="mentor-user-list custom-scroll">
                                 <p v-if="!mentorInvites.length" class="source-empty">
-                                    Belum ada invite mentor yang perlu direspons.
+                                    Belum ada user yang hire kamu sebagai mentor.
                                 </p>
 
-                                <article v-for="invite in mentorInvites" :key="invite.id" class="learning-path-card">
-                                    <div class="learning-path-body">
-                                        <div class="learning-path-topline">
-                                            <span>Mentor Invite</span>
-                                            <strong>Status: PENDING</strong>
-                                        </div>
-                                        <h3>{{ invite.is_direct ? 'Direct Mentorship' : (invite.creation_title || 'Untitled Creation') }}</h3>
-                                        <div class="learning-path-meta">
-                                            <span>Owner: {{ invite.owner_name || '-' }} (@{{ invite.owner_username || '-' }})</span>
-                                        </div>
+                                <article v-for="invite in mentorInvites" :key="invite.id" class="mentor-user-card">
+                                    <span class="mentor-invite-avatar">
+                                        <img v-if="invite.owner_profile_photo" :src="`/storage/${invite.owner_profile_photo}`" :alt="invite.owner_name">
+                                        <span v-else>{{ String(invite.owner_name || 'U').slice(0, 1).toUpperCase() }}</span>
+                                    </span>
+
+                                    <div class="mentor-user-info">
+                                        <h3>{{ invite.owner_name || 'Member DoopLab' }}</h3>
+                                        <p>@{{ invite.owner_username || '-' }}</p>
+                                        <small>{{ invite.is_direct ? 'DoopLab mentor' : (invite.creation_title || 'Creation mentor') }}</small>
                                     </div>
 
-                                    <span class="learning-path-cta">
-                                        <button type="button" class="nb-btn nb-btn--solid" @click="respondMentorInvite(invite, 'accept')">Accept</button>
-                                        <button type="button" class="nb-btn nb-btn--ghost" @click="respondMentorInvite(invite, 'reject')">Reject</button>
-                                    </span>
+                                    <div class="mentor-user-actions">
+                                        <div class="mentor-user-status-row">
+                                            <span class="mentor-user-status" :class="`is-${String(invite.status || 'pending').toLowerCase()}`">
+                                                {{ String(invite.status || 'pending').toUpperCase() }}
+                                            </span>
+                                        </div>
+                                        <div class="mentor-user-button-row">
+                                            <button
+                                                v-if="String(invite.status || '').toLowerCase() === 'pending'"
+                                                type="button"
+                                                class="nb-btn nb-btn--solid"
+                                                @click="respondMentorInvite(invite, 'accept')"
+                                            >
+                                                Accept
+                                            </button>
+                                            <button
+                                                v-if="String(invite.status || '').toLowerCase() === 'pending'"
+                                                type="button"
+                                                class="nb-btn nb-btn--danger"
+                                                @click="respondMentorInvite(invite, 'reject')"
+                                            >
+                                                Reject
+                                            </button>
+                                            <button
+                                                v-if="String(invite.status || '').toLowerCase() === 'approved'"
+                                                type="button"
+                                                class="nb-btn nb-btn--ghost"
+                                                @click="respondMentorInvite(invite, 'cancel')"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
                                 </article>
                             </section>
                         </template>
@@ -2072,6 +2108,12 @@ onUnmounted(() => {
     background: rgba(87, 214, 255, 0.14);
 }
 
+.source-add-btn.is-active {
+    border-color: #006666;
+    background: #009999;
+    color: #fff;
+}
+
 .todo-add-btn {
     width: auto;
     min-width: max-content;
@@ -2568,6 +2610,92 @@ onUnmounted(() => {
     color: var(--danger);
 }
 
+.mentor-user-list {
+    display: grid;
+    gap: 10px;
+    max-height: 100%;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.mentor-user-card {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 2px solid var(--panel-border);
+    background: rgba(5, 10, 22, 0.72);
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45);
+}
+
+.mentor-user-info {
+    min-width: 0;
+}
+
+.mentor-user-info h3 {
+    margin: 0;
+    color: #fff;
+    font-family: Inter, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.mentor-user-info p,
+.mentor-user-info small {
+    display: block;
+    margin: 3px 0 0;
+    color: var(--text-muted);
+    font-family: Inter, sans-serif;
+    font-size: 11px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.mentor-user-actions {
+    display: grid;
+    justify-items: end;
+    gap: 8px;
+}
+
+.mentor-user-status-row,
+.mentor-user-button-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.mentor-user-button-row {
+    flex-wrap: wrap;
+}
+
+.mentor-user-button-row .nb-btn {
+    min-height: 32px;
+    padding: 7px 11px;
+    font-size: 11px;
+}
+
+.mentor-user-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 5px 8px;
+    border: 1px solid rgba(248, 198, 92, 0.42);
+    background: rgba(248, 198, 92, 0.08);
+    color: var(--amber);
+    font-size: 8px;
+    font-weight: 700;
+}
+
+.mentor-user-status.is-approved {
+    border-color: rgba(87, 246, 185, 0.38);
+    background: rgba(87, 246, 185, 0.08);
+    color: var(--green);
+}
+
 .learning-path-card {
     position: relative;
     display: grid;
@@ -2644,6 +2772,57 @@ onUnmounted(() => {
     line-height: 1.4;
 }
 
+.mentor-invite-requester {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    margin-top: 10px;
+}
+
+.mentor-invite-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(87, 214, 255, 0.32);
+    background: rgba(87, 214, 255, 0.08);
+    color: #e8f6ff;
+    font-size: 12px;
+    overflow: hidden;
+}
+
+.mentor-invite-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.mentor-invite-requester > span:last-child {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.mentor-invite-requester strong,
+.mentor-invite-requester small {
+    overflow-wrap: anywhere;
+}
+
+.mentor-invite-requester strong {
+    color: #d9e7ff;
+    font-family: Inter, sans-serif;
+    font-size: 12px;
+}
+
+.mentor-invite-requester small {
+    color: var(--text-muted);
+    font-family: Inter, sans-serif;
+    font-size: 11px;
+}
+
 .learning-path-card p {
     margin: 8px 0 0;
     color: #b9c7dc;
@@ -2679,6 +2858,11 @@ onUnmounted(() => {
     font-size: 8px;
     text-transform: uppercase;
     z-index: 1;
+}
+
+.mentor-invite-status {
+    color: #d9e7ff;
+    background: rgba(87, 214, 255, 0.08);
 }
 
 .todo-state {
@@ -3800,6 +3984,18 @@ onUnmounted(() => {
     color: #fff !important;
 }
 
+.source-add-btn.is-active {
+    background: #009999 !important;
+    border-color: #006666 !important;
+    color: #fff !important;
+    opacity: 1 !important;
+}
+
+.source-add-btn.is-active i,
+.source-add-btn.is-active .nav-label {
+    color: inherit !important;
+}
+
 /* Typography */
 .nb-eyebrow { font-size: 8px !important; color: #57d6ff !important; letter-spacing: 2px !important; }
 .nb-title { font-size: 14px !important; line-height: 1.4 !important; color: #fff !important; }
@@ -4117,6 +4313,7 @@ onUnmounted(() => {
     .nb-root {
         min-height: calc(100dvh - 52px) !important;
         padding: 8px !important;
+        padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important;
         overflow-x: hidden !important;
         background:
             linear-gradient(180deg, rgba(9, 13, 20, 0.96), rgba(13, 22, 35, 0.98)) !important;
@@ -4194,11 +4391,18 @@ onUnmounted(() => {
 
     .nb-todo-nav {
         order: 2 !important;
+        position: fixed !important;
+        left: 8px !important;
+        right: 8px !important;
+        bottom: max(8px, env(safe-area-inset-bottom)) !important;
+        z-index: 80 !important;
         min-height: 0 !important;
         max-height: none !important;
         padding: 10px !important;
         border-width: 2px !important;
-        background: rgba(14, 20, 34, 0.72) !important;
+        background: rgba(14, 20, 34, 0.94) !important;
+        backdrop-filter: blur(12px) !important;
+        box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.36) !important;
     }
 
     .nb-studio {
@@ -4282,7 +4486,7 @@ onUnmounted(() => {
         width: 100% !important;
         min-width: 0 !important;
         min-height: 0 !important;
-        max-height: calc(100dvh - 220px) !important;
+        max-height: calc(100dvh - 292px) !important;
         overflow-y: auto !important;
         overflow-x: hidden !important;
         padding-right: 2px !important;
@@ -4291,6 +4495,8 @@ onUnmounted(() => {
     .source-empty,
     .learning-path-card,
     .learning-path-card *,
+    .mentor-user-card,
+    .mentor-user-card *,
     .hire-mentor-card,
     .hire-mentor-card *,
     .chat-hero,
@@ -4329,6 +4535,7 @@ onUnmounted(() => {
 
     .todo-nav-item,
     .learning-path-card,
+    .mentor-user-card,
     .chat-hero,
     .chat-composer,
     .todo-note-item {
@@ -4374,6 +4581,38 @@ onUnmounted(() => {
     .mentor-zone {
         display: none !important;
     }
+
+    .mentor-user-card {
+        grid-template-columns: 38px minmax(0, 1fr) !important;
+    }
+
+    .mentor-user-actions {
+        grid-column: 1 / -1 !important;
+        justify-items: stretch !important;
+    }
+
+    .mentor-user-status-row,
+    .mentor-user-button-row {
+        width: 100% !important;
+    }
+
+    .mentor-user-status-row {
+        justify-content: flex-start !important;
+    }
+
+    .mentor-user-button-row {
+        justify-content: stretch !important;
+    }
+
+    .mentor-user-status {
+        flex: 0 0 auto !important;
+        justify-content: center !important;
+    }
+
+    .mentor-user-button-row .nb-btn {
+        flex: 1 1 0 !important;
+        justify-content: center !important;
+    }
 }
 
 @media (max-width: 520px) {
@@ -4383,6 +4622,7 @@ onUnmounted(() => {
 
     .nb-root {
         padding: 6px !important;
+        padding-bottom: calc(68px + env(safe-area-inset-bottom)) !important;
     }
 
     .nb-topbar,
@@ -4406,10 +4646,13 @@ onUnmounted(() => {
     .learning-path-list,
     .hire-mentor-workspace,
     .chat-stream {
-        max-height: calc(100dvh - 238px) !important;
+        max-height: calc(100dvh - 286px) !important;
     }
 
     .nb-todo-nav {
+        left: 6px !important;
+        right: 6px !important;
+        bottom: max(6px, env(safe-area-inset-bottom)) !important;
         display: grid !important;
         grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)) !important;
         grid-auto-flow: row !important;

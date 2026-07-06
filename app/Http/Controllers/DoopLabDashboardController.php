@@ -334,23 +334,29 @@ class DoopLabDashboardController extends Controller
         $mentorInvites = $isMentor
             ? CreationCollaborationRequest::query()
                 ->where('requester_id', $userId)
-                ->where('status', CreationCollaborationRequest::STATUS_PENDING)
+                ->whereIn('status', [
+                    CreationCollaborationRequest::STATUS_PENDING,
+                    CreationCollaborationRequest::STATUS_APPROVED,
+                ])
                 ->whereIn('message', [
                     self::MENTOR_INVITE_MESSAGE,
                     self::DIRECT_MENTOR_INVITE_MESSAGE,
                 ])
-                ->with(['creation:id,title,user_id', 'creation.user:id,name,username', 'processor:id,name,username'])
+                ->with(['creation:id,title,user_id', 'creation.user:id,name,username,profile_photo', 'processor:id,name,username,profile_photo'])
                 ->latest()
-                ->limit(20)
+                ->limit(40)
                 ->get()
                 ->map(fn (CreationCollaborationRequest $item) => [
                     'id' => (int) $item->id,
                     'creation_title' => (string) ($item->creation?->title ?? 'Direct Mentorship'),
                     'owner_name' => (string) ($item->creation?->user?->name ?? $item->processor?->name ?? ''),
                     'owner_username' => (string) ($item->creation?->user?->username ?? $item->processor?->username ?? ''),
+                    'owner_profile_photo' => (string) ($item->creation?->user?->profile_photo ?? $item->processor?->profile_photo ?? ''),
                     'is_direct' => $item->creation_id === null,
                     'requested_role' => (string) ($item->requested_role ?? ''),
+                    'status' => (string) $item->status,
                     'created_at' => optional($item->created_at)->toIso8601String(),
+                    'processed_at' => optional($item->processed_at)->toIso8601String(),
                 ])
                 ->values()
                 ->all()
@@ -424,7 +430,6 @@ class DoopLabDashboardController extends Controller
                 ->whereIn('status', [
                     CreationCollaborationRequest::STATUS_PENDING,
                     CreationCollaborationRequest::STATUS_APPROVED,
-                    CreationCollaborationRequest::STATUS_REJECTED,
                 ])
                 ->with('requester:id,name,username,profile_photo')
                 ->latest()
@@ -498,6 +503,11 @@ class DoopLabDashboardController extends Controller
                 'status'             => (string) ($e->status ?? DoopLabLogbookEntry::STATUS_PENDING),
                 'documentation_url'  => $documentationUrls($e)[0] ?? null,
                 'documentation_urls' => $documentationUrls($e),
+                'documentation_paths' => collect($e->documentation_paths ?: ($e->documentation_path ? [$e->documentation_path] : []))
+                    ->filter()
+                    ->map(fn ($path) => (string) $path)
+                    ->values()
+                    ->all(),
                 'todo'               => $e->todo ? ['uuid' => (string) $e->todo->uuid, 'title' => (string) ($e->todo->title ?? '')] : null,
                 'created_at'         => $e->created_at?->toIso8601String(),
             ])->values()->all(),

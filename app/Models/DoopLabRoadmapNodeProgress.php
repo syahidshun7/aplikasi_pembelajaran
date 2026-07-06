@@ -18,6 +18,7 @@ class DoopLabRoadmapNodeProgress extends Model
         'enrollment_id',
         'node_id',
         'status',
+        'mentor_override_status',
         'student_note',
         'mentor_note',
         'submitted_at',
@@ -39,4 +40,3 @@ class DoopLabRoadmapNodeProgress extends Model
         return $this->belongsTo(DoopLabRoadmapNode::class, 'node_id');
     }
 }
-

@@ -224,6 +224,7 @@ class DoopLabRoadmapEnrollmentController extends Controller
 
         $progress->status = DoopLabRoadmapNodeProgress::STATUS_SUBMITTED;
         $progress->student_note = (string) ($validated['student_note'] ?? '');
+        $progress->mentor_override_status = null;
         $progress->submitted_at = now();
         $progress->save();
 
@@ -257,6 +258,7 @@ class DoopLabRoadmapEnrollmentController extends Controller
         $progress->status = $validated['decision'] === 'approved'
             ? DoopLabRoadmapNodeProgress::STATUS_APPROVED
             : DoopLabRoadmapNodeProgress::STATUS_REVISION;
+        $progress->mentor_override_status = null;
         $progress->mentor_note = (string) ($validated['mentor_note'] ?? '');
         $progress->reviewed_at = now();
         $progress->save();
@@ -281,10 +283,9 @@ class DoopLabRoadmapEnrollmentController extends Controller
             ['status' => DoopLabRoadmapNodeProgress::STATUS_LOCKED]
         );
 
-        if ($progress->status === DoopLabRoadmapNodeProgress::STATUS_LOCKED) {
-            $progress->status = DoopLabRoadmapNodeProgress::STATUS_UNLOCKED;
-            $progress->save();
-        }
+        $progress->status = DoopLabRoadmapNodeProgress::STATUS_UNLOCKED;
+        $progress->mentor_override_status = DoopLabRoadmapNodeProgress::STATUS_UNLOCKED;
+        $progress->save();
 
         return redirect()->route('dooplab.roadmaps.enrollments.show', $enrollment->uuid);
     }
@@ -304,8 +305,9 @@ class DoopLabRoadmapEnrollmentController extends Controller
             ->where('node_id', $node->id)
             ->first();
 
-        if ($progress && $progress->status === DoopLabRoadmapNodeProgress::STATUS_UNLOCKED) {
+        if ($progress) {
             $progress->status = DoopLabRoadmapNodeProgress::STATUS_LOCKED;
+            $progress->mentor_override_status = DoopLabRoadmapNodeProgress::STATUS_LOCKED;
             $progress->save();
         }
 
@@ -358,6 +360,17 @@ class DoopLabRoadmapEnrollmentController extends Controller
                 DoopLabRoadmapNodeProgress::STATUS_APPROVED,
                 DoopLabRoadmapNodeProgress::STATUS_REVISION,
             ], true)) {
+                continue;
+            }
+
+            if (in_array($progress->mentor_override_status, [
+                DoopLabRoadmapNodeProgress::STATUS_LOCKED,
+                DoopLabRoadmapNodeProgress::STATUS_UNLOCKED,
+            ], true)) {
+                if ($progress->status !== $progress->mentor_override_status) {
+                    $progress->status = $progress->mentor_override_status;
+                    $progress->save();
+                }
                 continue;
             }
 
