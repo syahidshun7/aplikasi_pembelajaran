@@ -310,17 +310,19 @@ class CreationApiController extends Controller
             ]);
         }
 
-        $alreadyConnected = CreationCollaborationRequest::query()
+        $alreadyHasMentor = CreationCollaborationRequest::query()
             ->whereNull('creation_id')
-            ->where('requester_id', (int) $mentor->id)
             ->where('processed_by', $memberId)
             ->where('message', self::DIRECT_MENTOR_INVITE_MESSAGE)
-            ->where('status', CreationCollaborationRequest::STATUS_APPROVED)
+            ->whereIn('status', [
+                CreationCollaborationRequest::STATUS_PENDING,
+                CreationCollaborationRequest::STATUS_APPROVED,
+            ])
             ->exists();
 
-        if ($alreadyConnected) {
+        if ($alreadyHasMentor) {
             throw ValidationException::withMessages([
-                'mentor_user_id' => ['Mentor ini sudah terhubung.'],
+                'mentor_user_id' => ['Kamu sudah punya mentor aktif atau sedang menunggu accept.'],
             ]);
         }
 
@@ -397,6 +399,34 @@ class CreationApiController extends Controller
         $collaborationRequest->update($updatePayload);
 
         return response()->json(['message' => 'Invite mentor ditolak.']);
+    }
+
+    public function cancelMentorInvite(Request $request, CreationCollaborationRequest $collaborationRequest): JsonResponse
+    {
+        $mentor = $request->user();
+        abort_unless($mentor && $mentor->isMentor(), 403, 'MENTOR_ONLY');
+        abort_unless((int) $collaborationRequest->requester_id === (int) $mentor->id, 403, 'INVITE_FORBIDDEN');
+        abort_unless((string) $collaborationRequest->status === CreationCollaborationRequest::STATUS_APPROVED, 422, 'INVITE_NOT_CANCELABLE');
+
+        if ((int) ($collaborationRequest->creation_id ?? 0) > 0) {
+            CreationCollaborator::query()
+                ->where('creation_id', (int) $collaborationRequest->creation_id)
+                ->where('user_id', (int) $mentor->id)
+                ->delete();
+        }
+
+        $updatePayload = [
+            'status' => CreationCollaborationRequest::STATUS_WITHDRAWN,
+            'processed_at' => now(),
+        ];
+
+        if ((int) ($collaborationRequest->creation_id ?? 0) > 0) {
+            $updatePayload['processed_by'] = (int) $mentor->id;
+        }
+
+        $collaborationRequest->update($updatePayload);
+
+        return response()->json(['message' => 'Invite mentor dibatalkan.']);
     }
 
     private function ensureOwner(Creation $creation, int $userId): void

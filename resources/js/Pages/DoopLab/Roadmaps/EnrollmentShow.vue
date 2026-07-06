@@ -15,26 +15,208 @@ const edges = computed(() => roadmap.value.edges || []);
 const isOwner = computed(() => Boolean(props.enrollment?.is_owner));
 const isMentor = computed(() => Boolean(props.enrollment?.is_mentor));
 const canManage = computed(() => Boolean(props.enrollment?.can_manage));
+const backHref = computed(() => {
+    if (canManage.value) {
+        return route('dooplab.roadmaps.index', {
+            roadmap: roadmap.value.uuid,
+        });
+    }
+
+    return route('dooplab.roadmaps.enrollments.index');
+});
+const backLabel = computed(() => canManage.value ? 'Back Roadmap' : 'Back Paths');
 
 const selectedNode = ref(null);
+const canvasWrapperRef = ref(null);
+
+const clampValue = (value, min, max) => {
+    return Math.min(max, Math.max(min, value));
+};
 
 const nodeMap = computed(() => {
     return new Map(nodes.value.map((n) => [String(n.uuid), n]));
 });
 
+const MIN_BOARD_WIDTH = 1600;
+const MIN_BOARD_HEIGHT = 1000;
+const MIN_ZOOM_SCALE = 0.4;
+const MAX_ZOOM_SCALE = 2;
+const ZOOM_STEP = 0.1;
+const WHEEL_ZOOM_SENSITIVITY = 0.0022;
+const MAX_WHEEL_DELTA = 42;
+
+const zoomScale = ref(1);
+const zoomGestureStartScale = ref(1);
+const pinchStartDistance = ref(0);
+const pinchStartScale = ref(1);
+
 const boardWidth = computed(() => {
-    const maxX = Math.max(1000, ...nodes.value.map((n) => Number(n.x || 0) + Number(n.width || 0)),
+    const maxX = Math.max(MIN_BOARD_WIDTH, ...nodes.value.map((n) => Number(n.x || 0) + Number(n.width || 0)),
         ...sections.value.map((s) => Number(s.x || 0) + Number(s.width || 0)),
         ...textBlocks.value.map((t) => Number(t.x || 0) + Number(t.width || 0)));
-    return maxX + 120;
+    return maxX + 180;
 });
 
 const boardHeight = computed(() => {
-    const maxY = Math.max(680, ...nodes.value.map((n) => Number(n.y || 0) + Number(n.height || 0)),
+    const maxY = Math.max(MIN_BOARD_HEIGHT, ...nodes.value.map((n) => Number(n.y || 0) + Number(n.height || 0)),
         ...sections.value.map((s) => Number(s.y || 0) + Number(s.height || 0)),
         ...textBlocks.value.map((t) => Number(t.y || 0) + Number(t.height || 0)));
-    return maxY + 120;
+    return maxY + 180;
 });
+
+const visualBoardWidth = computed(() => Math.round(boardWidth.value * zoomScale.value));
+const visualBoardHeight = computed(() => Math.round(boardHeight.value * zoomScale.value));
+const zoomPercent = computed(() => `${Math.round(zoomScale.value * 100)}%`);
+const canvasStageStyle = computed(() => ({
+    width: `${visualBoardWidth.value}px`,
+    height: `${visualBoardHeight.value}px`,
+}));
+const roadmapBoardStyle = computed(() => ({
+    width: `${boardWidth.value}px`,
+    height: `${boardHeight.value}px`,
+    transform: `scale(${zoomScale.value})`,
+}));
+
+const resolveCanvasFocalPoint = (clientX = null, clientY = null) => {
+    const wrapper = canvasWrapperRef.value;
+    if (!wrapper) return null;
+
+    const rect = wrapper.getBoundingClientRect();
+    return {
+        clientX: Number(clientX ?? rect.left + (wrapper.clientWidth / 2)),
+        clientY: Number(clientY ?? rect.top + (wrapper.clientHeight / 2)),
+    };
+};
+
+const setZoomScale = (value) => {
+    const nextScale = Math.round(clampValue(Number(value || 1), MIN_ZOOM_SCALE, MAX_ZOOM_SCALE) * 100) / 100;
+    zoomScale.value = nextScale;
+    return nextScale;
+};
+
+const setZoomScaleAtPoint = (value, clientX = null, clientY = null) => {
+    const wrapper = canvasWrapperRef.value;
+    const focalPoint = resolveCanvasFocalPoint(clientX, clientY);
+    if (!wrapper || !focalPoint) return setZoomScale(value);
+
+    const rect = wrapper.getBoundingClientRect();
+    const oldScale = Math.max(MIN_ZOOM_SCALE, Number(zoomScale.value || 1));
+    const offsetX = focalPoint.clientX - rect.left;
+    const offsetY = focalPoint.clientY - rect.top;
+    const canvasX = (wrapper.scrollLeft + offsetX) / oldScale;
+    const canvasY = (wrapper.scrollTop + offsetY) / oldScale;
+    const nextScale = setZoomScale(value);
+
+    requestAnimationFrame(() => {
+        const maxScrollLeft = Math.max(0, Math.round(boardWidth.value * nextScale) - wrapper.clientWidth);
+        const maxScrollTop = Math.max(0, Math.round(boardHeight.value * nextScale) - wrapper.clientHeight);
+        wrapper.scrollLeft = clampValue(Math.round((canvasX * nextScale) - offsetX), 0, maxScrollLeft);
+        wrapper.scrollTop = clampValue(Math.round((canvasY * nextScale) - offsetY), 0, maxScrollTop);
+    });
+
+    return nextScale;
+};
+
+const zoomInCanvas = () => {
+    setZoomScaleAtPoint(zoomScale.value + ZOOM_STEP);
+};
+
+const zoomOutCanvas = () => {
+    setZoomScaleAtPoint(zoomScale.value - ZOOM_STEP);
+};
+
+const resetCanvasZoom = () => {
+    setZoomScaleAtPoint(1);
+};
+
+const fitCanvasToWidth = () => {
+    const wrapperWidth = Number(canvasWrapperRef.value?.clientWidth || 0);
+    if (!wrapperWidth || !boardWidth.value) {
+        resetCanvasZoom();
+        return;
+    }
+
+    setZoomScaleAtPoint((wrapperWidth - 28) / boardWidth.value);
+};
+
+const normalizeWheelDelta = (event) => {
+    let delta = Number(event.deltaY || 0);
+    if (event.deltaMode === 1) delta *= 16;
+    if (event.deltaMode === 2) delta *= Number(canvasWrapperRef.value?.clientHeight || 800);
+
+    return clampValue(delta, -MAX_WHEEL_DELTA, MAX_WHEEL_DELTA);
+};
+
+const zoomCanvasFromWheel = (event) => {
+    if (!event.ctrlKey && !event.metaKey && !event.altKey) return false;
+
+    event.preventDefault();
+
+    const delta = normalizeWheelDelta(event);
+    const nextScale = zoomScale.value * Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
+    setZoomScaleAtPoint(nextScale, event.clientX, event.clientY);
+
+    return true;
+};
+
+const onCanvasGestureStart = (event) => {
+    event.preventDefault();
+    zoomGestureStartScale.value = zoomScale.value;
+};
+
+const onCanvasGestureChange = (event) => {
+    event.preventDefault();
+    setZoomScaleAtPoint(zoomGestureStartScale.value * Number(event.scale || 1), event.clientX, event.clientY);
+};
+
+const getTouchDistance = (touches) => {
+    if (!touches || touches.length < 2) return 0;
+
+    const [first, second] = touches;
+    return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+};
+
+const getTouchCenter = (touches) => {
+    if (!touches || touches.length < 2) return resolveCanvasFocalPoint();
+
+    const [first, second] = touches;
+    return {
+        clientX: (first.clientX + second.clientX) / 2,
+        clientY: (first.clientY + second.clientY) / 2,
+    };
+};
+
+const onCanvasTouchStart = (event) => {
+    if (event.touches.length !== 2) return;
+
+    pinchStartDistance.value = getTouchDistance(event.touches);
+    pinchStartScale.value = zoomScale.value;
+};
+
+const onCanvasTouchMove = (event) => {
+    if (event.touches.length !== 2 || !pinchStartDistance.value) return;
+
+    event.preventDefault();
+    const distance = getTouchDistance(event.touches);
+    if (!distance) return;
+    const touchCenter = getTouchCenter(event.touches);
+
+    setZoomScaleAtPoint(
+        pinchStartScale.value * (distance / pinchStartDistance.value),
+        touchCenter.clientX,
+        touchCenter.clientY,
+    );
+};
+
+const onCanvasTouchEnd = (event) => {
+    if (event.touches.length >= 2) return;
+
+    pinchStartDistance.value = 0;
+};
+
+const onCanvasWheel = (event) => {
+    zoomCanvasFromWheel(event);
+};
 
 const edgePaths = computed(() => {
     return edges.value.map((edge) => {
@@ -142,11 +324,30 @@ const lockNode = (node) => {
                         {{ canManage ? `Student: ${enrollment.student_name}` : `Mentor: ${enrollment.mentor_name}` }}
                     </p>
                 </div>
-                <Link :href="route('dooplab.dashboard')" class="flex-shrink-0 px-3 py-2 border border-slate-700 text-slate-300 hover:text-white uppercase text-[8px]">Back</Link>
+                <div class="path-actions">
+                    <div class="zoom-controls" aria-label="Canvas zoom controls">
+                        <button type="button" class="zoom-btn" title="Zoom out" @click="zoomOutCanvas">-</button>
+                        <button type="button" class="zoom-value" title="Reset zoom to 100%" @click="resetCanvasZoom">{{ zoomPercent }}</button>
+                        <button type="button" class="zoom-btn" title="Zoom in" @click="zoomInCanvas">+</button>
+                        <button type="button" class="zoom-fit" title="Fit canvas width" @click="fitCanvasToWidth">Fit</button>
+                    </div>
+                    <Link :href="backHref" class="back-link">{{ backLabel }}</Link>
+                </div>
             </div>
 
-            <div class="panel overflow-auto">
-                <div class="roadmap-board" :style="{ width: `${boardWidth}px`, height: `${boardHeight}px` }">
+            <div
+                ref="canvasWrapperRef"
+                class="panel canvas-wrapper overflow-auto"
+                @wheel="onCanvasWheel"
+                @gesturestart="onCanvasGestureStart"
+                @gesturechange="onCanvasGestureChange"
+                @touchstart="onCanvasTouchStart"
+                @touchmove="onCanvasTouchMove"
+                @touchend="onCanvasTouchEnd"
+                @touchcancel="onCanvasTouchEnd"
+            >
+                <div class="canvas-stage" :style="canvasStageStyle">
+                <div class="roadmap-board" :style="roadmapBoardStyle">
                     <svg class="edge-layer" :width="boardWidth" :height="boardHeight">
                         <path
                             v-for="item in edgePaths"
@@ -213,6 +414,7 @@ const lockNode = (node) => {
                         <div class="node-title" :style="{ fontSize: `${node.font_size || 28}px`, textAlign: node.text_align || 'center' }">{{ node.title }}</div>
                         <span class="node-status-badge" :style="{ background: getNodeStatusColor(node) }">{{ getNodeStatusLabel(node) }}</span>
                     </div>
+                </div>
                 </div>
             </div>
 
@@ -300,6 +502,54 @@ const lockNode = (node) => {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     max-height: calc(100dvh - 160px);
+}
+.canvas-wrapper {
+    touch-action: pan-x pan-y;
+}
+.path-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+.back-link,
+.zoom-controls button {
+    border: 1px solid #334155;
+    color: #cbd5e1;
+    padding: 0.5rem 0.65rem;
+    text-transform: uppercase;
+    font-size: 8px;
+    border-radius: 0;
+    box-shadow: 2px 2px 0 rgba(1, 6, 14, 0.9);
+    background: rgba(15, 23, 42, 0.45);
+}
+.back-link:hover,
+.zoom-controls button:hover {
+    border-color: #22d3ee;
+    color: #fff;
+}
+.zoom-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+.zoom-btn {
+    width: 32px;
+    min-width: 32px;
+}
+.zoom-value {
+    min-width: 58px;
+}
+.zoom-fit {
+    min-width: 44px;
+}
+.canvas-stage {
+    margin-inline: auto;
+    position: relative;
+    transition: width 0.16s ease, height 0.16s ease;
 }
 .field {
     border: 1px solid #334155;
@@ -514,7 +764,9 @@ const lockNode = (node) => {
     background: rgba(239, 68, 68, 0.08);
 }
 .roadmap-board {
-    position: relative;
+    left: 0;
+    position: absolute;
+    top: 0;
     background-image:
         linear-gradient(to right, rgba(148, 163, 184, 0.12) 1px, transparent 1px),
         linear-gradient(to bottom, rgba(148, 163, 184, 0.12) 1px, transparent 1px);
@@ -523,6 +775,8 @@ const lockNode = (node) => {
     border-radius: 0;
     border: 2px solid rgba(87, 214, 255, 0.24);
     box-shadow: inset 0 0 0 1px rgba(87, 214, 255, 0.06);
+    transform-origin: top left;
+    will-change: transform;
 }
 .edge-layer {
     position: absolute;
@@ -655,6 +909,27 @@ p, span, a, button, textarea { font-size: 8px; }
 }
 
 @media (max-width: 768px) {
+    .path-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .zoom-controls {
+        width: 100%;
+        order: 1;
+    }
+
+    .zoom-controls button {
+        flex: 1 1 0;
+        min-height: 38px;
+    }
+
+    .back-link {
+        width: 100%;
+        text-align: center;
+        order: 2;
+    }
+
     .panel {
         max-height: calc(100dvh - 140px);
         padding: 0.5rem;

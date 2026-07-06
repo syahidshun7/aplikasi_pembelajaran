@@ -68,6 +68,7 @@ Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
     Route::post('/dooplab/hire-mentor', [CreationApiController::class, 'hireDirectMentor'])->name('dooplab.hire-mentor');
     Route::post('/creation-mentor-invites/{collaborationRequest}/accept', [CreationApiController::class, 'acceptMentorInvite'])->name('creations.mentor-invites.accept');
     Route::post('/creation-mentor-invites/{collaborationRequest}/reject', [CreationApiController::class, 'rejectMentorInvite'])->name('creations.mentor-invites.reject');
+    Route::post('/creation-mentor-invites/{collaborationRequest}/cancel', [CreationApiController::class, 'cancelMentorInvite'])->name('creations.mentor-invites.cancel');
 
     Route::post('/creations/{creation}/appreciate', [CreationInteractionController::class, 'appreciate'])->name('creations.appreciate.store');
     Route::delete('/creations/{creation}/appreciate', [CreationInteractionController::class, 'removeAppreciation'])->name('creations.appreciate.destroy');
@@ -213,6 +214,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/dooplab/logbooks/{logbook}', [DoopLabLogbookController::class, 'update'])->name('dooplab.logbooks.update');
     Route::delete('/dooplab/logbooks/{logbook}', [DoopLabLogbookController::class, 'destroy'])->name('dooplab.logbooks.destroy');
     Route::post('/dooplab/logbooks/{logbook}/entries', [DoopLabLogbookController::class, 'storeEntry'])->name('dooplab.logbooks.entries.store');
+    Route::post('/dooplab/logbooks/{logbook}/entries/{entry}', [DoopLabLogbookController::class, 'updateEntry'])->name('dooplab.logbooks.entries.update-post');
     Route::patch('/dooplab/logbooks/{logbook}/entries/{entry}', [DoopLabLogbookController::class, 'updateEntry'])->name('dooplab.logbooks.entries.update');
     Route::patch('/dooplab/logbooks/{logbook}/entries/{entry}/approve', [DoopLabLogbookController::class, 'approveEntry'])->name('dooplab.logbooks.entries.approve');
     Route::delete('/dooplab/logbooks/{logbook}/entries/{entry}', [DoopLabLogbookController::class, 'destroyEntry'])->name('dooplab.logbooks.entries.destroy');

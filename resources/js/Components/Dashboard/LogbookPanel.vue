@@ -1,6 +1,6 @@
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { toast } from '@/Utils/Alert';
 
@@ -14,14 +14,44 @@ const props = defineProps({
 const emit = defineEmits(['select', 'deselect']);
 
 // ── Selected logbook ──────────────────────────────────────────────────────
-const selectedLogbookUuid = ref(null);
+const LOGBOOK_STATE_KEY = 'dooplab.logbook.selected-uuid';
+const getInitialSelectedLogbookUuid = () => {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem(LOGBOOK_STATE_KEY) || null;
+};
+const selectedLogbookUuid = ref(getInitialSelectedLogbookUuid());
 const selectedLogbook = computed(() => props.logbooks.find(lb => lb.uuid === selectedLogbookUuid.value) || null);
+
+const selectLogbook = (uuid) => {
+    selectedLogbookUuid.value = String(uuid || '') || null;
+    entryPage.value = 1;
+};
+
+const clearSelectedLogbook = () => {
+    selectedLogbookUuid.value = null;
+};
 
 // ── Search & Pagination ───────────────────────────────────────────────────
 const PAGE_SIZE = 30;
 const entrySearch = ref('');
 const entryPage = ref(1);
 const entryMonthFilter = ref(''); // format: 'YYYY-MM'
+
+watch(selectedLogbookUuid, (uuid) => {
+    if (typeof window === 'undefined') return;
+
+    if (uuid) {
+        window.localStorage.setItem(LOGBOOK_STATE_KEY, uuid);
+    } else {
+        window.localStorage.removeItem(LOGBOOK_STATE_KEY);
+    }
+});
+
+watch(() => props.logbooks, () => {
+    if (selectedLogbookUuid.value && !selectedLogbook.value) {
+        clearSelectedLogbook();
+    }
+}, { deep: true });
 
 const availableMonths = computed(() => {
     const entries = selectedLogbook.value?.entries || [];
@@ -137,7 +167,7 @@ const deleteLogbook = async (logbook) => {
 };
 
 // ── Entry CRUD ────────────────────────────────────────────────────────────
-const entryForm = useForm({ activity_date: '', activity_time: '', activity: '', purpose: '', result: '', documentation: [] });
+const entryForm = useForm({ activity_date: '', activity_time: '', activity: '', purpose: '', result: '', documentation: [], keep_documentation_paths: [] });
 const showEntryModal = ref(false);
 const entryModalMode = ref('create');
 const editingEntryUuid = ref(null);
@@ -153,7 +183,26 @@ const detailImages = computed(() => {
     return detailEntry.value?.documentation_url ? [detailEntry.value.documentation_url] : [];
 });
 
+const existingEntryDocPreviews = (entry) => {
+    const urls = Array.isArray(entry?.documentation_urls) && entry.documentation_urls.length
+        ? entry.documentation_urls
+        : (entry?.documentation_url ? [entry.documentation_url] : []);
+
+    const paths = Array.isArray(entry?.documentation_paths) ? entry.documentation_paths : [];
+
+    return urls
+        .filter(Boolean)
+        .map((url, index) => ({
+            url,
+            path: paths[index] || '',
+            name: `Dokumentasi tersimpan ${index + 1}`,
+            existing: true,
+        }));
+};
+
 const openEntryModal = (entry = null) => {
+    clearEntryDocPreviews();
+
     if (entry) {
         entryModalMode.value = 'edit';
         editingEntryUuid.value = String(entry.uuid || '');
@@ -163,16 +212,18 @@ const openEntryModal = (entry = null) => {
         entryForm.purpose = String(entry.purpose || '');
         entryForm.result = String(entry.result || '');
         entryForm.documentation = [];
+        entryForm.keep_documentation_paths = (Array.isArray(entry.documentation_paths) ? entry.documentation_paths : []).map((path) => String(path || '')).filter(Boolean);
+        entryDocPreviews.value = existingEntryDocPreviews(entry);
     } else {
         entryModalMode.value = 'create';
         editingEntryUuid.value = null;
         entryForm.reset();
         entryForm.documentation = [];
+        entryForm.keep_documentation_paths = [];
         entryForm.activity_date = new Date().toISOString().slice(0, 10);
         entryForm.activity_time = new Date().toTimeString().slice(0, 5);
     }
     entryForm.clearErrors();
-    clearEntryDocPreviews();
     showEntryModal.value = true;
 };
 
@@ -217,6 +268,7 @@ const canvasToBlob = (canvas, type, quality) => new Promise((resolve) => {
 const createEntryDocPreviews = (files) => files.map((file) => ({
     url: URL.createObjectURL(file),
     name: file.name || 'Dokumentasi',
+    existing: false,
 }));
 
 const removeEntryDoc = (index) => {
@@ -228,7 +280,17 @@ const removeEntryDoc = (index) => {
         URL.revokeObjectURL(removedPreview.url);
     }
 
-    nextFiles.splice(index, 1);
+    const newFileIndex = nextPreviews
+        .slice(0, index)
+        .filter((preview) => !preview?.existing)
+        .length;
+
+    if (!removedPreview?.existing) {
+        nextFiles.splice(newFileIndex, 1);
+    } else if (removedPreview?.path) {
+        entryForm.keep_documentation_paths = entryForm.keep_documentation_paths.filter((path) => String(path) !== String(removedPreview.path));
+    }
+
     entryForm.documentation = nextFiles;
     entryDocPreviews.value = nextPreviews;
 
@@ -281,6 +343,7 @@ const onEntryDocChange = async (e) => {
 
     if (!files.length) return;
 
+    entryForm.keep_documentation_paths = [];
     entryDocCompressing.value = true;
     entryDocCompressionSummary.value = 'Mengompres foto...';
 
@@ -320,12 +383,19 @@ const submitEntry = () => {
                 isEdit ? 'Perubahan entri berhasil disimpan.' : 'Entri kegiatan berhasil dicatat.'
             );
         },
-        onError: () => toast.error('GAGAL!', 'Terjadi kesalahan. Periksa kembali inputan.'),
+        onError: (errors) => {
+            const firstError = Object.values(errors || {})[0];
+            toast.error('GAGAL!', Array.isArray(firstError) ? firstError[0] : (firstError || 'Terjadi kesalahan. Periksa kembali inputan.'));
+        },
     };
     if (isEdit) {
-        entryForm.patch(route('dooplab.logbooks.entries.update', { logbook: selectedLogbook.value.uuid, entry: editingEntryUuid.value }), opts);
+        entryForm
+            .transform((data) => data)
+            .post(route('dooplab.logbooks.entries.update-post', { logbook: selectedLogbook.value.uuid, entry: editingEntryUuid.value }), opts);
     } else {
-        entryForm.post(route('dooplab.logbooks.entries.store', selectedLogbook.value.uuid), opts);
+        entryForm
+            .transform((data) => data)
+            .post(route('dooplab.logbooks.entries.store', selectedLogbook.value.uuid), opts);
     }
 };
 
@@ -403,7 +473,7 @@ const exportEntryCsv = () => {
 };
 
 // expose methods needed by parent toolbar
-defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbookAssignModal, openEntryModal, exportEntryCsv });
+defineExpose({ selectedLogbook, selectedLogbookUuid, selectLogbook, clearSelectedLogbook, openLogbookModal, openLogbookAssignModal, openEntryModal, exportEntryCsv });
 </script>
 
 <template>
@@ -420,8 +490,8 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
             role="button"
             tabindex="0"
             @mousedown="$event.currentTarget._dx=$event.clientX;$event.currentTarget._dy=$event.clientY"
-            @click="(Math.abs($event.clientX-($event.currentTarget._dx||$event.clientX))+Math.abs($event.clientY-($event.currentTarget._dy||$event.clientY))<5)&&(selectedLogbookUuid=lb.uuid)"
-            @keydown.enter.prevent="selectedLogbookUuid=lb.uuid"
+            @click="(Math.abs($event.clientX-($event.currentTarget._dx||$event.clientX))+Math.abs($event.clientY-($event.currentTarget._dy||$event.clientY))<5)&&selectLogbook(lb.uuid)"
+            @keydown.enter.prevent="selectLogbook(lb.uuid)"
         >
             <div class="logbook-book-body">
                 <i class="fi fi-rr-book-alt logbook-book-icon"></i>
@@ -705,6 +775,9 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, openLogbookModal, openLogbo
                     <label class="todo-field">
                         <span>Dokumentasi (maks 5 foto, auto-compress)</span>
                         <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" multiple :disabled="entryDocCompressing" @change="onEntryDocChange">
+                        <small v-if="entryModalMode === 'edit' && entryDocPreviews.some((preview) => preview.existing)" class="todo-field-note">
+                            Foto tersimpan tetap dipakai jika kamu tidak memilih foto baru.
+                        </small>
                         <small v-if="entryDocCompressionSummary" class="todo-field-note">{{ entryDocCompressionSummary }}</small>
                         <small v-if="entryForm.errors.documentation" class="todo-error">{{ entryForm.errors.documentation }}</small>
                         <small v-if="entryForm.errors['documentation.0']" class="todo-error">{{ entryForm.errors['documentation.0'] }}</small>
