@@ -511,3 +511,14 @@
 - Skin memakai renderer `project_static`, mengirim event `dooptech:profile-skin-ready`, dan membaca payload backend `dooptech:profile-skin-data`.
 - Konten yang dirender: identitas user, avatar, level, job emblem, profile notes, skill blocks, class progress, creation cards, statistik profil, link Hall of Creations, dan lobby.
 - Verifikasi berhasil: validasi `skin.json` dengan `ConvertFrom-Json` dan `node --check` untuk `js/skin.js`.
+
+### Profile Skin: Cosmic Orbit
+
+- Menambahkan contoh project skin baru `public/examples/profile-skin-cosmic-orbit`.
+- Tema visual antariksa: ruang gelap, rocket hero, ringed planet, comet, satellite, star asset, orbit stage, dan dashboard telemetry.
+- Semua asset visual utama diambil dari OpenMoji lewat CDN lalu disimpan lokal di folder `assets`.
+- Bundle berisi `skin.json`, `index.html`, `css/style.css`, `js/skin.js`, README, dan asset SVG `rocket`, `ringed-planet`, `comet`, `star`, serta `satellite`.
+- Skin memakai renderer `project_static`, mengirim event `dooptech:profile-skin-ready`, dan membaca payload backend `dooptech:profile-skin-data`.
+- Konten yang dirender: identitas user, avatar, level, job emblem, profile notes, skill satellites, class telemetry, creation cards, statistik profil, link Hall of Creations, dan lobby.
+- Verifikasi berhasil: validasi `skin.json` dengan `ConvertFrom-Json`, `node --check` untuk `js/skin.js`, dan cek semua asset berisi tag `<svg>`.
+- Follow-up desain: CSS Cosmic Orbit dirombak agar tidak terasa seperti Toy Flight; navigasi menjadi command rail kiri, hero menjadi mission console, visual utama menjadi orbital view, telemetry tampil sebagai strip data, dan panel bawah menjadi command deck.
