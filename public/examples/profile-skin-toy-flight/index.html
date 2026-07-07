@@ -3,34 +3,55 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>White Orbit Profile Skin</title>
+  <title>Toy Flight Profile Skin</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <main class="orbit-page">
-    <section class="hero">
-      <div class="hero-copy">
-        <p class="eyebrow">PUBLIC PROFILE SYSTEM</p>
-        <h1 id="display-name">Loading Profile</h1>
-        <p id="bio" class="bio">Waiting for backend profile payload.</p>
+  <main class="toy-page">
+    <nav class="toy-nav" aria-label="Profile sections">
+      <span class="toy-mark" id="initials">KH</span>
+      <div class="toy-tabs">
+        <a href="#home">Home</a>
+        <a href="#projects">Projects</a>
+        <a href="#skills">Skills</a>
+        <a href="#about">About</a>
+      </div>
+      <a id="hall-link-top" href="#" class="toy-hire" target="_parent" rel="noopener">Hall</a>
+    </nav>
 
-        <div class="identity-pills">
-          <span id="job-name">Path: -</span>
-          <span id="location">Location: -</span>
+    <section id="home" class="hero">
+      <img src="assets/star-badge.svg" alt="" class="star-badge">
+      <div class="hero-copy">
+        <p class="capsule-label">Profile Capsule</p>
+        <h1 id="display-name" class="toy-name">Loading Profile</h1>
+        <p id="bio" class="bio">Waiting for backend profile payload.</p>
+        <div class="hero-actions">
+          <a id="hall-link" href="#" target="_parent" rel="noopener">View Projects</a>
+          <a id="lobby-link" href="#" target="_parent" rel="noopener">Leaderboard</a>
+        </div>
+        <div class="mini-facts">
+          <span id="experience">Experience: -</span>
+          <span id="creation-summary">0 Projects</span>
           <span id="role">Role: -</span>
         </div>
       </div>
 
-      <div class="orbit-card">
-        <img src="assets/orbit-rings.svg" alt="" class="orbit-rings">
-        <div class="avatar-wrap">
-          <img id="avatar" alt="Profile avatar" class="avatar">
+      <aside class="hero-toy">
+        <img
+          src="assets/toy-plane.svg?v=openmoji-1f6e9"
+          alt=""
+          class="toy-plane"
+        >
+        <div class="avatar-token">
+          <img id="avatar" alt="Profile avatar">
+          <div>
+            <span id="level-title">Level</span>
+            <strong id="level">1</strong>
+          </div>
         </div>
-        <div class="level-card">
-          <span id="level-title">Level</span>
-          <strong id="level">1</strong>
-        </div>
-      </div>
+      </aside>
+
+      <img src="assets/cloud-strip.svg" alt="" class="cloud-strip">
     </section>
 
     <section class="metric-grid" aria-label="Profile metrics">
@@ -52,18 +73,17 @@
       </article>
     </section>
 
-    <section class="dashboard">
+    <section id="about" class="toy-dashboard">
       <article class="panel job-panel">
         <div class="panel-head">
-          <span>JOB STATUS</span>
-          <img src="assets/spark.svg" alt="">
+          <span>Jobs Status</span>
         </div>
         <div class="job-status-card">
           <div class="job-emblem-frame">
             <img id="job-emblem" src="/images/logo.png" alt="Job emblem">
           </div>
           <div>
-            <span>CURRENT PATH</span>
+            <span>Current Path</span>
             <strong id="job-current">Adventurer</strong>
           </div>
         </div>
@@ -71,50 +91,43 @@
 
       <article class="panel profile-notes-panel">
         <div class="panel-head">
-          <span>PROFILE NOTES</span>
-          <img src="assets/spark.svg" alt="">
+          <span>Profile Notes</span>
         </div>
         <div class="profile-note-list">
           <div>
-            <span>DISPLAY NAME</span>
+            <span>Display Name</span>
             <strong id="profile-display-name">-</strong>
           </div>
           <div>
-            <span>EXPERIENCE</span>
-            <strong id="profile-experience">-</strong>
-          </div>
-          <div>
-            <span>LOCATION</span>
+            <span>Location</span>
             <strong id="profile-location-note">-</strong>
           </div>
           <p id="profile-skills-note">No public skills shared on this profile.</p>
         </div>
       </article>
 
-      <article class="panel profile-panel">
+      <article id="skills" class="panel skills-panel">
         <div class="panel-head">
-          <span>SKILLS</span>
-          <img src="assets/spark.svg" alt="">
+          <span>Skill Blocks</span>
         </div>
-        <div id="skills" class="chips">
+        <div id="skill-list" class="block-list">
           <span>No skills yet</span>
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel class-panel">
         <div class="panel-head">
-          <span>CLASS PROGRESS</span>
-          <img src="assets/spark.svg" alt="">
+          <span>Class Flight Path</span>
         </div>
         <div id="classes" class="class-list">
           <p>No class data.</p>
         </div>
       </article>
 
-      <article class="panel wide">
+      <article id="projects" class="panel wide creation-panel">
         <div class="panel-head">
-          <span>PUBLIC CREATIONS</span>
-          <a id="hall-link" href="#" target="_blank" rel="noopener">Open Hall</a>
+          <span>Project Toy Box</span>
+          <a id="hall-link-panel" href="#" target="_parent" rel="noopener">Open Hall</a>
         </div>
         <div id="creations" class="creation-list">
           <p>No public creation yet.</p>

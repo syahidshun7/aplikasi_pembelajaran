@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cosmic Orbit Profile Skin</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="cosmic-page">
+    <nav class="space-nav" aria-label="Profile navigation">
+      <span class="mission-mark" id="initials">CO</span>
+      <div class="nav-pills">
+        <a href="#home">Mission</a>
+        <a href="#telemetry">Telemetry</a>
+        <a href="#skills">Skills</a>
+        <a href="#projects">Artifacts</a>
+      </div>
+      <a id="hall-link-top" class="nav-action" href="#" target="_parent" rel="noopener">Open Hall</a>
+    </nav>
+
+    <section id="home" class="hero">
+      <div class="star-field" aria-hidden="true"></div>
+      <img src="assets/comet.svg" alt="" class="comet comet-a">
+      <img src="assets/star.svg" alt="" class="star star-a">
+
+      <div class="hero-copy">
+        <p class="eyebrow">Public Mission Profile</p>
+        <h1 id="display-name">Loading Profile</h1>
+        <p id="bio" class="bio">Waiting for backend profile payload.</p>
+
+        <div class="hero-actions">
+          <a id="hall-link" href="#" target="_parent" rel="noopener">View Artifacts</a>
+          <a id="lobby-link" href="#" target="_parent" rel="noopener">Leaderboard</a>
+        </div>
+
+        <div class="mission-tags">
+          <span id="role">Role: -</span>
+          <span id="job-name">Path: -</span>
+          <span id="location">Location: -</span>
+        </div>
+      </div>
+
+      <aside class="orbit-stage" aria-label="Profile orbit">
+        <div class="orbit-ring orbit-ring-a"></div>
+        <div class="orbit-ring orbit-ring-b"></div>
+        <img src="assets/ringed-planet.svg" alt="" class="planet">
+        <img src="assets/rocket.svg" alt="" class="rocket">
+        <div class="avatar-module">
+          <img id="avatar" alt="Profile avatar">
+          <div>
+            <span id="level-title">Level</span>
+            <strong id="level">1</strong>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section id="telemetry" class="metric-grid" aria-label="Profile telemetry">
+      <article>
+        <span>Average Grade</span>
+        <strong id="average-grade">0%</strong>
+      </article>
+      <article>
+        <span>Quest Clear</span>
+        <strong id="quest-clear">0</strong>
+      </article>
+      <article>
+        <span>Artifacts</span>
+        <strong id="creation-count">0</strong>
+      </article>
+      <article>
+        <span>Respect</span>
+        <strong id="appreciation-count">0</strong>
+      </article>
+    </section>
+
+    <section class="dashboard">
+      <article class="panel job-panel">
+        <div class="panel-head">
+          <span>Jobs Status</span>
+          <img src="assets/satellite.svg" alt="">
+        </div>
+        <div class="job-status-card">
+          <div class="job-emblem-frame">
+            <img id="job-emblem" src="/images/logo.png" alt="Job emblem">
+          </div>
+          <div>
+            <span>Current Path</span>
+            <strong id="job-current">Adventurer</strong>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel profile-notes-panel">
+        <div class="panel-head">
+          <span>Profile Notes</span>
+          <img src="assets/star.svg" alt="">
+        </div>
+        <div class="profile-note-list">
+          <div>
+            <span>Display Name</span>
+            <strong id="profile-display-name">-</strong>
+          </div>
+          <div>
+            <span>Experience</span>
+            <strong id="profile-experience">-</strong>
+          </div>
+          <div>
+            <span>Location</span>
+            <strong id="profile-location-note">-</strong>
+          </div>
+          <p id="profile-skills-note">No public skills shared on this profile.</p>
+        </div>
+      </article>
+
+      <article id="skills" class="panel skills-panel">
+        <div class="panel-head">
+          <span>Skill Satellites</span>
+          <img src="assets/satellite.svg" alt="">
+        </div>
+        <div id="skill-list" class="chips">
+          <span>No skills yet</span>
+        </div>
+      </article>
+
+      <article class="panel class-panel">
+        <div class="panel-head">
+          <span>Class Telemetry</span>
+          <img src="assets/comet.svg" alt="">
+        </div>
+        <div id="classes" class="class-list">
+          <p>No class data.</p>
+        </div>
+      </article>
+
+      <article id="projects" class="panel wide creation-panel">
+        <div class="panel-head">
+          <span>Public Artifacts</span>
+          <a id="hall-link-panel" href="#" target="_parent" rel="noopener">Open Hall</a>
+        </div>
+        <div id="creations" class="creation-list">
+          <p>No public creation yet.</p>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="js/skin.js"></script>
+</body>
+</html>

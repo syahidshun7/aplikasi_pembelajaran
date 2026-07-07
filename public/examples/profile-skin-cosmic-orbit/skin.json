@@ -1,0 +1,26 @@
+{
+  "shop": {
+    "code": "SKIN_COSMIC_ORBIT",
+    "name": "Skin: Cosmic Orbit",
+    "description": "Project skin profil publik bertema antariksa dengan rocket, planet, orbit cards, dan dashboard kreator kosmik.",
+    "price_gold": 1300,
+    "is_active": true
+  },
+  "skin": {
+    "name": "Cosmic Orbit",
+    "slug": "cosmic-orbit",
+    "description": "Skin profil publik bernuansa antariksa: hero rocket, planet, orbit visual, status job, profile notes, skill satellites, class telemetry, dan karya publik.",
+    "renderer_type": "project_static",
+    "template_key": "project_static",
+    "is_active": true,
+    "hero_gradient": "linear-gradient(135deg, #050816 0%, #111827 44%, #312e81 100%)",
+    "accent_color": "#38bdf8",
+    "border_color": "#334155",
+    "glow_color": "rgba(56,189,248,0.32)",
+    "stat_panel_bg": "#0f172a",
+    "text_primary": "#e0f2fe"
+  },
+  "project": {
+    "entry": "index.html"
+  }
+}

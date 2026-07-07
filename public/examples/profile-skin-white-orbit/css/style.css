@@ -274,6 +274,99 @@ h1 {
   gap: 10px;
 }
 
+.job-status-card {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  min-height: 150px;
+}
+
+.job-emblem-frame {
+  display: grid;
+  width: 96px;
+  aspect-ratio: 1;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(203, 213, 225, 0.82);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(6, 182, 212, 0.08)),
+    #eff6ff;
+}
+
+.job-emblem-frame img {
+  width: 84%;
+  height: 84%;
+  object-fit: contain;
+}
+
+.job-status-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.job-status-card strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--ink);
+  font-size: clamp(18px, 2.2vw, 28px);
+  line-height: 1.15;
+}
+
+.profile-notes-panel {
+  background:
+    linear-gradient(135deg, rgba(6, 182, 212, 0.08), rgba(37, 99, 235, 0.06)),
+    var(--card);
+}
+
+.profile-notes-panel .panel-head {
+  border-bottom: 1px solid rgba(6, 182, 212, 0.24);
+  padding-bottom: 16px;
+  color: #0891b2;
+}
+
+.profile-note-list {
+  display: grid;
+  gap: 14px;
+}
+
+.profile-note-list div {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(203, 213, 225, 0.68);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.76);
+  padding: 14px;
+}
+
+.profile-note-list span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.profile-note-list strong {
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.profile-note-list p {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
 .chips span {
   color: #1e293b;
   font-size: 14px;
@@ -329,12 +422,35 @@ h1 {
 }
 
 .creation-card {
+  display: block;
+  overflow: hidden;
   min-height: 190px;
   border: 1px solid rgba(203, 213, 225, 0.72);
   border-radius: 22px;
   background:
     linear-gradient(135deg, rgba(37, 99, 235, 0.08), transparent),
     #ffffff;
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.creation-card:hover {
+  border-color: rgba(37, 99, 235, 0.46);
+  box-shadow: 0 22px 64px rgba(37, 99, 235, 0.16);
+  transform: translateY(-3px);
+}
+
+.creation-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.72);
+  background: #e2e8f0;
+  object-fit: cover;
+}
+
+.creation-body {
   padding: 18px;
 }
 
@@ -388,7 +504,12 @@ h1 {
   }
 
   .identity-pills,
-  .class-row {
+  .class-row,
+  .job-status-card {
     grid-template-columns: 1fr;
+  }
+
+  .job-emblem-frame {
+    width: 82px;
   }
 }

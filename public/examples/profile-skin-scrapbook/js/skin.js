@@ -1,4 +1,4 @@
-const fallbackAvatar = 'https://api.dicebear.com/7.x/pixel-art/svg?seed=white-orbit';
+const fallbackAvatar = 'https://api.dicebear.com/7.x/pixel-art/svg?seed=scrapbook-memory';
 
 const text = (id, value) => {
   const node = document.getElementById(id);
@@ -54,7 +54,7 @@ const renderSkills = (skills) => {
     return;
   }
 
-  items.slice(0, 12).forEach((skill) => {
+  items.slice(0, 14).forEach((skill) => {
     const chip = document.createElement('span');
     chip.textContent = skill;
     node.appendChild(chip);
@@ -169,7 +169,7 @@ const renderProfile = (payload) => {
   const urls = payload.urls || {};
 
   text('display-name', user.username || user.name || 'Unknown Hero');
-  text('bio', user.bio || user.experience || 'This white skin reads public profile data from the backend payload.');
+  text('bio', user.bio || user.experience || 'A scrapbook profile made from public backend profile data.');
   text('job-name', user.job_name ? `Path: ${user.job_name}` : 'Path: Adventurer');
   text('job-current', user.job_name || 'Adventurer');
   text('location', user.location ? `Location: ${user.location}` : 'Location: Unknown');
