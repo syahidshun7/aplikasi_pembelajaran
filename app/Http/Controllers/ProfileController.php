@@ -483,6 +483,7 @@ class ProfileController extends Controller
                 return [
                     'id' => (int) $creation->id,
                     'slug' => (string) ($creation->slug ?? ''),
+                    'url' => route('hall.creations.show', ['creation' => $creation->slug ?: $creation->id], false),
                     'user_id' => (int) $creation->user_id,
                     'title' => (string) $creation->title,
                     'description' => (string) $creation->description,
@@ -501,7 +502,7 @@ class ProfileController extends Controller
                     'insights_count' => (int) ($creation->insights_count ?? 0),
                     'photos_count' => (int) ($creation->photos_count ?? $creation->photos->count()),
                     'collaborators_count' => (int) ($creation->collaborators_count ?? $creation->collaborators->count()),
-                    'thumbnail_url' => (string) ($creation->photos->first()?->url ?? ($creation->featured_image ?? '')),
+                    'thumbnail_url' => $this->normalizePublicAssetUrl((string) ($creation->photos->first()?->url ?? ($creation->featured_image ?? ''))),
                     'photos' => $creation->photos
                         ->map(fn (CreationPhoto $photo) => [
                             'id' => (int) $photo->id,
@@ -554,6 +555,20 @@ class ProfileController extends Controller
                     ->orWhereHas('collaborators', fn ($collaborators) => $collaborators->where('user_id', $user->id));
             })
             ->count();
+    }
+
+    private function normalizePublicAssetUrl(string $path): string
+    {
+        $path = trim($path);
+        if ($path === '') {
+            return '';
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, '/')) {
+            return $path;
+        }
+
+        return '/storage/'.ltrim($path, '/');
     }
 
     private function resolveTotalCreationAppreciationsReceived(User $user): int

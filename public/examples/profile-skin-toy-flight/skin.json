@@ -1,0 +1,26 @@
+{
+  "shop": {
+    "code": "SKIN_TOY_FLIGHT",
+    "name": "Skin: Toy Flight",
+    "description": "Project skin profil publik bertema toys, langit cerah, huruf balok warna-warni, pesawat mainan, dan dashboard kreator.",
+    "price_gold": 1250,
+    "is_active": true
+  },
+  "skin": {
+    "name": "Toy Flight",
+    "slug": "toy-flight",
+    "description": "Skin profil publik bernuansa mainan: hero sky capsule, colorful toy blocks, airplane figure, job card, profile notes, class progress, dan karya publik.",
+    "renderer_type": "project_static",
+    "template_key": "project_static",
+    "is_active": true,
+    "hero_gradient": "linear-gradient(180deg, #5bb7f2 0%, #bfe9ff 58%, #ffffff 100%)",
+    "accent_color": "#f59e0b",
+    "border_color": "#dbeafe",
+    "glow_color": "rgba(14,165,233,0.34)",
+    "stat_panel_bg": "#ffffff",
+    "text_primary": "#172554"
+  },
+  "project": {
+    "entry": "index.html"
+  }
+}

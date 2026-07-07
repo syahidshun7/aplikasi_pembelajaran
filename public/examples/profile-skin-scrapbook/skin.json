@@ -1,0 +1,26 @@
+{
+  "shop": {
+    "code": "SKIN_SCRAPBOOK_MEMORY",
+    "name": "Skin: Scrapbook Memory",
+    "description": "Project skin profil publik bertema scrapbook, kolase kertas, stiker, tape, dan kartu memori kreator.",
+    "price_gold": 1100,
+    "is_active": true
+  },
+  "skin": {
+    "name": "Scrapbook Memory",
+    "slug": "scrapbook-memory",
+    "description": "Skin profil publik dengan nuansa scrapbook modern: avatar polaroid, catatan tempel, progress kelas, skill sticker, dan karya publik seperti potongan jurnal.",
+    "renderer_type": "project_static",
+    "template_key": "project_static",
+    "is_active": true,
+    "hero_gradient": "linear-gradient(135deg, #fb7185 0%, #fef3c7 42%, #7dd3fc 100%)",
+    "accent_color": "#e11d48",
+    "border_color": "#334155",
+    "glow_color": "rgba(251,113,133,0.28)",
+    "stat_panel_bg": "#fff7ed",
+    "text_primary": "#1f2937"
+  },
+  "project": {
+    "entry": "index.html"
+  }
+}

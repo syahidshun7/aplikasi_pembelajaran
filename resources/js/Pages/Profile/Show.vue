@@ -296,7 +296,7 @@ onBeforeUnmount(() => {
                 :src="projectSkinUrl"
                 :title="`${activeSkinName} profile skin`"
                 class="project-skin-frame"
-                sandbox="allow-scripts allow-popups allow-forms"
+                sandbox="allow-scripts allow-popups allow-forms allow-top-navigation-by-user-activation"
                 @load="queueProjectSkinData"
             />
         </div>

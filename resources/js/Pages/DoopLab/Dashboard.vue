@@ -761,6 +761,18 @@ const respondMentorInvite = async (invite, decision) => {
     const inviteId = Number(invite?.id || 0);
     if (inviteId <= 0) return;
 
+    if (decision === 'cancel') {
+        const result = await toast.confirm(
+            'BATALKAN MENTOR?',
+            'Mentorship yang sudah terhubung akan dibatalkan. Lanjutkan?',
+            'YA, BATALKAN'
+        );
+
+        if (!result.isConfirmed) {
+            return;
+        }
+    }
+
     try {
         await window.axios.post(route(`api.creations.mentor-invites.${decision}`, { collaborationRequest: inviteId }, false));
         const successTitle = decision === 'accept'
@@ -938,7 +950,7 @@ onUnmounted(() => {
                         <button
                             v-if="canHireMentor"
                             type="button"
-                            class="source-add-btn"
+                            class="source-add-btn source-add-btn--hire-mentor"
                             :class="{ 'is-active': isHireMentorNavActive }"
                             title="Hire Mentor"
                             aria-label="Hire Mentor"
@@ -951,7 +963,7 @@ onUnmounted(() => {
                         <button
                             v-if="canCreateMentorTodo"
                             type="button"
-                            class="source-add-btn"
+                            class="source-add-btn source-add-btn--mentor-invites"
                             :class="{ 'is-active': isMentorInvitesNavActive }"
                             title="Mentor Invites"
                             aria-label="Mentor Invites"
@@ -963,7 +975,7 @@ onUnmounted(() => {
 
                         <button
                             type="button"
-                            class="source-add-btn"
+                            class="source-add-btn source-add-btn--learning-paths"
                             :class="{ 'is-active': isLearningPathNavActive }"
                             title="My Learning Path"
                             aria-label="My Learning Path"
@@ -976,7 +988,7 @@ onUnmounted(() => {
                         <Link
                             v-if="canOpenRoadmapLab"
                             :href="route('dooplab.roadmaps.index')"
-                            class="source-add-btn source-add-btn--link"
+                            class="source-add-btn source-add-btn--link source-add-btn--roadmap-lab"
                             title="Roadmap Lab"
                             aria-label="Roadmap Lab"
                         >
@@ -986,7 +998,7 @@ onUnmounted(() => {
 
                         <button
                             type="button"
-                            class="source-add-btn"
+                            class="source-add-btn source-add-btn--todo-list"
                             :class="{ 'is-active': isTodoNavActive }"
                             title="To-Do List"
                             aria-label="To-Do List"
@@ -998,7 +1010,7 @@ onUnmounted(() => {
 
                         <button
                             type="button"
-                            class="source-add-btn"
+                            class="source-add-btn source-add-btn--logbook"
                             :class="{ 'is-active': panelMode === 'logbook' }"
                             title="Logbook"
                             aria-label="Logbook"
@@ -1035,16 +1047,6 @@ onUnmounted(() => {
                             >
                                 <i class="fi fi-rr-plus"></i>
                                 Buat Logbook
-                            </button>
-                            <button
-                                v-if="panelMode === 'logbook' && !logbookPanelRef?.selectedLogbook && canCreateMentorTodo"
-                                type="button"
-                                class="source-add-btn todo-add-btn"
-                                style="background:var(--violet,#7c3aed)"
-                                @click="logbookPanelRef?.openLogbookAssignModal()"
-                            >
-                                <i class="fi fi-rr-user-add"></i>
-                                Assign ke User
                             </button>
                             <div v-if="panelMode === 'logbook' && logbookPanelRef?.selectedLogbook" class="logbook-toolbar">
                                 <button type="button" class="chat-back-btn" @click="logbookPanelRef.clearSelectedLogbook()">
@@ -3718,6 +3720,17 @@ onUnmounted(() => {
     padding-right: 4px;
 }
 
+.todo-form-workspace {
+    padding-right: 4px;
+}
+
+.todo-panel-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+}
+
 .todo-modal-actions {
     display: flex;
     justify-content: flex-end;
@@ -3762,6 +3775,55 @@ onUnmounted(() => {
     outline: none;
     font-family: "Press Start 2P", monospace;
     font-size: 11px;
+}
+
+.todo-panel-form .todo-field span,
+.todo-panel-form .todo-checkbox-field span {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #8ea8bb !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.8px !important;
+}
+
+.todo-panel-form .todo-field input,
+.todo-panel-form .todo-field textarea,
+.todo-panel-form .todo-field select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    border: 2px solid #3d415f !important;
+    background: #0d1117 !important;
+    color: #cbd5e1 !important;
+    padding: 10px 12px !important;
+    outline: none !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 14px !important;
+}
+
+.todo-panel-form .todo-field input[type="datetime-local"] {
+    font-family: Inter, sans-serif !important;
+    font-size: 14px !important;
+    line-height: 1.2 !important;
+}
+
+.todo-panel-form .todo-field input:focus,
+.todo-panel-form .todo-field textarea:focus,
+.todo-panel-form .todo-field select:focus {
+    border-color: #57d6ff !important;
+}
+
+.todo-panel-form .todo-field-note,
+.todo-panel-form .todo-error {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+}
+
+.todo-panel-form .todo-checkbox-field {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+    color: #cbd5e1 !important;
 }
 
 .todo-field input[type="datetime-local"] {
@@ -4036,21 +4098,46 @@ onUnmounted(() => {
 .todo-modal-form input:not([type="checkbox"]),
 .todo-modal-form textarea,
 .todo-modal-form select {
-    font-size: 11px !important;
-    font-family: "Press Start 2P", monospace !important;
+    font-size: 14px !important;
+    font-family: Inter, sans-serif !important;
     border: 2px solid var(--panel-border) !important;
     background: #0d1117 !important;
     color: #cbd5e1 !important;
-    padding: 12px !important;
+    padding: 10px 12px !important;
 }
 .todo-modal-form input[type="datetime-local"] {
     font-family: Inter, sans-serif !important;
-    font-size: 13px !important;
+    font-size: 14px !important;
 }
-.todo-modal-form span { font-size: 10px !important; color: var(--text-muted) !important; text-transform: uppercase !important; letter-spacing: 1px !important; }
+.todo-modal-form input:focus,
+.todo-modal-form textarea:focus,
+.todo-modal-form select:focus {
+    border-color: #57d6ff !important;
+}
+.todo-modal-form span {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: var(--text-muted) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.8px !important;
+}
 .todo-modal-form .todo-checkbox-field span,
-.todo-modal-form .todo-field-note { text-transform: none !important; letter-spacing: 0 !important; font-size: 9px !important; }
-.todo-modal-form .todo-checkbox-field { font-size: 10px !important; cursor: pointer !important; }
+.todo-modal-form .todo-field-note {
+    font-family: Inter, sans-serif !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    font-size: 11px !important;
+}
+.todo-modal-form .todo-error {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+}
+.todo-modal-form .todo-checkbox-field {
+    font-family: Inter, sans-serif !important;
+    font-size: 11px !important;
+    cursor: pointer !important;
+}
 .todo-modal-form .todo-checkbox-field input[type="checkbox"] {
     flex: 0 0 16px !important;
     width: 16px !important;
@@ -4294,7 +4381,11 @@ onUnmounted(() => {
     .todo-modal-form label,
     .todo-modal-form input,
     .todo-modal-form textarea,
-    .todo-modal-form select { font-size: 12px !important; padding: 12px !important; }
+    .todo-modal-form select {
+        font-family: Inter, sans-serif !important;
+        font-size: 16px !important;
+        padding: 10px 12px !important;
+    }
     .todo-modal-form span { font-size: 11px !important; }
     .todo-modal-actions button { font-size: 11px !important; }
     .nb-title { font-size: 14px !important; }
@@ -4446,6 +4537,27 @@ onUnmounted(() => {
         color: #fff !important;
     }
 
+    .nb-todo-nav .source-add-btn--hire-mentor,
+    .nb-todo-nav .source-add-btn--mentor-invites {
+        order: 1 !important;
+    }
+
+    .nb-todo-nav .source-add-btn--learning-paths {
+        order: 2 !important;
+    }
+
+    .nb-todo-nav .source-add-btn--todo-list {
+        order: 3 !important;
+    }
+
+    .nb-todo-nav .source-add-btn--logbook {
+        order: 4 !important;
+    }
+
+    .nb-todo-nav .source-add-btn--roadmap-lab {
+        order: 99 !important;
+    }
+
     .panel-head {
         margin-bottom: 10px !important;
     }
@@ -4549,9 +4661,12 @@ onUnmounted(() => {
         padding: 10px !important;
     }
 
-    .todo-nav-title {
+    .nb-panel .todo-nav-item .todo-nav-title {
+        font-family: Inter, sans-serif !important;
         font-size: 12px !important;
-        line-height: 1.4 !important;
+        font-weight: 700 !important;
+        line-height: 1.45 !important;
+        color: #ebf2ff !important;
     }
 
     .todo-nav-sub,
@@ -4559,9 +4674,18 @@ onUnmounted(() => {
         gap: 5px !important;
     }
 
-    .todo-nav-meta,
-    .todo-nav-deadline {
-        font-size: 10px !important;
+    .nb-panel .todo-nav-item .todo-nav-meta,
+    .nb-panel .todo-nav-item .todo-nav-deadline {
+        font-size: 11px !important;
+    }
+
+    .nb-panel .todo-nav-tags .todo-badge,
+    .nb-panel .todo-nav-tags .todo-state {
+        font-size: 8px !important;
+        line-height: 1.2 !important;
+        letter-spacing: 0.2px !important;
+        padding: 3px 6px !important;
+        border-radius: 999px !important;
     }
 
     .studio-grid {

@@ -1,4 +1,4 @@
-const fallbackAvatar = 'https://api.dicebear.com/7.x/pixel-art/svg?seed=white-orbit';
+const fallbackAvatar = 'https://api.dicebear.com/7.x/pixel-art/svg?seed=toy-flight';
 
 const text = (id, value) => {
   const node = document.getElementById(id);
@@ -40,8 +40,18 @@ const creationUrl = (creation) => {
   return key !== '' ? `/hall/creations/${encodeURIComponent(key)}` : '';
 };
 
+const makeInitials = (user) => {
+  const source = String(user?.name || user?.username || 'TF').trim();
+  const parts = source.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+
+  return source.slice(0, 2).toUpperCase();
+};
+
 const renderSkills = (skills) => {
-  const node = document.getElementById('skills');
+  const node = document.getElementById('skill-list');
   if (!node) return;
 
   clear(node);
@@ -54,8 +64,9 @@ const renderSkills = (skills) => {
     return;
   }
 
-  items.slice(0, 12).forEach((skill) => {
+  items.slice(0, 14).forEach((skill, index) => {
     const chip = document.createElement('span');
+    chip.style.setProperty('--block-index', index);
     chip.textContent = skill;
     node.appendChild(chip);
   });
@@ -65,7 +76,6 @@ const renderProfileNotes = (user) => {
   const skills = asArray(user.skills);
 
   text('profile-display-name', user.name || user.username || 'Unknown Hero');
-  text('profile-experience', user.experience || 'Not shared');
   text('profile-location-note', user.location || 'Not shared');
   text(
     'profile-skills-note',
@@ -106,7 +116,10 @@ const renderClasses = (classes) => {
     fill.style.width = `${clampPercent(item.average_grade)}%`;
     bar.appendChild(fill);
 
-    row.append(title, score, bar);
+    const note = document.createElement('small');
+    note.textContent = `${item.completed_quests || 0} / ${item.total_quests || 0} quests clear`;
+
+    row.append(title, score, bar, note);
     node.appendChild(row);
   });
 };
@@ -162,17 +175,24 @@ const renderCreations = (creations) => {
   });
 };
 
+const setLink = (id, value) => {
+  const node = document.getElementById(id);
+  if (node && value) {
+    node.href = value;
+  }
+};
+
 const renderProfile = (payload) => {
   const user = payload.user || {};
   const stats = payload.stats || {};
   const progress = user.level_progress || {};
   const urls = payload.urls || {};
 
+  text('initials', makeInitials(user));
   text('display-name', user.username || user.name || 'Unknown Hero');
-  text('bio', user.bio || user.experience || 'This white skin reads public profile data from the backend payload.');
-  text('job-name', user.job_name ? `Path: ${user.job_name}` : 'Path: Adventurer');
-  text('job-current', user.job_name || 'Adventurer');
-  text('location', user.location ? `Location: ${user.location}` : 'Location: Unknown');
+  text('bio', user.bio || user.experience || 'A colorful toy-themed profile powered by public backend profile data.');
+  text('experience', user.experience ? `Experience: ${user.experience}` : 'Experience: New Creator');
+  text('creation-summary', `${stats.creationCount || 0} Projects`);
   text('role', user.role ? `Role: ${String(user.role).replaceAll('_', ' ')}` : 'Role: Member');
   text('level-title', progress.title || 'Level');
   text('level', user.lvl || progress.level || 1);
@@ -180,6 +200,7 @@ const renderProfile = (payload) => {
   text('quest-clear', stats.totalCompleted || 0);
   text('creation-count', stats.creationCount || 0);
   text('appreciation-count', stats.appreciationCount || 0);
+  text('job-current', user.job_name || 'Adventurer');
 
   const avatar = document.getElementById('avatar');
   if (avatar) {
@@ -192,10 +213,10 @@ const renderProfile = (payload) => {
     jobEmblem.alt = user.job_name ? `${user.job_name} emblem` : 'Default job emblem';
   }
 
-  const hall = document.getElementById('hall-link');
-  if (hall && urls.hallOfCreations) {
-    hall.href = urls.hallOfCreations;
-  }
+  setLink('hall-link', urls.hallOfCreations);
+  setLink('hall-link-top', urls.hallOfCreations);
+  setLink('hall-link-panel', urls.hallOfCreations);
+  setLink('lobby-link', urls.lobby);
 
   renderSkills(user.skills);
   renderProfileNotes(user);

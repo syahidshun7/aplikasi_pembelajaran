@@ -105,6 +105,9 @@ const openLogbookModal = (logbook = null) => {
         logbookModalMode.value = 'create';
         editingLogbookUuid.value = null;
         logbookForm.reset();
+        logbookAssignForm.reset();
+        logbookAssignForm.member_ids = [];
+        logbookAssignForm.mentor_ids = [];
     }
     logbookForm.clearErrors();
     logbookAssignForm.clearErrors();
@@ -145,7 +148,14 @@ const submitLogbook = () => {
     } else if (logbookModalMode.value === 'edit') {
         logbookAssignForm.patch(route('dooplab.logbooks.update', editingLogbookUuid.value), opts);
     } else {
-        logbookForm.post(route('dooplab.logbooks.store'), opts);
+        const hasAssignedMembers = Array.isArray(logbookAssignForm.member_ids) && logbookAssignForm.member_ids.length > 0;
+
+        if (props.canApproveMentor && hasAssignedMembers) {
+            logbookAssignForm.post(route('dooplab.logbooks.assign'), opts);
+            return;
+        }
+
+        logbookAssignForm.post(route('dooplab.logbooks.store'), opts);
     }
 };
 
@@ -673,7 +683,7 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, selectLogbook, clearSelecte
                         <span>Nama Logbook *</span>
                         <input
                             v-if="logbookModalMode === 'create'"
-                            v-model="logbookForm.title"
+                            v-model="logbookAssignForm.title"
                             type="text" maxlength="200" required
                             placeholder="Contoh: PKL PT. ABC 2026"
                         >
@@ -687,15 +697,15 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, selectLogbook, clearSelecte
                             <input v-else :value="logbookAssignForm.title" type="text" readonly disabled style="opacity:.55;cursor:not-allowed;">
                             <small v-if="!editingLogbook?.is_owner" class="todo-field-note">Nama logbook hanya bisa diubah oleh pemilik logbook.</small>
                         </template>
-                        <small v-if="logbookModalMode === 'create' ? logbookForm.errors.title : logbookAssignForm.errors.title" class="todo-error">
-                            {{ logbookModalMode === 'create' ? logbookForm.errors.title : logbookAssignForm.errors.title }}
+                        <small v-if="logbookAssignForm.errors.title" class="todo-error">
+                            {{ logbookAssignForm.errors.title }}
                         </small>
                     </label>
                     <label class="todo-field">
                         <span>Deskripsi (opsional)</span>
                         <textarea
                             v-if="logbookModalMode === 'create'"
-                            v-model="logbookForm.description"
+                            v-model="logbookAssignForm.description"
                             rows="3" maxlength="1000"
                             placeholder="Keterangan singkat tentang logbook ini"
                         ></textarea>
@@ -705,32 +715,50 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, selectLogbook, clearSelecte
                             rows="3" maxlength="1000"
                             placeholder="Keterangan singkat tentang logbook ini"
                         ></textarea>
-                        <small v-if="logbookModalMode === 'create' ? logbookForm.errors.description : logbookAssignForm.errors.description" class="todo-error">
-                            {{ logbookModalMode === 'create' ? logbookForm.errors.description : logbookAssignForm.errors.description }}
+                        <small v-if="logbookAssignForm.errors.description" class="todo-error">
+                            {{ logbookAssignForm.errors.description }}
                         </small>
                     </label>
-                    <template v-if="logbookModalMode === 'edit' && editingLogbook?.is_owner && editingLogbook?.is_assigned">
+                    <template v-if="logbookModalMode === 'create' && canApproveMentor">
                         <label class="todo-field">
-                            <span>Members</span>
+                            <span>Members (opsional)</span>
                             <select v-model="logbookAssignForm.member_ids" multiple class="todo-select" size="4" style="height:auto;min-height:70px;">
                                 <option v-for="u in assignableUsers" :key="u.id" :value="u.id">{{ u.name }} ({{ u.username }})</option>
                             </select>
-                            <small class="todo-field-note">Tahan Ctrl/Cmd untuk pilih banyak</small>
+                            <small class="todo-field-note">Kosongkan untuk membuat logbook pribadi. Pilih member untuk langsung assign.</small>
                             <small v-if="logbookAssignForm.errors.member_ids" class="todo-error">{{ logbookAssignForm.errors.member_ids }}</small>
                         </label>
                         <label class="todo-field">
-                            <span>Mentors</span>
+                            <span>Mentors (opsional)</span>
                             <select v-model="logbookAssignForm.mentor_ids" multiple class="todo-select" size="3" style="height:auto;min-height:55px;">
                                 <option v-for="m in mentors" :key="m.id" :value="m.id">{{ m.name }} ({{ m.username }})</option>
                             </select>
-                            <small class="todo-field-note">Tahan Ctrl/Cmd untuk pilih banyak</small>
+                            <small class="todo-field-note">Owner otomatis ikut sebagai mentor.</small>
+                            <small v-if="logbookAssignForm.errors.mentor_ids" class="todo-error">{{ logbookAssignForm.errors.mentor_ids }}</small>
+                        </label>
+                    </template>
+                    <template v-if="logbookModalMode === 'edit' && editingLogbook?.is_owner">
+                        <label class="todo-field">
+                            <span>Members (opsional)</span>
+                            <select v-model="logbookAssignForm.member_ids" multiple class="todo-select" size="4" style="height:auto;min-height:70px;">
+                                <option v-for="u in assignableUsers" :key="u.id" :value="u.id">{{ u.name }} ({{ u.username }})</option>
+                            </select>
+                            <small class="todo-field-note">Pilih member untuk mengubah logbook pribadi menjadi assigned logbook.</small>
+                            <small v-if="logbookAssignForm.errors.member_ids" class="todo-error">{{ logbookAssignForm.errors.member_ids }}</small>
+                        </label>
+                        <label class="todo-field">
+                            <span>Mentors (opsional)</span>
+                            <select v-model="logbookAssignForm.mentor_ids" multiple class="todo-select" size="3" style="height:auto;min-height:55px;">
+                                <option v-for="m in mentors" :key="m.id" :value="m.id">{{ m.name }} ({{ m.username }})</option>
+                            </select>
+                            <small class="todo-field-note">Owner otomatis tetap ikut sebagai mentor.</small>
                             <small v-if="logbookAssignForm.errors.mentor_ids" class="todo-error">{{ logbookAssignForm.errors.mentor_ids }}</small>
                         </label>
                     </template>
                     <div class="todo-modal-actions">
                         <button type="button" class="nb-btn nb-btn--ghost" @click="closeLogbookModal">Batal</button>
-                        <button type="submit" class="nb-btn nb-btn--solid" :disabled="logbookModalMode === 'create' ? logbookForm.processing : logbookAssignForm.processing">
-                            {{ (logbookModalMode === 'create' ? logbookForm.processing : logbookAssignForm.processing) ? 'Menyimpan...' : (logbookModalMode === 'edit' ? 'Simpan' : 'Buat') }}
+                        <button type="submit" class="nb-btn nb-btn--solid" :disabled="logbookAssignForm.processing">
+                            {{ logbookAssignForm.processing ? 'Menyimpan...' : (logbookModalMode === 'edit' ? 'Simpan' : 'Buat') }}
                         </button>
                     </div>
                 </form>

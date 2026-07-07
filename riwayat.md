@@ -337,6 +337,13 @@
 
 ## 2026-07-07
 
+### Profile Skin: Job Status Card
+
+- Menambahkan blok **Job Status / Current Path** ke skin static `White Orbit` dan `Scrapbook Memory`.
+- Blok ini memakai data backend yang sudah tersedia di payload public profile: `user.job_name` dan `user.job_emblem_path`.
+- Perubahan diterapkan ke folder contoh import dan juga copy aktif di `public/storage/profile-skins/...`, sehingga skin yang sudah terpasang ikut menampilkan emblem/path tanpa perlu import ulang.
+- Styling dibuat responsif: kartu job berubah satu kolom di mobile agar emblem dan nama path tidak saling menekan.
+
 ### DoopLab: Navigation, Mentor Invites, Hire Mentor, dan Logbook
 
 #### Navigation DoopLab
@@ -495,3 +502,12 @@
 #### Verifikasi
 - `npm.cmd run build` berhasil setelah batch perubahan frontend.
 - `php -l` berhasil untuk route dan controller yang diubah.
+
+### Profile Skin: Toy Flight
+
+- Menambahkan contoh project skin baru `public/examples/profile-skin-toy-flight`.
+- Tema visual mengikuti referensi portfolio toys: langit cerah, navbar kapsul, huruf balok warna-warni, pesawat mainan, awan, dan panel dashboard putih.
+- Bundle berisi `skin.json`, `index.html`, `css/style.css`, `js/skin.js`, asset SVG `toy-plane`, `cloud-strip`, dan `star-badge`.
+- Skin memakai renderer `project_static`, mengirim event `dooptech:profile-skin-ready`, dan membaca payload backend `dooptech:profile-skin-data`.
+- Konten yang dirender: identitas user, avatar, level, job emblem, profile notes, skill blocks, class progress, creation cards, statistik profil, link Hall of Creations, dan lobby.
+- Verifikasi berhasil: validasi `skin.json` dengan `ConvertFrom-Json` dan `node --check` untuk `js/skin.js`.

@@ -1694,7 +1694,7 @@ onUnmounted(() => {
                 <button
                     v-if="canCreateMentorTodo"
                     type="button"
-                    class="source-add-btn"
+                    class="source-add-btn source-add-btn--mentor-invites"
                     title="Mentor Invites"
                     aria-label="Mentor Invites"
                     @click="openDashboardPanel('mentor_invites')"
@@ -1705,7 +1705,7 @@ onUnmounted(() => {
 
                 <button
                     type="button"
-                    class="source-add-btn"
+                    class="source-add-btn source-add-btn--learning-paths"
                     title="My Learning Path"
                     aria-label="My Learning Path"
                     @click="openDashboardPanel('learning_paths')"
@@ -1716,7 +1716,7 @@ onUnmounted(() => {
 
                 <button
                     type="button"
-                    class="source-add-btn is-active"
+                    class="source-add-btn source-add-btn--roadmap-lab is-active"
                     title="Roadmap Lab"
                     aria-label="Roadmap Lab"
                     @click="openRoadmapPanel"
@@ -1727,7 +1727,7 @@ onUnmounted(() => {
 
                 <button
                     type="button"
-                    class="source-add-btn"
+                    class="source-add-btn source-add-btn--todo-list"
                     title="To-Do List"
                     aria-label="To-Do List"
                     @click="openDashboardPanel('summary')"
@@ -1738,7 +1738,7 @@ onUnmounted(() => {
 
                 <button
                     type="button"
-                    class="source-add-btn"
+                    class="source-add-btn source-add-btn--logbook"
                     title="Logbook"
                     aria-label="Logbook"
                     @click="openDashboardPanel('logbook')"
@@ -3670,6 +3670,26 @@ onUnmounted(() => {
 
     .lab-bottom-nav .source-add-btn i {
         font-size: 15px;
+    }
+
+    .lab-bottom-nav .source-add-btn--mentor-invites {
+        order: 1;
+    }
+
+    .lab-bottom-nav .source-add-btn--learning-paths {
+        order: 2;
+    }
+
+    .lab-bottom-nav .source-add-btn--todo-list {
+        order: 3;
+    }
+
+    .lab-bottom-nav .source-add-btn--logbook {
+        order: 4;
+    }
+
+    .lab-bottom-nav .source-add-btn--roadmap-lab {
+        order: 99;
     }
 }
 

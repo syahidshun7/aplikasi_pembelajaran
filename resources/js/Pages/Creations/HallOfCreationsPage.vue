@@ -7,7 +7,7 @@ import { toast } from '@/Utils/Alert';
 
 const HALL_RETURN_URL_STORAGE_KEY = 'hall.creations.return_to';
 const HALL_CACHE_STORAGE_KEY = 'hall.creations.cache';
-const HALL_DEFAULT_SORT = 'popular';
+const HALL_DEFAULT_SORT = 'latest';
 const HALL_CACHE_TTL = 5 * 60 * 1000;
 const page = usePage();
 const authUser = computed(() => page.props?.auth?.user || null);
@@ -355,7 +355,7 @@ const resetFilters = () => {
     filters.search = '';
     filters.category = '';
     filters.status = '';
-    filters.sort = 'popular';
+    filters.sort = HALL_DEFAULT_SORT;
     fetchCreations(1);
 };
 

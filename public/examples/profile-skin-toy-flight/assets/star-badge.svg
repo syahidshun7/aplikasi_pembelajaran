@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" role="img" aria-label="Toy badge">
+  <circle cx="70" cy="70" r="52" fill="none" stroke="#fff" stroke-width="3" opacity=".56"/>
+  <circle cx="70" cy="70" r="31" fill="#fff" opacity=".55"/>
+  <path d="m70 29 10 27 29 2-22 18 7 29-24-16-25 16 8-29-23-18 30-2Z" fill="#fff"/>
+  <path d="M70 8v24M70 108v24M8 70h24M108 70h24" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".58"/>
+</svg>

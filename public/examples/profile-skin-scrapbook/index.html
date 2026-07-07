@@ -3,17 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>White Orbit Profile Skin</title>
+  <title>Scrapbook Memory Profile Skin</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <main class="orbit-page">
-    <section class="hero">
-      <div class="hero-copy">
-        <p class="eyebrow">PUBLIC PROFILE SYSTEM</p>
+  <main class="scrapbook-page">
+    <section class="hero-board">
+      <div class="tape tape-a"></div>
+      <div class="tape tape-b"></div>
+      <div class="hero-copy note-card">
+        <p class="eyebrow">MEMORY BOARD</p>
         <h1 id="display-name">Loading Profile</h1>
         <p id="bio" class="bio">Waiting for backend profile payload.</p>
-
         <div class="identity-pills">
           <span id="job-name">Path: -</span>
           <span id="location">Location: -</span>
@@ -21,16 +22,16 @@
         </div>
       </div>
 
-      <div class="orbit-card">
-        <img src="assets/orbit-rings.svg" alt="" class="orbit-rings">
-        <div class="avatar-wrap">
+      <aside class="photo-stack" aria-label="Profile photo">
+        <img src="assets/doodle-star.svg" alt="" class="doodle doodle-star">
+        <img src="assets/doodle-heart.svg" alt="" class="doodle doodle-heart">
+        <div class="polaroid">
+          <div class="photo-corners"></div>
           <img id="avatar" alt="Profile avatar" class="avatar">
-        </div>
-        <div class="level-card">
-          <span id="level-title">Level</span>
+          <p id="level-title">Level</p>
           <strong id="level">1</strong>
         </div>
-      </div>
+      </aside>
     </section>
 
     <section class="metric-grid" aria-label="Profile metrics">
@@ -52,18 +53,18 @@
       </article>
     </section>
 
-    <section class="dashboard">
+    <section class="journal-grid">
       <article class="panel job-panel">
         <div class="panel-head">
-          <span>JOB STATUS</span>
-          <img src="assets/spark.svg" alt="">
+          <span>Job Status</span>
+          <img src="assets/tiny-flower.svg" alt="">
         </div>
         <div class="job-status-card">
           <div class="job-emblem-frame">
             <img id="job-emblem" src="/images/logo.png" alt="Job emblem">
           </div>
           <div>
-            <span>CURRENT PATH</span>
+            <span>Current Path</span>
             <strong id="job-current">Adventurer</strong>
           </div>
         </div>
@@ -71,49 +72,49 @@
 
       <article class="panel profile-notes-panel">
         <div class="panel-head">
-          <span>PROFILE NOTES</span>
-          <img src="assets/spark.svg" alt="">
+          <span>Profile Notes</span>
+          <img src="assets/tiny-flower.svg" alt="">
         </div>
         <div class="profile-note-list">
           <div>
-            <span>DISPLAY NAME</span>
+            <span>Display Name</span>
             <strong id="profile-display-name">-</strong>
           </div>
           <div>
-            <span>EXPERIENCE</span>
+            <span>Experience</span>
             <strong id="profile-experience">-</strong>
           </div>
           <div>
-            <span>LOCATION</span>
+            <span>Location</span>
             <strong id="profile-location-note">-</strong>
           </div>
           <p id="profile-skills-note">No public skills shared on this profile.</p>
         </div>
       </article>
 
-      <article class="panel profile-panel">
+      <article class="panel sticker-panel">
         <div class="panel-head">
-          <span>SKILLS</span>
-          <img src="assets/spark.svg" alt="">
+          <span>Skill Stickers</span>
+          <img src="assets/tiny-flower.svg" alt="">
         </div>
         <div id="skills" class="chips">
           <span>No skills yet</span>
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel class-panel">
         <div class="panel-head">
-          <span>CLASS PROGRESS</span>
-          <img src="assets/spark.svg" alt="">
+          <span>Class Notes</span>
+          <img src="assets/tiny-flower.svg" alt="">
         </div>
         <div id="classes" class="class-list">
           <p>No class data.</p>
         </div>
       </article>
 
-      <article class="panel wide">
+      <article class="panel wide creation-panel">
         <div class="panel-head">
-          <span>PUBLIC CREATIONS</span>
+          <span>Creation Clippings</span>
           <a id="hall-link" href="#" target="_blank" rel="noopener">Open Hall</a>
         </div>
         <div id="creations" class="creation-list">
