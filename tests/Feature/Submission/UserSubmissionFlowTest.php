@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\UploadedFile;
 
-test('multiple choice task bank submission is stored raw and waits for preprocessing', function () {
+test('multiple choice task bank submission is auto graded', function () {
     $user = User::factory()->create();
 
     $taskBank = TaskBank::query()->create([
@@ -62,23 +62,22 @@ test('multiple choice task bank submission is stored raw and waits for preproces
     $submission = Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->first();
     expect($submission)->not->toBeNull();
     expect(str_starts_with((string) $submission->submission_id, 'SUB-'.now()->format('Ymd').'-'))->toBeTrue();
-    expect($submission->status)->toBe('Pending');
-    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
-    expect($submission->preprocess_started)->toBeFalse();
-    expect($submission->scores_detail['source'] ?? null)->toBe('raw_task_bank_submission');
+    expect($submission->status)->toBe('Approved');
+    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_EVALUATED);
+    expect($submission->preprocess_started)->toBeTrue();
+    expect($submission->scores_detail['source'] ?? null)->toBe('task_bank_auto_check');
     expect($submission->scores_detail['answers'][$questionA->uuid] ?? null)->toBe('4');
     expect($submission->scores_detail['answers'][$questionB->uuid] ?? null)->toBe('Jakarta');
-    expect($submission->scores_detail['auto_mcq'] ?? null)->toBeNull();
-    expect((int) $submission->grade)->toBe(0);
-    expect((int) $submission->earned_gold)->toBe(0);
-    expect((int) $submission->earned_exp)->toBe(0);
+    expect((int) $submission->grade)->toBe(100);
+    expect((int) $submission->earned_gold)->toBe(1000);
+    expect((int) $submission->earned_exp)->toBe(1000);
 
     $user->refresh();
-    expect((int) $user->gold)->toBe(0);
-    expect((int) $user->exp)->toBe(0);
+    expect((int) $user->gold)->toBe(1000);
+    expect((int) $user->exp)->toBe(1000);
 });
 
-test('word match submission stores raw payload without reward calculation', function () {
+test('word match submission is auto graded from game payload', function () {
     $user = User::factory()->create();
 
     $taskBank = TaskBank::query()->create([
@@ -134,9 +133,9 @@ test('word match submission stores raw payload without reward calculation', func
         ->latest('id')
         ->first();
     expect($wrongSubmission)->not->toBeNull();
-    expect($wrongSubmission->status)->toBe('Pending');
-    expect($wrongSubmission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
-    expect($wrongSubmission->scores_detail['source'] ?? null)->toBe('raw_task_bank_submission');
+    expect($wrongSubmission->status)->toBe('Approved');
+    expect($wrongSubmission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_EVALUATED);
+    expect($wrongSubmission->scores_detail['source'] ?? null)->toBe('task_bank_auto_check');
     expect($wrongSubmission->scores_detail['answers'][$question->uuid] ?? null)->toBe(json_encode($wrongPayload));
     expect((int) $wrongSubmission->grade)->toBe(0);
     expect((int) $wrongSubmission->earned_gold)->toBe(0);
@@ -150,6 +149,18 @@ test('word match submission stores raw payload without reward calculation', func
         'complete' => true,
     ];
 
+    $perfectSubmission = Submission::query()->create([
+        'quest_id' => $quest->id,
+        'user_id' => $user->id,
+        'content' => '[TASK_BANK_RAW_SUBMISSION]',
+        'status' => Submission::STATUS_REJECTED,
+        'pipeline_status' => Submission::PIPELINE_STATUS_EVALUATED,
+        'preprocess_started' => true,
+        'grade' => 0,
+        'earned_exp' => 0,
+        'earned_gold' => 0,
+    ]);
+
     $perfectAttempt = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
         'task_answers' => [
             $question->uuid => json_encode($perfectPayload),
@@ -157,18 +168,173 @@ test('word match submission stores raw payload without reward calculation', func
     ]);
     $perfectAttempt->assertSessionHasNoErrors();
 
-    $perfectSubmission = Submission::query()
-        ->where('quest_id', $quest->id)
-        ->where('user_id', $user->id)
-        ->latest('id')
-        ->first();
-    expect($perfectSubmission)->not->toBeNull();
-    expect($perfectSubmission->status)->toBe('Pending');
-    expect($perfectSubmission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
+    $perfectSubmission->refresh();
+    expect($perfectSubmission->status)->toBe('Approved');
+    expect($perfectSubmission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_EVALUATED);
     expect($perfectSubmission->scores_detail['answers'][$question->uuid] ?? null)->toBe(json_encode($perfectPayload));
-    expect((int) $perfectSubmission->grade)->toBe(0);
-    expect((int) $perfectSubmission->earned_gold)->toBe(0);
-    expect((int) $perfectSubmission->earned_exp)->toBe(0);
+    expect((int) $perfectSubmission->grade)->toBe(100);
+    expect((int) $perfectSubmission->earned_gold)->toBe(500);
+    expect((int) $perfectSubmission->earned_exp)->toBe(500);
+});
+
+test('word match auto grade sums every question payload', function () {
+    $user = User::factory()->create();
+
+    $taskBank = TaskBank::query()->create([
+        'name' => 'Word Match Multi Bank',
+        'description' => 'Multiple word match questions',
+        'assessment_type' => 'word_match',
+        'is_active' => true,
+    ]);
+
+    $first = $taskBank->questions()->create([
+        'question_text' => 'Indonesia merdeka pada tanggal ___ Agustus ___.',
+        'question_type' => 'word_match',
+        'options_json' => [
+            'sentence' => 'Indonesia merdeka pada tanggal ___ Agustus ___.',
+            'blanks' => ['17', '1945'],
+            'distractors' => ['20', '2000'],
+        ],
+        'weight' => 1,
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
+
+    $second = $taskBank->questions()->create([
+        'question_text' => 'Pancasila memiliki ___ sila.',
+        'question_type' => 'word_match',
+        'options_json' => [
+            'sentence' => 'Pancasila memiliki ___ sila.',
+            'blanks' => ['lima'],
+            'distractors' => ['empat'],
+        ],
+        'weight' => 1,
+        'sort_order' => 2,
+        'is_active' => true,
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => 'Word Match Multi Quest',
+        'description' => 'Auto grade all blanks',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 900,
+        'reward_exp' => 900,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+        'task_bank_id' => $taskBank->id,
+    ]);
+
+    $response = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'task_answers' => [
+            $first->uuid => json_encode([
+                'placed' => ['17', '2000'],
+                'correct_count' => 1,
+                'total' => 2,
+                'timeout' => false,
+                'complete' => true,
+            ]),
+            $second->uuid => json_encode([
+                'placed' => ['lima'],
+                'correct_count' => 1,
+                'total' => 1,
+                'timeout' => false,
+                'complete' => true,
+            ]),
+        ],
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    $submission = Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->first();
+    expect($submission)->not->toBeNull();
+    expect($submission->status)->toBe('Approved');
+    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_EVALUATED);
+    expect((int) $submission->grade)->toBe(67);
+    expect((int) $submission->earned_gold)->toBe(603);
+    expect((int) $submission->earned_exp)->toBe(603);
+    expect($submission->scores_detail['correct_questions'] ?? null)->toBe(2);
+    expect($submission->scores_detail['total_questions'] ?? null)->toBe(3);
+});
+
+test('platforming submission is auto graded from aggregate game payload once', function () {
+    $user = User::factory()->create();
+
+    $taskBank = TaskBank::query()->create([
+        'name' => 'Platforming Bank',
+        'description' => 'Platforming game',
+        'assessment_type' => 'platforming',
+        'is_active' => true,
+    ]);
+
+    $first = $taskBank->questions()->create([
+        'question_text' => 'Stage 1',
+        'question_type' => 'platforming',
+        'options_json' => [
+            'stages' => [[
+                'prompt' => '2 + 2 = ?',
+                'correct_answer' => '4',
+                'wrong_answers' => ['3', '5'],
+            ]],
+        ],
+        'weight' => 1,
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
+
+    $second = $taskBank->questions()->create([
+        'question_text' => 'Stage 2',
+        'question_type' => 'platforming',
+        'options_json' => [
+            'stages' => [[
+                'prompt' => 'Capital of Indonesia?',
+                'correct_answer' => 'Jakarta',
+                'wrong_answers' => ['Bandung', 'Surabaya'],
+            ]],
+        ],
+        'weight' => 1,
+        'sort_order' => 2,
+        'is_active' => true,
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => 'Platforming Quest',
+        'description' => 'Auto grade aggregate payload',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 1000,
+        'reward_exp' => 1000,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+        'task_bank_id' => $taskBank->id,
+    ]);
+
+    $payload = json_encode([
+        'answers' => [
+            ['stage' => 0, 'answer' => '4', 'correct' => true],
+            ['stage' => 1, 'answer' => 'Bandung', 'correct' => false],
+        ],
+        'level' => 1,
+        'score' => 1,
+        'total' => 2,
+    ]);
+
+    $response = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'task_answers' => [
+            $first->uuid => $payload,
+            $second->uuid => $payload,
+        ],
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    $submission = Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->first();
+    expect($submission)->not->toBeNull();
+    expect($submission->status)->toBe('Approved');
+    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_EVALUATED);
+    expect((int) $submission->grade)->toBe(50);
+    expect((int) $submission->earned_gold)->toBe(500);
+    expect((int) $submission->earned_exp)->toBe(500);
+    expect($submission->scores_detail['correct_questions'] ?? null)->toBe(1);
+    expect($submission->scores_detail['total_questions'] ?? null)->toBe(2);
 });
 
 test('user cannot submit quest from study group they do not belong to', function () {
@@ -337,21 +503,21 @@ test('essay task bank raw answer is stored without cleanup', function () {
         ->toBe("Validasi check-in dilakukan dengan cek absensi hari ini sebelum simpan.\n\nQ4.");
 });
 
-test('student can update pending raw task bank submission before preprocessing', function () {
+test('student can update pending raw essay task bank submission before preprocessing', function () {
     $user = User::factory()->create();
 
     $taskBank = TaskBank::query()->create([
-        'name' => 'Pending Update Bank',
+        'name' => 'Pending Essay Update Bank',
         'description' => 'Raw intake bank',
-        'assessment_type' => 'multiple_choice',
+        'assessment_type' => 'essay',
         'is_active' => true,
     ]);
 
     $question = $taskBank->questions()->create([
-        'question_text' => '1 + 1 = ?',
-        'question_type' => 'multiple_choice',
-        'options_json' => ['1', '2'],
-        'answer_key' => '2',
+        'question_text' => 'Explain 1 + 1 briefly.',
+        'question_type' => 'essay',
+        'options_json' => null,
+        'answer_key' => null,
         'weight' => 1,
         'sort_order' => 1,
         'is_active' => true,
@@ -370,14 +536,14 @@ test('student can update pending raw task bank submission before preprocessing',
 
     $first = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
         'task_answers' => [
-            $question->uuid => '2',
+            $question->uuid => 'Because one item plus one item makes two items.',
         ],
     ]);
     $first->assertSessionHasNoErrors();
 
     $second = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
         'task_answers' => [
-            $question->uuid => '1',
+            $question->uuid => 'It equals two because the quantities are combined.',
         ],
     ]);
 
@@ -388,7 +554,8 @@ test('student can update pending raw task bank submission before preprocessing',
     $submission = Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->first();
     expect($submission->status)->toBe('Pending');
     expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
-    expect($submission->scores_detail['answers'][$question->uuid] ?? null)->toBe('1');
+    expect($submission->scores_detail['answers'][$question->uuid] ?? null)
+        ->toBe('It equals two because the quantities are combined.');
 });
 
 test('misconfigured multiple_choice task bank is stored as raw without auto mcq scoring', function () {

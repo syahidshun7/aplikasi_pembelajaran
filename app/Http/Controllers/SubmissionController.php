@@ -228,12 +228,12 @@ class SubmissionController extends Controller
         $submission->file_path = $this->storeUploadedFile($request, $submission);
         $submission->file_type = $this->detectSubmissionFileType($request, $submission) ?: 'text';
 
-        if ($this->isAutoCheckedTaskBankQuest($quest) && in_array($assessmentType, ['multiple_choice', 'platforming', 'word_match'], true)) {
+        if ($this->isAutoCheckedTaskBankQuest($quest)) {
             $normalizedAnswers = $this->normalizeSubmittedAnswers($questions, $rawAnswers);
             $this->validateTaskBankAnswersOrFail($quest, $questions, $normalizedAnswers);
             $result = $this->evaluateTaskBankAnswers($quest, $normalizedAnswers);
 
-            $submission->pipeline_status = Submission::PIPELINE_STATUS_AI_CHECKED;
+            $submission->pipeline_status = Submission::PIPELINE_STATUS_EVALUATED;
             $submission->preprocess_started = true;
             $submission->status = Submission::STATUS_APPROVED;
             $submission->grade = $result['grade'];
@@ -468,16 +468,15 @@ class SubmissionController extends Controller
             return false;
         }
 
-        $type = (string) $quest->taskBank->assessment_type;
-        if (! in_array($type, ['multiple_choice', 'platforming', 'word_match'], true)) {
-            return false;
-        }
-
         $quest->loadMissing(['taskBank.questions' => function ($query) {
             $query->where('is_active', true);
         }]);
 
         $questions = $quest->taskBank?->questions ?? collect();
+        if ($questions->isEmpty()) {
+            return false;
+        }
+
         $containsManualCheck = $questions->contains(function ($question) {
             $qType = (string) ($question->question_type ?? '');
             return ! in_array($qType, ['multiple_choice', 'platforming', 'word_match'], true);
@@ -537,41 +536,58 @@ class SubmissionController extends Controller
         $maxWeight = 0;
         $correctCount = 0;
         $totalQuestionsCount = 0;
+        $seenPlatformingPayloads = [];
 
-        if ($assessmentType === 'multiple_choice') {
-            $mcqQuestions = $questions->filter(function ($q) {
-                return (string) ($q->question_type ?? '') === 'multiple_choice';
-            });
-            $totalQuestionsCount = $mcqQuestions->count();
-            
-            $maxWeight = (int) $mcqQuestions->sum(function ($question) {
-                return max(1, (int) ($question->weight ?? 1));
-            });
+        foreach ($questions as $question) {
+            $qUuid = (string) $question->uuid;
+            $questionType = (string) ($question->question_type ?? '');
+            $weight = max(1, (int) ($question->weight ?? 1));
 
-            foreach ($mcqQuestions as $question) {
-                $qUuid = (string) $question->uuid;
+            if ($questionType === 'multiple_choice') {
                 $selected = (string) ($answers[$qUuid] ?? '');
-                $weight = max(1, (int) ($question->weight ?? 1));
                 $answerKey = trim((string) ($question->answer_key ?? ''));
+
+                $maxWeight += $weight;
+                $totalQuestionsCount++;
 
                 if ($selected !== '' && $answerKey !== '' && $selected === $answerKey) {
                     $correctWeight += $weight;
                     $correctCount++;
                 }
-            }
-        } elseif (in_array($assessmentType, ['platforming', 'word_match'], true)) {
-            // Platforming: semua soal mendapat payload aggregate yang sama dari frontend.
-            // Ambil dari soal pertama saja agar tidak double-count.
-            $firstQuestion = $questions->first();
-            if ($firstQuestion) {
-                $qUuid = (string) $firstQuestion->uuid;
-                $payload = json_decode((string) ($answers[$qUuid] ?? '{}'), true) ?: [];
-                $correctCount = (int) ($payload['score'] ?? $payload['correct_count'] ?? 0);
-                $totalQuestionsCount = (int) ($payload['total'] ?? 0);
+
+                continue;
             }
 
-            $correctWeight = $correctCount;
-            $maxWeight = max(1, $totalQuestionsCount);
+            if ($questionType === 'word_match') {
+                $payload = json_decode((string) ($answers[$qUuid] ?? '{}'), true) ?: [];
+                $questionTotal = max(1, (int) ($payload['total'] ?? 0));
+                $questionCorrect = max(0, min($questionTotal, (int) ($payload['correct_count'] ?? $payload['score'] ?? 0)));
+
+                $maxWeight += $questionTotal;
+                $correctWeight += $questionCorrect;
+                $totalQuestionsCount += $questionTotal;
+                $correctCount += $questionCorrect;
+
+                continue;
+            }
+
+            if ($questionType === 'platforming') {
+                $rawPayload = (string) ($answers[$qUuid] ?? '{}');
+                $payloadSignature = sha1($rawPayload);
+                if (isset($seenPlatformingPayloads[$payloadSignature])) {
+                    continue;
+                }
+
+                $seenPlatformingPayloads[$payloadSignature] = true;
+                $payload = json_decode($rawPayload, true) ?: [];
+                $questionTotal = max(1, (int) ($payload['total'] ?? 0));
+                $questionCorrect = max(0, min($questionTotal, (int) ($payload['score'] ?? $payload['correct_count'] ?? 0)));
+
+                $maxWeight += $questionTotal;
+                $correctWeight += $questionCorrect;
+                $totalQuestionsCount += $questionTotal;
+                $correctCount += $questionCorrect;
+            }
         }
 
         $grade = $maxWeight > 0
