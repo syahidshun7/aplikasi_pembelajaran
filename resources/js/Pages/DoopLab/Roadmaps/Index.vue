@@ -335,10 +335,12 @@ const roadmapEditUuid = ref('');
 const enrollForm = useForm({
     roadmap_uuid: '',
     user_ids: [],
+    review_mode: 'manual',
 });
 const studentAssignForm = useForm({
     user_id: '',
     roadmap_uuids: [],
+    review_mode: 'manual',
 });
 const showAssignModal = ref(false);
 const showManageModal = ref(false);
@@ -459,13 +461,22 @@ const resetRoadmapForm = () => {
     roadmapForm.is_published = false;
 };
 
+const toggleRoadmapPublished = () => {
+    roadmapForm.is_published = !Boolean(roadmapForm.is_published);
+};
+
 const submitRoadmap = () => {
+    const options = {
+        preserveScroll: true,
+        onSuccess: () => resetRoadmapForm(),
+    };
+
     if (roadmapEditUuid.value !== '') {
-        roadmapForm.patch(route('dooplab.roadmaps.update', roadmapEditUuid.value));
+        roadmapForm.patch(route('dooplab.roadmaps.update', roadmapEditUuid.value), options);
         return;
     }
 
-    roadmapForm.post(route('dooplab.roadmaps.store'));
+    roadmapForm.post(route('dooplab.roadmaps.store'), options);
 };
 
 const submitEnrollment = () => {
@@ -528,6 +539,7 @@ const closeAssignModal = () => {
     showAssignModal.value = false;
     studentAssignForm.user_id = '';
     studentAssignForm.roadmap_uuids = [];
+    studentAssignForm.review_mode = 'manual';
 };
 
 const openManageModal = (userId) => {
@@ -547,11 +559,13 @@ const submitStudentAssign = () => {
     router.post(route('dooplab.roadmaps.enrollments.store'), {
         roadmap_uuid: String(studentAssignForm.roadmap_uuids[0]),
         user_ids: [studentId],
+        review_mode: String(studentAssignForm.review_mode || 'manual'),
     }, {
         preserveState: true,
         preserveScroll: true,
         onSuccess: () => {
             studentAssignForm.roadmap_uuids = [];
+            studentAssignForm.review_mode = 'manual';
         },
     });
 };
@@ -2229,6 +2243,14 @@ onUnmounted(() => {
                         {{ rm.title }}
                     </option>
                 </select>
+                <label class="modal-label">Review Mode</label>
+                <select v-model="studentAssignForm.review_mode" class="field">
+                    <option value="manual">Manual Review - mentor approve setiap node</option>
+                    <option value="auto">Auto Review - node langsung approved saat user selesai</option>
+                </select>
+                <p class="text-[8px] text-slate-400 uppercase leading-relaxed">
+                    Manual cocok untuk mentoring personal. Auto cocok untuk latihan mandiri agar mentor tidak perlu approve satu per satu.
+                </p>
                 <div class="flex justify-end gap-2 pt-2">
                     <button class="btn-secondary" type="button" @click="closeAssignModal">Batal</button>
                     <button class="btn-primary" type="button" :disabled="!studentAssignForm.user_id || !studentAssignForm.roadmap_uuids.length" @click="submitStudentAssign(); closeAssignModal()">Assign</button>
@@ -2246,13 +2268,18 @@ onUnmounted(() => {
             <div class="modal-body space-y-3">
                 <input v-model="roadmapForm.title" type="text" required placeholder="Roadmap title" class="field">
                 <textarea v-model="roadmapForm.description" placeholder="Description (opsional)" class="field h-16 resize-none" />
-                <label class="flex items-center gap-2 text-[10px] text-slate-300 uppercase font-['Inter']">
-                    <input v-model="roadmapForm.is_published" type="checkbox">
-                    Publish
-                </label>
+                <button
+                    type="button"
+                    class="publish-toggle"
+                    :class="{ active: roadmapForm.is_published }"
+                    @click="toggleRoadmapPublished"
+                >
+                    <span class="publish-toggle-box">{{ roadmapForm.is_published ? '✓' : '' }}</span>
+                    <span>Publish</span>
+                </button>
                 <div class="flex justify-end gap-2 pt-2">
                     <button class="btn-secondary" type="button" @click="closeRoadmapModal">Batal</button>
-                    <button class="btn-primary" :disabled="roadmapForm.processing" type="button" @click="submitRoadmap(); closeRoadmapModal()">{{ roadmapEditUuid ? 'Update' : 'Create' }}</button>
+                    <button class="btn-primary" :disabled="roadmapForm.processing" type="button" @click="submitRoadmap">{{ roadmapEditUuid ? 'Update' : 'Create' }}</button>
                 </div>
             </div>
         </div>
@@ -3507,6 +3534,43 @@ onUnmounted(() => {
     background: rgba(239, 68, 68, 0.15) !important;
     border-color: #7f1d1d !important;
     color: #fca5a5 !important;
+}
+
+.modal-card .publish-toggle {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    gap: 10px;
+    border: 2px solid #3d415f;
+    background: transparent;
+    color: #cbd5e1;
+    font-family: "Inter", sans-serif;
+    font-size: 10px;
+    padding: 6px 0;
+    text-transform: uppercase;
+}
+
+.modal-card .publish-toggle-box {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid #3d415f;
+    background: #0d1117;
+    color: #67e8f9;
+    font-family: "Press Start 2P", monospace;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.modal-card .publish-toggle.active {
+    color: #67e8f9;
+}
+
+.modal-card .publish-toggle.active .publish-toggle-box {
+    border-color: #0f766e;
+    background: rgba(20, 184, 166, 0.18);
 }
 
 @media (max-width: 768px) {

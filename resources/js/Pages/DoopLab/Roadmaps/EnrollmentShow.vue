@@ -15,6 +15,9 @@ const edges = computed(() => roadmap.value.edges || []);
 const isOwner = computed(() => Boolean(props.enrollment?.is_owner));
 const isMentor = computed(() => Boolean(props.enrollment?.is_mentor));
 const canManage = computed(() => Boolean(props.enrollment?.can_manage));
+const reviewMode = computed(() => String(props.enrollment?.review_mode || 'manual'));
+const isAutoReview = computed(() => reviewMode.value === 'auto');
+const reviewModeLabel = computed(() => isAutoReview.value ? 'Auto Review' : 'Manual Review');
 const backHref = computed(() => {
     if (canManage.value) {
         return route('dooplab.roadmaps.index', {
@@ -323,6 +326,14 @@ const lockNode = (node) => {
                     <p class="text-[8px] text-slate-400 uppercase mt-1">
                         {{ canManage ? `Student: ${enrollment.student_name}` : `Mentor: ${enrollment.mentor_name}` }}
                     </p>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        <span
+                            class="review-mode-badge"
+                            :class="isAutoReview ? 'review-mode-badge--auto' : 'review-mode-badge--manual'"
+                        >
+                            {{ reviewModeLabel }}
+                        </span>
+                    </div>
                 </div>
                 <div class="path-actions">
                     <div class="zoom-controls" aria-label="Canvas zoom controls">
@@ -460,8 +471,17 @@ const lockNode = (node) => {
                         </div>
 
                         <div v-if="isOwner && (selectedNode.progress?.status === 'unlocked' || selectedNode.progress?.status === 'revision')" class="node-modal-form">
-                            <textarea v-model="submitForm.student_note" placeholder="Catatan submit (opsional)" class="field h-20 resize-none" />
-                            <button class="btn-primary" :disabled="submitForm.processing" type="button" @click="submitNode(selectedNode)">Submit Node</button>
+                            <textarea
+                                v-model="submitForm.student_note"
+                                :placeholder="isAutoReview ? 'Catatan selesai (opsional)' : 'Catatan submit (opsional)'"
+                                class="field h-20 resize-none"
+                            />
+                            <p v-if="isAutoReview" class="node-modal-helper">
+                                Auto review aktif. Node akan langsung approved setelah kamu tandai selesai.
+                            </p>
+                            <button class="btn-primary" :disabled="submitForm.processing" type="button" @click="submitNode(selectedNode)">
+                                {{ isAutoReview ? 'Mark as Done' : 'Submit Node' }}
+                            </button>
                         </div>
 
                         <div v-if="canManage && selectedNode.progress?.status === 'submitted'" class="node-modal-form">
@@ -559,6 +579,25 @@ const lockNode = (node) => {
     font-size: 11px;
     font-family: Inter, sans-serif;
     border-radius: 0;
+}
+.review-mode-badge {
+    border: 1px solid #334155;
+    box-shadow: 2px 2px 0 rgba(1, 6, 14, 0.9);
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.55rem;
+    text-transform: uppercase;
+    font-size: 8px;
+}
+.review-mode-badge--manual {
+    border-color: rgba(250, 204, 21, 0.5);
+    background: rgba(250, 204, 21, 0.08);
+    color: #fde68a;
+}
+.review-mode-badge--auto {
+    border-color: rgba(34, 211, 238, 0.5);
+    background: rgba(34, 211, 238, 0.08);
+    color: #67e8f9;
 }
 .node-modal-backdrop {
     position: fixed;
@@ -736,6 +775,13 @@ const lockNode = (node) => {
 .node-modal-form {
     display: grid;
     gap: 0.75rem;
+}
+.node-modal-helper {
+    margin: 0;
+    color: #94a3b8;
+    font-family: Inter, sans-serif;
+    font-size: 11px !important;
+    line-height: 1.7;
 }
 
 .node-modal-actions {

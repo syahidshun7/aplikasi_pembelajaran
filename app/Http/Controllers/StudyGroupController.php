@@ -2,6 +2,13 @@
 namespace App\Http\Controllers;
 
 use App\Events\JoinGroupRequested;
+use App\Models\DoopLabRoadmap;
+use App\Models\DoopLabRoadmapEdge;
+use App\Models\DoopLabRoadmapNode;
+use App\Models\DoopLabRoadmapSection;
+use App\Models\DoopLabRoadmapTextBlock;
+use App\Models\Guide;
+use App\Models\Quest;
 use App\Models\StudyGroup;
 use App\Models\StudyGroupJoinRequest;
 use App\Models\User;
@@ -87,6 +94,98 @@ class StudyGroupController extends Controller
             ],
             'viewerLevel' => $userLevel,
             'viewerHasLevelGatePass' => $viewerHasLevelGatePass,
+        ]);
+    }
+
+    public function show(Request $request, string $uuid)
+    {
+        $user = $request->user();
+
+        $group = StudyGroup::query()
+            ->with('job:id,name')
+            ->withCount([
+                'users as members_count' => fn ($userQuery) => $userQuery->whereNotIn('users.role', User::staffRoles()),
+                'quests as quests_count',
+            ])
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+
+        $isMember = $group->users()
+            ->where('users.id', (int) $user->id)
+            ->exists();
+
+        abort_unless($isMember, 403, 'GROUP_DETAIL_FOR_MEMBERS_ONLY');
+
+        $memberRows = $group->users()
+            ->select('users.id', 'users.name', 'users.username', 'users.role', 'users.profile_photo', 'users.job_id')
+            ->with('job:id,name')
+            ->orderBy('users.name')
+            ->get();
+
+        $mentors = $memberRows
+            ->filter(function (User $member) {
+                $pivotRole = strtolower((string) ($member->pivot?->role ?? ''));
+
+                return $member->isMentor()
+                    || in_array($pivotRole, ['mentor', 'mentor_observer'], true);
+            })
+            ->map(fn (User $mentor) => [
+                'id' => (int) $mentor->id,
+                'name' => (string) $mentor->name,
+                'username' => (string) ($mentor->username ?? ''),
+                'role' => (string) ($mentor->pivot?->role ?? $mentor->role),
+                'job_name' => (string) ($mentor->job?->name ?? $group->job?->name ?? 'Mentor'),
+                'profile_photo' => $mentor->profile_photo,
+            ])
+            ->values();
+
+        $classmates = $memberRows
+            ->reject(function (User $member) {
+                $pivotRole = strtolower((string) ($member->pivot?->role ?? ''));
+
+                return $member->isMentor()
+                    || in_array($pivotRole, ['mentor', 'mentor_observer'], true);
+            })
+            ->take(12)
+            ->map(fn (User $member) => [
+                'id' => (int) $member->id,
+                'name' => (string) $member->name,
+                'username' => (string) ($member->username ?? ''),
+                'profile_photo' => $member->profile_photo,
+            ])
+            ->values();
+
+        $classRoadmaps = $group->roadmaps()
+            ->wherePivot('is_active', true)
+            ->where('is_published', true)
+            ->with([
+                'sections' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
+                'nodes.resources',
+                'textBlocks' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
+                'edges.fromNode:id,uuid',
+                'edges.toNode:id,uuid',
+            ])
+            ->get()
+            ->map(fn (DoopLabRoadmap $roadmap) => $this->serializeClassRoadmap($roadmap))
+            ->values();
+
+        return Inertia::render('StudyGroups/Show', [
+            'group' => [
+                'uuid' => (string) $group->uuid,
+                'name' => (string) $group->name,
+                'description' => (string) ($group->description ?? ''),
+                'max_members' => (int) ($group->max_members ?? 0),
+                'min_level' => (int) ($group->min_level ?? 1),
+                'members_count' => (int) ($group->members_count ?? 0),
+                'quests_count' => (int) ($group->quests_count ?? 0),
+                'job' => $group->job ? [
+                    'id' => (int) $group->job->id,
+                    'name' => (string) $group->job->name,
+                ] : null,
+            ],
+            'mentors' => $mentors,
+            'classmates' => $classmates,
+            'classRoadmaps' => $classRoadmaps,
         ]);
     }
 
@@ -188,5 +287,117 @@ class StudyGroupController extends Controller
         }
 
         return $user->isMentor();
+    }
+
+    private function serializeClassRoadmap(DoopLabRoadmap $roadmap): array
+    {
+        return [
+            'uuid' => (string) $roadmap->uuid,
+            'title' => (string) ($roadmap->title ?? ''),
+            'description' => (string) ($roadmap->description ?? ''),
+            'sections' => $roadmap->sections
+                ->map(fn (DoopLabRoadmapSection $section) => [
+                    'uuid' => (string) $section->uuid,
+                    'title' => (string) ($section->title ?? ''),
+                    'x' => (int) $section->x,
+                    'y' => (int) $section->y,
+                    'width' => (int) $section->width,
+                    'height' => (int) $section->height,
+                    'bg_color' => (string) ($section->bg_color ?? '#dbeafe'),
+                    'text_color' => (string) ($section->text_color ?? '#1e3a8a'),
+                    'font_size' => (int) ($section->font_size ?? 20),
+                    'text_align' => (string) ($section->text_align ?? 'left'),
+                    'text_valign' => (string) ($section->text_valign ?? 'top'),
+                ])
+                ->values()
+                ->all(),
+            'nodes' => $roadmap->nodes
+                ->map(fn (DoopLabRoadmapNode $node) => [
+                    'uuid' => (string) $node->uuid,
+                    'title' => (string) ($node->title ?? ''),
+                    'x' => (int) $node->x,
+                    'y' => (int) $node->y,
+                    'width' => (int) $node->width,
+                    'height' => (int) $node->height,
+                    'bg_color' => (string) ($node->bg_color ?? '#93c5fd'),
+                    'text_color' => (string) ($node->text_color ?? '#0f172a'),
+                    'font_size' => (int) ($node->font_size ?? 28),
+                    'text_align' => (string) ($node->text_align ?? 'center'),
+                    'text_valign' => (string) ($node->text_valign ?? 'middle'),
+                    'resource_meta_list' => $this->resolveClassRoadmapResourceMetaList($node),
+                ])
+                ->values()
+                ->all(),
+            'text_blocks' => $roadmap->textBlocks
+                ->map(fn (DoopLabRoadmapTextBlock $textBlock) => [
+                    'uuid' => (string) $textBlock->uuid,
+                    'content' => (string) ($textBlock->content ?? ''),
+                    'x' => (int) $textBlock->x,
+                    'y' => (int) $textBlock->y,
+                    'width' => (int) $textBlock->width,
+                    'height' => (int) $textBlock->height,
+                    'bg_color' => (string) ($textBlock->bg_color ?? 'transparent'),
+                    'text_color' => (string) ($textBlock->text_color ?? '#e6f6ff'),
+                    'font_size' => (int) ($textBlock->font_size ?? 16),
+                    'text_align' => (string) ($textBlock->text_align ?? 'left'),
+                    'text_valign' => (string) ($textBlock->text_valign ?? 'top'),
+                ])
+                ->values()
+                ->all(),
+            'edges' => $roadmap->edges
+                ->filter(fn (DoopLabRoadmapEdge $edge) => $edge->fromNode && $edge->toNode)
+                ->map(fn (DoopLabRoadmapEdge $edge) => [
+                    'uuid' => (string) $edge->uuid,
+                    'from_node_uuid' => (string) ($edge->fromNode?->uuid ?? ''),
+                    'to_node_uuid' => (string) ($edge->toNode?->uuid ?? ''),
+                    'stroke_color' => (string) ($edge->stroke_color ?? '#334155'),
+                    'curvature' => (float) ($edge->curvature ?? 0.35),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function resolveClassRoadmapResourceMetaList(DoopLabRoadmapNode $node): array
+    {
+        $items = $node->resources->map(fn ($resource) => [
+            'type' => (string) $resource->resource_type,
+            'id' => (int) $resource->resource_id,
+        ])->values()->all();
+
+        if ($items === [] && $node->resource_type && $node->resource_id) {
+            $items[] = [
+                'type' => (string) $node->resource_type,
+                'id' => (int) $node->resource_id,
+            ];
+        }
+
+        return collect($items)
+            ->map(function (array $item) {
+                if ($item['type'] === 'guide') {
+                    $guide = Guide::query()->find((int) $item['id']);
+
+                    return $guide ? [
+                        'type' => 'guide',
+                        'label' => (string) $guide->title,
+                        'href' => route('guides.user.show', $guide->uuid),
+                    ] : null;
+                }
+
+                if ($item['type'] === 'quest') {
+                    $quest = Quest::query()->find((int) $item['id']);
+
+                    return $quest ? [
+                        'type' => 'quest',
+                        'label' => (string) $quest->title,
+                        'href' => route('quests.show', $quest->uuid),
+                    ] : null;
+                }
+
+                return null;
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 }

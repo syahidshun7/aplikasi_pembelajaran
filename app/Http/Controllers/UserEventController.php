@@ -6,9 +6,11 @@ use App\Events\DailyQuestActivityTriggered;
 use App\Models\DailyQuestDefinition;
 use App\Models\Event;
 use App\Models\EventAttendance;
+use App\Models\EventCheckInCode;
 use App\Models\StudyGroup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -87,7 +89,7 @@ class UserEventController extends Controller
         ]);
     }
 
-    public function show(Event $event): Response
+    public function show(Request $request, Event $event): Response
     {
         $user = Auth::user();
         $this->ensureUserCanAccessEvent($event, $user);
@@ -114,6 +116,13 @@ class UserEventController extends Controller
         $attendanceStatus = (string) ($attendance?->status ?? 'pending');
         $canSelfAttend = (bool) $event->self_attendance_enabled
             && ! in_array($attendanceStatus, ['present', 'absent', 'excused'], true);
+        $canCodeAttend = ! in_array($attendanceStatus, ['present', 'absent', 'excused'], true);
+        $activeCheckInCode = EventCheckInCode::query()
+            ->where('event_id', (int) $event->id)
+            ->where('is_active', true)
+            ->where('expires_at', '>', now())
+            ->latest('id')
+            ->first();
 
         return Inertia::render('Events/UserShow', [
             'event' => $event,
@@ -121,6 +130,10 @@ class UserEventController extends Controller
                 'status' => $attendanceStatus,
                 'checked_at' => $attendance?->checked_at?->toISOString(),
                 'can_self_attend' => $canSelfAttend,
+                'can_code_attend' => $canCodeAttend,
+                'check_in_code_available' => (bool) $activeCheckInCode,
+                'check_in_code_expires_at' => $activeCheckInCode?->expires_at?->toISOString(),
+                'qr_check_in_token' => trim((string) $request->query('check_in_token', '')),
             ],
         ]);
     }
@@ -153,21 +166,97 @@ class UserEventController extends Controller
             return back()->with('message', 'EVENT_SELF_ATTENDANCE_RECORDED');
         }
 
-        $attendance->status = 'present';
-        $attendance->checked_at = now();
-        $attendance->save();
-
-        event(new DailyQuestActivityTriggered(
-            (int) $user->id,
-            DailyQuestDefinition::ACTIVITY_EVENT_ATTENDANCE,
-            1,
-            [
-                'event_uuid' => (string) $event->uuid,
-                'attendance_status' => 'present',
-            ],
-        ));
+        $this->recordPresentAttendance($event, $attendance, (int) $user->id);
 
         return back()->with('message', 'EVENT_SELF_ATTENDANCE_RECORDED');
+    }
+
+    public function codeAttend(Request $request, Event $event): RedirectResponse
+    {
+        $user = Auth::user();
+        if ($response = $this->denyStaffPlayModeAttendance($user)) {
+            return $response;
+        }
+        $this->ensureUserCanAccessEvent($event, $user);
+
+        $validated = $request->validate([
+            'code' => ['nullable', 'string', 'regex:/^\d{6}$/'],
+            'token' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $code = trim((string) ($validated['code'] ?? ''));
+        $token = trim((string) ($validated['token'] ?? ''));
+
+        if ($code === '' && $token === '') {
+            return back()->withErrors(['code' => 'Masukkan kode check-in atau scan QR terlebih dahulu.']);
+        }
+
+        $attendance = EventAttendance::query()->firstOrNew([
+            'event_id' => (int) $event->id,
+            'user_id' => (int) $user->id,
+        ]);
+
+        $currentStatus = (string) ($attendance->status ?? 'pending');
+
+        if (in_array($currentStatus, ['absent', 'excused'], true)) {
+            return back()->with('message', 'EVENT_ATTENDANCE_ALREADY_FINALIZED');
+        }
+
+        if ($currentStatus === 'present') {
+            return back()->with('message', 'EVENT_SELF_ATTENDANCE_RECORDED');
+        }
+
+        $matchedCode = $this->resolveValidCheckInCode($event, $code, $token);
+
+        if (! $matchedCode) {
+            return back()->withErrors(['code' => 'Kode check-in tidak valid atau sudah expired.']);
+        }
+
+        $this->recordPresentAttendance($event, $attendance, (int) $user->id);
+
+        return back()->with('message', 'EVENT_CHECK_IN_ATTENDANCE_RECORDED');
+    }
+
+    public function qrAttend(Request $request, Event $event, string $token): RedirectResponse
+    {
+        $user = Auth::user();
+        if ($response = $this->denyStaffPlayModeAttendance($user)) {
+            return $response;
+        }
+        $this->ensureUserCanAccessEvent($event, $user);
+
+        $attendance = EventAttendance::query()->firstOrNew([
+            'event_id' => (int) $event->id,
+            'user_id' => (int) $user->id,
+        ]);
+
+        $currentStatus = (string) ($attendance->status ?? 'pending');
+
+        if (in_array($currentStatus, ['absent', 'excused'], true)) {
+            return redirect()
+                ->route('events.show', $event->uuid)
+                ->with('message', 'EVENT_ATTENDANCE_ALREADY_FINALIZED');
+        }
+
+        if ($currentStatus === 'present') {
+            return redirect()
+                ->route('events.show', $event->uuid)
+                ->with('message', 'EVENT_SELF_ATTENDANCE_RECORDED');
+        }
+
+        $matchedCode = $this->resolveValidCheckInCode($event, '', trim($token));
+
+        if (! $matchedCode) {
+            return redirect()
+                ->route('events.show', $event->uuid)
+                ->withErrors(['code' => 'QR check-in tidak valid atau sudah expired.']);
+        }
+
+        $this->recordPresentAttendance($event, $attendance, (int) $user->id);
+
+        return redirect()
+            ->route('events.show', $event->uuid)
+            ->with('message', 'EVENT_QR_ATTENDANCE_RECORDED');
     }
 
     private function ensureUserCanAccessEvent(Event $event, $user): void
@@ -191,5 +280,53 @@ class UserEventController extends Controller
         ) || in_array((int) $event->study_group_id, $userGroupIds, true);
 
         abort_unless($isAccessible, 403, 'EVENT_ACCESS_DENIED');
+    }
+
+    private function recordPresentAttendance(Event $event, EventAttendance $attendance, int $userId): void
+    {
+        $attendance->status = 'present';
+        $attendance->checked_at = now();
+        $attendance->save();
+
+        event(new DailyQuestActivityTriggered(
+            $userId,
+            DailyQuestDefinition::ACTIVITY_EVENT_ATTENDANCE,
+            1,
+            [
+                'event_uuid' => (string) $event->uuid,
+                'attendance_status' => 'present',
+            ],
+        ));
+    }
+
+    private function resolveValidCheckInCode(Event $event, string $code = '', string $token = ''): ?EventCheckInCode
+    {
+        $code = trim($code);
+        $token = trim($token);
+
+        return EventCheckInCode::query()
+            ->where('event_id', (int) $event->id)
+            ->where('is_active', true)
+            ->where('expires_at', '>', now())
+            ->latest('id')
+            ->get()
+            ->first(function (EventCheckInCode $checkInCode) use ($code, $token) {
+                if ($token !== '' && hash_equals((string) $checkInCode->qr_token, $token)) {
+                    return true;
+                }
+
+                return $code !== '' && Hash::check($code, (string) $checkInCode->code_hash);
+            });
+    }
+
+    private function denyStaffPlayModeAttendance($user): ?RedirectResponse
+    {
+        if (! (bool) $user?->isStaffPlayMode()) {
+            return null;
+        }
+
+        return back()->withErrors([
+            'event' => 'Staff play mode tidak bisa mencatat attendance pemain.',
+        ]);
     }
 }

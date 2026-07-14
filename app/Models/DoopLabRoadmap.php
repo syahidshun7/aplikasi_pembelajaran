@@ -65,4 +65,11 @@ class DoopLabRoadmap extends Model
     {
         return $this->hasMany(DoopLabRoadmapEdge::class, 'roadmap_id');
     }
+
+    public function studyGroups()
+    {
+        return $this->belongsToMany(StudyGroup::class, 'study_group_roadmaps', 'roadmap_id', 'study_group_id')
+            ->withPivot(['assigned_by_user_id', 'sort_order', 'is_active'])
+            ->withTimestamps();
+    }
 }

@@ -248,13 +248,16 @@ Route::middleware('auth')->group(function () {
 
     // --- USER AREA ---
     Route::get('/study-groups', [StudyGroupController::class, 'index'])->name('groups.index');
+    Route::get('/study-groups/{uuid}', [StudyGroupController::class, 'show'])->name('groups.show');
     Route::post('/study-groups/join', [StudyGroupController::class, 'join'])->name('groups.join');
     Route::post('/study-groups/{uuid}/leave', [StudyGroupController::class, 'leave'])->name('groups.leave');
     Route::get('/guides', [GuideController::class, 'userIndex'])->name('guides.user.index');
     Route::get('/guides/{guide}', [GuideController::class, 'userShow'])->name('guides.user.show');
     Route::get('/events', [UserEventController::class, 'index'])->name('events.user.index');
     Route::get('/events/{event:uuid}', [UserEventController::class, 'show'])->name('events.show');
+    Route::get('/events/{event:uuid}/attendance/qr/{token}', [UserEventController::class, 'qrAttend'])->name('events.attendance.qr');
     Route::post('/events/{event:uuid}/attendance/self', [UserEventController::class, 'selfAttend'])->name('events.attendance.self');
+    Route::post('/events/{event:uuid}/attendance/code', [UserEventController::class, 'codeAttend'])->name('events.attendance.code');
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
     Route::post('/shop/items/{item}/purchase', [ShopController::class, 'purchase'])
@@ -349,6 +352,7 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
 
         Route::get('/{event:uuid}', [AdminEventController::class, 'detail'])->name('detail');
         Route::get('/{event:uuid}/attendance', [AdminEventController::class, 'attendance'])->name('attendance');
+        Route::post('/{event:uuid}/attendance/check-in-code', [AdminEventController::class, 'generateCheckInCode'])->name('attendance.check-in-code.generate');
         Route::post('/{event:uuid}/guides/attach', [AdminEventController::class, 'attachGuides'])->name('guides.attach');
         Route::post('/{event:uuid}/quests/attach', [AdminEventController::class, 'attachQuests'])->name('quests.attach');
         Route::delete('/{event:uuid}/guides/{guide}', [AdminEventController::class, 'detachGuide'])->name('guides.detach');
@@ -480,6 +484,10 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         ->name('groups.requests.approve');
     Route::post('/admin/study-groups/{uuid}/requests/{requestId}/reject', [AdminStudyGroupController::class, 'rejectRequest'])
         ->name('groups.requests.reject');
+    Route::post('/admin/study-groups/{uuid}/roadmaps', [AdminStudyGroupController::class, 'attachRoadmap'])
+        ->name('groups.roadmaps.attach');
+    Route::delete('/admin/study-groups/{uuid}/roadmaps/{roadmapUuid}', [AdminStudyGroupController::class, 'detachRoadmap'])
+        ->name('groups.roadmaps.detach');
     Route::delete('/admin/study-groups/{uuid}/members/{userId}', [AdminStudyGroupController::class, 'removeMember'])
         ->name('groups.members.remove');
     Route::patch('/admin/study-groups/{uuid}/restore', [AdminStudyGroupController::class, 'restore'])->name('groups.restore');

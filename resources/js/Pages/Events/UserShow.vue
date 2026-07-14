@@ -37,6 +37,10 @@ const eventImages = computed(() => props.event?.images || []);
 const activeImageUrl = ref('');
 const galleryModalOpen = ref(false);
 const attendanceForm = useForm({});
+const codeAttendanceForm = useForm({
+    code: '',
+    token: props.userAttendance?.qr_check_in_token || '',
+});
 
 const selectImage = (url) => {
     activeImageUrl.value = String(url || '');
@@ -77,6 +81,12 @@ const attendanceCheckedAtLabel = computed(() => {
 
 const submitSelfAttendance = () => {
     attendanceForm.post(route('events.attendance.self', props.event.uuid), {
+        preserveScroll: true,
+    });
+};
+
+const submitCodeAttendance = () => {
+    codeAttendanceForm.post(route('events.attendance.code', props.event.uuid), {
         preserveScroll: true,
     });
 };
@@ -162,6 +172,40 @@ const copyPublicLink = async () => {
                     >
                         {{ attendanceForm.processing ? 'Saving_Attendance...' : '[Check_In_Myself]' }}
                     </button>
+                </div>
+                <div v-if="userAttendance?.can_code_attend" class="mt-4 border border-emerald-700 bg-emerald-950/20 p-4">
+                    <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                        <div class="min-w-0">
+                            <p class="text-[8px] uppercase text-emerald-300">Validated_Check_In</p>
+                            <p class="mt-2 font-sans text-[12px] leading-relaxed text-slate-300">
+                                Masukkan kode angka dari mentor. Kalau scan QR dari mentor, attendance akan tercatat otomatis.
+                            </p>
+                            <p v-if="userAttendance?.check_in_code_available" class="mt-2 text-[8px] uppercase text-slate-400">
+                                Kode aktif sampai: {{ new Date(userAttendance.check_in_code_expires_at).toLocaleString('id-ID') }}
+                            </p>
+                            <p v-else class="mt-2 text-[8px] uppercase text-slate-500">
+                                Belum ada kode check-in aktif dari mentor.
+                            </p>
+                        </div>
+                        <form class="flex flex-col gap-2 sm:flex-row md:shrink-0" @submit.prevent="submitCodeAttendance">
+                            <input
+                                v-model="codeAttendanceForm.code"
+                                type="text"
+                                inputmode="numeric"
+                                maxlength="6"
+                                pattern="[0-9]{6}"
+                                placeholder="6 digit"
+                                class="border border-slate-700 bg-slate-950 px-3 py-2 font-sans text-[14px] tracking-[0.25em] text-white"
+                            >
+                            <button
+                                type="submit"
+                                :disabled="codeAttendanceForm.processing || (!codeAttendanceForm.code && !codeAttendanceForm.token)"
+                                class="border border-emerald-500 px-3 py-2 text-[8px] uppercase text-emerald-300 hover:bg-emerald-500 hover:text-black disabled:opacity-40"
+                            >
+                                {{ codeAttendanceForm.token ? 'Confirm_QR_Check_In' : 'Check_In_With_PIN' }}
+                            </button>
+                        </form>
+                    </div>
                 </div>
                 <div v-if="event.description" class="mt-4 p-4 border border-slate-700 bg-black/30">
                     <p class="text-[8px] text-slate-300 uppercase mb-3 tracking-widest">Event_Description</p>

@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Event;
+use App\Models\EventAttendance;
 use App\Models\JobRole;
+use App\Models\DoopLabRoadmap;
 use App\Models\StudyGroup;
 use App\Models\StudyGroupJoinRequest;
 use App\Notifications\JoinGroupRequestRejectedNotification;
@@ -154,7 +157,10 @@ class AdminStudyGroupController extends Controller
 
     public function detail($uuid)
     {
-        $group = StudyGroup::where('uuid', $uuid)->firstOrFail();
+        $group = StudyGroup::query()
+            ->with(['roadmaps' => fn ($query) => $query->orderBy('study_group_roadmaps.sort_order')->orderBy('study_group_roadmaps.id')])
+            ->where('uuid', $uuid)
+            ->firstOrFail();
 
         $members = $group->users()
             ->select('users.id', 'users.name', 'users.username', 'users.email')
@@ -183,12 +189,68 @@ class AdminStudyGroupController extends Controller
             'group' => $group,
             'members' => $members,
             'requests' => $requests,
+            'attendanceDashboard' => $this->buildAttendanceDashboard($group),
             'questCounts' => [
                 'total' => (int) ($questCounts->total ?? 0),
                 'main' => (int) ($questCounts->main_count ?? 0),
                 'optional' => (int) ($questCounts->optional_count ?? 0),
             ],
+            'attachedRoadmaps' => $group->roadmaps
+                ->map(fn (DoopLabRoadmap $roadmap) => [
+                    'uuid' => (string) $roadmap->uuid,
+                    'title' => (string) ($roadmap->title ?? ''),
+                    'description' => (string) ($roadmap->description ?? ''),
+                    'is_published' => (bool) $roadmap->is_published,
+                    'sort_order' => (int) ($roadmap->pivot?->sort_order ?? 0),
+                    'is_active' => (bool) ($roadmap->pivot?->is_active ?? true),
+                ])
+                ->values(),
+            'availableRoadmaps' => DoopLabRoadmap::query()
+                ->where('is_published', true)
+                ->orderBy('title')
+                ->get(['id', 'uuid', 'title', 'description'])
+                ->map(fn (DoopLabRoadmap $roadmap) => [
+                    'uuid' => (string) $roadmap->uuid,
+                    'title' => (string) ($roadmap->title ?? ''),
+                    'description' => (string) ($roadmap->description ?? ''),
+                ])
+                ->values(),
         ]);
+    }
+
+    public function attachRoadmap(Request $request, string $uuid)
+    {
+        $group = StudyGroup::query()->where('uuid', $uuid)->firstOrFail();
+
+        $validated = $request->validate([
+            'roadmap_uuid' => ['required', 'uuid', 'exists:dooplab_roadmaps,uuid'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
+        ]);
+
+        $roadmap = DoopLabRoadmap::query()
+            ->where('uuid', (string) $validated['roadmap_uuid'])
+            ->where('is_published', true)
+            ->firstOrFail();
+
+        $group->roadmaps()->syncWithoutDetaching([
+            $roadmap->id => [
+                'assigned_by_user_id' => (int) Auth::id(),
+                'sort_order' => (int) ($validated['sort_order'] ?? 0),
+                'is_active' => true,
+            ],
+        ]);
+
+        return back()->with('message', 'CLASS_ROADMAP_ATTACHED');
+    }
+
+    public function detachRoadmap(string $uuid, string $roadmapUuid)
+    {
+        $group = StudyGroup::query()->where('uuid', $uuid)->firstOrFail();
+        $roadmap = DoopLabRoadmap::query()->where('uuid', $roadmapUuid)->firstOrFail();
+
+        $group->roadmaps()->detach($roadmap->id);
+
+        return back()->with('message', 'CLASS_ROADMAP_DETACHED');
     }
 
     public function approveRequest($uuid, $requestId)
@@ -468,6 +530,139 @@ class AdminStudyGroupController extends Controller
         }
 
         abort(500, 'FAILED_TO_GENERATE_UNIQUE_INVITE_CODE');
+    }
+
+    private function buildAttendanceDashboard(StudyGroup $group): array
+    {
+        $students = $group->users()
+            ->whereNotIn('users.role', User::staffRoles())
+            ->select('users.id', 'users.name', 'users.username', 'users.email', 'users.profile_photo')
+            ->orderBy('users.name')
+            ->get();
+
+        $events = Event::query()
+            ->where('study_group_id', (int) $group->id)
+            ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('starts_at')
+            ->orderBy('sequence_order')
+            ->orderBy('id')
+            ->get(['id', 'uuid', 'title', 'sequence_order', 'starts_at', 'ends_at']);
+
+        $attendanceRows = EventAttendance::query()
+            ->whereIn('event_id', $events->pluck('id')->all())
+            ->whereIn('user_id', $students->pluck('id')->all())
+            ->get(['event_id', 'user_id', 'status', 'checked_at']);
+
+        $attendanceMap = [];
+        foreach ($attendanceRows as $attendance) {
+            $attendanceMap[(int) $attendance->user_id][(int) $attendance->event_id] = $attendance;
+        }
+
+        $eventPayloads = $events
+            ->map(function (Event $event) use ($students, $attendanceMap) {
+                $counts = [
+                    'present' => 0,
+                    'absent' => 0,
+                    'excused' => 0,
+                    'pending' => 0,
+                ];
+
+                foreach ($students as $student) {
+                    $status = (string) ($attendanceMap[(int) $student->id][(int) $event->id]?->status ?? 'pending');
+                    if (! array_key_exists($status, $counts)) {
+                        $status = 'pending';
+                    }
+                    $counts[$status]++;
+                }
+
+                $totalStudents = max(0, $students->count());
+                $attendanceRate = $totalStudents > 0
+                    ? round(($counts['present'] / $totalStudents) * 100)
+                    : 0;
+
+                return [
+                    'id' => (int) $event->id,
+                    'uuid' => (string) $event->uuid,
+                    'title' => (string) ($event->title ?? ''),
+                    'sequence_order' => (int) ($event->sequence_order ?? 0),
+                    'starts_at' => $event->starts_at?->toISOString(),
+                    'attendance_url' => route('admin.events.attendance', $event->uuid),
+                    'counts' => $counts,
+                    'attendance_rate' => $attendanceRate,
+                ];
+            })
+            ->values();
+
+        $studentPayloads = $students
+            ->map(function (User $student) use ($events, $attendanceMap) {
+                $counts = [
+                    'present' => 0,
+                    'absent' => 0,
+                    'excused' => 0,
+                    'pending' => 0,
+                ];
+
+                $eventStatuses = $events->map(function (Event $event) use ($student, $attendanceMap, &$counts) {
+                    $attendance = $attendanceMap[(int) $student->id][(int) $event->id] ?? null;
+                    $status = (string) ($attendance?->status ?? 'pending');
+                    if (! array_key_exists($status, $counts)) {
+                        $status = 'pending';
+                    }
+                    $counts[$status]++;
+
+                    return [
+                        'event_uuid' => (string) $event->uuid,
+                        'status' => $status,
+                        'checked_at' => $attendance?->checked_at?->toISOString(),
+                    ];
+                })->values();
+
+                $totalEvents = max(0, $events->count());
+                $attendanceRate = $totalEvents > 0
+                    ? round(($counts['present'] / $totalEvents) * 100)
+                    : 0;
+
+                return [
+                    'id' => (int) $student->id,
+                    'name' => (string) $student->name,
+                    'username' => (string) ($student->username ?? ''),
+                    'email' => (string) ($student->email ?? ''),
+                    'profile_photo' => $student->profile_photo,
+                    'attendance_rate' => $attendanceRate,
+                    'counts' => $counts,
+                    'events' => $eventStatuses,
+                ];
+            })
+            ->values();
+
+        $totalPossible = max(0, $students->count() * $events->count());
+        $totalPresent = (int) $studentPayloads->sum(fn ($student) => (int) ($student['counts']['present'] ?? 0));
+        $classAttendanceRate = $totalPossible > 0
+            ? round(($totalPresent / $totalPossible) * 100)
+            : 0;
+
+        $lowAttendanceStudents = $events->isEmpty()
+            ? 0
+            : $studentPayloads->filter(fn ($student) => (int) $student['attendance_rate'] < 75)->count();
+
+        $worstEvent = $eventPayloads
+            ->sortBy('attendance_rate')
+            ->first();
+
+        return [
+            'summary' => [
+                'total_events' => (int) $events->count(),
+                'total_students' => (int) $students->count(),
+                'class_attendance_rate' => $classAttendanceRate,
+                'low_attendance_students' => (int) $lowAttendanceStudents,
+                'worst_event' => $worstEvent ? [
+                    'title' => (string) $worstEvent['title'],
+                    'attendance_rate' => (int) $worstEvent['attendance_rate'],
+                ] : null,
+            ],
+            'events' => $eventPayloads,
+            'students' => $studentPayloads,
+        ];
     }
 
    

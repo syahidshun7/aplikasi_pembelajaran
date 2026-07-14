@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\EventAttendance;
+use App\Models\EventCheckInCode;
 use App\Models\EventImage;
 use App\Models\Guide;
 use App\Models\JobRole;
@@ -16,7 +17,9 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\File;
 use Inertia\Inertia;
@@ -248,6 +251,12 @@ class AdminEventController extends Controller
         $this->assertMentorCanAccessEvent($event);
 
         $event->load(['studyGroup:id,name', 'attendances']);
+        $activeCheckInCode = EventCheckInCode::query()
+            ->where('event_id', (int) $event->id)
+            ->where('is_active', true)
+            ->where('expires_at', '>', now())
+            ->latest('id')
+            ->first();
 
         $attendanceUsers = User::query()
             ->select('users.id', 'users.name', 'users.profile_photo')
@@ -273,7 +282,57 @@ class AdminEventController extends Controller
         return Inertia::render('Events/Admin/Attendance', [
             'event' => $event,
             'attendanceUsers' => $attendanceUsers,
+            'activeCheckInCode' => $activeCheckInCode ? [
+                'last_four' => (string) $activeCheckInCode->plain_code_last_four,
+                'expires_at' => $activeCheckInCode->expires_at?->toISOString(),
+                'qr_url' => route('events.attendance.qr', [
+                    'event' => $event->uuid,
+                    'token' => (string) $activeCheckInCode->qr_token,
+                ]),
+            ] : null,
         ]);
+    }
+
+    public function generateCheckInCode(Request $request, Event $event): RedirectResponse
+    {
+        $this->assertMentorCanAccessEvent($event);
+
+        $validated = $request->validate([
+            'duration_minutes' => ['nullable', 'integer', 'min:1', 'max:120'],
+        ]);
+
+        $durationMinutes = (int) ($validated['duration_minutes'] ?? 10);
+        $plainCode = (string) random_int(100000, 999999);
+        $qrToken = Str::random(64);
+        $expiresAt = now()->addMinutes($durationMinutes);
+
+        DB::transaction(function () use ($event, $plainCode, $qrToken, $expiresAt) {
+            EventCheckInCode::query()
+                ->where('event_id', (int) $event->id)
+                ->where('is_active', true)
+                ->update(['is_active' => false]);
+
+            EventCheckInCode::query()->create([
+                'event_id' => (int) $event->id,
+                'code_hash' => Hash::make($plainCode),
+                'plain_code_last_four' => substr($plainCode, -4),
+                'qr_token' => $qrToken,
+                'expires_at' => $expiresAt,
+                'created_by_user_id' => (int) auth()->id(),
+                'is_active' => true,
+            ]);
+        });
+
+        return back()
+            ->with('message', 'EVENT_CHECK_IN_CODE_GENERATED')
+            ->with('check_in_code', [
+                'code' => $plainCode,
+                'expires_at' => $expiresAt->toISOString(),
+                'qr_url' => route('events.attendance.qr', [
+                    'event' => $event->uuid,
+                    'token' => $qrToken,
+                ]),
+            ]);
     }
 
     public function attachGuides(Request $request, Event $event): RedirectResponse

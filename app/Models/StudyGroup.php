@@ -118,4 +118,13 @@ class StudyGroup extends Model
     {
         return $this->hasMany(Event::class);
     }
+
+    public function roadmaps()
+    {
+        return $this->belongsToMany(DoopLabRoadmap::class, 'study_group_roadmaps', 'study_group_id', 'roadmap_id')
+            ->withPivot(['assigned_by_user_id', 'sort_order', 'is_active'])
+            ->withTimestamps()
+            ->orderBy('study_group_roadmaps.sort_order')
+            ->orderBy('study_group_roadmaps.id');
+    }
 }
