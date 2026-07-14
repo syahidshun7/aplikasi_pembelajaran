@@ -1,11 +1,18 @@
 <script setup>
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
+import { computed } from 'vue';
 
 const props = defineProps({
     event: Object,
     attendanceUsers: Array,
+    activeCheckInCode: {
+        type: Object,
+        default: null,
+    },
 });
+
+const page = usePage();
 
 const attendanceForm = useForm({
     attendance: (props.attendanceUsers || []).map((user) => ({
@@ -13,6 +20,30 @@ const attendanceForm = useForm({
         status: user.attendance_status || 'pending',
     })),
 });
+
+const checkInCodeForm = useForm({
+    duration_minutes: 10,
+});
+
+const generatedCheckInCode = computed(() => page.props.flash?.checkInCode || null);
+
+const qrImageUrl = (url) => {
+    if (!url) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}`;
+};
+
+const formatDateTime = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('id-ID');
+};
+
+const generateCheckInCode = () => {
+    checkInCodeForm.post(route('admin.events.attendance.check-in-code.generate', props.event.uuid), {
+        preserveScroll: true,
+    });
+};
 
 const setAttendanceStatus = (userId, status) => {
     const row = attendanceForm.attendance.find((item) => item.user_id === userId);
@@ -76,6 +107,65 @@ const photoUrl = (user) => {
                     >
                         Save_Attendance
                     </button>
+                </div>
+
+                <div class="mb-4 border border-emerald-700 bg-emerald-950/20 p-4">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div class="min-w-0">
+                            <p class="text-[8px] uppercase text-emerald-300">Check_In_Code</p>
+                            <p class="mt-2 font-sans text-[12px] leading-relaxed text-slate-300">
+                                Generate kode sementara untuk validasi attendance. Kode lama otomatis mati saat kode baru dibuat.
+                            </p>
+                            <div v-if="generatedCheckInCode" class="mt-3 border border-emerald-500/60 bg-black/40 p-3">
+                                <p class="text-[8px] uppercase text-slate-400">Kode baru</p>
+                                <p class="mt-2 text-2xl tracking-[0.35em] text-emerald-200">{{ generatedCheckInCode.code }}</p>
+                                <p class="mt-2 text-[8px] uppercase text-slate-400">Expired: {{ formatDateTime(generatedCheckInCode.expires_at) }}</p>
+                            </div>
+                            <div v-else-if="activeCheckInCode" class="mt-3 border border-slate-700 bg-black/30 p-3">
+                                <p class="text-[8px] uppercase text-slate-400">
+                                    Kode aktif tersedia, berakhir {{ formatDateTime(activeCheckInCode.expires_at) }}.
+                                    Last four: ****{{ activeCheckInCode.last_four }}
+                                </p>
+                            </div>
+                            <div v-else class="mt-3 text-[8px] uppercase text-slate-500">
+                                Tidak ada kode check-in aktif.
+                            </div>
+                        </div>
+
+                        <form class="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col" @submit.prevent="generateCheckInCode">
+                            <label class="text-[8px] uppercase text-slate-400">
+                                Durasi Menit
+                                <input
+                                    v-model.number="checkInCodeForm.duration_minutes"
+                                    type="number"
+                                    min="1"
+                                    max="120"
+                                    class="mt-2 w-32 border border-slate-700 bg-slate-950 px-3 py-2 font-sans text-[12px] text-white"
+                                >
+                            </label>
+                            <button
+                                type="submit"
+                                :disabled="checkInCodeForm.processing"
+                                class="border border-emerald-500 px-3 py-2 text-[8px] uppercase text-emerald-300 hover:bg-emerald-500 hover:text-black disabled:opacity-40"
+                            >
+                                Generate_Code
+                            </button>
+                        </form>
+                    </div>
+
+                    <div v-if="generatedCheckInCode?.qr_url || activeCheckInCode?.qr_url" class="mt-4 grid gap-4 md:grid-cols-[auto_1fr] md:items-center">
+                        <img
+                            :src="qrImageUrl(generatedCheckInCode?.qr_url || activeCheckInCode?.qr_url)"
+                            alt="QR check-in event"
+                            class="h-[220px] w-[220px] border border-emerald-700 bg-white p-2"
+                        >
+                        <div class="min-w-0">
+                            <p class="text-[8px] uppercase text-slate-400">QR_Link</p>
+                            <p class="mt-2 break-all font-sans text-[12px] leading-relaxed text-slate-300">
+                                {{ generatedCheckInCode?.qr_url || activeCheckInCode?.qr_url }}
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
                 <p v-if="!event.study_group_id" class="text-[8px] text-cyan-300 uppercase italic mb-4">

@@ -99,18 +99,26 @@ const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
                 <div class="mt-4 flex flex-col gap-2 border-t border-slate-800 pt-3 sm:flex-row sm:items-center sm:justify-between">
                     <span class="text-[7px] uppercase text-slate-600">Party_ID: {{ group.uuid?.substring(0, 8) }}</span>
 
-                    <button
-                        v-if="group.is_member"
-                        type="button"
-                        class="border border-red-700 bg-red-900/50 px-3 py-1 text-[8px] uppercase text-red-400 transition-all hover:bg-red-600 hover:text-white"
-                        :disabled="!canManagePartyMembership"
-                        @click="onLeave?.(group.uuid)"
-                    >
-                        Leave
-                    </button>
+                    <div v-if="group.is_member" class="flex flex-wrap items-center gap-2 sm:justify-end">
+                        <Link
+                            :href="route('groups.show', group.uuid)"
+                            class="border border-cyan-700 bg-cyan-900/40 px-3 py-1 text-[8px] uppercase text-cyan-300 transition-all hover:bg-cyan-500 hover:text-black"
+                        >
+                            Detail
+                        </Link>
+
+                        <button
+                            type="button"
+                            class="border border-red-700 bg-red-900/50 px-3 py-1 text-[8px] uppercase text-red-400 transition-all hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                            :disabled="!canManagePartyMembership"
+                            @click="onLeave?.(group.uuid)"
+                        >
+                            Leave
+                        </button>
+                    </div>
 
                     <button
-                        v-else-if="group.join_request_status === 'pending'"
+                        v-if="!group.is_member && group.join_request_status === 'pending'"
                         type="button"
                         disabled
                         class="cursor-not-allowed border border-slate-700 bg-slate-900/60 px-3 py-1 text-[8px] uppercase text-slate-400"
@@ -119,7 +127,7 @@ const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
                     </button>
 
                     <button
-                        v-else
+                        v-if="!group.is_member && group.join_request_status !== 'pending'"
                         type="button"
                         :disabled="joinProcessing || !canManagePartyMembership || !canJoinByLevel(group)"
                         class="border border-emerald-700 bg-emerald-900/50 px-3 py-1 text-[8px] uppercase text-emerald-400 transition-all hover:bg-emerald-500 hover:text-black disabled:cursor-not-allowed disabled:opacity-60"

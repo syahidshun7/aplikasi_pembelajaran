@@ -68,6 +68,7 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'message' => fn () => $request->session()->get('message'),
                 'dailyQuest' => fn () => $request->session()->get('daily_quest_feedback'),
+                'checkInCode' => fn () => $request->session()->get('check_in_code'),
             ],
         ];
     }

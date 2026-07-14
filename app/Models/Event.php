@@ -106,6 +106,11 @@ class Event extends Model
         return $this->hasMany(EventAttendance::class);
     }
 
+    public function checkInCodes()
+    {
+        return $this->hasMany(EventCheckInCode::class);
+    }
+
     public function images()
     {
         return $this->hasMany(EventImage::class)->orderBy('sort_order');

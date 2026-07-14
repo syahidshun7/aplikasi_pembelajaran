@@ -32,6 +32,7 @@ class DoopLabRoadmapEnrollmentController extends Controller
             ->map(fn (DoopLabRoadmapEnrollment $enrollment) => [
                 'uuid' => (string) $enrollment->uuid,
                 'status' => (string) $enrollment->status,
+                'review_mode' => (string) ($enrollment->review_mode ?? DoopLabRoadmapEnrollment::REVIEW_MODE_MANUAL),
                 'roadmap' => [
                     'uuid' => (string) ($enrollment->roadmap?->uuid ?? ''),
                     'title' => (string) ($enrollment->roadmap?->title ?? ''),
@@ -76,6 +77,7 @@ class DoopLabRoadmapEnrollmentController extends Controller
         $serialized = [
             'uuid' => (string) $enrollment->uuid,
             'status' => (string) $enrollment->status,
+            'review_mode' => (string) ($enrollment->review_mode ?? DoopLabRoadmapEnrollment::REVIEW_MODE_MANUAL),
             'is_owner' => $isOwner,
             'is_mentor' => $isMentor,
             'can_manage' => $canManage,
@@ -166,6 +168,7 @@ class DoopLabRoadmapEnrollmentController extends Controller
             'roadmap_uuid' => ['required', 'string'],
             'user_ids' => ['required', 'array', 'min:1'],
             'user_ids.*' => ['integer', 'min:1'],
+            'review_mode' => ['nullable', 'string', 'in:manual,auto'],
         ]);
 
         $roadmap = DoopLabRoadmap::query()->where('uuid', $validated['roadmap_uuid'])->firstOrFail();
@@ -173,12 +176,21 @@ class DoopLabRoadmapEnrollmentController extends Controller
 
         $userIds = collect($validated['user_ids'])->map(fn ($id) => (int) $id)->unique()->values();
         $existingUsers = User::query()->whereIn('id', $userIds)->pluck('id');
+        $reviewMode = (string) ($validated['review_mode'] ?? DoopLabRoadmapEnrollment::REVIEW_MODE_MANUAL);
 
         foreach ($existingUsers as $studentId) {
-            $enrollment = DoopLabRoadmapEnrollment::query()->firstOrCreate(
-                ['roadmap_id' => $roadmap->id, 'user_id' => (int) $studentId],
-                ['mentor_user_id' => $user->id, 'status' => DoopLabRoadmapEnrollment::STATUS_ACTIVE]
-            );
+            $enrollment = DoopLabRoadmapEnrollment::query()->firstOrNew([
+                'roadmap_id' => $roadmap->id,
+                'user_id' => (int) $studentId,
+            ]);
+
+            if (! $enrollment->exists) {
+                $enrollment->mentor_user_id = (int) $user->id;
+                $enrollment->status = DoopLabRoadmapEnrollment::STATUS_ACTIVE;
+            }
+
+            $enrollment->review_mode = $reviewMode;
+            $enrollment->save();
 
             $this->ensureProgressRows($enrollment->fresh(['roadmap.nodes']));
         }
@@ -222,11 +234,22 @@ class DoopLabRoadmapEnrollmentController extends Controller
             return redirect()->route('dooplab.roadmaps.enrollments.show', $enrollment->uuid);
         }
 
-        $progress->status = DoopLabRoadmapNodeProgress::STATUS_SUBMITTED;
         $progress->student_note = (string) ($validated['student_note'] ?? '');
         $progress->mentor_override_status = null;
         $progress->submitted_at = now();
+
+        if ($enrollment->isAutoReview()) {
+            $progress->status = DoopLabRoadmapNodeProgress::STATUS_APPROVED;
+            $progress->reviewed_at = now();
+        } else {
+            $progress->status = DoopLabRoadmapNodeProgress::STATUS_SUBMITTED;
+        }
+
         $progress->save();
+
+        if ($enrollment->isAutoReview()) {
+            $this->recomputeUnlocks($enrollment->fresh(['roadmap.edges', 'roadmap.nodes']));
+        }
 
         return redirect()->route('dooplab.roadmaps.enrollments.show', $enrollment->uuid);
     }
@@ -414,7 +437,7 @@ class DoopLabRoadmapEnrollmentController extends Controller
                 $quest = Quest::query()->find($resource->resource_id);
                 if ($quest) {
                     $submission = Submission::where('quest_id', $quest->id)
-                        ->where('user_id', $enrollment->student_id)
+                        ->where('user_id', $enrollment->user_id)
                         ->latest()
                         ->first();
 

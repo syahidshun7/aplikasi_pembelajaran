@@ -466,6 +466,430 @@
   - user/student diarahkan kembali ke daftar Learning Path/My Roadmaps (`dooplab.roadmaps.enrollments.index`);
   - label tombol dibedakan menjadi `Back Roadmap` untuk mentor/admin dan `Back Paths` untuk user.
 
+## 2026-07-14
+
+### Rencana: Roadmap Review Mode Auto / Manual
+
+#### Latar Belakang
+- Kebutuhan awal yang dibahas: mentor ingin bisa assign roadmap ke study group/class, bukan hanya ke user satu per satu.
+- Setelah dianalisis, assign roadmap ke class ditunda dulu karena konsekuensinya cukup besar:
+  - perlu membedakan roadmap personal vs roadmap kelas;
+  - perlu aturan progress untuk user baru yang join class belakangan;
+  - perlu alur unassign dari class;
+  - perlu report/progress per class;
+  - perlu keputusan apakah mentor harus approve node untuk semua siswa satu per satu.
+- Keputusan sementara: **tidak mengerjakan assign class ke roadmap dulu**.
+- Ide yang tetap menarik dan lebih aman diterapkan lebih dulu: tambah `review_mode` pada sistem roadmap yang sudah ada.
+
+#### Tujuan Fitur
+- Roadmap personal tetap bisa memakai review manual oleh mentor.
+- Roadmap yang sifatnya latihan mandiri bisa memakai review otomatis agar mentor tidak perlu approve semua node satu per satu.
+- Sistem tetap memakai struktur enrollment/progress yang sama agar tidak memecah flow DoopLab menjadi dua sistem berbeda.
+
+#### Keputusan Desain Awal
+- Tambahkan mode review di level enrollment:
+  - `manual`: workflow lama, siswa submit node lalu mentor approve/revision.
+  - `auto`: node bisa selesai otomatis berdasarkan aturan tertentu.
+- Default untuk assignment personal yang sudah ada: `manual`.
+- `review_mode` **melekat pada enrollment/assignment**, bukan pada roadmap blueprint.
+- Alasan: roadmap yang sama bisa dipakai untuk kebutuhan berbeda, misalnya user A memakai review manual untuk mentoring personal, sedangkan user B memakai review auto untuk latihan mandiri.
+- Node belum diberi setting sendiri pada tahap awal; semua node mengikuti mode enrollment.
+- Assignment yang nanti bersifat massal/class bisa memakai default `auto`, tetapi fitur class assignment belum dieksekusi.
+- Tetap pertahankan manual override mentor:
+  - `unlock`;
+  - `lock/reblock`;
+  - `mentor_override_status`.
+- Auto mode tidak boleh menghilangkan kontrol mentor pada node penting.
+
+#### Rencana Data
+- Tambah kolom di `dooplab_roadmap_enrollments`:
+  - `review_mode` string, default `manual`.
+- Kandidat nilai:
+  - `manual`;
+  - `auto`.
+- Opsional tahap lanjutan:
+  - tambah `review_policy` di `dooplab_roadmap_nodes` dengan nilai `inherit`, `manual`, `auto`;
+  - tambah `completion_rule` di node untuk menentukan trigger auto-complete.
+- Tahap pertama cukup mulai dari `review_mode` enrollment agar blast radius kecil.
+
+#### Rencana Backend
+- Update model `DoopLabRoadmapEnrollment`:
+  - tambah konstanta `REVIEW_MODE_MANUAL`;
+  - tambah konstanta `REVIEW_MODE_AUTO`;
+  - masukkan `review_mode` ke `$fillable`.
+- Update store enrollment:
+  - validasi optional `review_mode`;
+  - default `manual` jika tidak dikirim;
+  - simpan `review_mode` saat enrollment dibuat.
+- Update serializer enrollment:
+  - kirim `review_mode` ke halaman viewer.
+- Tambah helper rule:
+  - `isAutoReview()` atau method sejenis di model/controller.
+- Ubah flow submit node:
+  - jika `manual`, tetap seperti sekarang: `unlocked` -> `submitted`;
+  - jika `auto`, node bisa langsung `approved` saat syarat completion terpenuhi.
+- Recompute unlock tetap memakai status `approved` sebagai kunci untuk membuka child node.
+
+#### Rencana Auto Completion Tahap 1
+- Untuk node tanpa resource:
+  - user klik tombol semacam `Mark as Done`;
+  - jika enrollment `review_mode=auto`, status langsung `approved`;
+  - jika `manual`, status masuk `submitted` seperti sekarang.
+- Untuk node guide:
+  - tahap awal bisa tetap pakai tombol `Mark as Done`;
+  - tahap lanjutan baru pertimbangkan tracking "guide opened/read".
+- Untuk node quest:
+  - tahap awal bisa tetap pakai tombol manual `Mark as Done` atau submit note;
+  - tahap lanjutan: auto approve saat submission quest mendapat status approved/grade minimal.
+
+#### Rencana Frontend
+- Di Roadmap Lab assign modal:
+  - tambah pilihan mode review saat assign roadmap ke student:
+    - `Manual Review`;
+    - `Auto Review`.
+- Di viewer roadmap user (`EnrollmentShow.vue`):
+  - tampilkan badge mode review;
+  - untuk auto mode, CTA node perlu berubah dari `Submit for Review` menjadi `Mark as Done` atau label serupa;
+  - untuk manual mode, UI lama tetap.
+- Di view mentor:
+  - untuk auto mode, mentor tetap bisa lock/unlock node jika perlu;
+  - mentor tidak wajib approve setiap node.
+
+#### Risiko / Pertanyaan yang Perlu Diputuskan
+- Apakah auto mode boleh langsung approve semua node tanpa resource?
+- Apakah node quest harus menunggu submission quest approved, atau cukup user mark done?
+- Apakah mentor bisa mengubah `review_mode` setelah enrollment dibuat?
+- Apakah mode review berlaku per enrollment saja, atau bisa override per node?
+- Apakah auto-approved node perlu catatan audit seperti `reviewed_at` dan `mentor_note` kosong?
+
+#### Checklist Progress
+- [x] Analisis struktur roadmap saat ini: enrollment dan progress masih per user.
+- [x] Keputusan: fitur assign roadmap ke study group/class ditunda dulu.
+- [x] Keputusan: fitur `review_mode` auto/manual diprioritaskan sebagai langkah kecil.
+- [x] Rencana data awal ditulis: `review_mode` di `dooplab_roadmap_enrollments`.
+- [x] Rencana backend ditulis: validasi, model constant, serializer, submit flow.
+- [x] Rencana frontend ditulis: pilihan mode assign dan perubahan CTA di viewer.
+- [x] Buat migration `review_mode` pada `dooplab_roadmap_enrollments`.
+- [x] Update model `DoopLabRoadmapEnrollment`.
+- [x] Update `DoopLabRoadmapEnrollmentController::store`.
+- [x] Update `DoopLabRoadmapEnrollmentController::show` serializer.
+- [x] Implementasi flow submit auto-review.
+- [x] Update UI assign roadmap di `resources/js/Pages/DoopLab/Roadmaps/Index.vue`.
+- [x] Update UI viewer roadmap di `resources/js/Pages/DoopLab/Roadmaps/EnrollmentShow.vue`.
+- [x] Tambah feature test untuk manual mode tetap sama seperti sekarang.
+- [x] Tambah feature test untuk auto mode langsung approve node dan membuka child node.
+- [x] Jalankan verifikasi PHP lint, feature test DoopLab roadmap, dan `npm.cmd run build`.
+
+#### Implementasi Selesai — 2026-07-14
+- Migration baru: `2026_07_14_000000_add_review_mode_to_dooplab_roadmap_enrollments_table`.
+- `review_mode` default `manual`, sehingga enrollment lama tetap mengikuti workflow lama.
+- Assignment roadmap ke student sekarang bisa memilih `Manual Review` atau `Auto Review`.
+- Enrollment auto review saat student menekan submit/mark done:
+  - node langsung menjadi `approved`;
+  - `reviewed_at` otomatis terisi;
+  - child node yang dependency-nya terpenuhi langsung terbuka lewat `recomputeUnlocks()`.
+- Viewer roadmap user menampilkan badge `Manual Review` atau `Auto Review`.
+- CTA user pada auto mode berubah menjadi `Mark as Done`; manual mode tetap `Submit Node`.
+- Bug kecil diperbaiki: pencarian submission quest di roadmap resource memakai `enrollment->user_id`, bukan `student_id`.
+- Verifikasi berhasil:
+  - `php -l` untuk model, controller, migration, dan test yang berubah;
+  - `php artisan test tests\Feature\DoopLab\RoadmapLabTest.php`;
+  - `php artisan migrate`;
+  - `npm.cmd run build`.
+
+### Rencana: Class Roadmap View-Only di Detail Study Group
+
+#### Latar Belakang
+- Ide assign roadmap ke class dengan progress penuh ditunda karena terlalu kompleks.
+- Alternatif yang lebih sederhana: class bisa punya roadmap, tetapi hanya sebagai **view-only curriculum**.
+- Roadmap kelas tidak diperlakukan sebagai enrollment/progress DoopLab.
+- Tujuannya: user di kelas bisa melihat peta materi, klik node, lalu membuka Guide atau Quest yang terhubung.
+
+#### Keputusan Konsep
+- Nama konsep: **Class Roadmap View-Only** atau **Attach Roadmap to Study Group as View-Only Curriculum**.
+- Ini bukan assignment enrollment.
+- Tidak membuat data di `dooplab_roadmap_enrollments`.
+- Tidak membuat data di `dooplab_roadmap_node_progress`.
+- Tidak ada aksi user seperti:
+  - submit node;
+  - mark done;
+  - approve/revision;
+  - lock/unlock;
+  - auto review.
+- User hanya bisa:
+  - melihat canvas roadmap;
+  - klik node;
+  - melihat popup node;
+  - membuka resource Guide/Quest dari popup.
+
+#### Perbedaan dengan Roadmap Personal
+- Roadmap personal:
+  - memakai enrollment per user;
+  - punya progress node;
+  - punya `review_mode` manual/auto;
+  - bisa dikelola mentor untuk progress siswa.
+- Roadmap kelas view-only:
+  - melekat ke study group;
+  - tidak punya progress;
+  - tidak punya review;
+  - berfungsi sebagai peta kurikulum/materi kelas.
+
+#### Rencana Data
+- Tambah pivot table baru `study_group_roadmaps`.
+- Kolom awal:
+  - `id`;
+  - `study_group_id`;
+  - `roadmap_id`;
+  - `assigned_by_user_id`;
+  - `sort_order`;
+  - `is_active`;
+  - `created_at`;
+  - `updated_at`.
+- Alasan memakai pivot:
+  - satu study group bisa punya banyak roadmap;
+  - satu roadmap bisa dipakai di banyak study group;
+  - tidak mengikat roadmap blueprint ke satu kelas saja.
+- Unique constraint yang disarankan:
+  - unique `study_group_id + roadmap_id`.
+
+#### Rencana Relasi Model
+- `StudyGroup::roadmaps()`:
+  - belongsToMany `DoopLabRoadmap`;
+  - via table `study_group_roadmaps`;
+  - dengan pivot `assigned_by_user_id`, `sort_order`, `is_active`.
+- `DoopLabRoadmap::studyGroups()`:
+  - belongsToMany `StudyGroup`;
+  - via table `study_group_roadmaps`.
+
+#### Rencana Backend
+- Admin/mentor bisa attach roadmap ke study group.
+- Admin/mentor bisa detach roadmap dari study group.
+- Detail kelas user (`groups.show`) memuat roadmap aktif yang terhubung ke kelas.
+- Access detail tetap memakai rule yang sudah ada:
+  - hanya user approved/member di study group yang bisa melihat detail kelas dan roadmap view-only.
+- Serializer roadmap view-only cukup memuat:
+  - roadmap `uuid`, `title`, `description`;
+  - sections;
+  - nodes;
+  - text blocks;
+  - edges;
+  - resource meta list per node.
+- Serializer tidak memuat:
+  - progress;
+  - status node;
+  - mentor note;
+  - student note.
+
+#### Rencana Frontend Admin
+- Tambahkan UI di detail/admin study group untuk attach/detach roadmap.
+- Lokasi kandidat:
+  - `resources/js/Pages/StudyGroups/Admin/Detail.vue`.
+- UI minimal:
+  - dropdown/select roadmap;
+  - tombol attach;
+  - list roadmap yang sudah attached;
+  - tombol detach;
+  - optional sort order.
+
+#### Rencana Frontend User
+- Tambahkan section di halaman detail kelas user:
+  - `resources/js/Pages/StudyGroups/Show.vue`.
+- Section nama:
+  - `Class Roadmap`;
+  - atau `Roadmap Kelas`.
+- Jika ada banyak roadmap:
+  - tampilkan tab/list roadmap;
+  - user pilih salah satu untuk dilihat.
+- Canvas roadmap:
+  - view-only;
+  - reuse pola visual dari `EnrollmentShow.vue`;
+  - tidak ada status/progress badge;
+  - tidak ada tombol submit/review/lock/unlock.
+- Klik node:
+  - buka popup;
+  - tampilkan judul node;
+  - tampilkan daftar resource Guide/Quest;
+  - Guide link ke `guides.user.show`;
+  - Quest link ke `quests.show`.
+
+#### Rencana Implementasi Bertahap
+- [x] Buat migration pivot `study_group_roadmaps`.
+- [x] Tambah relasi model `StudyGroup::roadmaps()`.
+- [x] Tambah relasi model `DoopLabRoadmap::studyGroups()`.
+- [x] Tambah backend attach/detach roadmap ke study group.
+- [x] Tambah route attach/detach untuk admin study group.
+- [x] Update admin study group detail untuk attach/detach roadmap.
+- [x] Update `StudyGroupController::show` agar mengirim roadmap view-only.
+- [x] Buat serializer roadmap view-only yang aman untuk user kelas.
+- [x] Update `StudyGroups/Show.vue` untuk menampilkan canvas roadmap view-only.
+- [x] Tambah popup node resource di detail kelas.
+- [x] Tambah feature test:
+  - member kelas bisa melihat roadmap attached;
+  - non-member tidak bisa mengakses;
+  - roadmap view-only tidak membuat enrollment/progress.
+- [x] Jalankan verifikasi PHP lint, feature test study group/roadmap, dan `npm.cmd run build`.
+
+#### Implementasi Berjalan — 2026-07-14
+- Migration `2026_07_14_010000_create_study_group_roadmaps_table` dibuat untuk pivot roadmap kelas.
+- Model `StudyGroup` dan `DoopLabRoadmap` sekarang punya relasi many-to-many lewat `study_group_roadmaps`.
+- Admin detail group mendapat panel `Class_Roadmap_View_Only` untuk attach/detach roadmap published.
+- Detail kelas user (`groups.show`) mengirim `classRoadmaps` yang hanya memuat struktur roadmap dan resource link, tanpa progress/enrollment.
+- `StudyGroups/Show.vue` menampilkan canvas roadmap view-only, tab roadmap jika lebih dari satu, dan popup node berisi link Guide/Quest.
+- Feature test `tests/Feature/StudyGroup/UserStudyGroupDetailTest.php` ditambah untuk memastikan roadmap kelas view-only terlihat oleh member dan tidak membuat enrollment/progress.
+- Verifikasi sementara berhasil:
+  - `php -l` untuk controller/model/migration/test roadmap;
+  - `php artisan test tests\Feature\StudyGroup\UserStudyGroupDetailTest.php`.
+- Verifikasi final berhasil setelah attendance juga selesai:
+  - `php artisan migrate`;
+  - `npm.cmd run build`.
+
+### Rencana: Event Attendance Check-In Code / QR
+
+#### Latar Belakang
+- Self attendance saat ini masih berbasis tombol biasa.
+- Untuk event kelas/fisik, mentor butuh validasi agar siswa benar-benar hadir.
+- Solusi awal: mentor membuat kode check-in angka yang berlaku terbatas waktu; user bisa scan QR atau memasukkan kode manual.
+
+#### Keputusan Konsep
+- Kode check-in bersifat sesi sementara, bukan password permanen event.
+- Mentor/admin generate kode dari halaman attendance event.
+- Kode lama untuk event yang sama akan dinonaktifkan saat kode baru dibuat.
+- User check-in dengan kode angka dari detail event.
+- QR tahap awal bisa memakai URL check-in yang membawa token sesi; input manual tetap memakai kode angka.
+
+#### Rencana Data
+- Tambah tabel `event_check_in_codes`.
+- Kolom:
+  - `id`;
+  - `event_id`;
+  - `code_hash`;
+  - `plain_code_last_four`;
+  - `qr_token`;
+  - `expires_at`;
+  - `created_by_user_id`;
+  - `is_active`;
+  - timestamps.
+- Kode angka mentah tidak disimpan; backend validasi dengan hash.
+- `qr_token` random disimpan untuk flow QR/link.
+
+#### Rencana Backend
+- Tambah model `EventCheckInCode`.
+- Admin/mentor endpoint:
+  - generate code untuk event;
+  - default berlaku 10 menit;
+  - menonaktifkan code aktif sebelumnya untuk event tersebut;
+  - mengirim kode angka dan URL QR ke UI admin.
+- User endpoint:
+  - menerima `code` atau `token`;
+  - validasi event accessible, code aktif, belum expired, dan cocok;
+  - jika valid, catat `event_attendances.status = present`;
+  - trigger daily quest seperti self attendance.
+- Self attendance lama tetap ada, tetapi jika event punya check-in code aktif, flow baru menjadi jalur validasi utama.
+
+#### Rencana Frontend
+- Admin attendance page:
+  - tombol `Generate_Check_In_Code`;
+  - input durasi menit;
+  - tampilkan kode angka, masa expired, dan link QR/check-in.
+- User event detail:
+  - tambah input kode angka;
+  - tombol `Check_In_With_Code`;
+  - jika user membuka URL QR dengan token, bisa submit token.
+
+#### Rencana Implementasi Bertahap
+- [x] Buat migration `event_check_in_codes`.
+- [x] Tambah model `EventCheckInCode`.
+- [x] Tambah route admin generate code.
+- [x] Tambah route user check-in code/token.
+- [x] Update `AdminEventController` generate code.
+- [x] Update `UserEventController` validasi code/token.
+- [x] Update `Events/Admin/Attendance.vue`.
+- [x] Update `Events/UserShow.vue`.
+- [x] Tambah feature test attendance code.
+- [x] Jalankan PHP lint, feature test attendance, migration, dan `npm.cmd run build`.
+
+#### Implementasi Selesai — 2026-07-14
+- Migration `2026_07_14_020000_create_event_check_in_codes_table` dibuat.
+- Model `EventCheckInCode` dibuat dengan cast `expires_at` dan `is_active`.
+- Admin attendance page bisa generate kode angka 6 digit dengan durasi 1-120 menit.
+- Kode angka mentah hanya dikirim sekali lewat flash session setelah generate.
+- Database menyimpan `code_hash`, `plain_code_last_four`, `qr_token`, `expires_at`, dan status aktif.
+- Saat generate kode baru, kode aktif event yang lama otomatis dinonaktifkan.
+- User event detail bisa check-in dengan kode angka manual atau token QR dari URL.
+- Update lanjutan:
+  - QR/link check-in sekarang memakai route instant `events.attendance.qr`;
+  - user yang scan QR langsung tercatat hadir tanpa input PIN;
+  - user yang memakai komputer tetap bisa absen lewat input PIN 6 digit di detail event;
+  - flow query token lama masih bisa dikonfirmasi dari halaman event sebagai fallback.
+- Check-in code memvalidasi:
+  - user punya akses ke event;
+  - kode/token cocok;
+  - kode masih aktif;
+  - kode belum expired;
+  - attendance user belum final `present`, `absent`, atau `excused`.
+- Jika valid, attendance menjadi `present`, `checked_at` terisi, dan daily quest `event_attendance` tetap ter-trigger.
+- Admin attendance page menampilkan QR image dari `qr_url` sebagai tahap awal, dengan kode angka manual sebagai fallback.
+- Verifikasi berhasil:
+  - `php -l` untuk controller/model/migration/test attendance;
+  - `php artisan test tests\Feature\Event\EventCheckInCodeTest.php`;
+  - `php artisan migrate`;
+  - `npm.cmd run build`.
+- Verifikasi update QR instant berhasil:
+  - `php -l` untuk `UserEventController`, `AdminEventController`, route, dan test;
+  - `php artisan test tests\Feature\Event\EventCheckInCodeTest.php`.
+
+### Implementasi: Study Group Attendance Dashboard
+
+#### Tujuan
+- Mentor/admin butuh dashboard attendance di detail study group untuk melihat siswa mana yang hadir/tidak hadir pada event kelas.
+- Dashboard dipakai sebagai bahan pertimbangan penilaian.
+
+#### Implementasi
+- Ditambahkan payload `attendanceDashboard` pada `AdminStudyGroupController::detail`.
+- Data dashboard mengambil:
+  - event dengan `study_group_id` sesuai kelas;
+  - member aktif non-staff dari study group;
+  - status dari `event_attendances`.
+- Status kosong dianggap `pending`.
+- Persentase attendance dihitung dari jumlah `present / total event`.
+- Summary yang dikirim:
+  - total event kelas;
+  - total siswa aktif;
+  - class attendance rate;
+  - jumlah siswa attendance di bawah 75%;
+  - event dengan attendance rate terendah.
+- Matrix yang dikirim:
+  - row = siswa;
+  - column = event;
+  - cell = status `present`, `absent`, `excused`, atau `pending`.
+
+#### UI
+- Ditambahkan panel `Attendance_Dashboard` di `resources/js/Pages/StudyGroups/Admin/Detail.vue`.
+- UI berisi:
+  - summary cards;
+  - tabel matrix horizontal;
+  - warna status:
+    - `P` hijau untuk present;
+    - `A` merah untuk absent;
+    - `I` cyan untuk excused/izin;
+    - `-` abu-abu untuk pending;
+  - link header event ke halaman attendance event.
+
+#### Verifikasi
+- Feature test baru: `tests/Feature/StudyGroup/AdminStudyGroupAttendanceDashboardTest.php`.
+- Verifikasi berhasil:
+  - `php -l app\Http\Controllers\AdminStudyGroupController.php`;
+  - `php -l tests\Feature\StudyGroup\AdminStudyGroupAttendanceDashboardTest.php`;
+  - `php artisan test tests\Feature\StudyGroup\AdminStudyGroupAttendanceDashboardTest.php`.
+
+#### Risiko / Pertanyaan Lanjutan
+- Apakah semua roadmap boleh di-attach oleh admin, atau mentor hanya boleh attach roadmap miliknya sendiri?
+- Apakah roadmap harus `is_published=true` agar bisa ditampilkan ke kelas?
+- Apakah node resource yang private untuk group lain boleh tampil di roadmap kelas?
+- Apakah urutan roadmap kelas perlu drag/drop atau cukup `sort_order` sederhana?
+- Apakah user tanpa akses DoopLab key boleh melihat roadmap kelas view-only dari detail study group?
+  - Rekomendasi awal: boleh, karena ini bagian dari study group curriculum, bukan progress DoopLab premium.
+
 #### Rencana: Wajib Verifikasi Email Sebelum Masuk Lobby
 - Kebutuhan baru: user yang sudah register/login tetapi belum verifikasi email tidak boleh masuk lobby utama.
 - Kondisi saat ini:

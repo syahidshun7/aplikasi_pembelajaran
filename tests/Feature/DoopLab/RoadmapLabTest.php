@@ -140,3 +140,126 @@ it('mentor can manage assigned student roadmap without changing blueprint', func
         'title' => 'Private Node Access',
     ]);
 });
+
+it('manual review enrollment keeps node submitted until mentor reviews it', function () {
+    $mentor = User::factory()->create(['role' => User::ROLE_MENTOR]);
+    $student = User::factory()->create(['role' => User::ROLE_STUDENT]);
+
+    $roadmap = DoopLabRoadmap::query()->create([
+        'title' => 'Manual Review Path',
+        'created_by_user_id' => $mentor->id,
+        'is_published' => true,
+    ]);
+
+    $node = DoopLabRoadmapNode::query()->create([
+        'roadmap_id' => $roadmap->id,
+        'title' => 'Manual Node',
+        'x' => 10,
+        'y' => 20,
+    ]);
+
+    $this->actingAs($mentor)
+        ->post(route('dooplab.roadmaps.enrollments.store'), [
+            'roadmap_uuid' => $roadmap->uuid,
+            'user_ids' => [$student->id],
+            'review_mode' => DoopLabRoadmapEnrollment::REVIEW_MODE_MANUAL,
+        ])
+        ->assertRedirect(route('dooplab.roadmaps.index'));
+
+    $enrollment = DoopLabRoadmapEnrollment::query()
+        ->where('roadmap_id', $roadmap->id)
+        ->where('user_id', $student->id)
+        ->firstOrFail();
+
+    $this->actingAs($student)
+        ->get(route('dooplab.roadmaps.enrollments.show', $enrollment->uuid))
+        ->assertOk();
+
+    $this->actingAs($student)
+        ->post(route('dooplab.roadmaps.enrollments.submit', [$enrollment->uuid, $node->uuid]), [
+            'student_note' => 'Sudah dikerjakan.',
+        ])
+        ->assertRedirect(route('dooplab.roadmaps.enrollments.show', $enrollment->uuid));
+
+    $this->assertDatabaseHas('dooplab_roadmap_enrollments', [
+        'id' => $enrollment->id,
+        'review_mode' => DoopLabRoadmapEnrollment::REVIEW_MODE_MANUAL,
+    ]);
+
+    $this->assertDatabaseHas('dooplab_roadmap_node_progress', [
+        'enrollment_id' => $enrollment->id,
+        'node_id' => $node->id,
+        'status' => DoopLabRoadmapNodeProgress::STATUS_SUBMITTED,
+    ]);
+});
+
+it('auto review enrollment approves submitted node and unlocks child node', function () {
+    $mentor = User::factory()->create(['role' => User::ROLE_MENTOR]);
+    $student = User::factory()->create(['role' => User::ROLE_STUDENT]);
+
+    $roadmap = DoopLabRoadmap::query()->create([
+        'title' => 'Auto Review Path',
+        'created_by_user_id' => $mentor->id,
+        'is_published' => true,
+    ]);
+
+    $firstNode = DoopLabRoadmapNode::query()->create([
+        'roadmap_id' => $roadmap->id,
+        'title' => 'Auto First Node',
+        'x' => 10,
+        'y' => 20,
+    ]);
+
+    $secondNode = DoopLabRoadmapNode::query()->create([
+        'roadmap_id' => $roadmap->id,
+        'title' => 'Auto Child Node',
+        'x' => 220,
+        'y' => 20,
+    ]);
+
+    \App\Models\DoopLabRoadmapEdge::query()->create([
+        'roadmap_id' => $roadmap->id,
+        'from_node_id' => $firstNode->id,
+        'to_node_id' => $secondNode->id,
+    ]);
+
+    $this->actingAs($mentor)
+        ->post(route('dooplab.roadmaps.enrollments.store'), [
+            'roadmap_uuid' => $roadmap->uuid,
+            'user_ids' => [$student->id],
+            'review_mode' => DoopLabRoadmapEnrollment::REVIEW_MODE_AUTO,
+        ])
+        ->assertRedirect(route('dooplab.roadmaps.index'));
+
+    $enrollment = DoopLabRoadmapEnrollment::query()
+        ->where('roadmap_id', $roadmap->id)
+        ->where('user_id', $student->id)
+        ->firstOrFail();
+
+    $this->actingAs($student)
+        ->get(route('dooplab.roadmaps.enrollments.show', $enrollment->uuid))
+        ->assertOk();
+
+    $this->actingAs($student)
+        ->post(route('dooplab.roadmaps.enrollments.submit', [$enrollment->uuid, $firstNode->uuid]), [
+            'student_note' => 'Selesai.',
+        ])
+        ->assertRedirect(route('dooplab.roadmaps.enrollments.show', $enrollment->uuid));
+
+    $this->assertDatabaseHas('dooplab_roadmap_enrollments', [
+        'id' => $enrollment->id,
+        'review_mode' => DoopLabRoadmapEnrollment::REVIEW_MODE_AUTO,
+    ]);
+
+    $this->assertDatabaseHas('dooplab_roadmap_node_progress', [
+        'enrollment_id' => $enrollment->id,
+        'node_id' => $firstNode->id,
+        'status' => DoopLabRoadmapNodeProgress::STATUS_APPROVED,
+    ]);
+
+    $this->assertDatabaseHas('dooplab_roadmap_node_progress', [
+        'enrollment_id' => $enrollment->id,
+        'node_id' => $secondNode->id,
+        'status' => DoopLabRoadmapNodeProgress::STATUS_UNLOCKED,
+    ]);
+});

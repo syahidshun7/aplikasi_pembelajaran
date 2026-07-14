@@ -1,0 +1,481 @@
+<script setup>
+import { Head, Link } from '@inertiajs/vue3';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { computed, ref, watch } from 'vue';
+
+const props = defineProps({
+    group: {
+        type: Object,
+        required: true,
+    },
+    mentors: {
+        type: Array,
+        default: () => [],
+    },
+    classmates: {
+        type: Array,
+        default: () => [],
+    },
+    classRoadmaps: {
+        type: Array,
+        default: () => [],
+    },
+});
+
+const selectedRoadmapUuid = ref(props.classRoadmaps[0]?.uuid || '');
+const selectedNode = ref(null);
+
+watch(() => props.classRoadmaps, (roadmaps) => {
+    if (!selectedRoadmapUuid.value && roadmaps?.length) {
+        selectedRoadmapUuid.value = roadmaps[0].uuid;
+    }
+});
+
+const selectedRoadmap = computed(() => {
+    return props.classRoadmaps.find((roadmap) => roadmap.uuid === selectedRoadmapUuid.value)
+        || props.classRoadmaps[0]
+        || null;
+});
+
+const canvasSize = computed(() => {
+    const roadmap = selectedRoadmap.value;
+    const items = [
+        ...(roadmap?.sections || []),
+        ...(roadmap?.nodes || []),
+        ...(roadmap?.text_blocks || []),
+    ];
+
+    const width = Math.max(900, ...items.map((item) => Number(item.x || 0) + Number(item.width || 0) + 80));
+    const height = Math.max(520, ...items.map((item) => Number(item.y || 0) + Number(item.height || 0) + 80));
+
+    return { width, height };
+});
+
+const nodeByUuid = computed(() => {
+    const map = {};
+    (selectedRoadmap.value?.nodes || []).forEach((node) => {
+        map[node.uuid] = node;
+    });
+    return map;
+});
+
+const edgeLine = (edge) => {
+    const fromNode = nodeByUuid.value[edge.from_node_uuid];
+    const toNode = nodeByUuid.value[edge.to_node_uuid];
+    if (!fromNode || !toNode) return null;
+
+    return {
+        x1: Number(fromNode.x || 0) + Number(fromNode.width || 0) / 2,
+        y1: Number(fromNode.y || 0) + Number(fromNode.height || 0) / 2,
+        x2: Number(toNode.x || 0) + Number(toNode.width || 0) / 2,
+        y2: Number(toNode.y || 0) + Number(toNode.height || 0) / 2,
+        stroke: edge.stroke_color || '#64748b',
+    };
+};
+
+const textAlignClass = (align) => {
+    if (align === 'left') return 'text-left';
+    if (align === 'right') return 'text-right';
+    return 'text-center';
+};
+
+const resolveVerticalJustify = (value, fallback = 'middle') => {
+    const normalized = String(value || fallback);
+    if (normalized === 'top') return 'flex-start';
+    if (normalized === 'bottom') return 'flex-end';
+    return 'center';
+};
+
+const openNode = (node) => {
+    selectedNode.value = node;
+};
+
+const closeNode = () => {
+    selectedNode.value = null;
+};
+
+const photoUrl = (path) => {
+    const value = String(path || '').trim();
+    if (value === '') return null;
+    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')) return value;
+    return `/storage/${value}`;
+};
+
+const initials = (name) => {
+    const value = String(name || 'U').trim();
+    return value.slice(0, 2).toUpperCase();
+};
+</script>
+
+<template>
+    <AuthenticatedLayout>
+        <Head :title="`${group.name || 'Study Group'} Detail`" />
+
+        <div class="p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px]">
+            <div class="mx-auto max-w-6xl space-y-6">
+                <div class="flex flex-col gap-3 border-b-4 border-emerald-900 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-[8px] uppercase text-slate-500">Study_Group_Detail</p>
+                        <h1 class="mt-2 text-base uppercase tracking-widest text-white sm:text-xl">{{ group.name }}</h1>
+                    </div>
+                    <Link
+                        :href="route('groups.index')"
+                        class="inline-flex items-center justify-center border-2 border-slate-700 bg-slate-900/40 px-3 py-2 text-[9px] uppercase text-slate-300 hover:border-emerald-400 hover:text-white sm:text-[10px]"
+                    >
+                        [Back_to_Groups]
+                    </Link>
+                </div>
+
+                <section class="rpg-panel border-cyan-500/50">
+                    <div class="grid gap-5 lg:grid-cols-[1.4fr_0.6fr]">
+                        <div>
+                            <p class="text-[8px] uppercase text-cyan-300">Description</p>
+                            <p class="mt-3 whitespace-pre-line font-sans text-[14px] leading-relaxed text-slate-100">
+                                {{ group.description || 'Belum ada deskripsi untuk study group ini.' }}
+                            </p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 text-center">
+                            <div class="border border-slate-700 bg-black/30 p-3">
+                                <p class="text-[7px] uppercase text-slate-400">Members</p>
+                                <p class="mt-2 text-lg text-yellow-300">{{ group.members_count || 0 }}/{{ group.max_members || 0 }}</p>
+                            </div>
+                            <div class="border border-slate-700 bg-black/30 p-3">
+                                <p class="text-[7px] uppercase text-slate-400">Min_Level</p>
+                                <p class="mt-2 text-lg text-emerald-300">{{ group.min_level || 1 }}</p>
+                            </div>
+                            <div class="border border-slate-700 bg-black/30 p-3">
+                                <p class="text-[7px] uppercase text-slate-400">Quests</p>
+                                <p class="mt-2 text-lg text-cyan-300">{{ group.quests_count || 0 }}</p>
+                            </div>
+                            <div class="border border-slate-700 bg-black/30 p-3">
+                                <p class="text-[7px] uppercase text-slate-400">Path</p>
+                                <p class="mt-2 text-[9px] leading-relaxed text-white">{{ group.job?.name || 'General' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="rpg-panel border-emerald-500/50">
+                    <div class="mb-4 flex items-center justify-between gap-3">
+                        <h2 class="text-emerald-300 uppercase">Mentor_In_This_Group</h2>
+                        <span class="border border-emerald-900 bg-emerald-900/20 px-2 py-1 text-[8px] uppercase text-emerald-200">
+                            {{ mentors.length }} Mentor
+                        </span>
+                    </div>
+
+                    <div v-if="mentors.length === 0" class="border border-slate-800 bg-black/30 p-4 text-[9px] uppercase text-slate-500">
+                        Belum ada mentor yang terdaftar langsung di group ini.
+                    </div>
+
+                    <div v-else class="grid gap-3 md:grid-cols-2">
+                        <article v-for="mentor in mentors" :key="mentor.id" class="flex items-center gap-4 border border-slate-800 bg-black/40 p-4">
+                            <img
+                                v-if="photoUrl(mentor.profile_photo)"
+                                :src="photoUrl(mentor.profile_photo)"
+                                :alt="mentor.name"
+                                class="h-14 w-14 border-2 border-emerald-700 object-cover"
+                            />
+                            <div v-else class="flex h-14 w-14 items-center justify-center border-2 border-emerald-700 bg-emerald-950 text-emerald-200">
+                                {{ initials(mentor.name) }}
+                            </div>
+                            <div class="min-w-0">
+                                <p class="truncate text-[11px] uppercase text-white">{{ mentor.name }}</p>
+                                <p class="mt-1 truncate text-[8px] uppercase text-cyan-300">@{{ mentor.username || 'mentor' }}</p>
+                                <p class="mt-2 font-sans text-[12px] text-slate-300">{{ mentor.job_name || 'Mentor' }}</p>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="rpg-panel border-indigo-500/50">
+                    <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                            <h2 class="text-indigo-300 uppercase">Roadmap_Kelas</h2>
+                            <p class="mt-2 font-sans text-[12px] leading-relaxed text-slate-300">
+                                Kurikulum view-only untuk kelas ini. Klik node untuk membuka Guide atau Quest.
+                            </p>
+                        </div>
+                        <div v-if="classRoadmaps.length > 1" class="flex flex-wrap gap-2">
+                            <button
+                                v-for="roadmap in classRoadmaps"
+                                :key="roadmap.uuid"
+                                type="button"
+                                class="border px-3 py-2 text-[8px] uppercase"
+                                :class="selectedRoadmap?.uuid === roadmap.uuid ? 'border-indigo-400 bg-indigo-500/20 text-indigo-100' : 'border-slate-700 text-slate-400 hover:border-indigo-400 hover:text-white'"
+                                @click="selectedRoadmapUuid = roadmap.uuid; selectedNode = null"
+                            >
+                                {{ roadmap.title }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div v-if="!selectedRoadmap" class="border border-slate-800 bg-black/30 p-4 text-[9px] uppercase text-slate-500">
+                        Belum ada roadmap kelas yang aktif.
+                    </div>
+
+                    <div v-else>
+                        <div class="mb-4 border border-slate-800 bg-black/30 p-4">
+                            <p class="break-words text-[11px] uppercase text-white">{{ selectedRoadmap.title }}</p>
+                            <p class="mt-2 whitespace-pre-line font-sans text-[13px] leading-relaxed text-slate-300">
+                                {{ selectedRoadmap.description || 'Tidak ada deskripsi roadmap.' }}
+                            </p>
+                        </div>
+
+                        <div class="roadmap-shell">
+                            <div
+                                class="roadmap-canvas"
+                                :style="{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }"
+                            >
+                                <svg class="pointer-events-none absolute inset-0 h-full w-full">
+                                    <template v-for="edge in selectedRoadmap.edges || []" :key="edge.uuid">
+                                        <line
+                                            v-if="edgeLine(edge)"
+                                            :x1="edgeLine(edge).x1"
+                                            :y1="edgeLine(edge).y1"
+                                            :x2="edgeLine(edge).x2"
+                                            :y2="edgeLine(edge).y2"
+                                            :stroke="edgeLine(edge).stroke"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-dasharray="6 7"
+                                        />
+                                    </template>
+                                </svg>
+
+                                <div
+                                    v-for="section in selectedRoadmap.sections || []"
+                                    :key="section.uuid"
+                                    class="roadmap-section-box"
+                                    :style="{
+                                        left: `${section.x}px`,
+                                        top: `${section.y}px`,
+                                        width: `${section.width}px`,
+                                        height: `${section.height}px`,
+                                        backgroundColor: section.bg_color,
+                                        color: section.text_color,
+                                        borderColor: section.text_color,
+                                        justifyContent: resolveVerticalJustify(section.text_valign, 'top'),
+                                    }"
+                                >
+                                    <p
+                                        class="roadmap-section-title"
+                                        :style="{ fontSize: `${Number(section.font_size || 20)}px`, textAlign: section.text_align || 'left' }"
+                                    >
+                                        {{ section.title }}
+                                    </p>
+                                </div>
+
+                                <div
+                                    v-for="textBlock in selectedRoadmap.text_blocks || []"
+                                    :key="textBlock.uuid"
+                                    class="roadmap-text-block-box"
+                                    :style="{
+                                        left: `${textBlock.x}px`,
+                                        top: `${textBlock.y}px`,
+                                        width: `${textBlock.width}px`,
+                                        height: `${textBlock.height}px`,
+                                        backgroundColor: textBlock.bg_color,
+                                        color: textBlock.text_color,
+                                        justifyContent: resolveVerticalJustify(textBlock.text_valign, 'top'),
+                                    }"
+                                >
+                                    <p
+                                        class="roadmap-text-block-content"
+                                        :style="{ fontSize: `${Number(textBlock.font_size || 16)}px`, textAlign: textBlock.text_align || 'left' }"
+                                    >
+                                        {{ textBlock.content }}
+                                    </p>
+                                </div>
+
+                                <button
+                                    v-for="node in selectedRoadmap.nodes || []"
+                                    :key="node.uuid"
+                                    type="button"
+                                    class="roadmap-node-box"
+                                    :style="{
+                                        left: `${node.x}px`,
+                                        top: `${node.y}px`,
+                                        width: `${node.width}px`,
+                                        height: `${node.height}px`,
+                                        backgroundColor: node.bg_color,
+                                        color: node.text_color,
+                                        justifyContent: resolveVerticalJustify(node.text_valign, 'middle'),
+                                    }"
+                                    @click="openNode(node)"
+                                >
+                                    <span
+                                        class="roadmap-node-title"
+                                        :style="{ fontSize: `${Number(node.font_size || 28)}px`, textAlign: node.text_align || 'center' }"
+                                    >
+                                        {{ node.title }}
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="rpg-panel border-slate-700">
+                    <div class="mb-4 flex items-center justify-between gap-3">
+                        <h2 class="text-slate-200 uppercase">Classmates</h2>
+                        <span class="text-[8px] uppercase text-slate-500">Preview {{ classmates.length }}</span>
+                    </div>
+
+                    <div v-if="classmates.length === 0" class="text-[9px] uppercase text-slate-500">
+                        No_Classmate_Data
+                    </div>
+
+                    <div v-else class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        <div v-for="member in classmates" :key="member.id" class="flex items-center gap-3 border border-slate-800 bg-black/30 p-3">
+                            <img
+                                v-if="photoUrl(member.profile_photo)"
+                                :src="photoUrl(member.profile_photo)"
+                                :alt="member.name"
+                                class="h-9 w-9 border border-slate-700 object-cover"
+                            />
+                            <div v-else class="flex h-9 w-9 items-center justify-center border border-slate-700 bg-slate-950 text-[8px] text-slate-300">
+                                {{ initials(member.name) }}
+                            </div>
+                            <div class="min-w-0">
+                                <p class="truncate text-[9px] uppercase text-white">{{ member.name }}</p>
+                                <p class="mt-1 truncate text-[8px] uppercase text-slate-500">@{{ member.username || 'user' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <div
+            v-if="selectedNode"
+            class="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+            @click.self="closeNode"
+        >
+            <div class="w-full max-w-lg border-4 border-indigo-500/60 bg-[#111827] p-5 shadow-[0_0_30px_rgba(99,102,241,0.25)]">
+                <div class="mb-4 flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-[8px] uppercase text-indigo-300">Roadmap_Node</p>
+                        <h3 class="mt-2 break-words text-sm uppercase text-white">{{ selectedNode.title }}</h3>
+                    </div>
+                    <button
+                        type="button"
+                        class="border border-slate-600 px-2 py-1 text-[8px] uppercase text-slate-300 hover:border-indigo-400 hover:text-white"
+                        @click="closeNode"
+                    >
+                        Close
+                    </button>
+                </div>
+
+                <div v-if="(selectedNode.resource_meta_list || []).length === 0" class="border border-slate-700 bg-black/30 p-4 text-[9px] uppercase text-slate-500">
+                    Belum ada Guide atau Quest di node ini.
+                </div>
+
+                <div v-else class="space-y-3">
+                    <Link
+                        v-for="resource in selectedNode.resource_meta_list"
+                        :key="`${resource.type}-${resource.href}`"
+                        :href="resource.href"
+                        class="flex items-center justify-between gap-3 border border-slate-700 bg-black/30 px-4 py-3 text-[9px] uppercase text-slate-100 hover:border-indigo-400 hover:text-white"
+                    >
+                        <span class="break-words">{{ resource.label }}</span>
+                        <span class="shrink-0 text-[7px]" :class="resource.type === 'guide' ? 'text-cyan-300' : 'text-yellow-300'">
+                            {{ resource.type }}
+                        </span>
+                    </Link>
+                </div>
+            </div>
+        </div>
+    </AuthenticatedLayout>
+</template>
+
+<style scoped>
+.rpg-panel {
+    background-color: #1a1c2c;
+    border-width: 4px;
+    padding: 1rem;
+    box-shadow: 8px 8px 0 0 rgba(0, 0, 0, 0.5);
+}
+
+.roadmap-shell {
+    max-height: 620px;
+    overflow: auto;
+    border: 2px solid rgba(99, 102, 241, 0.35);
+    background:
+        linear-gradient(to right, rgba(148, 163, 184, 0.12) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(148, 163, 184, 0.12) 1px, transparent 1px),
+        #0b1020;
+    background-size: 24px 24px;
+}
+
+.roadmap-canvas {
+    position: relative;
+    min-width: 900px;
+}
+
+.roadmap-section-box {
+    position: absolute;
+    z-index: 0;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    box-shadow: 3px 3px 0 rgba(1, 6, 14, 0.55);
+    padding: 12px;
+    white-space: pre-wrap;
+}
+
+.roadmap-section-title {
+    width: 100%;
+    margin: 0;
+    line-height: 1.2;
+    font-family: Inter, sans-serif;
+    font-weight: 700;
+}
+
+.roadmap-text-block-box {
+    position: absolute;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid transparent;
+    box-shadow: none;
+    padding: 12px;
+    white-space: pre-wrap;
+}
+
+.roadmap-text-block-content {
+    width: 100%;
+    margin: 0;
+    line-height: 1.45;
+    font-family: Inter, sans-serif;
+    font-weight: 700;
+    text-shadow: 0 1px 0 rgba(2, 8, 23, 0.22);
+}
+
+.roadmap-node-box {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 0;
+    border-radius: 0;
+    box-shadow: 3px 3px 0 rgba(1, 6, 14, 0.7);
+    padding: 10px;
+    cursor: pointer;
+    transition: outline 0.15s, transform 0.15s;
+}
+
+.roadmap-node-box:hover {
+    outline: 2px solid rgba(34, 211, 238, 0.55);
+    outline-offset: 2px;
+}
+
+.roadmap-node-title {
+    width: 100%;
+    line-height: 1.2;
+    font-family: Inter, sans-serif;
+    font-weight: 700;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+</style>

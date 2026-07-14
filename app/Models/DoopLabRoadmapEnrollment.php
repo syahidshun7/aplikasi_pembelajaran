@@ -9,6 +9,8 @@ class DoopLabRoadmapEnrollment extends Model
 {
     public const STATUS_ACTIVE = 'active';
     public const STATUS_ENDED = 'ended';
+    public const REVIEW_MODE_MANUAL = 'manual';
+    public const REVIEW_MODE_AUTO = 'auto';
 
     protected $table = 'dooplab_roadmap_enrollments';
 
@@ -18,7 +20,13 @@ class DoopLabRoadmapEnrollment extends Model
         'user_id',
         'mentor_user_id',
         'status',
+        'review_mode',
     ];
+
+    public function isAutoReview(): bool
+    {
+        return $this->review_mode === self::REVIEW_MODE_AUTO;
+    }
 
     protected static function booted(): void
     {
@@ -54,4 +62,3 @@ class DoopLabRoadmapEnrollment extends Model
         return $this->hasMany(DoopLabRoadmapNodeProgress::class, 'enrollment_id');
     }
 }
-

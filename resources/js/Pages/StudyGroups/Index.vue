@@ -259,8 +259,15 @@ const leaveGroup = (group) => {
                                 >
                                     {{ activeLeaveUuid === group.uuid && leaveForm.processing ? 'Leaving...' : 'Leave_Party' }}
                                 </button>
+                                <Link
+                                    v-if="group.is_member"
+                                    :href="route('groups.show', group.uuid)"
+                                    class="ml-2 inline-block px-3 py-1 border border-cyan-700 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px]"
+                                >
+                                    Detail
+                                </Link>
                                 <button
-                                    v-else-if="group.join_request_status === 'pending'"
+                                    v-if="!group.is_member && group.join_request_status === 'pending'"
                                     type="button"
                                     disabled
                                     class="inline-block px-3 py-1 border border-slate-700 text-slate-400 uppercase text-[8px] cursor-not-allowed"
@@ -268,11 +275,11 @@ const leaveGroup = (group) => {
                                     Request_Pending
                                 </button>
                                 <button
-                                    v-else
+                                    v-if="!group.is_member && group.join_request_status !== 'pending'"
                                     type="button"
                                     class="inline-block px-3 py-1 border border-emerald-700 text-emerald-400 hover:bg-emerald-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
                                     :disabled="joinForm.processing || !canManageMembership || !canRequestAccess(group)"
-                                    @click="requestAccess(group)"
+                                    @click="openJoinModal(group)"
                                 >
                                     {{ activeJoinUuid === group.uuid && joinForm.processing ? 'Sending...' : (canRequestAccess(group) ? 'Request_Access' : 'Level_Locked') }}
                                 </button>
@@ -333,8 +340,15 @@ const leaveGroup = (group) => {
                                         >
                                             {{ activeLeaveUuid === group.uuid && leaveForm.processing ? 'Leaving...' : 'Leave_Party' }}
                                         </button>
+                                        <Link
+                                            v-if="group.is_member"
+                                            :href="route('groups.show', group.uuid)"
+                                            class="ml-2 inline-block px-3 py-1 border border-cyan-700 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px]"
+                                        >
+                                            Detail
+                                        </Link>
                                         <button
-                                            v-else-if="group.join_request_status === 'pending'"
+                                            v-if="!group.is_member && group.join_request_status === 'pending'"
                                             type="button"
                                             disabled
                                             class="inline-block px-3 py-1 border border-slate-700 text-slate-400 uppercase text-[8px] cursor-not-allowed"
@@ -342,7 +356,7 @@ const leaveGroup = (group) => {
                                             Request_Pending
                                         </button>
                                         <button
-                                            v-else
+                                            v-if="!group.is_member && group.join_request_status !== 'pending'"
                                             type="button"
                                             class="inline-block px-3 py-1 border border-emerald-700 text-emerald-400 hover:bg-emerald-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
                                             :disabled="joinForm.processing || !canManageMembership || !canRequestAccess(group)"

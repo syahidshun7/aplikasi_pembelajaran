@@ -113,6 +113,7 @@ class DoopLabRoadmapController extends Controller
                     'name' => (string) ($e->user?->name ?? ''),
                     'email' => (string) ($e->user?->email ?? ''),
                     'status' => (string) $e->status,
+                    'review_mode' => (string) ($e->review_mode ?? DoopLabRoadmapEnrollment::REVIEW_MODE_MANUAL),
                 ])
                 ->values()
                 ->all() : [],
@@ -132,6 +133,7 @@ class DoopLabRoadmapController extends Controller
                             'roadmap_uuid' => (string) ($e->roadmap?->uuid ?? ''),
                             'roadmap_title' => (string) ($e->roadmap?->title ?? ''),
                             'status' => (string) $e->status,
+                            'review_mode' => (string) ($e->review_mode ?? DoopLabRoadmapEnrollment::REVIEW_MODE_MANUAL),
                         ])->values()->all(),
                     ];
                 })
