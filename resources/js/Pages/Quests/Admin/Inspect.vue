@@ -712,15 +712,29 @@
                         <div class="lg:col-span-7 space-y-3">
                             <template v-if="isTaskBankSubmission">
                                 <div class="p-4 border-2 border-slate-800 bg-black/40">
-                                    <div class="flex justify-between text-[8px] uppercase">
+                                    <div v-if="isAutoGameSubmission" class="flex justify-between text-[8px] uppercase">
+                                        <span class="text-slate-400 font-sans">AUTO_GAME_SCORE:</span>
+                                        <span class="text-slate-200 font-bold">{{ taskBankAutoCheckedScore }} / 100</span>
+                                    </div>
+                                    <div v-else class="flex justify-between text-[8px] uppercase">
                                         <span class="text-slate-400 font-sans">AUTO_MCQ_AVG:</span>
                                         <span class="text-slate-200 font-bold">{{ taskBankMcqScore }} / 100</span>
                                     </div>
-                                    <div v-if="essayQuestions.length" class="flex justify-between text-[8px] uppercase border-t border-slate-800 pt-2 mt-2">
+                                    <div v-if="!isAutoGameSubmission && essayQuestions.length" class="flex justify-between text-[8px] uppercase border-t border-slate-800 pt-2 mt-2">
                                         <span class="text-slate-400 font-sans">MANUAL_ESSAY_AVG:</span>
                                         <span class="text-slate-200 font-bold">{{ taskBankEssayScore }} / 100</span>
                                     </div>
-                                    <div v-if="essayQuestions.length" class="flex items-center justify-between gap-3 border-t border-slate-800 pt-2 mt-2">
+                                    <div v-if="isAutoGameSubmission" class="grid grid-cols-2 gap-2 border-t border-slate-800 pt-2 mt-2 text-[8px] uppercase">
+                                        <div>
+                                            <span class="text-slate-400 font-sans">CORRECT:</span>
+                                            <span class="text-emerald-400 font-bold ml-1">{{ taskBankAutoCorrectCount }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-slate-400 font-sans">TOTAL:</span>
+                                            <span class="text-slate-200 font-bold ml-1">{{ taskBankAutoTotalCount }}</span>
+                                        </div>
+                                    </div>
+                                    <div v-if="!isAutoGameSubmission && essayQuestions.length" class="flex items-center justify-between gap-3 border-t border-slate-800 pt-2 mt-2">
                                         <p class="text-[7px] text-slate-500 uppercase font-sans">
                                             AUTO_SOURCE:
                                             <span class="text-cyan-300">{{ autoEssayScoreSource || '-' }}</span>
@@ -760,8 +774,56 @@
                                         </div>
                                     </div>
 
+                                    <div v-if="q.question_type === 'platforming'" class="mt-3 space-y-2 font-sans text-[11px]">
+                                        <template v-if="platformingQuestionResult(q)">
+                                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                                <div class="bg-slate-900/50 p-3 border-l-2 border-purple-800">
+                                                    <p class="text-[8px] text-slate-500 uppercase">Student</p>
+                                                    <p :class="platformingQuestionResult(q).correct ? 'text-emerald-400' : 'text-red-400'">
+                                                        {{ platformingQuestionResult(q).answer || 'TIMEOUT / NOT_ANSWERED' }}
+                                                    </p>
+                                                </div>
+                                                <div class="bg-slate-900/50 p-3 border-l-2 border-emerald-800">
+                                                    <p class="text-[8px] text-slate-500 uppercase">Correct</p>
+                                                    <p class="text-emerald-300">{{ platformingQuestionResult(q).correct_answer || '-' }}</p>
+                                                </div>
+                                                <div class="bg-slate-900/50 p-3 border-l-2" :class="platformingQuestionResult(q).correct ? 'border-emerald-800' : 'border-red-800'">
+                                                    <p class="text-[8px] text-slate-500 uppercase">Result</p>
+                                                    <p class="font-bold" :class="platformingQuestionResult(q).correct ? 'text-emerald-400' : 'text-red-400'">
+                                                        {{ platformingQuestionResult(q).correct ? 'CORRECT' : 'WRONG' }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <p v-else class="text-red-400 bg-slate-900/50 p-3 border-l-2 border-red-800">NOT_ANSWERED</p>
+                                    </div>
+
+                                    <div v-else-if="q.question_type === 'word_match'" class="mt-3 space-y-2 font-sans text-[11px]">
+                                        <template v-if="wordMatchQuestionResult(q)">
+                                            <p class="text-orange-300">
+                                                Score: <span class="font-bold">{{ wordMatchQuestionResult(q).correct_count }}</span> / {{ wordMatchQuestionResult(q).total }}
+                                            </p>
+                                            <div v-for="(blank, bi) in wordMatchQuestionResult(q).blanks" :key="`${q.uuid}-verdict-blank-${bi}`"
+                                                class="grid grid-cols-1 md:grid-cols-3 gap-2 bg-slate-900/50 p-3 border-l-2"
+                                                :class="blank.correct ? 'border-emerald-800' : 'border-red-800'">
+                                                <div>
+                                                    <p class="text-[8px] text-slate-500 uppercase">Student</p>
+                                                    <p :class="blank.correct ? 'text-emerald-400' : 'text-red-400'">{{ blank.placed || 'EMPTY' }}</p>
+                                                </div>
+                                                <div>
+                                                    <p class="text-[8px] text-slate-500 uppercase">Expected</p>
+                                                    <p class="text-emerald-300">{{ blank.expected || '-' }}</p>
+                                                </div>
+                                                <p class="font-bold uppercase" :class="blank.correct ? 'text-emerald-400' : 'text-red-400'">
+                                                    {{ blank.correct ? 'CORRECT' : 'WRONG' }}
+                                                </p>
+                                            </div>
+                                        </template>
+                                        <p v-else class="text-red-400 bg-slate-900/50 p-3 border-l-2 border-red-800">NOT_ANSWERED</p>
+                                    </div>
+
                                     <!-- Student answer inline -->
-                                    <div v-if="q.question_type !== 'multiple_choice'" class="mt-3">
+                                    <div v-else-if="q.question_type !== 'multiple_choice'" class="mt-3">
                                         <p class="text-[8px] text-blue-400 uppercase mb-1">Jawaban Siswa:</p>
                                         <p class="text-[11px] font-sans text-slate-300 whitespace-pre-wrap bg-slate-900/50 p-3 border-l-2 border-blue-800 max-h-40 overflow-y-auto custom-scrollbar">{{ selectedAnswerFor(q) || 'Tidak dijawab' }}</p>
                                     </div>
@@ -773,7 +835,7 @@
                                         </p>
                                     </div>
 
-                                    <div v-else class="mt-4">
+                                    <div v-else-if="!['platforming', 'word_match'].includes(q.question_type)" class="mt-4">
                                         <label class="block text-[7px] text-slate-500 uppercase italic mb-2">
                                             ESSAY_SCORE (0-100):
                                         </label>
@@ -1195,6 +1257,15 @@ const taskQuestions = computed(() => {
 const isTaskBankSubmission = computed(() => taskQuestions.value.length > 0);
 const taskBankType = computed(() => taskBank.value?.assessment_type || null);
 const isAutoCheckedType = computed(() => ['multiple_choice', 'platforming', 'word_match'].includes(taskBankType.value));
+const scoresDetail = computed(() => {
+    const value = props.submission?.scores_detail;
+    return value && typeof value === 'object' ? value : {};
+});
+const isTaskBankAutoChecked = computed(() => scoresDetail.value?.source === 'task_bank_auto_check');
+const isAutoGameSubmission = computed(() => isTaskBankAutoChecked.value && ['platforming', 'word_match'].includes(String(taskBankType.value || '')));
+const taskBankAutoCheckedScore = computed(() => Math.max(0, Math.min(100, Math.round(Number(props.submission?.grade ?? 0)))));
+const taskBankAutoCorrectCount = computed(() => Math.max(0, Number(scoresDetail.value?.correct_questions ?? 0)));
+const taskBankAutoTotalCount = computed(() => Math.max(0, Number(scoresDetail.value?.total_questions ?? 0)));
 const extractionResult = computed(() => props.submission?.extraction_result || null);
 const extractionStatus = computed(() => extractionResult.value?.extraction_status || null);
 const extractionWarnings = computed(() => Array.isArray(extractionResult.value?.warnings) ? extractionResult.value.warnings : []);
@@ -1358,7 +1429,8 @@ const isStartingPostEvaluationValidation = ref(false);
 const isStartingResultPresentation = ref(false);
 const autoEssayScoreSource = ref('');
 const mcqQuestions = computed(() => taskQuestions.value.filter((q) => q.question_type === 'multiple_choice'));
-const essayQuestions = computed(() => taskQuestions.value.filter((q) => q.question_type !== 'multiple_choice'));
+const essayQuestions = computed(() => taskQuestions.value.filter((q) => !['multiple_choice', 'platforming', 'word_match'].includes(String(q.question_type || ''))));
+const platformingQuestions = computed(() => taskQuestions.value.filter((q) => String(q.question_type || '') === 'platforming'));
 const pipelineEssayScoreCandidates = computed(() => {
     const normalizeItems = (items, source) => {
         const output = [];
@@ -1644,6 +1716,10 @@ const taskBankEssayScore = computed(() => {
 const taskBankMaxPoints = computed(() => taskQuestions.value.reduce((acc, q) => acc + Math.max(0, Number(q.weight || 0)), 0));
 const taskBankTotalWeightedScore = computed(() => Number(taskBankMcqWeightedScore.value || 0) + Number(taskBankEssayWeightedScore.value || 0));
 const taskBankTotalScore = computed(() => {
+    if (isTaskBankAutoChecked.value) {
+        return taskBankAutoCheckedScore.value;
+    }
+
     const max = Number(taskBankMaxPoints.value || 0);
     if (max <= 0) return 0;
     const percent = Math.round(Number(taskBankTotalWeightedScore.value || 0) / max);
@@ -1741,6 +1817,79 @@ const parsedWordMatchAnswer = (question) => {
     const raw = selectedAnswerFor(question);
     if (!raw) return null;
     try { return JSON.parse(raw); } catch (_) { return null; }
+};
+
+const platformingStageConfig = (question) => {
+    const raw = question?.options_json || {};
+    const stages = Array.isArray(raw?.stages) ? raw.stages : [];
+    return stages[0] && typeof stages[0] === 'object' ? stages[0] : {};
+};
+
+const platformingQuestionResult = (question) => {
+    const payload = parsedGameAnswer(question);
+    if (!payload || !Array.isArray(payload.answers)) return null;
+
+    const uuid = String(question?.uuid || '');
+    const stageIndex = platformingQuestions.value.findIndex((item) => String(item?.uuid || '') === uuid);
+    const answer = payload.answers.find((item) => Number(item?.stage ?? -1) === stageIndex)
+        || payload.answers[stageIndex]
+        || null;
+    const config = platformingStageConfig(question);
+
+    return {
+        prompt: String(config?.prompt || question?.question_text || ''),
+        answer: answer?.answer ?? '',
+        correct: Boolean(answer?.correct),
+        correct_answer: String(config?.correct_answer || ''),
+        stage: stageIndex,
+    };
+};
+
+const platformingAggregateScore = computed(() => {
+    const firstPayload = platformingQuestions.value
+        .map((question) => parsedGameAnswer(question))
+        .find((payload) => payload && typeof payload === 'object');
+
+    return {
+        correct: Math.max(0, Number(firstPayload?.score ?? firstPayload?.correct_count ?? taskBankAutoCorrectCount.value ?? 0)),
+        total: Math.max(0, Number(firstPayload?.total ?? taskBankAutoTotalCount.value ?? 0)),
+    };
+});
+
+const wordMatchQuestionConfig = (question) => {
+    const raw = question?.options_json || {};
+    return raw && typeof raw === 'object' ? raw : {};
+};
+
+const wordMatchQuestionResult = (question) => {
+    const payload = parsedWordMatchAnswer(question);
+    if (!payload || typeof payload !== 'object') return null;
+
+    const config = wordMatchQuestionConfig(question);
+    const expected = Array.isArray(config?.blanks) ? config.blanks.map((item) => String(item ?? '')) : [];
+    const placed = Array.isArray(payload?.placed) ? payload.placed.map((item) => String(item ?? '')) : [];
+    const total = Math.max(1, Number(payload?.total ?? expected.length ?? placed.length ?? 0));
+    const blanks = Array.from({ length: total }, (_, index) => {
+        const expectedWord = String(expected[index] ?? '');
+        const placedWord = String(placed[index] ?? '');
+        return {
+            expected: expectedWord,
+            placed: placedWord,
+            correct: expectedWord !== '' && placedWord === expectedWord,
+        };
+    });
+
+    const correctCount = Number.isFinite(Number(payload?.correct_count))
+        ? Math.max(0, Math.min(total, Number(payload.correct_count)))
+        : blanks.filter((blank) => blank.correct).length;
+
+    return {
+        complete: Boolean(payload?.complete),
+        timeout: Boolean(payload?.timeout),
+        correct_count: correctCount,
+        total,
+        blanks,
+    };
 };
 
 const applyEssayScoresFromAi = (essayScores) => {

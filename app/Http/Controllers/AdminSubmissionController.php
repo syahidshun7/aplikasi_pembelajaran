@@ -213,6 +213,24 @@ class AdminSubmissionController extends Controller
             : [];
 
         $questionPoints = is_array($validated['question_points'] ?? null) ? $validated['question_points'] : [];
+        $isAutoCheckedTaskBank = is_array($scoresDetail)
+            && ($scoresDetail['source'] ?? null) === 'task_bank_auto_check'
+            && $questions->isNotEmpty()
+            && $questions->every(fn ($question) => in_array((string) ($question->question_type ?? ''), ['multiple_choice', 'platforming', 'word_match'], true));
+
+        if ($isAutoCheckedTaskBank) {
+            $newScore = max(0, min(100, (int) ($submission->grade ?? ($scoresDetail['grade'] ?? 0))));
+            $verdictDetail = [
+                'source' => 'task_bank_auto_check',
+                'task_bank' => [
+                    'assessment_type' => (string) ($taskBank->assessment_type ?? 'unknown'),
+                    'percent' => $newScore,
+                    'correct_questions' => (int) ($scoresDetail['correct_questions'] ?? 0),
+                    'total_questions' => (int) ($scoresDetail['total_questions'] ?? 0),
+                    'answers' => $answers,
+                ],
+            ];
+        } else {
 
         $maxPoints = 0;
         $earnedPoints = 0.0;
@@ -313,6 +331,7 @@ class AdminSubmissionController extends Controller
                 ],
             ],
         ];
+        }
     } else {
         // --- MANUAL QUEST GRADING (Rubric optional) ---
         $rubric = $this->resolveRubricForSubmission($submission);
