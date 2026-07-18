@@ -231,7 +231,7 @@ const handleLogout = () => {
                     @click="applyNavbarTheme"
                 >
                     <i :class="['fi', themeActionIcon, 'text-[10px]', 'leading-none']"></i>
-                    <span class="sr-only">{{ themeActionLabel }}</span>
+                    <span>{{ themeActionLabel }}</span>
                 </button>
 
                 <Link
@@ -254,7 +254,8 @@ const handleLogout = () => {
                     type="button"
                     @click="handleLogout"
                 >
-                    [X]
+                    <span>[X]</span>
+                    <span>Logout</span>
                 </button>
             </template>
 
