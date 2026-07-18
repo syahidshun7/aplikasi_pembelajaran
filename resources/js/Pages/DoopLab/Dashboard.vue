@@ -6158,4 +6158,162 @@ onUnmounted(() => {
     clip: rect(0, 0, 0, 0) !important;
     white-space: nowrap !important;
 }
+
+@media (max-width: 640px) {
+    /* Mobile readability pass for the DoopLab workspace and its modals. */
+    .nb-root p,
+    .todo-modal p {
+        font-size: 11px !important;
+    }
+
+    .nb-root small,
+    .todo-modal small {
+        font-size: 9px !important;
+        line-height: 1.55 !important;
+    }
+
+    .nb-root .nb-eyebrow {
+        font-size: 10px !important;
+    }
+
+    .nb-root .nb-subtitle,
+    .nb-root .studio-title,
+    .nb-root .chat-role {
+        font-size: 12px !important;
+    }
+
+    .nb-root .panel-subtitle,
+    .nb-root .todo-note-helper,
+    .nb-root .note-empty {
+        font-size: 13px !important;
+    }
+
+    .nb-root .todo-note-text {
+        font-size: 14px !important;
+    }
+
+    .nb-root .studio-desc,
+    .nb-root .mentor-empty {
+        font-size: 11px !important;
+    }
+
+    .nb-root h1,
+    .todo-modal h1 {
+        font-size: 20px !important;
+        line-height: 1.3 !important;
+    }
+
+    .nb-root h2,
+    .todo-modal h2 {
+        font-size: 16px !important;
+        line-height: 1.35 !important;
+    }
+
+    .nb-root h3,
+    .todo-modal h3 {
+        font-size: 13px !important;
+        line-height: 1.4 !important;
+    }
+
+    .nb-root .todo-list-workspace .source-search input {
+        font-size: 12px !important;
+    }
+
+    .nb-root .todo-list-workspace .todo-filter {
+        font-size: 10px !important;
+    }
+
+    .nb-root .todo-list-workspace .todo-badge,
+    .nb-root .todo-list-workspace .todo-state {
+        font-size: 9px !important;
+    }
+
+    .nb-root .todo-list-workspace .todo-nav-header {
+        font-size: 10px !important;
+    }
+
+    .nb-root .todo-list-workspace .todo-nav-title {
+        font-size: 13px !important;
+        line-height: 1.45 !important;
+    }
+
+    .nb-root .todo-list-workspace .todo-nav-meta,
+    .nb-root .todo-list-workspace .todo-nav-deadline {
+        font-size: 12px !important;
+        line-height: 1.45 !important;
+    }
+
+    .nb-root button,
+    .todo-modal button,
+    .nb-root .todo-upload-btn {
+        min-height: 42px !important;
+    }
+
+    .nb-root .chat-composer--todo .todo-note-upload-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+    }
+
+    .nb-root .chat-composer--todo .todo-note-upload-actions {
+        display: flex !important;
+        width: 100% !important;
+        gap: 8px !important;
+    }
+
+    .nb-root .chat-composer--todo .todo-upload-btn,
+    .nb-root .chat-composer--todo .todo-upload-remove {
+        min-height: 44px !important;
+        padding: 10px 12px !important;
+    }
+
+    .nb-root .chat-composer--todo .todo-note-submit {
+        width: 100% !important;
+        min-height: 46px !important;
+        justify-content: center !important;
+    }
+
+    .nb-root .chat-composer--todo .todo-inline-actions {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 10px !important;
+        width: 100% !important;
+        padding-top: 10px !important;
+        border-top: 1px solid rgba(111, 146, 146, 0.7) !important;
+    }
+
+    .nb-root .chat-composer--todo .todo-inline-actions-left,
+    .nb-root .chat-composer--todo .todo-inline-actions-right {
+        display: flex !important;
+        width: auto !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+
+    .nb-root .chat-composer--todo .todo-inline-actions-right {
+        margin-left: auto !important;
+        justify-content: flex-end !important;
+    }
+
+    .nb-root .chat-composer--todo .todo-icon-btn,
+    .nb-root .todo-panel-head .todo-add-btn,
+    .nb-root .logbook-toolbar .logbook-detail-action {
+        width: 42px !important;
+        min-width: 42px !important;
+        height: 42px !important;
+        min-height: 42px !important;
+    }
+
+    .nb-root .chat-composer--todo .todo-icon-btn i,
+    .nb-root .todo-panel-head .todo-add-btn i,
+    .nb-root .logbook-toolbar .logbook-detail-action i {
+        font-size: 15px !important;
+        line-height: 1 !important;
+    }
+}
 </style>

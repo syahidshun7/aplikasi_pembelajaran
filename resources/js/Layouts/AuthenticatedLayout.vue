@@ -24,10 +24,12 @@ const isProfilePage = computed(() => {
 const isInventoryPage = computed(() => route().current() === 'inventory.index');
 const isShopPage = computed(() => route().current() === 'shop.index');
 const isHallPage = computed(() => String(route().current() || '').startsWith('hall.creations.'));
+const isSubmissionPage = computed(() => String(page.url || '').split('?')[0].startsWith('/submissions/'));
 const isLobbyDetailPage = computed(() => {
     const path = String(page.url || '').split('?')[0];
     return path === '/quests-user'
         || path.startsWith('/quests/')
+        || path.startsWith('/submissions/')
         || isProfilePage.value
         || isInventoryPage.value
         || isShopPage.value
@@ -53,7 +55,13 @@ const userBackgroundGlowClass = computed(() => (
         : 'bg-[radial-gradient(circle_at_18%_20%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_82%_14%,rgba(45,212,191,0.14),transparent_30%),linear-gradient(180deg,rgba(2,6,23,0.16),rgba(2,6,23,0.4))]'
 ));
 const usesInlineWorkspaceBackground = computed(() => (
-    themeMode.value === 'light' && (isProfilePage.value || isInventoryPage.value || isShopPage.value || isHallPage.value)
+    themeMode.value === 'light' && (
+        isProfilePage.value
+        || isInventoryPage.value
+        || isShopPage.value
+        || isHallPage.value
+        || isSubmissionPage.value
+    )
 ));
 const inlineWorkspaceBackgroundStyle = {
     backgroundImage: "linear-gradient(rgba(247,247,247,0.18), rgba(247,247,247,0.18)), url('/images/bg-loby5.png')",

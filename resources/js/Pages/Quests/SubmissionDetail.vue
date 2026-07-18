@@ -43,42 +43,42 @@ const actionButtonClass = computed(() => {
     <AuthenticatedLayout>
         <Head :title="'QUEST_REPORT - ' + submission.quest.title" />
 
-        <div class="max-w-4xl mx-auto font-['Press_Start_2P'] text-[10px] leading-relaxed p-4">
+        <div class="submission-detail-page lobby-detail-page max-w-5xl mx-auto font-['Press_Start_2P'] text-[10px] leading-relaxed p-2 sm:p-4">
 
             <div class="grid grid-cols-12 gap-6">
                 <div class="col-span-12 lg:col-span-4 space-y-6">
-                    <div class="rpg-panel border-cyan-500/30">
-                        <h2 class="text-white text-[8px] mb-4 border-b border-slate-700 pb-2">QUEST_INFO</h2>
+                    <div class="rpg-panel submission-info-panel border-cyan-500/30">
+                        <h2 class="text-white text-[10px] mb-4 border-b border-slate-700 pb-2">QUEST_INFO</h2>
                         <div class="space-y-4">
                             <div>
-                                <p class="text-slate-500 text-[6px] mb-1">IDENTIFIER:</p>
+                                <p class="text-slate-500 text-[7px] mb-1">IDENTIFIER:</p>
                                 <p class="text-cyan-400 break-words">{{ submission.quest.title }}</p>
                             </div>
                             <div>
-                                <p class="text-slate-500 text-[6px] mb-1">DIFFICULTY:</p>
+                                <p class="text-slate-500 text-[7px] mb-1">DIFFICULTY:</p>
                                 <p class="text-yellow-500">{{ submission.quest.difficulty }}</p>
                             </div>
                             <div>
-                                <p class="text-slate-500 text-[6px] mb-1">FINAL_GRADE:</p>
-                                <p class="text-purple-400">{{ submission.grade ? submission.grade + '%' : 'NOT_GRADED' }}</p>
+                                <p class="text-slate-500 text-[7px] mb-1">FINAL_GRADE:</p>
+                                <p class="submission-grade text-purple-400">{{ submission.grade ? submission.grade + '%' : 'NOT_GRADED' }}</p>
                             </div>
                             <div>
-                                <p class="text-slate-500 text-[6px] mb-1">EXP_GAINED:</p>
+                                <p class="text-slate-500 text-[7px] mb-1">EXP_GAINED:</p>
                                 <p class="text-cyan-300">+{{ submission.earned_exp ?? 0 }} EXP</p>
                             </div>
                             <div>
-                                <p class="text-slate-500 text-[6px] mb-1">GOLD_GAINED:</p>
+                                <p class="text-slate-500 text-[7px] mb-1">GOLD_GAINED:</p>
                                 <p class="text-yellow-400">+{{ submission.earned_gold ?? 0 }} G</p>
                             </div>
                         </div>
                     </div>
 
-                    <div class="rpg-panel" :class="{
+                    <div class="rpg-panel submission-status-panel" :class="{
                         'border-yellow-500 bg-yellow-900/10': submission.status === 'Pending',
                         'border-green-500 bg-green-900/10': submission.status === 'Approved',
                         'border-red-500 bg-red-900/10': submission.status === 'Rejected',
                     }">
-                        <h2 class="text-white text-[8px] mb-4 border-b border-slate-700 pb-2">QUEST_STATUS</h2>
+                        <h2 class="text-white text-[10px] mb-4 border-b border-slate-700 pb-2">QUEST_STATUS</h2>
                         <p class="text-center py-2 text-sm font-bold uppercase tracking-widest"
                            :class="{
                                 'text-yellow-500 animate-pulse': submission.status === 'Pending',
@@ -93,13 +93,13 @@ const actionButtonClass = computed(() => {
                 </div>
 
                 <div class="col-span-12 lg:col-span-8 space-y-6">
-                    <div class="rpg-panel bg-black/40">
+                    <div class="rpg-panel submission-content-panel bg-black/40">
                         <div class="flex justify-between items-center mb-6 border-b border-slate-800 pb-2">
                             <h3 class="text-cyan-400 uppercase tracking-widest">>> PLAYER_SUBMISSION</h3>
-                            <span class="text-slate-600 text-[6px]">{{ submission.submitted_at }}</span>
+                            <span class="text-slate-600 text-[7px]">{{ submission.submitted_at }}</span>
                         </div>
                         
-                        <div class="p-4 bg-slate-900/50 border border-slate-800 font-mono text-slate-300 min-h-[100px] break-words">
+                        <div class="submission-content-box p-4 bg-slate-900/50 border border-slate-800 font-mono text-slate-300 min-h-[100px] break-words">
                             <template v-if="submission.content && submission.content.startsWith('http')">
                                 <p class="mb-2 text-slate-500 uppercase text-[6px]">External_Link_Detected:</p>
                                 <a :href="submission.content" target="_blank" class="text-cyan-400 underline hover:text-white break-all">
@@ -135,11 +135,11 @@ const actionButtonClass = computed(() => {
                         </div>
                     </div>
 
-                    <div v-if="submission.feedback" class="rpg-panel border-indigo-500/50 bg-indigo-900/10">
-                        <h3 class="text-indigo-400 mb-4 uppercase tracking-widest flex items-center gap-2">
+                    <div v-if="submission.feedback" class="rpg-panel submission-feedback-panel border-indigo-500/50 bg-indigo-900/10">
+                        <h3 class="submission-feedback-title text-[10px] text-indigo-400 mb-4 uppercase tracking-widest flex items-center gap-2">
                             <span class="animate-pulse">●</span> COMMAND_CENTER_FEEDBACK
                         </h3>
-                        <div class="p-4 border-l-4 border-indigo-500 bg-black/20 italic text-indigo-200 font-sans">
+                        <div class="submission-feedback-box p-4 border-l-4 border-indigo-500 bg-black/20 text-[10px] italic text-indigo-200 font-sans">
                             "{{ submission.feedback }}"
                         </div>
                     </div>
@@ -181,5 +181,59 @@ const actionButtonClass = computed(() => {
 .btn-pixel-yellow:active {
     box-shadow: none;
     transform: translate(2px, 2px);
+}
+
+:global([data-app-surface='user'][data-theme='light']) .submission-detail-page .rpg-panel {
+    border-color: #087f7f !important;
+    background: #f7f7f7 !important;
+    color: #202020 !important;
+    box-shadow: 6px 6px 0 rgba(32, 32, 32, 0.16) !important;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .submission-detail-page .rpg-panel h2,
+:global([data-app-surface='user'][data-theme='light']) .submission-detail-page .submission-content-panel h3 {
+    border-color: #aac2c2 !important;
+    color: #007f7f !important;
+    text-shadow: none !important;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .submission-detail-page .submission-content-box {
+    border-color: #b8cccc !important;
+    background: #fff !important;
+    color: #202020 !important;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .submission-detail-page .submission-grade {
+    color: #6b21a8 !important;
+    font-weight: 700;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .submission-detail-page .submission-feedback-panel h3 {
+    color: #5b21b6 !important;
+    text-shadow: none !important;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .submission-detail-page .submission-feedback-box {
+    border-left-color: #009999 !important;
+    background: #e8f5f5 !important;
+    color: #202020 !important;
+    font-weight: 600;
+    line-height: 1.7;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .submission-detail-page .submission-status-panel {
+    background: #fff !important;
+}
+
+@media (max-width: 640px) {
+    .rpg-panel {
+        padding: 18px;
+        border-width: 2px;
+        box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.28);
+    }
 }
 </style>

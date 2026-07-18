@@ -2478,6 +2478,17 @@
     text-align: center;
 }
 
+[data-app-surface='user'] .inventory-light-page .inventory-equip-button:disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+[data-app-surface='user'] .inventory-light-page .inventory-equip-button--active {
+    border-color: #ef4444 !important;
+    background: rgba(127, 29, 29, 0.18) !important;
+    color: #fca5a5 !important;
+}
+
 [data-app-surface='user'][data-theme='light'] .inventory-light-page .inventory-equip-button {
     border-color: #087f7f !important;
     background: #009999 !important;
@@ -2487,6 +2498,17 @@
 [data-app-surface='user'][data-theme='light'] .inventory-light-page .inventory-equip-button:hover {
     background: #087f7f !important;
     color: #ffffff !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .inventory-light-page .inventory-equip-button--active {
+    border-color: #dc2626 !important;
+    background: #ffffff !important;
+    color: #b91c1c !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .inventory-light-page .inventory-equip-button--active:hover {
+    background: #fef2f2 !important;
+    color: #991b1b !important;
 }
 
 [data-app-surface='user'][data-theme='light'] .inventory-light-page .inventory-empty-state {
