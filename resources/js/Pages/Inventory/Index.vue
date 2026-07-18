@@ -1,7 +1,8 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { toast } from '@/Utils/Alert';
 
 const props = defineProps({
     inventories: {
@@ -31,6 +32,37 @@ const formatDate = (iso) => {
 const inventoryItems = computed(() => props.inventories?.data || []);
 const activityLogs = computed(() => props.logs?.data || []);
 const isProfileSkin = (inventory) => String(inventory?.item?.item_kind || '') === 'profile_skin';
+const processingSkinId = ref(null);
+
+const toggleProfileSkin = (inventory) => {
+    const skin = inventory?.item?.profile_skin;
+    const skinId = Number(skin?.id || 0);
+    if (!skinId || processingSkinId.value) return;
+
+    processingSkinId.value = skinId;
+    const options = {
+        preserveScroll: true,
+        onSuccess: () => {
+            toast.success(
+                skin.is_equipped ? 'SKIN_REMOVED' : 'SKIN_EQUIPPED',
+                skin.is_equipped ? 'Profil publik kembali ke skin default.' : `${skin.name} dipasang ke profil publikmu.`,
+            );
+        },
+        onError: (errors) => {
+            toast.error('SKIN_FAILED', Object.values(errors || {})[0] || 'Skin gagal diperbarui.');
+        },
+        onFinish: () => {
+            processingSkinId.value = null;
+        },
+    };
+
+    if (skin.is_equipped) {
+        router.delete(route('profile.skins.deactivate'), options);
+        return;
+    }
+
+    router.post(route('profile.skins.activate', skinId), {}, options);
+};
 
 const goToPage = (url) => {
     if (!url) return;
@@ -129,13 +161,16 @@ const logTypeLabel = (type) => {
                                 <p class="text-[8px] uppercase" :class="inventory.item?.is_usable ? 'text-emerald-300' : 'text-slate-500'">
                                     {{ isProfileSkin(inventory) ? 'Profile_Cosmetic' : (inventory.item?.is_usable ? 'Usable_Item' : 'Storage_Item') }}
                                 </p>
-                                <Link
+                                <button
                                     v-if="isProfileSkin(inventory)"
-                                    :href="route('profile.dashboard')"
+                                    type="button"
                                     class="inventory-equip-button inline-flex max-w-full items-center justify-center border border-purple-700 bg-purple-500/10 px-2 py-2 text-[7px] uppercase text-purple-300 hover:bg-purple-400 hover:text-black"
+                                    :class="inventory.item.profile_skin?.is_equipped ? 'inventory-equip-button--active' : ''"
+                                    :disabled="Boolean(processingSkinId)"
+                                    @click="toggleProfileSkin(inventory)"
                                 >
-                                    Equip_Profile_Skin
-                                </Link>
+                                    {{ processingSkinId === Number(inventory.item.profile_skin?.id) ? 'Processing...' : (inventory.item.profile_skin?.is_equipped ? 'Unequip_Profile_Skin' : 'Equip_Profile_Skin') }}
+                                </button>
                             </div>
                         </article>
                     </div>

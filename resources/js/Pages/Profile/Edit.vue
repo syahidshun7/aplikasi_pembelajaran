@@ -83,8 +83,7 @@ const classAverageRows = computed(() => {
     });
 });
 const ownedProfileSkins = computed(() => Array.isArray(props.ownedSkins) ? props.ownedSkins : []);
-const activeProfileSkin = computed(() => userData.value?.active_skin || null);
-const activeProfileSkinId = computed(() => Number(activeProfileSkin.value?.id || 0));
+const activeProfileSkinId = computed(() => Number(userData.value?.active_skin?.id || 0));
 
 const allowedTabs = ['profile', 'password', 'danger'];
 
@@ -300,27 +299,8 @@ const applyTheme = async (nextTheme) => {
 const applyDarkTheme = () => applyTheme('dark');
 const applyLightTheme = () => applyTheme('light');
 
-const activateSkin = (skin) => {
-    const skinId = Number(skin?.id || 0);
-    if (!skinId || skinForm.processing || Number(skin?.is_active || 0) === 1) {
-        return;
-    }
-
-    skinForm.post(route('profile.skins.activate', skinId), {
-        preserveScroll: true,
-        onSuccess: () => {
-            toast.success('SKIN_EQUIPPED', `${skin.name} dipasang ke profil publikmu.`);
-        },
-        onError: (errors) => {
-            toast.error('SKIN_FAILED', Object.values(errors || {})[0] || 'Skin gagal dipasang.');
-        },
-    });
-};
-
 const deactivateSkin = () => {
-    if (skinForm.processing || !activeProfileSkinId.value) {
-        return;
-    }
+    if (skinForm.processing || !activeProfileSkinId.value) return;
 
     skinForm.delete(route('profile.skins.deactivate'), {
         preserveScroll: true,
@@ -490,12 +470,15 @@ onBeforeUnmount(() => {
                             <h2 class="mt-1.5 text-[9px] uppercase text-white">Public_Profile_Cosmetics</h2>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <Link
-                                :href="route('shop.index')"
-                                class="border border-yellow-600 bg-yellow-400 px-3 py-2 text-[8px] font-bold uppercase text-black hover:bg-yellow-300"
+                            <button
+                                v-if="activeProfileSkinId"
+                                type="button"
+                                class="border border-red-500 bg-transparent px-3 py-2 text-[8px] font-bold uppercase text-red-400 transition-colors hover:bg-red-500 hover:text-white disabled:opacity-50"
+                                :disabled="skinForm.processing"
+                                @click="deactivateSkin"
                             >
-                                Buy_Skins
-                            </Link>
+                                {{ skinForm.processing ? 'Removing...' : 'Unequip' }}
+                            </button>
                             <Link
                                 v-if="userData.username"
                                 :href="route('profiles.show', userData.username)"
@@ -503,15 +486,6 @@ onBeforeUnmount(() => {
                             >
                                 View_Public
                             </Link>
-                            <button
-                                v-if="activeProfileSkinId"
-                                type="button"
-                                class="border border-slate-600 px-3 py-2 text-[8px] uppercase text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50"
-                                :disabled="skinForm.processing"
-                                @click="deactivateSkin"
-                            >
-                                Unequip
-                            </button>
                         </div>
                     </div>
 
@@ -541,7 +515,7 @@ onBeforeUnmount(() => {
                                             color: themeMode === 'light' ? '#ffffff' : (skin.text_primary || '#c4b5fd'),
                                         }"
                                     >
-                                        Unlocked_Skin
+                                        Equipped_Skin
                                     </p>
                                     <h3
                                         class="profile-skin-name mt-2 break-words text-[10px] font-bold uppercase text-white"
@@ -558,7 +532,7 @@ onBeforeUnmount(() => {
                                 </div>
                             </div>
 
-                            <div class="space-y-2 p-2.5">
+                            <div class="p-2.5">
                                 <div class="flex flex-wrap gap-2">
                                     <span
                                         class="inline-flex h-4 w-4 border border-slate-700"
@@ -577,34 +551,18 @@ onBeforeUnmount(() => {
                                     />
                                 </div>
 
-                                <button
-                                    type="button"
-                                    class="profile-skin-equip-button min-h-10 w-full border-2 px-2.5 py-2 text-[8px] font-bold uppercase leading-relaxed transition-colors disabled:opacity-50"
-                                    :class="[
-                                        Number(skin.is_active || 0) === 1
-                                            ? 'border-purple-300 bg-purple-400 text-black'
-                                            : 'border-purple-700 text-purple-300 hover:bg-purple-400 hover:text-black',
-                                        themeMode === 'light'
-                                            ? '!border-[#202020] !bg-[#087f7f] !text-white hover:!border-[#202020] hover:!bg-[#006f6f] hover:!text-white'
-                                            : '',
-                                    ]"
-                                    :style="themeMode === 'light'
-                                        ? { borderColor: '#202020', backgroundColor: '#087f7f', color: '#ffffff' }
-                                        : undefined"
-                                    :disabled="skinForm.processing || Number(skin.is_active || 0) === 1"
-                                    @click="activateSkin(skin)"
-                                >
-                                    {{ Number(skin.is_active || 0) === 1 ? 'Equipped' : 'Equip_To_Public_Profile' }}
-                                </button>
                             </div>
                         </article>
                     </div>
 
                     <div v-else class="border-2 border-dashed border-slate-700 bg-black/30 p-5 text-center">
-                        <p class="text-[9px] uppercase text-slate-400">No_Profile_Skin_Unlocked</p>
+                        <p class="text-[9px] uppercase text-slate-400">No_Profile_Skin_Equipped</p>
                         <p class="mt-2 text-[7px] uppercase leading-relaxed text-slate-500">
-                            Beli skin di shop untuk membuka kosmetik profil publik seperti di game.
+                            Pilih dan pasang skin profil melalui Inventory.
                         </p>
+                        <Link :href="route('inventory.index')" class="mt-4 inline-flex border border-cyan-700 bg-cyan-400 px-3 py-2 text-[8px] font-bold uppercase text-black hover:bg-cyan-300">
+                            Open_Inventory
+                        </Link>
                     </div>
                 </div>
                 <div class="grid grid-cols-12 gap-6">
@@ -622,8 +580,8 @@ onBeforeUnmount(() => {
                                             class="flex flex-col gap-3 border-2 border-slate-700 bg-black/40 p-3 transition-colors hover:border-cyan-500/50 sm:flex-row sm:items-center sm:justify-between"
                                         >
                                             <div>
-                                                <p class="break-words text-[8px] text-white">{{ q.title }}</p>
-                                                <p class="text-[6px] text-slate-500 mt-1 uppercase">
+                                                <p class="break-words text-[10px] leading-relaxed text-white">{{ q.title }}</p>
+                                                <p class="mt-1.5 text-[7px] leading-relaxed text-slate-500 uppercase">
                                                     Status:
                                                     <span
                                                         :class="{
@@ -640,7 +598,7 @@ onBeforeUnmount(() => {
                                             </div>
                                             <Link
                                                 :href="route('submissions.show', { submission: q.uuid })"
-                                                class="self-start text-[8px] text-yellow-500 transition-colors hover:text-white hover:underline sm:self-auto"
+                                                class="self-start text-[8px] leading-relaxed text-yellow-500 transition-colors hover:text-white hover:underline sm:self-auto"
                                             >
                                                 VIEW >
                                             </Link>

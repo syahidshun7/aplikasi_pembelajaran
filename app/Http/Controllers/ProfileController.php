@@ -583,6 +583,10 @@ class ProfileController extends Controller
 
     private function resolveOwnedSkins(User $user): array
     {
+        if (! $user->active_profile_skin_id) {
+            return [];
+        }
+
         $ownedShopItemIds = $user->inventories()
             ->where('quantity', '>=', 1)
             ->pluck('shop_item_id')
@@ -590,6 +594,7 @@ class ProfileController extends Controller
 
         return ProfileSkin::query()
             ->whereIn('shop_item_id', $ownedShopItemIds)
+            ->whereKey((int) $user->active_profile_skin_id)
             ->where('is_active', true)
             ->get()
             ->map(fn ($skin) => array_merge($skin->toThemeArray(), [

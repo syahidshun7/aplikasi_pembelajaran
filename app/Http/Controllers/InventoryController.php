@@ -12,6 +12,7 @@ class InventoryController extends Controller
     public function index(): Response
     {
         $user = auth()->user();
+        $activeProfileSkinId = (int) ($user->active_profile_skin_id ?? 0);
 
         $inventoryQuery = UserInventory::query()
             ->with('item.profileSkin:id,shop_item_id,slug,name,template_key,preview_image_path,background_image_path')
@@ -27,7 +28,7 @@ class InventoryController extends Controller
             ->orderByDesc('updated_at')
             ->paginate(12, ['*'], 'items_page')
             ->withQueryString()
-            ->through(function (UserInventory $inventory) {
+            ->through(function (UserInventory $inventory) use ($activeProfileSkinId) {
                 $item = $inventory->item;
                 $code = (string) ($item?->code ?? '');
                 $profileSkin = $item?->profileSkin;
@@ -52,10 +53,11 @@ class InventoryController extends Controller
                             'template_key' => (string) ($profileSkin->template_key ?? 'default'),
                             'preview_image_path' => (string) ($profileSkin->preview_image_path ?? ''),
                             'background_image_path' => (string) ($profileSkin->background_image_path ?? ''),
+                            'is_equipped' => $activeProfileSkinId === (int) $profileSkin->id,
                         ] : null,
                         'is_usable' => $code === 'TIME_KEY',
                         'use_hint' => $profileSkin
-                            ? 'Cosmetic skin untuk profil publik. Equip dari Hero Status/Profile.'
+                            ? 'Cosmetic skin untuk profil publik. Equip langsung dari Inventory.'
                             : ($code === 'TIME_KEY'
                             ? 'Gunakan dari halaman quest yang sudah melewati deadline.'
                             : 'Item ini belum punya aksi langsung.'),
