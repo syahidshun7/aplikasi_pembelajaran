@@ -39,7 +39,7 @@ const pageMode = ref(String(props.mode || 'create'));
 const activeCreationId = ref(props.creationId ? Number(props.creationId) : null);
 const activeCreationSlug = ref(String(props.creationSlug || ''));
 const sidebarCollapsed = ref(false);
-const loading = ref(Boolean(activeCreationId.value));
+const loading = ref(true);
 const saving = ref(false);
 const autosaving = ref(false);
 const syncingPublished = ref(false);
@@ -385,6 +385,8 @@ const migrateLocalStateKey = (nextId) => {
 
     const previousKey = formStorageKey.value;
     const nextKey = `creation.form.state.${nextId}`;
+    const previousEditorKey = `creation.editor.state.${persistKey.value}`;
+    const nextEditorKey = `creation.editor.state.creation-editor-${nextId}`;
 
     if (previousKey === nextKey) {
         return;
@@ -394,6 +396,12 @@ const migrateLocalStateKey = (nextId) => {
     if (existing) {
         window.localStorage.setItem(nextKey, existing);
         window.localStorage.removeItem(previousKey);
+    }
+
+    const existingEditorState = window.localStorage.getItem(previousEditorKey);
+    if (existingEditorState && previousEditorKey !== nextEditorKey) {
+        window.localStorage.setItem(nextEditorKey, existingEditorState);
+        window.localStorage.removeItem(previousEditorKey);
     }
 };
 
@@ -553,11 +561,8 @@ const fetchCreation = async () => {
     if (!activeCreationId.value) {
         canManageCollaboration.value = true;
         editorRestoreAfter.value = 0;
-        const localState = loadLocalFormState();
-        if (localState) {
-            applyStateToForm(localState);
-        }
-        applyEditorPreferences(localState);
+        clearEditorLocalDraftState();
+        applyEditorPreferences(null);
         lastSavedFingerprint = JSON.stringify(buildPersistPayload(form.publication_status || 'draft'));
         loading.value = false;
         return;

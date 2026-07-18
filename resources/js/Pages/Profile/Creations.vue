@@ -127,13 +127,13 @@ onMounted(() => {
                     </div>
 
                     <div class="flex items-center gap-2">
-                        <Link :href="route('profile.creations.create')" class="icon-link" title="New creation">
+                        <Link :href="route('profile.creations.create')" class="icon-link icon-link--primary" title="New creation">
                             <i class="fi fi-rr-plus text-[12px]" />
                         </Link>
-                        <Link :href="route('hall.creations.index')" class="icon-link" title="Hall of Creations">
+                        <Link :href="route('hall.creations.index')" class="icon-link icon-link--primary" title="Hall of Creations">
                             <i class="fi fi-rr-lightbulb-on text-[12px]" />
                         </Link>
-                        <Link :href="route('profile.dashboard')" class="icon-link" title="Profile dashboard">
+                        <Link :href="route('profile.dashboard')" class="icon-link icon-link--secondary" title="Profile dashboard">
                             <i class="fi fi-rr-user text-[12px]" />
                         </Link>
                     </div>
@@ -176,10 +176,6 @@ onMounted(() => {
                         <p class="mt-2 text-[8px] uppercase text-slate-400">Total {{ meta.total }}</p>
                     </div>
 
-                    <Link :href="route('profile.creations.create')" class="editor-cta">
-                        <i class="fi fi-rr-pen-fancy text-[12px]" />
-                        <span>Open Editor</span>
-                    </Link>
                 </div>
 
                 <div v-if="loading" class="py-14 text-center text-[8px] uppercase text-slate-500">
@@ -289,7 +285,6 @@ onMounted(() => {
 .scope-chip { @apply inline-flex items-center justify-center border px-3 py-2 text-[7px] uppercase transition-colors; }
 .icon-action { @apply inline-flex h-8 w-8 items-center justify-center border border-slate-700 bg-black/25 transition-colors; }
 .pager-btn { @apply inline-flex h-8 w-8 items-center justify-center border border-slate-700 bg-slate-900/90 text-cyan-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40 hover:border-cyan-500 hover:text-cyan-200; }
-.editor-cta { @apply inline-flex items-center gap-2 border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-[8px] uppercase text-cyan-200 transition-colors hover:border-cyan-400 hover:bg-cyan-500/20; }
 .empty-state { @apply flex flex-col items-center justify-center border border-dashed border-slate-700 bg-black/20 px-6 py-16 text-center text-slate-500; }
 .creation-card { @apply overflow-hidden border border-slate-700 bg-slate-900/90 shadow-[6px_6px_0_rgba(0,0,0,0.25)]; }
 .creation-card__preview { @apply relative aspect-[16/10] overflow-hidden border-b border-slate-700 bg-gradient-to-br from-[#10202a] via-[#111827] to-[#0b1120]; }

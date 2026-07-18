@@ -91,7 +91,7 @@ const previewClass = computed(() => {
                     <h3 class="hall-creation-title line-clamp-2 text-[8px] uppercase leading-relaxed tracking-wide text-white sm:text-[9px]">
                         {{ creation.title }}
                     </h3>
-                    <span class="w-fit rounded border px-2 py-[2px] text-[7px] uppercase" :class="statusClass">
+                    <span class="hall-creation-status w-fit rounded border px-2 py-[2px] text-[7px] uppercase" :class="statusClass">
                         {{ creation.status }}
                     </span>
                 </div>
@@ -105,7 +105,7 @@ const previewClass = computed(() => {
                         <i class="fi fi-rr-apps text-[8px]"></i>
                         {{ creation.category }}
                     </span>
-                    <span v-if="Number(creation.team_size || 1) > 1" class="inline-flex items-center gap-1 border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 text-emerald-200/80">
+                    <span v-if="Number(creation.team_size || 1) > 1" class="hall-creation-team inline-flex items-center gap-1 border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 text-emerald-200/80">
                         <i class="fi fi-rr-users text-[8px]"></i>
                         Team Project
                     </span>
