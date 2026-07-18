@@ -392,7 +392,7 @@ onMounted(() => {
     <AuthenticatedLayout>
         <Head title="Hall of Creations" />
 
-        <div class="hall-shell user-page-shell space-y-5 px-1 font-['Press_Start_2P'] text-[#4ed4d4] sm:space-y-6 sm:px-0">
+        <div class="lobby-detail-page hall-light-page hall-shell user-page-shell space-y-5 px-1 font-['Press_Start_2P'] text-[#4ed4d4] sm:space-y-6 sm:px-0">
             <section class="hall-hero">
                 <div class="hall-hero__overlay" />
                 <div class="hall-hero__grid">
@@ -462,7 +462,7 @@ onMounted(() => {
                 </div>
             </section>
 
-            <section class="rpg-panel relative border-cyan-500/40 bg-[#161b22]/85">
+            <section class="hall-content-panel rpg-panel relative border-cyan-500/40 bg-[#161b22]/85">
                 <div v-if="showLoadingState" class="loading-state">
                     <div class="loading-chip">
                         <span class="loading-chip__dot" />

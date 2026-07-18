@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { useUserTheme } from '@/Composables/useUserTheme';
 import LogbookPanel from '@/Components/Dashboard/LogbookPanel.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -25,6 +26,7 @@ const props = defineProps({
 
 const page = usePage();
 const DOOPLAB_DASHBOARD_STATE_KEY = 'dooplab.dashboard.ui-state';
+const { themeMode } = useUserTheme();
 const safeReadDashboardState = () => {
     if (typeof window === 'undefined') return {};
 
@@ -921,10 +923,10 @@ onUnmounted(() => {
             <link head-key="canonical" rel="canonical" :href="route('landing')" />
         </Head>
 
-        <div class="nb-root">
+        <div class="nb-root" :class="{ 'nb-root--light': themeMode === 'light' }">
             <Teleport to="body">
-                <div class="nb-aurora">
-                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" class="hidden md:block" />
+                <div class="nb-aurora" :class="{ 'nb-aurora--light': themeMode === 'light' }">
+                    <img src="/images/Gerbang_lab_pixel_art_website (3).jpeg" alt="" />
                 </div>
             </Teleport>
             <div class="nb-shell">
@@ -941,7 +943,7 @@ onUnmounted(() => {
                     </div>
 
                     <div class="nb-actions">
-                        <Link :href="route('creations.index')" class="nb-btn nb-btn--solid">Buat Creation</Link>
+                        <Link :href="route('profile.creations.create')" class="nb-btn nb-btn--solid">Buat Creation</Link>
                     </div>
                 </header>
 
@@ -1049,7 +1051,7 @@ onUnmounted(() => {
                                 Buat Logbook
                             </button>
                             <div v-if="panelMode === 'logbook' && logbookPanelRef?.selectedLogbook" class="logbook-toolbar">
-                                <button type="button" class="chat-back-btn" @click="logbookPanelRef.clearSelectedLogbook()">
+                                <button type="button" class="chat-back-btn" @click="logbookPanelRef.backToLogbookList()">
                                     <i class="fi fi-rr-arrow-small-left"></i>
                                     Kembali
                                 </button>
@@ -1413,7 +1415,7 @@ onUnmounted(() => {
                                 </div>
 
                                 <nav class="todo-nav-list" aria-label="Daftar to-do">
-                                    <div class="todo-nav-header">
+                                    <div class="todo-nav-header dooplab-light-section-label">
                                         <span>To-Do Aktif</span>
                                         <span>{{ filteredTodoItems.length }}</span>
                                     </div>
@@ -1653,7 +1655,7 @@ onUnmounted(() => {
                         </div>
 
                         <div class="mentor-zone">
-                            <div class="mentor-zone-head">
+                            <div class="mentor-zone-head dooplab-light-section-label">
                                 <h3>Mentor Hub</h3>
                                 <span>{{ mentors.length }}</span>
                             </div>
@@ -1676,7 +1678,7 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <Teleport to="body"><div v-if="showTodoModal" class="todo-modal" role="dialog" aria-modal="true">
+        <Teleport to="body"><div v-if="showTodoModal" class="todo-modal" :class="{ 'todo-modal--light': themeMode === 'light' }" role="dialog" aria-modal="true">
                 <div class="todo-modal-card">
                     <div class="todo-modal-head">
                         <h3>{{ todoModalMode === 'edit' ? 'Edit To-Do' : 'Buat To-Do Baru' }}</h3>
@@ -3645,6 +3647,312 @@ onUnmounted(() => {
 }
 </style>
 
+<style scoped>
+/* Final light-theme precedence over the legacy pixel-theme overrides above. */
+.nb-root.nb-root--light {
+    --panel: #f7f7f7;
+    --panel-border: #8eaaaa;
+    --text-muted: #596464;
+    color: #202020 !important;
+}
+
+.nb-root--light .nb-topbar,
+.nb-root--light .nb-panel,
+.nb-root--light .studio-tile,
+.nb-root--light .todo-note-item,
+.nb-root--light .chat-composer,
+.nb-root--light .metric-card,
+.nb-root--light .todo-item,
+.nb-root--light .todo-nav-item,
+.nb-root--light .chat-bubble,
+.nb-root--light .learning-path-card,
+.nb-root--light .hire-mentor-card,
+.nb-root--light .mentor-item,
+.nb-root--light .mentor-user-card,
+.nb-root--light .mentor-empty,
+.nb-root--light .note-empty,
+.nb-root--light .review-inline-form {
+    border-color: #9eb8b8 !important;
+    background: rgba(247, 247, 247, 0.97) !important;
+    color: #202020 !important;
+    box-shadow: 4px 4px 0 rgba(32, 32, 32, 0.16) !important;
+}
+
+.nb-root--light .nb-title,
+.nb-root--light .panel-head h2,
+.nb-root--light .studio-title,
+.nb-root--light .todo-title,
+.nb-root--light .todo-nav-title,
+.nb-root--light .learning-path-card h3,
+.nb-root--light strong {
+    color: #202020 !important;
+    text-shadow: none !important;
+}
+
+.nb-root--light .nb-subtitle,
+.nb-root--light .panel-subtitle,
+.nb-root--light .studio-desc,
+.nb-root--light .todo-description,
+.nb-root--light .todo-meta,
+.nb-root--light .todo-deadline,
+.nb-root--light .todo-nav-sub,
+.nb-root--light .todo-nav-meta,
+.nb-root--light .metric-label,
+.nb-root--light .metric-hint,
+.nb-root--light .chat-text,
+.nb-root--light .composer-placeholder,
+.nb-root--light .learning-path-meta,
+.nb-root--light .todo-note-helper,
+.nb-root--light .todo-field-note {
+    color: #596464 !important;
+    text-shadow: none !important;
+}
+
+.nb-root--light .nb-eyebrow,
+.nb-root--light .metric-value,
+.nb-root--light .chat-role,
+.nb-root--light .source-list-title {
+    color: #007f7f !important;
+    text-shadow: none !important;
+}
+
+.nb-root--light .source-add-btn,
+.nb-root--light .nb-btn--ghost,
+.nb-root--light .chat-back-btn,
+.nb-root--light .todo-add-btn,
+.nb-root--light .todo-icon-btn,
+.nb-root--light .todo-upload-btn {
+    border-color: #8eaaaa !important;
+    background: #fff !important;
+    color: #006f6f !important;
+    box-shadow: none !important;
+}
+
+.nb-root--light .source-add-btn:hover,
+.nb-root--light .source-add-btn.is-active,
+.nb-root--light .nb-btn--ghost:hover,
+.nb-root--light .chat-back-btn:hover,
+.nb-root--light .todo-add-btn:hover,
+.nb-root--light .nb-btn--solid,
+.nb-root--light .composer-send,
+.nb-root--light .todo-note-submit {
+    border-color: #006f6f !important;
+    background: #009999 !important;
+    color: #fff !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+}
+
+.nb-root--light .todo-field input,
+.nb-root--light .todo-field textarea,
+.nb-root--light .todo-field select,
+.nb-root--light .source-search,
+.nb-root--light .todo-filter,
+.nb-root--light .todo-note-textarea,
+.nb-root--light .chat-composer textarea {
+    border-color: #8eaaaa !important;
+    background: #fff !important;
+    color: #202020 !important;
+    box-shadow: none !important;
+}
+
+.nb-root--light .todo-item:hover,
+.nb-root--light .todo-nav-item:hover,
+.nb-root--light .todo-nav-item.is-active,
+.nb-root--light .studio-tile:hover,
+.nb-root--light .learning-path-card:hover {
+    border-color: #009999 !important;
+    background: #edf8f8 !important;
+}
+
+.nb-root--light .chip,
+.nb-root--light .todo-badge,
+.nb-root--light .todo-state,
+.nb-root--light .hire-status-pill,
+.nb-root--light .mentor-user-status,
+.nb-root--light .mentor-invite-status {
+    border-color: #9ebcbc !important;
+    background: #e3f3f3 !important;
+    color: #006f6f !important;
+}
+
+@media (max-width: 768px) {
+    .nb-root--light .nb-topbar,
+    .nb-root--light .nb-chat,
+    .nb-root--light .nb-todo-nav,
+    .nb-root--light .nb-studio {
+        border-color: #9eb8b8 !important;
+        background: rgba(247, 247, 247, 0.98) !important;
+        color: #202020 !important;
+    }
+
+    .nb-root.nb-root--light.nb-root--light {
+        background: transparent !important;
+    }
+
+    .nb-root.nb-root--light.nb-root--light .nb-topbar,
+    .nb-root.nb-root--light.nb-root--light .nb-sources,
+    .nb-root.nb-root--light.nb-root--light .nb-chat,
+    .nb-root.nb-root--light.nb-root--light .nb-studio {
+        border: 2px solid #087f7f !important;
+        outline: 1px solid #8dcaca !important;
+        outline-offset: 0 !important;
+        box-shadow: 3px 3px 0 rgba(32, 32, 32, 0.16) !important;
+    }
+
+    .nb-root.nb-root--light.nb-root--light .nb-topbar {
+        border-left-width: 5px !important;
+    }
+
+    .nb-root.nb-root--light.nb-root--light .studio-tile,
+    .nb-root.nb-root--light.nb-root--light .metric-card,
+    .nb-root.nb-root--light.nb-root--light .todo-item,
+    .nb-root.nb-root--light.nb-root--light .todo-nav-item,
+    .nb-root.nb-root--light.nb-root--light .learning-path-card,
+    .nb-root.nb-root--light.nb-root--light .hire-mentor-card,
+    .nb-root.nb-root--light.nb-root--light .mentor-item,
+    .nb-root.nb-root--light.nb-root--light .mentor-user-card {
+        border-left-width: 3px !important;
+        box-shadow: 2px 2px 0 rgba(32, 32, 32, 0.12) !important;
+    }
+
+    .nb-root.nb-root--light.nb-root--light .studio-tile:hover,
+    .nb-root.nb-root--light.nb-root--light .todo-item:hover,
+    .nb-root.nb-root--light.nb-root--light .todo-nav-item:hover,
+    .nb-root.nb-root--light.nb-root--light .learning-path-card:hover {
+        transform: none;
+    }
+}
+
+/* Profile-light depth and hierarchy. */
+.nb-root--light .nb-topbar {
+    border: 4px solid #202020 !important;
+    border-left: 8px solid #009999 !important;
+    background: #f7f7f7 !important;
+    box-shadow: 8px 8px 0 rgba(32, 32, 32, 0.32) !important;
+}
+
+.nb-root--light .nb-sources,
+.nb-root--light .nb-chat,
+.nb-root--light .nb-studio {
+    border: 4px solid #202020 !important;
+    box-shadow: 8px 8px 0 rgba(32, 32, 32, 0.32) !important;
+}
+
+.nb-root--light .nb-sources,
+.nb-root--light .nb-studio {
+    background: rgba(240, 246, 246, 0.98) !important;
+}
+
+.nb-root--light .nb-chat {
+    border-top-color: #009999 !important;
+    background: rgba(247, 247, 247, 0.98) !important;
+}
+
+.nb-root--light .panel-head {
+    border-bottom: 2px solid #9eb8b8 !important;
+    padding-bottom: 12px !important;
+}
+
+.nb-root--light .nb-eyebrow,
+.nb-root--light .source-list-title {
+    border-left: 4px solid #009999;
+    padding-left: 8px;
+}
+
+.nb-root--light .source-add-btn,
+.nb-root--light .nb-btn,
+.nb-root--light .chat-back-btn,
+.nb-root--light .todo-icon-btn,
+.nb-root--light .todo-upload-btn {
+    border-width: 2px !important;
+    border-right-width: 4px !important;
+    border-bottom-width: 4px !important;
+}
+
+.nb-root--light .source-add-btn.is-active,
+.nb-root--light .nb-btn--solid,
+.nb-root--light .composer-send,
+.nb-root--light .todo-note-submit {
+    border-color: #006666 !important;
+    border-right-color: #202020 !important;
+    border-bottom-color: #202020 !important;
+}
+
+.nb-root--light .studio-tile,
+.nb-root--light .metric-card,
+.nb-root--light .todo-item,
+.nb-root--light .todo-nav-item,
+.nb-root--light .learning-path-card,
+.nb-root--light .hire-mentor-card,
+.nb-root--light .mentor-item,
+.nb-root--light .mentor-user-card {
+    border: 2px solid #9eb8b8 !important;
+    border-left: 4px solid #009999 !important;
+    background: #fff !important;
+    box-shadow: 4px 4px 0 rgba(32, 32, 32, 0.16) !important;
+}
+
+.nb-root--light .studio-tile:hover,
+.nb-root--light .todo-item:hover,
+.nb-root--light .todo-nav-item:hover,
+.nb-root--light .todo-nav-item.is-active,
+.nb-root--light .learning-path-card:hover {
+    border-color: #007f7f !important;
+    border-left-color: #202020 !important;
+    background: #e8f6f6 !important;
+    box-shadow: 5px 5px 0 rgba(0, 102, 102, 0.24) !important;
+    transform: translate(-1px, -1px);
+}
+
+.nb-root--light .studio-icon,
+.nb-root--light .todo-check,
+.nb-root--light .todo-nav-check,
+.nb-root--light .mentor-avatar,
+.nb-root--light .mentor-invite-avatar,
+.nb-root--light .hire-status-avatar {
+    border: 2px solid #007f7f !important;
+    background: #e3f3f3 !important;
+    color: #006f6f !important;
+    box-shadow: 3px 3px 0 rgba(32, 32, 32, 0.16) !important;
+}
+
+.nb-root--light .chip,
+.nb-root--light .todo-badge,
+.nb-root--light .todo-state,
+.nb-root--light .hire-status-pill,
+.nb-root--light .mentor-user-status,
+.nb-root--light .mentor-invite-status {
+    border: 1px solid #007f7f !important;
+    background: #e3f3f3 !important;
+}
+
+.nb-root--light .todo-field input:focus,
+.nb-root--light .todo-field textarea:focus,
+.nb-root--light .todo-field select:focus,
+.nb-root--light .source-search:focus,
+.nb-root--light .todo-filter:focus,
+.nb-root--light .todo-note-textarea:focus {
+    border-color: #009999 !important;
+    outline: 2px solid rgba(0, 153, 153, 0.18) !important;
+    outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+    .nb-root--light .nb-topbar,
+    .nb-root--light .nb-sources,
+    .nb-root--light .nb-chat,
+    .nb-root--light .nb-studio {
+        border-width: 3px !important;
+        box-shadow: 5px 5px 0 rgba(32, 32, 32, 0.28) !important;
+    }
+
+    .nb-root--light .nb-topbar {
+        border-left-width: 6px !important;
+    }
+}
+</style>
+
 <style>
 .todo-modal {
     position: fixed;
@@ -3957,6 +4265,236 @@ onUnmounted(() => {
     .todo-modal-actions .nb-btn {
         width: 100%;
         text-align: center;
+    }
+}
+
+/* Light mode keeps the DoopLab environment intact and only reskins the workspace. */
+.nb-root--light {
+    --line: #cbdada;
+    --line-strong: #8eaaaa;
+    --cyan: #007f7f;
+    --amber: #9a6200;
+    --green: #176b43;
+    --violet: #6644a3;
+    --danger: #b42334;
+    --text-dim: #596464;
+    color: #202020;
+}
+
+.nb-root--light .nb-topbar,
+.nb-root--light .nb-panel {
+    border-color: #9eb8b8;
+    background: rgba(247, 247, 247, 0.96);
+    color: #202020;
+    box-shadow: 5px 5px 0 rgba(32, 32, 32, 0.16);
+    backdrop-filter: none;
+}
+
+.nb-root--light .nb-logo,
+.nb-root--light .nb-btn--solid,
+.nb-root--light .composer-send,
+.nb-root--light .todo-note-submit {
+    border-color: #006f6f;
+    background: #009999;
+    color: #fff;
+    box-shadow: none;
+}
+
+.nb-root--light .nb-title,
+.nb-root--light .panel-head h2,
+.nb-root--light .studio-title,
+.nb-root--light .todo-title,
+.nb-root--light .todo-nav-title,
+.nb-root--light .learning-path-card h3,
+.nb-root--light .mentor-info strong,
+.nb-root--light .mentor-user-info strong,
+.nb-root--light .hire-status-info strong {
+    color: #202020;
+}
+
+.nb-root--light .nb-eyebrow,
+.nb-root--light .id-role,
+.nb-root--light .metric-value,
+.nb-root--light .chat-role,
+.nb-root--light .source-list-title {
+    color: #007f7f;
+}
+
+.nb-root--light .nb-subtitle,
+.nb-root--light .panel-subtitle,
+.nb-root--light .studio-desc,
+.nb-root--light .todo-description,
+.nb-root--light .todo-meta,
+.nb-root--light .todo-deadline,
+.nb-root--light .todo-nav-sub,
+.nb-root--light .todo-nav-meta,
+.nb-root--light .metric-label,
+.nb-root--light .metric-hint,
+.nb-root--light .chat-text,
+.nb-root--light .composer-placeholder,
+.nb-root--light .learning-path-meta,
+.nb-root--light .todo-note-helper,
+.nb-root--light .todo-field-note {
+    color: #596464;
+}
+
+.nb-root--light .source-add-btn,
+.nb-root--light .nb-btn--ghost,
+.nb-root--light .chat-back-btn,
+.nb-root--light .todo-add-btn,
+.nb-root--light .todo-icon-btn,
+.nb-root--light .todo-upload-btn {
+    border-color: #8eaaaa;
+    background: #fff;
+    color: #006f6f;
+    box-shadow: none;
+}
+
+.nb-root--light .source-add-btn:hover,
+.nb-root--light .source-add-btn.is-active,
+.nb-root--light .nb-btn--ghost:hover,
+.nb-root--light .chat-back-btn:hover,
+.nb-root--light .todo-add-btn:hover {
+    border-color: #006f6f;
+    background: #009999;
+    color: #fff;
+}
+
+.nb-root--light .metric-card,
+.nb-root--light .studio-tile,
+.nb-root--light .todo-item,
+.nb-root--light .todo-nav-item,
+.nb-root--light .chat-bubble,
+.nb-root--light .learning-path-card,
+.nb-root--light .hire-mentor-card,
+.nb-root--light .mentor-item,
+.nb-root--light .mentor-user-card,
+.nb-root--light .mentor-empty,
+.nb-root--light .note-empty,
+.nb-root--light .todo-note-item,
+.nb-root--light .review-inline-form {
+    border-color: #cbdada;
+    background: #fff;
+    color: #202020;
+    box-shadow: none;
+}
+
+.nb-root--light .todo-item:hover,
+.nb-root--light .todo-nav-item:hover,
+.nb-root--light .todo-nav-item.is-active,
+.nb-root--light .studio-tile:hover,
+.nb-root--light .learning-path-card:hover {
+    border-color: #009999;
+    background: #edf8f8;
+}
+
+.nb-root--light .todo-field input,
+.nb-root--light .todo-field textarea,
+.nb-root--light .todo-field select,
+.nb-root--light .source-search,
+.nb-root--light .todo-filter,
+.nb-root--light .todo-note-textarea,
+.nb-root--light .chat-composer {
+    border-color: #8eaaaa;
+    background: #fff;
+    color: #202020;
+}
+
+.nb-root--light input::placeholder,
+.nb-root--light textarea::placeholder {
+    color: #747c7c;
+    opacity: 1;
+}
+
+.nb-root--light .chip,
+.nb-root--light .todo-badge,
+.nb-root--light .todo-state,
+.nb-root--light .hire-status-pill,
+.nb-root--light .mentor-user-status,
+.nb-root--light .mentor-invite-status {
+    background: #e3f3f3;
+    border-color: #9ebcbc;
+    color: #006f6f;
+}
+
+.nb-root--light .todo-check,
+.nb-root--light .todo-nav-check,
+.nb-root--light .todo-note-avatar,
+.nb-root--light .mentor-avatar,
+.nb-root--light .mentor-invite-avatar,
+.nb-root--light .hire-status-avatar {
+    border-color: #009999;
+    background: #e3f3f3;
+    color: #006f6f;
+}
+
+.nb-root--light .nb-btn--danger,
+.nb-root--light .todo-icon-btn--danger,
+.nb-root--light .todo-upload-remove {
+    border-color: #b42334;
+    background: #fff1f2;
+    color: #b42334;
+}
+
+.nb-root--light .nb-btn--success,
+.nb-root--light .todo-icon-btn--success {
+    border-color: #176b43;
+    background: #eefbf5;
+    color: #176b43;
+}
+
+.todo-modal--light {
+    background: rgba(32, 32, 32, 0.52) !important;
+}
+
+.todo-modal--light .todo-modal-card {
+    border-color: #087f7f !important;
+    background: #f7f7f7 !important;
+    color: #202020 !important;
+    box-shadow: 7px 7px 0 rgba(32, 32, 32, 0.24) !important;
+}
+
+.todo-modal--light .todo-modal-head h3,
+.todo-modal--light .todo-modal-form span {
+    color: #202020 !important;
+}
+
+.todo-modal--light .todo-modal-form input:not([type='checkbox']),
+.todo-modal--light .todo-modal-form textarea,
+.todo-modal--light .todo-modal-form select {
+    border-color: #8eaaaa !important;
+    background: #fff !important;
+    color: #202020 !important;
+}
+
+.todo-modal--light .todo-modal-close,
+.todo-modal--light .nb-btn--ghost {
+    border-color: #8eaaaa !important;
+    background: #fff !important;
+    color: #202020 !important;
+}
+
+.todo-modal--light .nb-btn--solid {
+    border-color: #006f6f !important;
+    background: #009999 !important;
+    color: #fff !important;
+}
+
+@media (max-width: 768px) {
+    .nb-root--light .nb-topbar,
+    .nb-root--light .nb-chat,
+    .nb-root--light .nb-todo-nav,
+    .nb-root--light .nb-studio {
+        border-color: #9eb8b8 !important;
+        background: rgba(247, 247, 247, 0.97) !important;
+        color: #202020 !important;
+        box-shadow: 4px 4px 0 rgba(32, 32, 32, 0.16) !important;
+    }
+
+    .nb-root--light .nb-todo-nav .source-add-btn.is-active {
+        border-color: #006f6f !important;
+        background: #009999 !important;
+        color: #fff !important;
     }
 }
 
@@ -4815,4 +5353,602 @@ onUnmounted(() => {
     }
 }
 
+</style>
+
+<style scoped>
+/* Must remain last: the legacy dashboard skin above uses important declarations. */
+.nb-root.nb-root--light .todo-note-item {
+    border: 2px solid #9eb8b8 !important;
+    border-left: 4px solid #009999 !important;
+    background: #fff !important;
+    color: #202020 !important;
+    box-shadow: 3px 3px 0 rgba(32, 32, 32, 0.12) !important;
+}
+
+.nb-root.nb-root--light .todo-note-item--latest {
+    border-color: #087f7f !important;
+    border-left-color: #202020 !important;
+    background: #edf8f8 !important;
+}
+
+.nb-root.nb-root--light .todo-note-avatar {
+    border: 2px solid #087f7f !important;
+    background: #e3f3f3 !important;
+    color: #006f6f !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .todo-note-author p {
+    color: #202020 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .todo-note-author span {
+    color: #4f5959 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .todo-note-text {
+    color: #202020 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .todo-nav-header {
+    border-left: 4px solid #009999;
+    padding-left: 8px;
+    color: #006f6f !important;
+    opacity: 1 !important;
+}
+
+.nb-root.nb-root--light .todo-nav-item {
+    border-color: #7fa2a2 !important;
+    border-left-color: #009999 !important;
+    background: #fff !important;
+}
+
+.nb-root.nb-root--light .todo-nav-item.is-active {
+    border-color: #006f6f !important;
+    border-left-color: #202020 !important;
+    background: #e3f5f5 !important;
+    box-shadow: 4px 4px 0 rgba(0, 111, 111, 0.2) !important;
+}
+
+.nb-root.nb-root--light .todo-nav-title {
+    color: #202020 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .todo-nav-item.is-completed .todo-nav-title {
+    color: #4f5959 !important;
+}
+
+.nb-root.nb-root--light .todo-nav-meta {
+    color: #4f5959 !important;
+    opacity: 1 !important;
+}
+
+.nb-root.nb-root--light .todo-nav-deadline.is-none {
+    color: #557070 !important;
+}
+
+.nb-root.nb-root--light .todo-nav-deadline.is-safe {
+    color: #006f6f !important;
+}
+
+.nb-root.nb-root--light .todo-nav-deadline.is-soon {
+    color: #946000 !important;
+}
+
+.nb-root.nb-root--light .todo-nav-deadline.is-urgent {
+    color: #a84600 !important;
+}
+
+.nb-root.nb-root--light .todo-nav-deadline.is-overdue {
+    color: #b42334 !important;
+}
+
+.nb-root.nb-root--light .todo-nav-deadline.is-done {
+    color: #176b43 !important;
+}
+
+.nb-root.nb-root--light .todo-nav-check {
+    border: 2px solid #087f7f !important;
+    background: #f7f7f7 !important;
+    color: #006f6f !important;
+    opacity: 1 !important;
+}
+
+.nb-root.nb-root--light .todo-nav-check.is-done {
+    border-color: #21824b !important;
+    background: #e7f6ed !important;
+    color: #176238 !important;
+}
+
+.nb-root.nb-root--light .todo-badge,
+.nb-root.nb-root--light .todo-state {
+    border: 1px solid #5c9999 !important;
+    background: #e3f3f3 !important;
+    color: #006f6f !important;
+    opacity: 1 !important;
+}
+
+.nb-root.nb-root--light .todo-state.is-done,
+.nb-root.nb-root--light .todo-state.is-approved {
+    border-color: #21824b !important;
+    background: #e7f6ed !important;
+    color: #176238 !important;
+}
+
+.nb-root.nb-root--light .todo-nav-arrow {
+    color: #007f7f !important;
+    opacity: 1 !important;
+}
+
+.nb-root.nb-root--light .chat-bubble {
+    border: 2px solid #7fa2a2 !important;
+    border-left: 4px solid #009999 !important;
+    background: #fff !important;
+    color: #202020 !important;
+    box-shadow: 4px 4px 0 rgba(32, 32, 32, 0.14) !important;
+}
+
+.nb-root.nb-root--light .chat-role,
+.nb-root.nb-root--light .todo-note-label {
+    color: #006f6f !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .note-empty,
+.nb-root.nb-root--light .todo-note-helper {
+    color: #4f5959 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .chat-composer--todo {
+    border: 3px solid #7fa2a2 !important;
+    border-top-color: #009999 !important;
+    background: #f7f7f7 !important;
+    box-shadow: 5px 5px 0 rgba(32, 32, 32, 0.16) !important;
+}
+
+.nb-root.nb-root--light .todo-note-textarea {
+    border: 2px solid #668b8b !important;
+    background: #fff !important;
+    color: #202020 !important;
+}
+
+.nb-root.nb-root--light .todo-note-textarea::placeholder {
+    color: #6a7474 !important;
+    opacity: 1 !important;
+}
+
+.nb-root.nb-root--light .todo-upload-btn {
+    border-color: #087f7f !important;
+    background: #fff !important;
+    color: #006f6f !important;
+}
+
+.nb-root.nb-root--light .todo-note-submit {
+    border-color: #006666 !important;
+    border-right-color: #202020 !important;
+    border-bottom-color: #202020 !important;
+    background: #009999 !important;
+    color: #fff !important;
+}
+
+.nb-root.nb-root--light .source-search {
+    border: 2px solid #668b8b !important;
+    background: #fff !important;
+    color: #006f6f !important;
+    box-shadow: inset 0 -2px 0 #e3eeee !important;
+}
+
+.nb-root.nb-root--light .source-search i {
+    color: #006f6f !important;
+    opacity: 1 !important;
+}
+
+.nb-root.nb-root--light .source-search input {
+    border: 0 !important;
+    background: #fff !important;
+    color: #202020 !important;
+    box-shadow: none !important;
+    outline: 0 !important;
+}
+
+.nb-root.nb-root--light .source-search input::placeholder {
+    color: #626c6c !important;
+    opacity: 1 !important;
+}
+
+.nb-root.nb-root--light .source-search:focus-within {
+    border-color: #009999 !important;
+    box-shadow: inset 0 -2px 0 #009999, 0 0 0 2px rgba(0, 153, 153, 0.14) !important;
+}
+
+.nb-root.nb-root--light .custom-scroll,
+.nb-root.nb-root--light .todo-list-workspace,
+.nb-root.nb-root--light .todo-nav-list,
+.nb-root.nb-root--light .source-list-wrap,
+.nb-root.nb-root--light .studio-grid {
+    scrollbar-color: #009999 #dceaea !important;
+    scrollbar-width: thin;
+}
+
+.nb-root.nb-root--light ::-webkit-scrollbar-track {
+    background: #dceaea !important;
+    border-left: 1px solid #bfd2d2;
+}
+
+.nb-root.nb-root--light ::-webkit-scrollbar-thumb {
+    border: 1px solid #006f6f !important;
+    background: #009999 !important;
+}
+
+.nb-root.nb-root--light ::-webkit-scrollbar-thumb:hover {
+    background: #007f7f !important;
+}
+
+.nb-root.nb-root--light .mentor-user-info h3 {
+    color: #202020 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .mentor-user-info p {
+    color: #006f6f !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .mentor-user-info small {
+    color: #4f5959 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .mentor-user-status.is-approved {
+    border: 2px solid #21824b !important;
+    background: #e7f6ed !important;
+    color: #145a32 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .nb-topbar,
+.nb-root.nb-root--light .nb-sources,
+.nb-root.nb-root--light .nb-chat,
+.nb-root.nb-root--light .nb-studio {
+    outline: 1px solid #8dcaca !important;
+    outline-offset: 2px;
+}
+
+.nb-aurora--light::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(247, 247, 247, 0.3);
+    pointer-events: none;
+}
+
+.nb-root.nb-root--light .nb-chat {
+    border-top-color: #202020 !important;
+}
+
+.nb-root.nb-root--light .source-add-btn:not(.is-active) {
+    border-color: #668b8b !important;
+    background: #f7f7f7 !important;
+    color: #006f6f !important;
+    opacity: 1 !important;
+}
+
+.nb-root.nb-root--light .source-add-btn:not(.is-active) i,
+.nb-root.nb-root--light .source-add-btn:not(.is-active) .nav-label {
+    color: #006f6f !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .learning-path-topline span {
+    border-color: #55aaaa !important;
+    background: #e3f5f5 !important;
+    color: #006f6f !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .learning-path-topline strong {
+    border-color: #21824b !important;
+    background: #edf9f2 !important;
+    color: #176238 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .learning-path-card h3 {
+    color: #202020 !important;
+}
+
+.nb-root.nb-root--light .learning-path-card p,
+.nb-root.nb-root--light .learning-path-meta span {
+    color: #4f5959 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .learning-path-cta {
+    border-color: #006666 !important;
+    border-right: 4px solid #202020 !important;
+    border-bottom: 4px solid #202020 !important;
+    background: #009999 !important;
+    color: #fff !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .studio-title,
+.nb-root.nb-root--light .studio-desc,
+.nb-root.nb-root--light .mentor-zone-head,
+.nb-root.nb-root--light .mentor-info p,
+.nb-root.nb-root--light .mentor-info span {
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.nb-root.nb-root--light .studio-title,
+.nb-root.nb-root--light .mentor-info p {
+    color: #202020 !important;
+}
+
+.nb-root.nb-root--light .studio-desc,
+.nb-root.nb-root--light .mentor-info span {
+    color: #4f5959 !important;
+}
+
+.nb-root.nb-root--light .mentor-zone-head {
+    border-bottom: 1px solid #8eaaaa;
+    padding-bottom: 8px;
+    color: #006f6f !important;
+}
+
+.nb-root.nb-root--light .nb-topbar {
+    border: 4px solid #087f7f !important;
+    border-left: 8px solid #009999 !important;
+    background: #f7f7f7 !important;
+    box-shadow: 8px 8px 0 rgba(32, 32, 32, 0.2) !important;
+}
+
+.nb-root.nb-root--light .nb-sources,
+.nb-root.nb-root--light .nb-chat,
+.nb-root.nb-root--light .nb-studio {
+    border: 4px solid #087f7f !important;
+    box-shadow: 8px 8px 0 rgba(32, 32, 32, 0.2) !important;
+}
+
+.nb-root.nb-root--light .nb-sources,
+.nb-root.nb-root--light .nb-studio {
+    background: rgba(240, 246, 246, 0.98) !important;
+}
+
+.nb-root.nb-root--light .nb-chat {
+    border-top-color: #087f7f !important;
+    background: rgba(247, 247, 247, 0.98) !important;
+}
+
+.nb-root.nb-root--light .panel-head {
+    border-bottom: 2px solid #9eb8b8 !important;
+    padding-bottom: 12px !important;
+}
+
+.nb-root.nb-root--light .source-add-btn,
+.nb-root.nb-root--light .nb-btn,
+.nb-root.nb-root--light .chat-back-btn,
+.nb-root.nb-root--light .todo-icon-btn,
+.nb-root.nb-root--light .todo-upload-btn {
+    border-width: 2px !important;
+    border-right-width: 4px !important;
+    border-bottom-width: 4px !important;
+}
+
+.nb-root.nb-root--light .source-add-btn.is-active,
+.nb-root.nb-root--light .nb-btn--solid,
+.nb-root.nb-root--light .composer-send,
+.nb-root.nb-root--light .todo-note-submit {
+    border-color: #006666 !important;
+    border-right-color: #202020 !important;
+    border-bottom-color: #202020 !important;
+}
+
+.nb-root.nb-root--light .studio-tile,
+.nb-root.nb-root--light .metric-card,
+.nb-root.nb-root--light .todo-item,
+.nb-root.nb-root--light .todo-nav-item,
+.nb-root.nb-root--light .learning-path-card,
+.nb-root.nb-root--light .hire-mentor-card,
+.nb-root.nb-root--light .mentor-item,
+.nb-root.nb-root--light .mentor-user-card {
+    border: 2px solid #9eb8b8 !important;
+    border-left: 4px solid #009999 !important;
+    background: #fff !important;
+    box-shadow: 4px 4px 0 rgba(32, 32, 32, 0.16) !important;
+}
+
+.nb-root.nb-root--light .studio-tile:hover,
+.nb-root.nb-root--light .todo-item:hover,
+.nb-root.nb-root--light .todo-nav-item:hover,
+.nb-root.nb-root--light .todo-nav-item.is-active,
+.nb-root.nb-root--light .learning-path-card:hover {
+    border-color: #007f7f !important;
+    border-left-color: #202020 !important;
+    background: #e8f6f6 !important;
+    box-shadow: 5px 5px 0 rgba(0, 102, 102, 0.24) !important;
+    transform: translate(-1px, -1px);
+}
+
+.nb-root.nb-root--light .studio-icon,
+.nb-root.nb-root--light .todo-check,
+.nb-root.nb-root--light .todo-nav-check,
+.nb-root.nb-root--light .mentor-avatar,
+.nb-root.nb-root--light .mentor-invite-avatar,
+.nb-root.nb-root--light .hire-status-avatar {
+    border: 2px solid #007f7f !important;
+    background: #e3f3f3 !important;
+    color: #006f6f !important;
+    box-shadow: 3px 3px 0 rgba(32, 32, 32, 0.16) !important;
+}
+
+.nb-root.nb-root--light .todo-field input:focus,
+.nb-root.nb-root--light .todo-field textarea:focus,
+.nb-root.nb-root--light .todo-field select:focus,
+.nb-root.nb-root--light .source-search:focus,
+.nb-root.nb-root--light .todo-filter:focus,
+.nb-root.nb-root--light .todo-note-textarea:focus {
+    border-color: #009999 !important;
+    outline: 2px solid rgba(0, 153, 153, 0.18) !important;
+    outline-offset: 2px;
+}
+
+.nb-root.nb-root--light {
+    --panel: #f7f7f7;
+    --panel-border: #8eaaaa;
+    --text-muted: #596464;
+    color: #202020 !important;
+}
+
+.nb-root--light .nb-topbar,
+.nb-root--light .nb-panel,
+.nb-root--light .studio-tile,
+.nb-root--light .metric-card,
+.nb-root--light .todo-item,
+.nb-root--light .todo-nav-item,
+.nb-root--light .chat-bubble,
+.nb-root--light .chat-composer,
+.nb-root--light .todo-note-item,
+.nb-root--light .learning-path-card,
+.nb-root--light .hire-mentor-card,
+.nb-root--light .mentor-item,
+.nb-root--light .mentor-user-card,
+.nb-root--light .mentor-empty,
+.nb-root--light .note-empty,
+.nb-root--light .review-inline-form {
+    border-color: #9eb8b8 !important;
+    background: rgba(247, 247, 247, 0.97) !important;
+    color: #202020 !important;
+    box-shadow: 4px 4px 0 rgba(32, 32, 32, 0.16) !important;
+    text-shadow: none !important;
+}
+
+.nb-root--light .nb-title,
+.nb-root--light .panel-head h2,
+.nb-root--light .studio-title,
+.nb-root--light .todo-title,
+.nb-root--light .todo-nav-title,
+.nb-root--light .learning-path-card h3,
+.nb-root--light strong {
+    color: #202020 !important;
+    text-shadow: none !important;
+}
+
+.nb-root--light .nb-subtitle,
+.nb-root--light .panel-subtitle,
+.nb-root--light .studio-desc,
+.nb-root--light .todo-description,
+.nb-root--light .todo-meta,
+.nb-root--light .todo-deadline,
+.nb-root--light .todo-nav-sub,
+.nb-root--light .todo-nav-meta,
+.nb-root--light .metric-label,
+.nb-root--light .metric-hint,
+.nb-root--light .chat-text,
+.nb-root--light .composer-placeholder,
+.nb-root--light .learning-path-meta,
+.nb-root--light .todo-note-helper,
+.nb-root--light .todo-field-note {
+    color: #596464 !important;
+    text-shadow: none !important;
+}
+
+.nb-root--light .nb-eyebrow,
+.nb-root--light .metric-value,
+.nb-root--light .chat-role,
+.nb-root--light .source-list-title {
+    color: #007f7f !important;
+    text-shadow: none !important;
+}
+
+.nb-root--light .source-add-btn,
+.nb-root--light .nb-btn--ghost,
+.nb-root--light .chat-back-btn,
+.nb-root--light .todo-add-btn,
+.nb-root--light .todo-icon-btn,
+.nb-root--light .todo-upload-btn {
+    border-color: #8eaaaa !important;
+    background: #fff !important;
+    color: #006f6f !important;
+    box-shadow: none !important;
+}
+
+.nb-root--light .source-add-btn:hover,
+.nb-root--light .source-add-btn.is-active,
+.nb-root--light .nb-btn--ghost:hover,
+.nb-root--light .chat-back-btn:hover,
+.nb-root--light .todo-add-btn:hover,
+.nb-root--light .nb-btn--solid,
+.nb-root--light .composer-send,
+.nb-root--light .todo-note-submit {
+    border-color: #006f6f !important;
+    background: #009999 !important;
+    color: #fff !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+}
+
+.nb-root--light .todo-field input,
+.nb-root--light .todo-field textarea,
+.nb-root--light .todo-field select,
+.nb-root--light .source-search,
+.nb-root--light .todo-filter,
+.nb-root--light .todo-note-textarea,
+.nb-root--light .chat-composer textarea {
+    border-color: #8eaaaa !important;
+    background: #fff !important;
+    color: #202020 !important;
+    box-shadow: none !important;
+}
+
+.nb-root--light .todo-item:hover,
+.nb-root--light .todo-nav-item:hover,
+.nb-root--light .todo-nav-item.is-active,
+.nb-root--light .studio-tile:hover,
+.nb-root--light .learning-path-card:hover {
+    border-color: #009999 !important;
+    background: #edf8f8 !important;
+}
+
+.nb-root--light .chip,
+.nb-root--light .todo-badge,
+.nb-root--light .todo-state,
+.nb-root--light .hire-status-pill,
+.nb-root--light .mentor-user-status,
+.nb-root--light .mentor-invite-status {
+    border-color: #9ebcbc !important;
+    background: #e3f3f3 !important;
+    color: #006f6f !important;
+}
+
+@media (max-width: 768px) {
+    .nb-root--light .nb-topbar,
+    .nb-root--light .nb-chat,
+    .nb-root--light .nb-todo-nav,
+    .nb-root--light .nb-studio {
+        border-color: #9eb8b8 !important;
+        background: rgba(247, 247, 247, 0.98) !important;
+        color: #202020 !important;
+    }
+}
 </style>

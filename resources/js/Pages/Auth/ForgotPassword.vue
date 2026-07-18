@@ -29,7 +29,7 @@ const submit = () => {
             -- FORGOT_PASSWORD --
         </h2>
 
-        <div class="mb-4 text-sm text-gray-600">
+        <div class="auth-forgot-description mb-4 text-sm text-gray-600">
             Forgot your password? No problem. Just let us know your email
             address and we will email you a password reset link that will allow
             you to choose a new one.
@@ -44,12 +44,12 @@ const submit = () => {
 
         <form @submit.prevent="submit">
             <div>
-                <InputLabel for="email" value="Email" />
+                <InputLabel for="email" value="Email" class="auth-forgot-label" />
 
                 <TextInput
                     id="email"
                     type="email"
-                    class="mt-1 block w-full"
+                    class="auth-forgot-input mt-1 block w-full"
                     v-model="form.email"
                     required
                     autofocus

@@ -1,8 +1,11 @@
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { toast } from '@/Utils/Alert';
+import { useUserTheme } from '@/Composables/useUserTheme';
+
+const { themeMode } = useUserTheme();
 
 const props = defineProps({
     logbooks:        { type: Array, default: () => [] },
@@ -14,16 +17,27 @@ const props = defineProps({
 const emit = defineEmits(['select', 'deselect']);
 
 // ── Selected logbook ──────────────────────────────────────────────────────
-const LOGBOOK_STATE_KEY = 'dooplab.logbook.selected-uuid';
+const LOGBOOK_HISTORY_KEY = 'dooplabLogbookUuid';
 const getInitialSelectedLogbookUuid = () => {
     if (typeof window === 'undefined') return null;
-    return window.localStorage.getItem(LOGBOOK_STATE_KEY) || null;
+    return String(window.history.state?.[LOGBOOK_HISTORY_KEY] || '') || null;
 };
 const selectedLogbookUuid = ref(getInitialSelectedLogbookUuid());
 const selectedLogbook = computed(() => props.logbooks.find(lb => lb.uuid === selectedLogbookUuid.value) || null);
 
-const selectLogbook = (uuid) => {
-    selectedLogbookUuid.value = String(uuid || '') || null;
+const selectLogbook = (uuid, { pushHistory = true } = {}) => {
+    const normalizedUuid = String(uuid || '') || null;
+    if (!normalizedUuid) return;
+
+    if (pushHistory && typeof window !== 'undefined' && selectedLogbookUuid.value !== normalizedUuid) {
+        window.history.pushState(
+            { ...(window.history.state || {}), [LOGBOOK_HISTORY_KEY]: normalizedUuid },
+            '',
+            window.location.href,
+        );
+    }
+
+    selectedLogbookUuid.value = normalizedUuid;
     entryPage.value = 1;
 };
 
@@ -31,21 +45,43 @@ const clearSelectedLogbook = () => {
     selectedLogbookUuid.value = null;
 };
 
+const backToLogbookList = () => {
+    if (
+        typeof window !== 'undefined'
+        && selectedLogbookUuid.value
+        && String(window.history.state?.[LOGBOOK_HISTORY_KEY] || '') === String(selectedLogbookUuid.value)
+    ) {
+        window.history.back();
+        return;
+    }
+
+    clearSelectedLogbook();
+};
+
+const handleLogbookHistoryChange = (event) => {
+    const historyUuid = String(event.state?.[LOGBOOK_HISTORY_KEY] || '') || null;
+
+    if (historyUuid && props.logbooks.some((logbook) => String(logbook.uuid) === historyUuid)) {
+        selectLogbook(historyUuid, { pushHistory: false });
+        return;
+    }
+
+    clearSelectedLogbook();
+};
+
+onMounted(() => {
+    window.addEventListener('popstate', handleLogbookHistoryChange);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('popstate', handleLogbookHistoryChange);
+});
+
 // ── Search & Pagination ───────────────────────────────────────────────────
 const PAGE_SIZE = 30;
 const entrySearch = ref('');
 const entryPage = ref(1);
 const entryMonthFilter = ref(''); // format: 'YYYY-MM'
-
-watch(selectedLogbookUuid, (uuid) => {
-    if (typeof window === 'undefined') return;
-
-    if (uuid) {
-        window.localStorage.setItem(LOGBOOK_STATE_KEY, uuid);
-    } else {
-        window.localStorage.removeItem(LOGBOOK_STATE_KEY);
-    }
-});
 
 watch(() => props.logbooks, () => {
     if (selectedLogbookUuid.value && !selectedLogbook.value) {
@@ -483,11 +519,11 @@ const exportEntryCsv = () => {
 };
 
 // expose methods needed by parent toolbar
-defineExpose({ selectedLogbook, selectedLogbookUuid, selectLogbook, clearSelectedLogbook, openLogbookModal, openLogbookAssignModal, openEntryModal, exportEntryCsv });
+defineExpose({ selectedLogbook, selectedLogbookUuid, selectLogbook, clearSelectedLogbook, backToLogbookList, openLogbookModal, openLogbookAssignModal, openEntryModal, exportEntryCsv });
 </script>
 
 <template>
-<div class="logbook-panel">
+<div class="logbook-panel" :class="{ 'logbook-panel--light': themeMode === 'light' }">
     <!-- List Logbook (buku) -->
     <section v-if="!selectedLogbook" class="learning-path-list custom-scroll">
         <p v-if="!logbooks.length" class="source-empty">
@@ -635,7 +671,7 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, selectLogbook, clearSelecte
 
     <!-- Modal: Buat/Edit Logbook -->
     <Teleport to="body">
-        <div v-if="showLogbookModal" class="todo-modal logbook-modal" role="dialog" aria-modal="true">
+        <div v-if="showLogbookModal" class="todo-modal logbook-modal" :class="{ 'todo-modal--light': themeMode === 'light', 'logbook-modal--light': themeMode === 'light' }" role="dialog" aria-modal="true">
             <div class="todo-modal-backdrop" @click="closeLogbookModal"></div>
             <div class="todo-modal-card">
                 <div class="todo-modal-head">
@@ -768,7 +804,7 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, selectLogbook, clearSelecte
 
     <!-- Modal: Tambah/Edit Entri -->
     <Teleport to="body">
-        <div v-if="showEntryModal" class="todo-modal logbook-modal" role="dialog" aria-modal="true">
+        <div v-if="showEntryModal" class="todo-modal logbook-modal" :class="{ 'todo-modal--light': themeMode === 'light', 'logbook-modal--light': themeMode === 'light' }" role="dialog" aria-modal="true">
             <div class="todo-modal-backdrop" @click="closeEntryModal"></div>
             <div class="todo-modal-card">
                 <div class="todo-modal-head">
@@ -848,7 +884,7 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, selectLogbook, clearSelecte
 
     <!-- Modal: Detail Entri -->
     <Teleport to="body">
-        <div v-if="showEntryDetailModal && detailEntry" class="todo-modal logbook-modal" role="dialog" aria-modal="true">
+        <div v-if="showEntryDetailModal && detailEntry" class="todo-modal logbook-modal" :class="{ 'todo-modal--light': themeMode === 'light', 'logbook-modal--light': themeMode === 'light' }" role="dialog" aria-modal="true">
             <div class="todo-modal-backdrop" @click="closeEntryDetailModal"></div>
             <div class="todo-modal-card logbook-detail-card">
                 <div class="todo-modal-head">
@@ -1228,6 +1264,173 @@ defineExpose({ selectedLogbook, selectedLogbookUuid, selectLogbook, clearSelecte
     .logbook-td-actions {
         display: table-cell;
         white-space: nowrap;
+    }
+}
+</style>
+
+<style scoped>
+.logbook-panel--light {
+    color: #202020;
+}
+
+.logbook-panel--light .logbook-book-card {
+    border: 2px solid #7fa2a2;
+    border-left: 4px solid #009999;
+    background: #fff;
+    color: #202020;
+    box-shadow: 4px 4px 0 rgba(32, 32, 32, 0.16);
+}
+
+.logbook-panel--light .logbook-book-card:hover {
+    border-color: #007f7f;
+    background: #e8f6f6;
+}
+
+.logbook-panel--light .logbook-book-title {
+    color: #202020;
+}
+
+.logbook-panel--light .logbook-book-desc {
+    color: #4f5959;
+}
+
+.logbook-panel--light .logbook-book-icon,
+.logbook-panel--light .logbook-date {
+    color: #007f7f;
+}
+
+.logbook-panel--light .logbook-badge--mentor {
+    border-color: #7250a8;
+    background: #f0eafa;
+    color: #563484;
+}
+
+.logbook-panel--light .logbook-badge--member {
+    border-color: #21824b;
+    background: #e7f6ed;
+    color: #176238;
+}
+
+.logbook-panel--light .todo-icon-btn {
+    border-color: #087f7f !important;
+    background: #fff !important;
+    color: #006f6f !important;
+}
+
+.logbook-panel--light .todo-icon-btn--danger {
+    border-color: #b42334 !important;
+    background: #fff1f2 !important;
+    color: #b42334 !important;
+}
+
+.logbook-panel--light .logbook-search-input,
+.logbook-panel--light .logbook-month-select {
+    border-color: #668b8b;
+    background: #fff;
+    color: #202020;
+}
+
+.logbook-panel--light .logbook-search-input::placeholder {
+    color: #687272;
+    opacity: 1;
+}
+
+.logbook-panel--light .logbook-search-icon,
+.logbook-panel--light .logbook-search-count {
+    color: #007f7f;
+}
+
+.logbook-panel--light .logbook-search-input:focus,
+.logbook-panel--light .logbook-month-select:focus {
+    border-color: #009999;
+    outline: 2px solid rgba(0, 153, 153, 0.15);
+    outline-offset: 1px;
+}
+
+.logbook-panel--light .source-empty {
+    color: #202020;
+}
+
+.logbook-panel--light .logbook-table-wrap {
+    border: 2px solid #7fa2a2;
+    background: #fff;
+    scrollbar-color: #009999 #dceaea;
+}
+
+.logbook-panel--light .logbook-table {
+    color: #202020;
+}
+
+.logbook-panel--light .logbook-table thead {
+    background: #e3f3f3;
+    color: #006f6f;
+}
+
+.logbook-panel--light .logbook-table thead th {
+    border-bottom: 2px solid #7fa2a2;
+    background: #e3f3f3;
+    color: #006f6f;
+    opacity: 1;
+    text-shadow: none;
+}
+
+.logbook-panel--light .logbook-table th,
+.logbook-panel--light .logbook-table td {
+    border-color: #c6d6d6;
+}
+
+.logbook-panel--light .logbook-td-time,
+.logbook-panel--light .logbook-td-text {
+    color: #4f5959;
+}
+
+.logbook-panel--light .logbook-status-badge--approved,
+.logbook-panel--light .logbook-status-select--approved {
+    border-color: #21824b;
+    background: #e7f6ed;
+    color: #176238;
+}
+
+.logbook-panel--light .logbook-status-badge--pending,
+.logbook-panel--light .logbook-status-select--pending {
+    border-color: #a66a00;
+    background: #fff6dc;
+    color: #825000;
+}
+
+.logbook-panel--light .logbook-page-btn {
+    border-color: #668b8b;
+    background: #fff;
+    color: #006f6f;
+}
+
+.logbook-panel--light .logbook-page-btn:hover:not(:disabled),
+.logbook-panel--light .logbook-page-btn.is-active {
+    border-color: #006f6f;
+    background: #009999;
+    color: #fff;
+}
+
+@media (max-width: 620px) {
+    .logbook-panel--light .logbook-search-bar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .logbook-panel--light .logbook-search-input-wrap {
+        grid-column: 1 / -1;
+        min-width: 0;
+    }
+
+    .logbook-panel--light .logbook-month-select {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .logbook-panel--light .logbook-book-card {
+        align-items: flex-start;
+        padding: 12px;
+        box-shadow: 2px 2px 0 rgba(32, 32, 32, 0.14);
     }
 }
 </style>

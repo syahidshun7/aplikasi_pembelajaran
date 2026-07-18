@@ -171,7 +171,7 @@ const leaveGroup = (group) => {
     <AuthenticatedLayout>
         <Head title="PARTY_GUILD_REGISTRY" />
 
-        <div class="p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px]">
+        <div class="lobby-detail-page p-0 md:p-4 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px]">
             <div class="max-w-7xl mx-auto space-y-6">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b-4 border-emerald-900 pb-4">
                     <h1 class="text-base sm:text-lg md:text-xl uppercase tracking-widest">Party_Guild_Registry</h1>
@@ -253,7 +253,7 @@ const leaveGroup = (group) => {
                                 <button
                                     v-if="group.is_member"
                                     type="button"
-                                    class="inline-block px-3 py-1 border border-red-700 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[8px] disabled:opacity-50"
+                                    class="party-leave-button inline-block px-3 py-1 border border-red-700 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[8px] disabled:opacity-50"
                                     :disabled="leaveForm.processing || !canManageMembership"
                                     @click="leaveGroup(group)"
                                 >
@@ -334,7 +334,7 @@ const leaveGroup = (group) => {
                                         <button
                                             v-if="group.is_member"
                                             type="button"
-                                            class="inline-block px-3 py-1 border border-red-700 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[8px] disabled:opacity-50"
+                                            class="party-leave-button inline-block px-3 py-1 border border-red-700 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[8px] disabled:opacity-50"
                                             :disabled="leaveForm.processing || !canManageMembership"
                                             @click="leaveGroup(group)"
                                         >

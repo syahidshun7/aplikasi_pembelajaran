@@ -21,6 +21,10 @@ const props = defineProps({
         type: Number,
         default: null,
     },
+    creationSlug: {
+        type: String,
+        default: null,
+    },
     categories: {
         type: Array,
         default: () => [],
@@ -33,6 +37,7 @@ const photoInputRef = ref(null);
 const mainWorkspaceRef = ref(null);
 const pageMode = ref(String(props.mode || 'create'));
 const activeCreationId = ref(props.creationId ? Number(props.creationId) : null);
+const activeCreationSlug = ref(String(props.creationSlug || ''));
 const sidebarCollapsed = ref(false);
 const loading = ref(Boolean(activeCreationId.value));
 const saving = ref(false);
@@ -668,8 +673,13 @@ const persistCreation = async ({ publicationStatus = form.publication_status, no
             migrateLocalStateKey(nextId);
             activeCreationId.value = nextId;
             pageMode.value = 'edit';
+        }
+
+        const savedSlug = String(saved?.slug || activeCreationSlug.value || '');
+        if (savedSlug && savedSlug !== activeCreationSlug.value) {
+            activeCreationSlug.value = savedSlug;
             if (typeof window !== 'undefined') {
-                window.history.replaceState(window.history.state, '', route('profile.creations.edit', { creation: nextId }));
+                window.history.replaceState(window.history.state, '', route('profile.creations.edit', { creation: savedSlug }));
             }
         }
 

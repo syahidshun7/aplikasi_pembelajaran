@@ -103,7 +103,7 @@ onMounted(async () => {
     <GuestLayout>
         <Head title="Log In | P-QUEST" />
  
-        <form @submit.prevent="submit" class="space-y-6">
+        <form @submit.prevent="submit" class="auth-login-form space-y-6">
             <h2 class="text-yellow-500 text-[10px] text-center mb-6 border-b border-[var(--panel-border)] pb-4 tracking-widest uppercase">
                 -- LOGIN_ACCESS --
             </h2>

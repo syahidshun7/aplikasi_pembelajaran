@@ -174,7 +174,7 @@ const resolveLevelTitleSymbol = (title) => {
 
             <select
                 v-model.number="normalizedSelectedClassGroupId"
-                class="min-w-[180px] border border-slate-700 bg-slate-900 px-3 py-2 text-[8px] uppercase text-cyan-100 outline-none transition-all focus:border-cyan-400"
+                class="leaderboard-class-select min-w-[180px] border border-slate-700 bg-slate-900 px-3 py-2 text-[8px] uppercase text-cyan-100 outline-none transition-all focus:border-cyan-400"
                 :disabled="props.classOptions.length === 0 || classLoading"
             >
                 <option

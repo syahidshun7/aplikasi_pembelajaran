@@ -24,11 +24,33 @@ const props = defineProps({
 
 const selectedRoadmapUuid = ref(props.classRoadmaps[0]?.uuid || '');
 const selectedNode = ref(null);
+const canvasWrapperRef = ref(null);
+const zoomScale = ref(1);
+const zoomGestureStartScale = ref(1);
+const pinchStartDistance = ref(0);
+const pinchStartScale = ref(1);
+
+const MIN_ZOOM_SCALE = 0.4;
+const MAX_ZOOM_SCALE = 2;
+const ZOOM_STEP = 0.1;
+const WHEEL_ZOOM_SENSITIVITY = 0.0022;
+const MAX_WHEEL_DELTA = 42;
+
+const clampValue = (value, min, max) => Math.min(max, Math.max(min, value));
 
 watch(() => props.classRoadmaps, (roadmaps) => {
     if (!selectedRoadmapUuid.value && roadmaps?.length) {
         selectedRoadmapUuid.value = roadmaps[0].uuid;
     }
+});
+
+watch(selectedRoadmapUuid, () => {
+    zoomScale.value = 1;
+    requestAnimationFrame(() => {
+        if (!canvasWrapperRef.value) return;
+        canvasWrapperRef.value.scrollLeft = 0;
+        canvasWrapperRef.value.scrollTop = 0;
+    });
 });
 
 const selectedRoadmap = computed(() => {
@@ -50,6 +72,123 @@ const canvasSize = computed(() => {
 
     return { width, height };
 });
+
+const zoomPercent = computed(() => `${Math.round(zoomScale.value * 100)}%`);
+const canvasStageStyle = computed(() => ({
+    width: `${Math.round(canvasSize.value.width * zoomScale.value)}px`,
+    height: `${Math.round(canvasSize.value.height * zoomScale.value)}px`,
+}));
+const roadmapCanvasStyle = computed(() => ({
+    width: `${canvasSize.value.width}px`,
+    height: `${canvasSize.value.height}px`,
+    transform: `scale(${zoomScale.value})`,
+}));
+
+const resolveCanvasFocalPoint = (clientX = null, clientY = null) => {
+    const wrapper = canvasWrapperRef.value;
+    if (!wrapper) return null;
+
+    const rect = wrapper.getBoundingClientRect();
+    return {
+        clientX: Number(clientX ?? rect.left + (wrapper.clientWidth / 2)),
+        clientY: Number(clientY ?? rect.top + (wrapper.clientHeight / 2)),
+    };
+};
+
+const setZoomScale = (value) => {
+    const nextScale = Math.round(clampValue(Number(value || 1), MIN_ZOOM_SCALE, MAX_ZOOM_SCALE) * 100) / 100;
+    zoomScale.value = nextScale;
+    return nextScale;
+};
+
+const setZoomScaleAtPoint = (value, clientX = null, clientY = null) => {
+    const wrapper = canvasWrapperRef.value;
+    const focalPoint = resolveCanvasFocalPoint(clientX, clientY);
+    if (!wrapper || !focalPoint) return setZoomScale(value);
+
+    const rect = wrapper.getBoundingClientRect();
+    const oldScale = Math.max(MIN_ZOOM_SCALE, Number(zoomScale.value || 1));
+    const offsetX = focalPoint.clientX - rect.left;
+    const offsetY = focalPoint.clientY - rect.top;
+    const canvasX = (wrapper.scrollLeft + offsetX) / oldScale;
+    const canvasY = (wrapper.scrollTop + offsetY) / oldScale;
+    const nextScale = setZoomScale(value);
+
+    requestAnimationFrame(() => {
+        const maxScrollLeft = Math.max(0, Math.round(canvasSize.value.width * nextScale) - wrapper.clientWidth);
+        const maxScrollTop = Math.max(0, Math.round(canvasSize.value.height * nextScale) - wrapper.clientHeight);
+        wrapper.scrollLeft = clampValue(Math.round((canvasX * nextScale) - offsetX), 0, maxScrollLeft);
+        wrapper.scrollTop = clampValue(Math.round((canvasY * nextScale) - offsetY), 0, maxScrollTop);
+    });
+
+    return nextScale;
+};
+
+const zoomInCanvas = () => setZoomScaleAtPoint(zoomScale.value + ZOOM_STEP);
+const zoomOutCanvas = () => setZoomScaleAtPoint(zoomScale.value - ZOOM_STEP);
+const resetCanvasZoom = () => setZoomScaleAtPoint(1);
+const fitCanvasToWidth = () => {
+    const wrapperWidth = Number(canvasWrapperRef.value?.clientWidth || 0);
+    if (!wrapperWidth || !canvasSize.value.width) {
+        resetCanvasZoom();
+        return;
+    }
+
+    setZoomScaleAtPoint((wrapperWidth - 28) / canvasSize.value.width);
+};
+
+const normalizeWheelDelta = (event) => {
+    let delta = Number(event.deltaY || 0);
+    if (event.deltaMode === 1) delta *= 16;
+    if (event.deltaMode === 2) delta *= Number(canvasWrapperRef.value?.clientHeight || 620);
+    return clampValue(delta, -MAX_WHEEL_DELTA, MAX_WHEEL_DELTA);
+};
+
+const onCanvasWheel = (event) => {
+    if (!event.ctrlKey && !event.metaKey && !event.altKey) return;
+    event.preventDefault();
+    const nextScale = zoomScale.value * Math.exp(-normalizeWheelDelta(event) * WHEEL_ZOOM_SENSITIVITY);
+    setZoomScaleAtPoint(nextScale, event.clientX, event.clientY);
+};
+
+const onCanvasGestureStart = (event) => {
+    event.preventDefault();
+    zoomGestureStartScale.value = zoomScale.value;
+};
+
+const onCanvasGestureChange = (event) => {
+    event.preventDefault();
+    setZoomScaleAtPoint(zoomGestureStartScale.value * Number(event.scale || 1), event.clientX, event.clientY);
+};
+
+const getTouchDistance = (touches) => {
+    if (!touches || touches.length < 2) return 0;
+    const [first, second] = touches;
+    return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+};
+
+const onCanvasTouchStart = (event) => {
+    if (event.touches.length !== 2) return;
+    pinchStartDistance.value = getTouchDistance(event.touches);
+    pinchStartScale.value = zoomScale.value;
+};
+
+const onCanvasTouchMove = (event) => {
+    if (event.touches.length !== 2 || !pinchStartDistance.value) return;
+    event.preventDefault();
+    const distance = getTouchDistance(event.touches);
+    if (!distance) return;
+    const [first, second] = event.touches;
+    setZoomScaleAtPoint(
+        pinchStartScale.value * (distance / pinchStartDistance.value),
+        (first.clientX + second.clientX) / 2,
+        (first.clientY + second.clientY) / 2,
+    );
+};
+
+const onCanvasTouchEnd = (event) => {
+    if (event.touches.length < 2) pinchStartDistance.value = 0;
+};
 
 const nodeByUuid = computed(() => {
     const map = {};
@@ -111,7 +250,7 @@ const initials = (name) => {
     <AuthenticatedLayout>
         <Head :title="`${group.name || 'Study Group'} Detail`" />
 
-        <div class="p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px]">
+        <div class="lobby-detail-page p-0 md:p-4 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px]">
             <div class="mx-auto max-w-6xl space-y-6">
                 <div class="flex flex-col gap-3 border-b-4 border-emerald-900 pb-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -195,17 +334,25 @@ const initials = (name) => {
                                 Kurikulum view-only untuk kelas ini. Klik node untuk membuka Guide atau Quest.
                             </p>
                         </div>
-                        <div v-if="classRoadmaps.length > 1" class="flex flex-wrap gap-2">
-                            <button
-                                v-for="roadmap in classRoadmaps"
-                                :key="roadmap.uuid"
-                                type="button"
-                                class="border px-3 py-2 text-[8px] uppercase"
-                                :class="selectedRoadmap?.uuid === roadmap.uuid ? 'border-indigo-400 bg-indigo-500/20 text-indigo-100' : 'border-slate-700 text-slate-400 hover:border-indigo-400 hover:text-white'"
-                                @click="selectedRoadmapUuid = roadmap.uuid; selectedNode = null"
-                            >
-                                {{ roadmap.title }}
-                            </button>
+                        <div class="roadmap-toolbar">
+                            <div v-if="classRoadmaps.length > 1" class="flex flex-wrap justify-end gap-2">
+                                <button
+                                    v-for="roadmap in classRoadmaps"
+                                    :key="roadmap.uuid"
+                                    type="button"
+                                    class="roadmap-selector border px-3 py-2 text-[8px] uppercase"
+                                    :class="selectedRoadmap?.uuid === roadmap.uuid ? 'roadmap-selector--active border-indigo-400 bg-indigo-500/20 text-indigo-100' : 'roadmap-selector--idle border-slate-700 text-slate-400 hover:border-indigo-400 hover:text-white'"
+                                    @click="selectedRoadmapUuid = roadmap.uuid; selectedNode = null"
+                                >
+                                    {{ roadmap.title }}
+                                </button>
+                            </div>
+                            <div v-if="selectedRoadmap" class="roadmap-zoom-controls" aria-label="Canvas zoom controls">
+                                <button type="button" class="roadmap-zoom-btn" title="Zoom out" @click="zoomOutCanvas">-</button>
+                                <button type="button" class="roadmap-zoom-value" title="Reset zoom to 100%" @click="resetCanvasZoom">{{ zoomPercent }}</button>
+                                <button type="button" class="roadmap-zoom-btn" title="Zoom in" @click="zoomInCanvas">+</button>
+                                <button type="button" class="roadmap-zoom-fit" title="Fit canvas width" @click="fitCanvasToWidth">Fit</button>
+                            </div>
                         </div>
                     </div>
 
@@ -221,10 +368,21 @@ const initials = (name) => {
                             </p>
                         </div>
 
-                        <div class="roadmap-shell">
+                        <div
+                            ref="canvasWrapperRef"
+                            class="roadmap-shell"
+                            @wheel="onCanvasWheel"
+                            @gesturestart="onCanvasGestureStart"
+                            @gesturechange="onCanvasGestureChange"
+                            @touchstart="onCanvasTouchStart"
+                            @touchmove="onCanvasTouchMove"
+                            @touchend="onCanvasTouchEnd"
+                            @touchcancel="onCanvasTouchEnd"
+                        >
+                            <div class="roadmap-canvas-stage" :style="canvasStageStyle">
                             <div
                                 class="roadmap-canvas"
-                                :style="{ width: `${canvasSize.width}px`, height: `${canvasSize.height}px` }"
+                                :style="roadmapCanvasStyle"
                             >
                                 <svg class="pointer-events-none absolute inset-0 h-full w-full">
                                     <template v-for="edge in selectedRoadmap.edges || []" :key="edge.uuid">
@@ -310,6 +468,7 @@ const initials = (name) => {
                                         {{ node.title }}
                                     </span>
                                 </button>
+                            </div>
                             </div>
                         </div>
                     </div>
@@ -397,6 +556,7 @@ const initials = (name) => {
 }
 
 .roadmap-shell {
+    height: clamp(420px, 62vh, 620px);
     max-height: 620px;
     overflow: auto;
     border: 2px solid rgba(99, 102, 241, 0.35);
@@ -405,11 +565,64 @@ const initials = (name) => {
         linear-gradient(to bottom, rgba(148, 163, 184, 0.12) 1px, transparent 1px),
         #0b1020;
     background-size: 24px 24px;
+    touch-action: pan-x pan-y;
+}
+
+.roadmap-toolbar {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.roadmap-zoom-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.roadmap-zoom-controls button {
+    min-height: 34px;
+    border: 1px solid #334155;
+    background: rgba(15, 23, 42, 0.45);
+    padding: 0.45rem 0.6rem;
+    color: #cbd5e1;
+    font-size: 8px;
+    text-transform: uppercase;
+    box-shadow: 2px 2px 0 rgba(1, 6, 14, 0.9);
+}
+
+.roadmap-zoom-controls button:hover {
+    border-color: #22d3ee;
+    color: #ffffff;
+}
+
+.roadmap-zoom-btn {
+    width: 34px;
+    min-width: 34px;
+}
+
+.roadmap-zoom-value {
+    min-width: 62px;
+}
+
+.roadmap-zoom-fit {
+    min-width: 44px;
+}
+
+.roadmap-canvas-stage {
+    position: relative;
+    min-width: 100%;
+    min-height: 100%;
+    margin-inline: auto;
+    transition: width 0.16s ease, height 0.16s ease;
 }
 
 .roadmap-canvas {
     position: relative;
     min-width: 900px;
+    transform-origin: top left;
 }
 
 .roadmap-section-box {

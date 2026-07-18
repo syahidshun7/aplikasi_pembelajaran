@@ -541,13 +541,13 @@ const unlockLateQuest = () => {
                                 </div>
 
                                 <!-- GAME CONTENT (WORD MATCH) -->
-                                <div v-if="taskBankType === 'word_match'" class="absolute inset-0 flex flex-col items-center justify-center p-4 sm:p-10 z-10 space-y-8">
-                                    <div :class="{ 'opacity-20 grayscale pointer-events-none': wmFinished }" class="bg-black/80 backdrop-blur-xl border-2 border-cyan-500/20 p-8 sm:p-12 pf-bevel w-full max-w-4xl shadow-2xl relative overflow-hidden transition-all">
-                                        <div class="flex flex-wrap items-center justify-center gap-x-2 gap-y-6 leading-relaxed">
+                                <div v-if="taskBankType === 'word_match'" class="absolute inset-0 flex flex-col items-center justify-start px-4 pt-16 pb-24 sm:px-8 sm:pt-20 sm:pb-28 z-10 gap-5 overflow-y-auto custom-scrollbar">
+                                    <div :class="{ 'opacity-20 grayscale pointer-events-none': wmFinished }" class="bg-black/80 backdrop-blur-xl border-2 border-cyan-500/20 p-5 sm:p-8 pf-bevel w-full max-w-5xl shadow-2xl relative overflow-hidden transition-all">
+                                        <div class="flex flex-wrap items-center justify-center gap-x-2 gap-y-4 sm:gap-y-5 leading-relaxed">
                                             <template v-for="(part, pi) in wmSentenceParts" :key="pi">
-                                                <span class="text-slate-100 text-sm sm:text-xl font-bold tracking-tight uppercase">{{ part }}</span>
+                                                <span class="text-slate-100 text-[13px] sm:text-lg lg:text-xl font-bold tracking-tight uppercase break-words">{{ part }}</span>
                                                 <div v-if="pi < wmBlankCount" @click="wmRemoveWord(pi)" 
-                                                    class="inline-flex items-center justify-center min-w-[110px] sm:min-w-[160px] h-10 sm:h-12 px-3 border-2 transition-all cursor-pointer pf-bevel-xs relative overflow-hidden mx-1"
+                                                    class="inline-flex items-center justify-center min-w-[104px] sm:min-w-[150px] h-9 sm:h-11 px-3 border-2 transition-all cursor-pointer pf-bevel-xs relative overflow-hidden mx-1"
                                                     :class="wmPlacedWords[pi] ? 'border-cyan-400 bg-cyan-500/10 shadow-[0_0_15px_rgba(34,211,238,0.2)]' : 'border-slate-700 bg-black/60 shadow-inner'">
                                                     <span class="text-[10px] sm:text-sm font-black uppercase text-cyan-300 tracking-wider animate-pf-pop-in">{{ wmPlacedWords[pi] || '' }}</span>
                                                     <div v-if="!wmPlacedWords[pi]" class="absolute inset-0 bg-cyan-500/5 pf-laser-scan" style="animation-duration: 4s"></div>
@@ -557,15 +557,15 @@ const unlockLateQuest = () => {
                                         </div>
                                     </div>
                                     
-                                    <div v-if="!wmFinished" class="w-full max-w-3xl flex flex-wrap justify-center gap-3">
+                                    <div v-if="!wmFinished" class="w-full max-w-4xl flex flex-wrap justify-center gap-2 sm:gap-3">
                                         <button v-for="(card, ci) in wmAvailableCards" :key="ci" @click="wmPlaceWord(card)"
-                                            class="px-5 py-3 bg-slate-900/60 border border-cyan-500/40 text-cyan-100 text-[9px] sm:text-[11px] pf-bevel-sm hover:bg-cyan-600 hover:text-white transition-all active:scale-95 uppercase font-black tracking-widest relative group overflow-hidden">
+                                            class="px-4 sm:px-5 py-2.5 sm:py-3 bg-slate-900/60 border border-cyan-500/40 text-cyan-100 text-[9px] sm:text-[11px] pf-bevel-sm hover:bg-cyan-600 hover:text-white transition-all active:scale-95 uppercase font-black tracking-widest relative group overflow-hidden">
                                             <div class="absolute inset-0 bg-white/5 translate-y-full group-hover:translate-y-0 transition-transform"></div>
                                             {{ card }}
                                         </button>
                                     </div>
 
-                                    <button v-if="!wmFinished" @click="wmSubmitGame(false)" class="px-12 py-3 border-2 border-emerald-500 text-emerald-400 text-[10px] font-black uppercase pf-bevel hover:bg-emerald-600 hover:text-white transition-all shadow-xl">
+                                    <button v-if="!wmFinished" @click="wmSubmitGame(false)" class="px-8 sm:px-12 py-3 border-2 border-emerald-500 text-emerald-400 text-[9px] sm:text-[10px] font-black uppercase pf-bevel hover:bg-emerald-600 hover:text-white transition-all shadow-xl">
                                         [ TRANSMIT_FINAL_DATA ]
                                     </button>
 
@@ -734,12 +734,12 @@ const unlockLateQuest = () => {
         </div>
 
         <!-- NORMAL QUEST PAGE -->
-        <div v-else class="min-h-screen p-4 md:p-12 font-['Press_Start_2P'] text-[#4ed4d4] flex justify-center items-start">
+        <div v-else class="lobby-detail-page min-h-screen p-0 md:p-4 font-['Press_Start_2P'] text-[#4ed4d4] flex justify-center items-start">
             <Head :title="'DETAILS - ' + quest.title" />
-            <div class="quest-shell w-full max-w-3xl border-4 border-slate-700 shadow-[20px_20px_0px_0px_rgba(0,0,0,0.5)] relative overflow-hidden" :style="questToneStyle">
-                <div class="p-4 md:p-8 border-b-4 border-slate-700 bg-slate-900/50">
+            <div class="quest-shell w-full max-w-6xl border-4 border-slate-700 shadow-[20px_20px_0px_0px_rgba(0,0,0,0.5)] relative overflow-hidden" :style="questToneStyle">
+                <div class="quest-detail-header p-4 md:p-8 border-b-4 border-slate-700 bg-slate-900/50">
                     <div class="flex justify-between items-center gap-3 mb-4">
-                        <Link :href="route('lobby')" class="px-3 py-2 border-2 border-slate-700 bg-slate-900/40 text-slate-300 hover:text-white hover:border-cyan-400 text-[10px] uppercase">[ BACK_TO_LOBBY ]</Link>
+                        <Link :href="route('lobby')" class="quest-back-button shrink-0 whitespace-nowrap border-2 border-slate-700 bg-slate-900/40 px-2 py-1.5 text-[7px] uppercase text-slate-300 hover:border-cyan-400 hover:text-white sm:px-2.5 sm:py-2 sm:text-[8px]">[ BACK_TO_LOBBY ]</Link>
                         <span class="text-yellow-500 text-[11px]">REF_ID: #{{ quest.uuid.substring(0, 8) }}</span>
                     </div>
                     <h1 class="text-lg md:text-2xl text-white uppercase tracking-tighter leading-tight">{{ quest.title }}</h1>
@@ -751,19 +751,22 @@ const unlockLateQuest = () => {
                     </div>
                     <div class="space-y-4">
                         <h3 class="text-[12px] text-cyan-400 uppercase tracking-widest underline italic">Quest_Objectives:</h3>
-                        <div class="bg-black/30 p-4 border-l-4 border-slate-700 font-sans text-[14px] text-slate-300 whitespace-pre-wrap">{{ quest.description || 'NO DATA.' }}</div>
+                        <div class="quest-objective-card bg-black/30 p-4 border-l-4 border-slate-700 font-sans text-[14px] text-slate-300 whitespace-pre-wrap">{{ quest.description || 'NO DATA.' }}</div>
                     </div>
 
-                    <div v-if="canSubmit" class="mt-8 p-4 border-2 border-dashed border-cyan-900 bg-black/20">
+                    <div v-if="canSubmit" class="quest-submit-panel mt-8 p-4 border-2 border-dashed border-cyan-900 bg-black/20">
                         <h3 class="text-[12px] mb-6 uppercase tracking-widest text-white">>> {{ props.hasSubmitted ? 'EDIT_REPORT' : 'SUBMIT_REPORT' }}</h3>
                         <form @submit.prevent="submitReport" class="space-y-6">
                             <div v-if="isStructuredTaskBankQuest" class="space-y-4">
                                 <div class="bg-slate-900/40 border border-cyan-900/50 p-3"><p class="text-[10px] text-cyan-300 uppercase">BANK: {{ quest.task_bank?.name }}</p></div>
-                                <div v-for="(q, idx) in taskQuestions" :key="q.uuid" class="bg-black/30 border border-slate-700 p-4 space-y-3">
-                                    <p class="text-[10px] text-yellow-300 uppercase">Q{{ idx + 1 }} // {{ q.question_type }}</p>
-                                    <p class="text-[13px] text-slate-200 font-sans">{{ q.question_text }}</p>
-                                    <div v-if="q.question_type === 'multiple_choice'" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        <label v-for="(opt, oi) in (q.options_json || [])" :key="oi" class="flex items-center gap-2 border border-slate-700 px-3 py-2 cursor-pointer hover:border-cyan-500 transition-colors">
+                                <div v-for="(q, idx) in taskQuestions" :key="q.uuid" class="quest-question-card bg-black/30 border border-slate-700 p-4 space-y-4">
+                                    <div class="quest-question-meta flex flex-wrap items-center gap-2 uppercase">
+                                        <span class="border border-cyan-700 bg-cyan-900/30 px-2 py-1 text-[9px] text-cyan-300">Question {{ idx + 1 }}</span>
+                                        <span class="border border-slate-700 px-2 py-1 text-[8px] text-slate-400">{{ q.question_type }}</span>
+                                    </div>
+                                    <p class="quest-question-text border-l-4 border-cyan-500 pl-4 font-sans text-[15px] font-semibold leading-7 text-slate-200 md:text-[16px]">{{ q.question_text }}</p>
+                                    <div v-if="q.question_type === 'multiple_choice'" class="grid grid-cols-1 gap-2">
+                                        <label v-for="(opt, oi) in (q.options_json || [])" :key="oi" class="quest-answer-option flex items-center gap-3 border border-slate-700 px-3 py-3 cursor-pointer hover:border-cyan-500 transition-colors">
                                             <input v-model="form.task_answers[q.uuid]" type="radio" :value="opt" class="accent-cyan-500">
                                             <span class="text-[12px] text-slate-300 font-sans">{{ opt }}</span>
                                         </label>

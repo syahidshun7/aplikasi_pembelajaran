@@ -2,6 +2,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
+import { useUserTheme } from '@/Composables/useUserTheme';
 import { useLobby } from '@/Composables/useLobby';
 import FloatingChat from '@/Components/FloatingChat.vue';
 import UserNavbar from '@/Components/UserNavbar.vue';
@@ -135,6 +136,18 @@ const leaderboardMode = ref(resolveInitialLeaderboardMode());
 const selectedClassGroupId = ref(resolveClassGroupIdFromMeta(props.leaderboardMeta));
 const isClassLeaderboardLoading = ref(false);
 const page = usePage();
+const { themeMode } = useUserTheme();
+const lobbyBackgroundOverlayClass = computed(() => (
+    themeMode.value === 'light' ? 'bg-[#f7f7f7]/92' : 'bg-black/60'
+));
+const lobbyBackgroundGlowClass = computed(() => (
+    themeMode.value === 'light'
+        ? 'bg-[radial-gradient(circle_at_16%_18%,rgba(0,153,153,0.14),transparent_32%),radial-gradient(circle_at_84%_12%,rgba(32,32,32,0.08),transparent_30%)]'
+        : 'bg-[radial-gradient(circle_at_18%_20%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_82%_14%,rgba(45,212,191,0.14),transparent_30%),linear-gradient(180deg,rgba(2,6,23,0.16),rgba(2,6,23,0.4))]'
+));
+const lobbyBackgroundImage = computed(() => (
+    themeMode.value === 'light' ? '/images/bg-loby5.png' : '/images/bg-loby.png'
+));
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
 const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
@@ -487,9 +500,14 @@ onBeforeUnmount(() => {
 
     <div
         data-app-surface="user"
+        :data-theme="themeMode"
         class="user-theme-root relative isolate min-h-screen overflow-x-hidden font-['Press_Start_2P']"
     >
-        <AppBackgroundLayer overlay-class="bg-black/60" />
+        <AppBackgroundLayer
+            :image="lobbyBackgroundImage"
+            :overlay-class="lobbyBackgroundOverlayClass"
+            :glow-class="lobbyBackgroundGlowClass"
+        />
 
         <div class="relative z-10 flex min-h-screen flex-col">
             <UserNavbar :show-guest-actions="true" />
@@ -524,7 +542,7 @@ onBeforeUnmount(() => {
 
             <main class="flex-1 px-3 py-3 sm:px-4 sm:py-4 md:px-8 md:py-8">
                 <div class="user-page-shell">
-                    <section class="academy-hub academy-hub--joined">
+                    <section class="academy-hub academy-hub--joined lobby-color-system">
                         <div class="academy-scene">
                             <div class="academy-scene__backdrop"></div>
                             <div class="academy-scene__content">
@@ -607,8 +625,66 @@ onBeforeUnmount(() => {
 
 .academy-hub {
     @apply overflow-hidden border-2 p-2 shadow-[0_14px_38px_rgba(2,8,16,0.42)];
+    --lobby-primary: #202020;
+    --lobby-primary-soft: #303030;
+    --lobby-primary-deep: #161616;
+    --lobby-secondary: #f7f7f7;
+    --lobby-secondary-muted: #c4c2c2;
+    --lobby-accent: #009999;
+    --lobby-accent-soft: #38b2b2;
+    --lobby-accent-deep: #087f7f;
     border-color: var(--panel-border);
     background-color: var(--panel);
+}
+
+[data-theme='light'] .academy-hub {
+    background:
+        linear-gradient(180deg, rgba(0, 153, 153, 0.07), transparent 22%),
+        var(--lobby-secondary);
+    color: var(--lobby-primary);
+    box-shadow: 0 16px 34px rgba(32, 32, 32, 0.12);
+}
+
+[data-theme='light'].user-theme-root :deep(.user-navbar-shell) {
+    border-bottom-color: #009999 !important;
+    background: #202020 !important;
+    color: #f7f7f7 !important;
+    box-shadow: 0 10px 24px rgba(32, 32, 32, 0.20) !important;
+}
+
+[data-theme='light'].user-theme-root :deep(.user-navbar-brand-title) {
+    color: #f7f7f7 !important;
+    text-shadow: none !important;
+}
+
+[data-theme='light'].user-theme-root :deep(.nav-dock),
+[data-theme='light'].user-theme-root :deep(.user-navbar-mobile-shell) {
+    border-color: rgba(247, 247, 247, 0.18) !important;
+    background: #181818 !important;
+    box-shadow: none !important;
+}
+
+[data-theme='light'].user-theme-root :deep(.user-navbar-mobile-toggle) {
+    border-color: rgba(0, 153, 153, 0.58) !important;
+    background: #202020 !important;
+    color: #f7f7f7 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+}
+
+[data-theme='light'].user-theme-root :deep(.user-navbar-mobile-toggle:hover) {
+    background: #009999 !important;
+    color: #ffffff !important;
+}
+
+[data-theme='light'].user-theme-root .user-theme-footer {
+    border-top-color: #009999 !important;
+    background: #202020 !important;
+    color: #f7f7f7 !important;
+}
+
+[data-theme='light'].user-theme-root .user-theme-footer .user-theme-muted {
+    color: rgba(247, 247, 247, 0.72) !important;
 }
 
 .academy-hub--joined {
@@ -627,6 +703,17 @@ onBeforeUnmount(() => {
     background-color: var(--panel);
 }
 
+[data-theme='light'] .academy-scene {
+    background:
+        linear-gradient(135deg, rgba(0, 153, 153, 0.10), transparent 34%),
+        #ffffff;
+}
+
+[data-theme='light'] .academy-scene__backdrop {
+    background: transparent;
+    opacity: 1;
+}
+
 .academy-scene__content {
     @apply relative z-10 flex min-h-[268px] flex-col justify-center pt-1;
 }
@@ -634,6 +721,10 @@ onBeforeUnmount(() => {
 .academy-scene__copy {
     @apply mx-auto max-w-[760px] px-4 pb-4 text-center text-[9px] uppercase leading-relaxed tracking-[0.16em];
     color: var(--text-muted);
+}
+
+[data-theme='light'] .academy-scene__copy {
+    color: color-mix(in srgb, var(--lobby-primary) 68%, var(--lobby-secondary) 32%);
 }
 
 .academy-scene__footer {
@@ -661,8 +752,388 @@ onBeforeUnmount(() => {
     @apply text-[11px] uppercase tracking-[0.14em] text-white;
 }
 
+[data-theme='light'] .dashboard-focus-shell__title {
+    color: var(--lobby-primary);
+}
+
 .dashboard-focus-shell__helper {
     @apply max-w-[560px] text-[7px] uppercase leading-relaxed tracking-[0.12em] text-slate-400;
+}
+
+[data-theme='light'] .dashboard-focus-shell__helper {
+    color: color-mix(in srgb, var(--lobby-primary) 58%, var(--lobby-secondary) 42%);
+}
+
+[data-theme='light'] .lobby-color-system :deep(.dashboard-section-shell) {
+    background:
+        linear-gradient(180deg, rgba(0, 153, 153, 0.08), transparent 26%),
+        #f7f7f7 !important;
+    border-color: #087f7f !important;
+    color: #202020 !important;
+    box-shadow:
+        0 18px 34px rgba(32, 32, 32, 0.12),
+        0 0 0 1px rgba(32, 32, 32, 0.08) !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.dashboard-section-header) {
+    border-bottom-color: rgba(32, 32, 32, 0.34) !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.dashboard-section-header__eyebrow),
+[data-theme='light'] .lobby-color-system :deep(.dashboard-section-header__title),
+[data-theme='light'] .lobby-color-system :deep(.dashboard-empty-state__title) {
+    color: #009999 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.dashboard-section-header__action) {
+    border-color: #006f6f !important;
+    background: #009999 !important;
+    color: #ffffff !important;
+    box-shadow: 4px 4px 0 #202020 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.dashboard-section-header__action:hover) {
+    background: var(--lobby-accent) !important;
+    color: #ffffff !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-white),
+[data-theme='light'] .lobby-color-system :deep(.library-item-card .text-white),
+[data-theme='light'] .lobby-color-system :deep(.event-card .text-white),
+[data-theme='light'] .lobby-color-system :deep(.dashboard-section-shell article .text-white) {
+    color: #202020 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.text-slate-300),
+[data-theme='light'] .lobby-color-system :deep(.text-slate-400),
+[data-theme='light'] .lobby-color-system :deep(.text-slate-500),
+[data-theme='light'] .lobby-color-system :deep(.text-slate-600) {
+    color: #626262 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.text-cyan-100),
+[data-theme='light'] .lobby-color-system :deep(.text-cyan-200),
+[data-theme='light'] .lobby-color-system :deep(.text-cyan-300),
+[data-theme='light'] .lobby-color-system :deep(.text-cyan-300\/70),
+[data-theme='light'] .lobby-color-system :deep(.text-cyan-300\/80),
+[data-theme='light'] .lobby-color-system :deep(.text-sky-200) {
+    color: #006f6f !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.text-lime-200),
+[data-theme='light'] .lobby-color-system :deep(.text-emerald-100),
+[data-theme='light'] .lobby-color-system :deep(.text-emerald-300),
+[data-theme='light'] .lobby-color-system :deep(.text-emerald-400) {
+    color: #166534 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.text-yellow-300),
+[data-theme='light'] .lobby-color-system :deep(.text-yellow-400),
+[data-theme='light'] .lobby-color-system :deep(.text-yellow-500),
+[data-theme='light'] .lobby-color-system :deep(.text-orange-300),
+[data-theme='light'] .lobby-color-system :deep(.text-orange-500) {
+    color: #9a5b00 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.border-slate-700),
+[data-theme='light'] .lobby-color-system :deep(.border-slate-800),
+[data-theme='light'] .lobby-color-system :deep(.border-cyan-400\/20),
+[data-theme='light'] .lobby-color-system :deep(.border-cyan-500\/30),
+[data-theme='light'] .lobby-color-system :deep(.border-cyan-700) {
+    border-color: color-mix(in srgb, var(--lobby-accent) 36%, var(--lobby-primary) 64%) !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.bg-\[\#0d1117\]),
+[data-theme='light'] .lobby-color-system :deep(.bg-slate-900\/60),
+[data-theme='light'] .lobby-color-system :deep(.bg-slate-800),
+[data-theme='light'] .lobby-color-system :deep(.bg-black\/20) {
+    background-color: #f1f4f4 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card),
+[data-theme='light'] .lobby-color-system :deep(.library-item-card),
+[data-theme='light'] .lobby-color-system :deep(.event-card),
+[data-theme='light'] .lobby-color-system :deep(.party-card),
+[data-theme='light'] .lobby-color-system :deep(.leaderboard-row),
+[data-theme='light'] .lobby-color-system :deep(.dashboard-section-shell .space-y-3 > a),
+[data-theme='light'] .lobby-color-system :deep(.dashboard-section-shell .space-y-3 > div),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card) {
+    border-color: #d5e2e2 !important;
+    background: #ffffff !important;
+    color: #202020 !important;
+    box-shadow:
+        inset 0 0 0 1px rgba(32, 32, 32, 0.04),
+        0 10px 22px rgba(32, 32, 32, 0.08) !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card:hover),
+[data-theme='light'] .lobby-color-system :deep(.library-item-card:hover),
+[data-theme='light'] .lobby-color-system :deep(.event-card:hover),
+[data-theme='light'] .lobby-color-system :deep(.party-card:hover),
+[data-theme='light'] .lobby-color-system :deep(.dashboard-section-shell .space-y-3 > a:hover) {
+    border-color: #009999 !important;
+    background: #f4fbfb !important;
+    box-shadow: 0 12px 24px rgba(0, 153, 153, 0.14) !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card > div:first-child > span:first-child) {
+    border-color: rgba(0, 153, 153, 0.32) !important;
+    background: #e3f5f5 !important;
+    color: #006f6f !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .border-t) {
+    border-color: rgba(32, 32, 32, 0.16) !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-slate-400),
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-slate-500),
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-slate-600) {
+    color: #696969 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-green-500) {
+    color: #15803d !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-cyan-500),
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-cyan-300),
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-cyan-200) {
+    color: #087f7f !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-orange-500),
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-orange-300),
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-yellow-500),
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-yellow-400) {
+    color: #a16207 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-red-500) {
+    color: #dc2626 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .btn-pixel),
+[data-theme='light'] .lobby-color-system :deep(.dashboard-section-header__action),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__action) {
+    border-color: #006f6f !important;
+    background: #009999 !important;
+    color: #ffffff !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-group-badge),
+[data-theme='light'] .lobby-color-system :deep(.library-item-label),
+[data-theme='light'] .lobby-color-system :deep(.event-card__meeting),
+[data-theme='light'] .lobby-color-system :deep(.event-card__group),
+[data-theme='light'] .lobby-color-system :deep(.rounded-full) {
+    border-color: rgba(0, 153, 153, 0.34) !important;
+    background: #e3f5f5 !important;
+    color: #006f6f !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.library-item-group) {
+    color: #006f6f !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.library-item-action) {
+    color: #007777 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.library-item-action:hover) {
+    background: transparent !important;
+    color: #00b3b3 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.event-card__footer) {
+    margin-top: auto !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.event-card__action) {
+    color: #007777 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.event-card__action:hover) {
+    color: #00b3b3 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card) {
+    border-color: #087f7f !important;
+    background: #f7f7f7 !important;
+    color: #202020 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__header),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__activities) {
+    border-color: rgba(32, 32, 32, 0.24) !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__eyebrow),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__activities-eyebrow) {
+    color: #009999 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__title),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__activities-title),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__activity-title),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__empty-title) {
+    color: #202020 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__copy),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__empty-copy),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__meta-label) {
+    color: #626262 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__count-shell) {
+    border-color: rgba(0, 153, 153, 0.38) !important;
+    background: #e3f5f5 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__count-label),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__count),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__activities-count),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__objective-box),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__activity-progress-inline),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__meta-value.text-cyan-200) {
+    color: #006f6f !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__activities-count) {
+    border-color: rgba(0, 153, 153, 0.34) !important;
+    background: #e3f5f5 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__meta),
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__activity) {
+    border-color: #cbd8d8 !important;
+    background: #ffffff !important;
+    box-shadow: 0 6px 14px rgba(32, 32, 32, 0.06) !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__meta-value.text-emerald-200) {
+    color: #166534 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__activity-reward) {
+    color: #9a5b00 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__activity-status--pending) {
+    border-color: #d6a22d !important;
+    background: #fffbeb !important;
+    color: #92400e !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__activity-status--completed) {
+    border-color: #009999 !important;
+    background: #e3f5f5 !important;
+    color: #006f6f !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__activity-status--claimed) {
+    border-color: #22a35a !important;
+    background: #f0fdf4 !important;
+    color: #166534 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__activity-status--expired) {
+    border-color: #dc2626 !important;
+    background: #fef2f2 !important;
+    color: #b91c1c !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.daily-claim-card__action:disabled) {
+    border-color: #9ca3af !important;
+    background: #e5e7eb !important;
+    color: #555555 !important;
+    box-shadow: none !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-sky-200) {
+    color: #075985 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .text-lime-200) {
+    color: #3f6212 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.leaderboard-row-top .text-cyan-300),
+[data-theme='light'] .lobby-color-system :deep(.dashboard-section-shell article .text-cyan-300\/70) {
+    color: #007777 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.leaderboard-row-top .text-white) {
+    color: #202020 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.leaderboard-class-select) {
+    border-color: #087f7f !important;
+    background: #ffffff !important;
+    color: #202020 !important;
+    box-shadow: 2px 2px 0 rgba(32, 32, 32, 0.14);
+}
+
+[data-theme='light'] .lobby-color-system :deep(.leaderboard-class-select:focus) {
+    border-color: #009999 !important;
+    box-shadow: 0 0 0 2px rgba(0, 153, 153, 0.16);
+}
+
+[data-theme='light'] .lobby-color-system :deep(.leaderboard-class-select:disabled) {
+    border-color: #9eb8b8 !important;
+    background: #edf4f4 !important;
+    color: #555555 !important;
+    cursor: not-allowed;
+    opacity: 1;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.leaderboard-class-select option) {
+    background: #ffffff;
+    color: #202020;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card.border-red-600) {
+    border-color: #dc2626 !important;
+    background: #fff5f5 !important;
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+        0 12px 24px rgba(185, 28, 28, 0.22) !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card.border-yellow-500),
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card.border-yellow-600) {
+    border-color: #ca8a04 !important;
+    background: #fffbeb !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card.border-emerald-500) {
+    border-color: #16a34a !important;
+    background: #f0fdf4 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card.border-cyan-500) {
+    border-color: #0891b2 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .bg-red-700) {
+    border-color: #7f1d1d !important;
+    background: #dc2626 !important;
+    color: #ffffff !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .bg-yellow-600) {
+    border-color: #713f12 !important;
+    background: #eab308 !important;
+    color: #202020 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .bg-emerald-600),
+[data-theme='light'] .lobby-color-system :deep(.quest-item-card .bg-cyan-600) {
+    border-color: #064e3b !important;
+    background: #10b981 !important;
+    color: #202020 !important;
 }
 
 .dashboard-section-enter-active,

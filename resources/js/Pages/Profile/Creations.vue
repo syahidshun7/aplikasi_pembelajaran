@@ -70,8 +70,8 @@ const setScope = (scope) => {
 
 const scopeButtonClass = (scope) => (
     filters.scope === scope
-        ? 'border-cyan-400 bg-cyan-500/20 text-cyan-100'
-        : 'border-slate-700 bg-black/25 text-slate-400 hover:border-cyan-500/60 hover:text-cyan-200'
+        ? 'creation-scope--active border-cyan-400 bg-cyan-500/20 text-cyan-100'
+        : 'creation-scope--idle border-slate-700 bg-black/25 text-slate-400 hover:border-cyan-500/60 hover:text-cyan-200'
 );
 
 const statusBadgeClass = (status) => {
@@ -90,8 +90,8 @@ const statusBadgeClass = (status) => {
 
 const publicationBadgeClass = (status) => (
     String(status || 'draft') === 'publish'
-        ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
-        : 'border-slate-600 bg-slate-800/60 text-slate-300'
+        ? 'creation-publication--published border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
+        : 'creation-publication--draft border-slate-600 bg-slate-800/60 text-slate-300'
 );
 
 const statsLabel = computed(() => {
@@ -115,8 +115,8 @@ onMounted(() => {
     <AuthenticatedLayout>
         <Head title="Profile Creations" />
 
-        <div class="space-y-6 font-['Press_Start_2P'] text-[#4ed4d4]">
-            <section class="rpg-panel border-cyan-500/35 bg-[#111827]/82">
+        <div class="lobby-detail-page profile-light-page profile-creations-page user-page-shell space-y-6 font-['Press_Start_2P'] text-[#4ed4d4]">
+            <section class="creation-workspace-panel rpg-panel border-cyan-500/35 bg-[#111827]/82">
                 <div class="flex flex-wrap items-start justify-between gap-4 border-b border-slate-700 pb-4">
                     <div class="space-y-2">
                         <p class="text-[8px] uppercase tracking-[0.22em] text-cyan-300/80">Creation Workspace</p>
@@ -169,7 +169,7 @@ onMounted(() => {
                 </div>
             </section>
 
-            <section class="rpg-panel border-slate-700/80 bg-[#0f172a]/82">
+            <section class="creation-list-panel rpg-panel border-slate-700/80 bg-[#0f172a]/82">
                 <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 pb-4">
                     <div>
                         <p class="text-[8px] uppercase text-slate-500">{{ statsLabel }}</p>
@@ -251,7 +251,7 @@ onMounted(() => {
                                 </div>
 
                                 <div class="flex items-center gap-1">
-                                   <Link :href="route('profile.creations.edit', { creation: creation.id })" class="icon-action text-cyan-300 hover:text-cyan-100" title="Edit">
+                                   <Link :href="route('profile.creations.edit', { creation: creation.slug || creation.id })" class="icon-action text-cyan-300 hover:text-cyan-100" title="Edit">
                                        <i class="fi fi-rr-pencil text-[11px]" />
                                    </Link>
                                     <Link :href="route('hall.creations.show', { creation: creation.slug || creation.id })" class="icon-action text-amber-300 hover:text-amber-100" title="Detail">

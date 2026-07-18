@@ -13,13 +13,21 @@ class InventoryController extends Controller
     {
         $user = auth()->user();
 
-        $inventories = UserInventory::query()
+        $inventoryQuery = UserInventory::query()
             ->with('item.profileSkin:id,shop_item_id,slug,name,template_key,preview_image_path,background_image_path')
             ->where('user_id', (int) $user->id)
-            ->where('quantity', '>', 0)
+            ->where('quantity', '>', 0);
+
+        $summary = [
+            'unique_items' => (int) (clone $inventoryQuery)->count(),
+            'total_quantity' => (int) (clone $inventoryQuery)->sum('quantity'),
+        ];
+
+        $inventories = $inventoryQuery
             ->orderByDesc('updated_at')
-            ->get()
-            ->map(function (UserInventory $inventory) {
+            ->paginate(12, ['*'], 'items_page')
+            ->withQueryString()
+            ->through(function (UserInventory $inventory) {
                 $item = $inventory->item;
                 $code = (string) ($item?->code ?? '');
                 $profileSkin = $item?->profileSkin;
@@ -53,16 +61,15 @@ class InventoryController extends Controller
                             : 'Item ini belum punya aksi langsung.'),
                     ],
                 ];
-            })
-            ->values();
+            });
 
         $logs = UserInventoryLog::query()
             ->with('item:id,code,name,icon_path')
             ->where('user_id', (int) $user->id)
             ->latest()
-            ->limit(30)
-            ->get()
-            ->map(function (UserInventoryLog $log) {
+            ->paginate(10, ['*'], 'logs_page')
+            ->withQueryString()
+            ->through(function (UserInventoryLog $log) {
                 return [
                     'id' => (int) $log->id,
                     'type' => (string) $log->type,
@@ -78,16 +85,12 @@ class InventoryController extends Controller
                         'icon_path' => (string) ($log->item?->icon_path ?? ''),
                     ],
                 ];
-            })
-            ->values();
+            });
 
         return Inertia::render('Inventory/Index', [
             'inventories' => $inventories,
             'logs' => $logs,
-            'summary' => [
-                'unique_items' => (int) $inventories->count(),
-                'total_quantity' => (int) $inventories->sum('quantity'),
-            ],
+            'summary' => $summary,
         ]);
     }
 }

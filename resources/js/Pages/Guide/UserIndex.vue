@@ -103,7 +103,7 @@ const toneStyleForGuide = (item) => {
     <AuthenticatedLayout>
         <Head title="DETAIL_GUIDE_USER" />
 
-        <div class="p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px]">
+        <div class="lobby-detail-page p-0 md:p-4 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px]">
             <div class="max-w-7xl mx-auto space-y-6">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b-4 border-indigo-900 pb-4">
                     <h1 class="text-base sm:text-lg md:text-xl uppercase tracking-widest">Detail_Guide_User</h1>

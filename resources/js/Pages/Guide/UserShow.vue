@@ -112,8 +112,8 @@ const guideClassLabel = computed(() => {
     <AuthenticatedLayout>
         <Head :title="`GUIDE | ${guide.title}`" />
 
-        <div class="p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px]">
-            <div class="max-w-5xl mx-auto space-y-6">
+        <div class="lobby-detail-page p-0 md:p-4 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px]">
+            <div class="max-w-6xl mx-auto space-y-6">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b-4 border-indigo-900 pb-4">
                     <h1 class="text-base sm:text-lg md:text-xl uppercase tracking-widest">Guide_Detail</h1>
                     <div class="flex items-center gap-2">
