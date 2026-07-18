@@ -1,6 +1,7 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { useUserTheme } from '@/Composables/useUserTheme';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -23,7 +24,9 @@ const props = defineProps({
 });
 
 const selectedRoadmapUuid = ref(props.classRoadmaps[0]?.uuid || '');
+const { themeMode } = useUserTheme();
 const selectedNode = ref(null);
+const classmatesPage = ref(1);
 const canvasWrapperRef = ref(null);
 const zoomScale = ref(1);
 const zoomGestureStartScale = ref(1);
@@ -35,8 +38,19 @@ const MAX_ZOOM_SCALE = 2;
 const ZOOM_STEP = 0.1;
 const WHEEL_ZOOM_SENSITIVITY = 0.0022;
 const MAX_WHEEL_DELTA = 42;
+const CLASSMATES_PER_PAGE = 20;
 
 const clampValue = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const classmatesTotalPages = computed(() => Math.max(1, Math.ceil(props.classmates.length / CLASSMATES_PER_PAGE)));
+const paginatedClassmates = computed(() => {
+    const start = (classmatesPage.value - 1) * CLASSMATES_PER_PAGE;
+    return props.classmates.slice(start, start + CLASSMATES_PER_PAGE);
+});
+
+watch(() => props.classmates.length, () => {
+    classmatesPage.value = Math.min(classmatesPage.value, classmatesTotalPages.value);
+});
 
 watch(() => props.classRoadmaps, (roadmaps) => {
     if (!selectedRoadmapUuid.value && roadmaps?.length) {
@@ -326,7 +340,10 @@ const initials = (name) => {
                     </div>
                 </section>
 
-                <section class="rpg-panel border-indigo-500/50">
+                <section
+                    class="rpg-panel roadmap-theme-panel border-indigo-500/50"
+                    :class="`roadmap-theme--${themeMode}`"
+                >
                     <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div>
                             <h2 class="text-indigo-300 uppercase">Roadmap_Kelas</h2>
@@ -384,7 +401,7 @@ const initials = (name) => {
                                 class="roadmap-canvas"
                                 :style="roadmapCanvasStyle"
                             >
-                                <svg class="pointer-events-none absolute inset-0 h-full w-full">
+                                <svg class="roadmap-connections pointer-events-none absolute inset-0 h-full w-full">
                                     <template v-for="edge in selectedRoadmap.edges || []" :key="edge.uuid">
                                         <line
                                             v-if="edgeLine(edge)"
@@ -392,10 +409,21 @@ const initials = (name) => {
                                             :y1="edgeLine(edge).y1"
                                             :x2="edgeLine(edge).x2"
                                             :y2="edgeLine(edge).y2"
-                                            :stroke="edgeLine(edge).stroke"
-                                            stroke-width="2"
+                                            class="roadmap-edge-halo"
+                                            stroke-width="6"
                                             stroke-linecap="round"
-                                            stroke-dasharray="6 7"
+                                        />
+                                        <line
+                                            v-if="edgeLine(edge)"
+                                            :x1="edgeLine(edge).x1"
+                                            :y1="edgeLine(edge).y1"
+                                            :x2="edgeLine(edge).x2"
+                                            :y2="edgeLine(edge).y2"
+                                            :stroke="edgeLine(edge).stroke"
+                                            class="roadmap-edge-line"
+                                            stroke-width="3"
+                                            stroke-linecap="round"
+                                            stroke-dasharray="8 6"
                                         />
                                     </template>
                                 </svg>
@@ -474,10 +502,10 @@ const initials = (name) => {
                     </div>
                 </section>
 
-                <section class="rpg-panel border-slate-700">
+                <section class="rpg-panel border-slate-700" :class="`classmates-theme--${themeMode}`">
                     <div class="mb-4 flex items-center justify-between gap-3">
                         <h2 class="text-slate-200 uppercase">Classmates</h2>
-                        <span class="text-[8px] uppercase text-slate-500">Preview {{ classmates.length }}</span>
+                        <span class="text-[8px] uppercase text-slate-500">{{ classmates.length }} Siswa</span>
                     </div>
 
                     <div v-if="classmates.length === 0" class="text-[9px] uppercase text-slate-500">
@@ -485,7 +513,13 @@ const initials = (name) => {
                     </div>
 
                     <div v-else class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                        <div v-for="member in classmates" :key="member.id" class="flex items-center gap-3 border border-slate-800 bg-black/30 p-3">
+                        <Link
+                            v-for="member in paginatedClassmates"
+                            :key="member.id"
+                            :href="route('profiles.show', member.username)"
+                            class="classmate-card group flex items-center gap-3 border border-slate-800 bg-black/30 p-3"
+                            :aria-label="`Lihat profil ${member.name}`"
+                        >
                             <img
                                 v-if="photoUrl(member.profile_photo)"
                                 :src="photoUrl(member.profile_photo)"
@@ -495,12 +529,41 @@ const initials = (name) => {
                             <div v-else class="flex h-9 w-9 items-center justify-center border border-slate-700 bg-slate-950 text-[8px] text-slate-300">
                                 {{ initials(member.name) }}
                             </div>
-                            <div class="min-w-0">
+                            <div class="min-w-0 flex-1">
                                 <p class="truncate text-[9px] uppercase text-white">{{ member.name }}</p>
-                                <p class="mt-1 truncate text-[8px] uppercase text-slate-500">@{{ member.username || 'user' }}</p>
+                                <p class="mt-1 truncate text-[8px] uppercase text-slate-500">@{{ member.username }}</p>
                             </div>
-                        </div>
+                            <i class="fi fi-rr-angle-small-right text-[10px] text-slate-500 transition-transform group-hover:translate-x-1"></i>
+                        </Link>
                     </div>
+
+                    <nav
+                        v-if="classmatesTotalPages > 1"
+                        class="classmates-pagination mt-4 flex items-center justify-between gap-3 border-t border-slate-700 pt-3"
+                        aria-label="Pagination classmates"
+                    >
+                        <button
+                            type="button"
+                            class="classmates-page-btn"
+                            :disabled="classmatesPage === 1"
+                            @click="classmatesPage -= 1"
+                        >
+                            <i class="fi fi-rr-angle-small-left"></i>
+                            Prev
+                        </button>
+                        <span class="text-[8px] uppercase text-slate-400">
+                            {{ classmatesPage }} / {{ classmatesTotalPages }}
+                        </span>
+                        <button
+                            type="button"
+                            class="classmates-page-btn"
+                            :disabled="classmatesPage === classmatesTotalPages"
+                            @click="classmatesPage += 1"
+                        >
+                            Next
+                            <i class="fi fi-rr-angle-small-right"></i>
+                        </button>
+                    </nav>
                 </section>
             </div>
         </div>
@@ -625,6 +688,20 @@ const initials = (name) => {
     transform-origin: top left;
 }
 
+.roadmap-connections {
+    z-index: 1;
+    overflow: visible;
+}
+
+.roadmap-edge-halo {
+    stroke: rgba(1, 6, 14, 0.82);
+}
+
+.roadmap-edge-line {
+    stroke: #67e8f9 !important;
+    filter: drop-shadow(0 0 2px rgba(34, 211, 238, 0.7));
+}
+
 .roadmap-section-box {
     position: absolute;
     z-index: 0;
@@ -681,6 +758,12 @@ const initials = (name) => {
 .roadmap-node-box:hover {
     outline: 2px solid rgba(34, 211, 238, 0.55);
     outline-offset: 2px;
+    transform: translate(-1px, -1px);
+}
+
+.roadmap-node-box:focus-visible {
+    outline: 3px solid #67e8f9;
+    outline-offset: 3px;
 }
 
 .roadmap-node-title {
@@ -690,5 +773,112 @@ const initials = (name) => {
     font-weight: 700;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+}
+
+.roadmap-theme--light .roadmap-shell {
+    border-color: rgba(0, 111, 111, 0.72);
+    background:
+        linear-gradient(to right, rgba(0, 111, 111, 0.1) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 111, 111, 0.1) 1px, transparent 1px),
+        #f7f7f7;
+    background-size: 24px 24px;
+    box-shadow: 4px 4px 0 rgba(32, 32, 32, 0.16);
+}
+
+.roadmap-theme--light .roadmap-edge-halo {
+    stroke: rgba(247, 247, 247, 0.96);
+}
+
+.roadmap-theme--light .roadmap-edge-line {
+    stroke: #006f6f !important;
+    filter: drop-shadow(0 1px 0 rgba(32, 32, 32, 0.3));
+}
+
+.roadmap-theme--light .roadmap-node-box:hover,
+.roadmap-theme--light .roadmap-node-box:focus-visible {
+    outline-color: #009999;
+}
+
+.roadmap-theme--light .roadmap-zoom-controls button {
+    border-color: #6f9292;
+    background: #f7f7f7;
+    color: #006f6f;
+    box-shadow: 2px 2px 0 rgba(0, 111, 111, 0.28);
+}
+
+.roadmap-theme--light .roadmap-zoom-controls button:hover {
+    border-color: #006f6f;
+    background: #009999;
+    color: #fff;
+}
+
+.classmate-card {
+    min-width: 0;
+    transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+
+.classmate-card:hover,
+.classmate-card:focus-visible {
+    border-color: #67e8f9;
+    background: rgba(34, 211, 238, 0.1);
+    outline: none;
+    transform: translate(-1px, -1px);
+}
+
+.classmates-page-btn {
+    display: inline-flex;
+    min-height: 32px;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: 1px solid #475569;
+    background: rgba(15, 23, 42, 0.45);
+    padding: 0.45rem 0.65rem;
+    color: #cbd5e1;
+    font-size: 8px;
+    text-transform: uppercase;
+    box-shadow: 2px 2px 0 rgba(1, 6, 14, 0.75);
+}
+
+.classmates-page-btn:hover:not(:disabled),
+.classmates-page-btn:focus-visible:not(:disabled) {
+    border-color: #67e8f9;
+    color: #fff;
+    outline: none;
+}
+
+.classmates-page-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
+}
+
+.classmates-theme--light .classmate-card {
+    border-color: #9eb8b8 !important;
+    background: #fff !important;
+    color: #202020;
+}
+
+.classmates-theme--light .classmate-card:hover,
+.classmates-theme--light .classmate-card:focus-visible {
+    border-color: #009999 !important;
+    background: #edf8f8 !important;
+}
+
+.classmates-theme--light .classmates-pagination {
+    border-top-color: #9eb8b8;
+}
+
+.classmates-theme--light .classmates-page-btn {
+    border-color: #6f9292;
+    background: #f7f7f7;
+    color: #006f6f;
+    box-shadow: 2px 2px 0 rgba(0, 111, 111, 0.26);
+}
+
+.classmates-theme--light .classmates-page-btn:hover:not(:disabled),
+.classmates-theme--light .classmates-page-btn:focus-visible:not(:disabled) {
+    border-color: #006f6f;
+    background: #009999;
+    color: #fff;
 }
 </style>

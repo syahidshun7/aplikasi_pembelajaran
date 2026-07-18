@@ -403,7 +403,7 @@ onMounted(() => {
 
                     <div class="filter-panel">
                         <div class="filter-grid">
-                            <label class="icon-input">
+                            <label class="icon-input icon-input--search">
                                 <i class="fi fi-rr-search text-[11px]" />
                                 <input
                                     v-model="filters.search"
@@ -413,7 +413,7 @@ onMounted(() => {
                                 >
                             </label>
 
-                            <label class="icon-input">
+                            <label class="icon-input icon-input--category">
                                 <i class="fi fi-rr-apps-sort text-[11px]" />
                                 <input
                                     v-model="filters.category"
@@ -423,7 +423,7 @@ onMounted(() => {
                                 >
                             </label>
 
-                            <label class="icon-input">
+                            <label class="icon-input icon-input--status">
                                 <i class="fi fi-rr-filter text-[11px]" />
                                 <select
                                     v-model="filters.status"
@@ -438,7 +438,7 @@ onMounted(() => {
                                 </select>
                             </label>
 
-                            <label class="icon-input">
+                            <label class="icon-input icon-input--sort">
                                 <i class="fi fi-rr-sort-amount-down text-[11px]" />
                                 <select
                                     v-model="filters.sort"
@@ -453,9 +453,12 @@ onMounted(() => {
                             <button
                                 type="button"
                                 class="filter-action-btn filter-action-btn--reset"
+                                title="Reset filter"
+                                aria-label="Reset filter"
                                 @click="resetFilters"
                             >
-                                Reset
+                                <i class="fi fi-rr-rotate-left text-[11px]" />
+                                <span class="sr-only">Reset filter</span>
                             </button>
                         </div>
                     </div>
@@ -563,8 +566,14 @@ onMounted(() => {
 .filter-grid {
     display: grid;
     width: 100%;
-    gap: 0.45rem;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: 0.4rem;
+    align-items: stretch;
+}
+
+.icon-input--search,
+.icon-input--category {
+    grid-column: 1 / -1;
 }
 
 .hall-grid {
@@ -574,7 +583,7 @@ onMounted(() => {
 }
 
 .icon-input {
-    @apply inline-flex min-h-9 w-full items-center gap-2 border border-slate-700 bg-[#0b1520]/70 px-3 py-2 text-cyan-300 transition-colors;
+    @apply inline-flex min-h-9 w-full items-center gap-2 border border-slate-700 bg-[#0b1520]/70 px-3 text-cyan-300 transition-colors;
 }
 
 .icon-input:focus-within {
@@ -585,9 +594,10 @@ onMounted(() => {
 .icon-input__control {
     min-width: 0;
     width: 100%;
-    border: 1px solid rgba(100, 116, 139, 0.55);
-    background: rgba(3, 10, 18, 0.7);
-    padding: 0.68rem 0.85rem;
+    min-height: 32px;
+    border: 0;
+    background: transparent;
+    padding: 0.45rem 0;
     font-size: 7px;
     text-transform: uppercase;
     color: #a5f3fc;
@@ -599,7 +609,7 @@ onMounted(() => {
 }
 
 .icon-input select.icon-input__control {
-    padding-right: 2.5rem;
+    padding-right: 1.5rem;
 }
 
 .pager-btn {
@@ -611,7 +621,10 @@ onMounted(() => {
 }
 
 .filter-action-btn--reset {
-    min-width: 120px;
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+    letter-spacing: 0;
 }
 
 .refresh-chip {
@@ -687,7 +700,12 @@ onMounted(() => {
 
 @media (min-width: 1280px) {
     .filter-grid {
-        grid-template-columns: minmax(200px, 1.3fr) minmax(200px, 1.3fr) minmax(150px, 0.95fr) minmax(150px, 0.95fr) auto;
+        grid-template-columns: minmax(220px, 1.6fr) minmax(180px, 1.2fr) minmax(130px, 0.8fr) minmax(130px, 0.8fr) 36px;
+    }
+
+    .icon-input--search,
+    .icon-input--category {
+        grid-column: auto;
     }
 }
 

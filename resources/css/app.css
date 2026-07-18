@@ -1803,6 +1803,26 @@
     color: #006f6f !important;
 }
 
+[data-app-surface='user'][data-theme='light'] .profile-creations-page .icon-link--primary {
+    border-color: #006f6f !important;
+    background: #009999 !important;
+    color: #ffffff !important;
+    box-shadow: 3px 3px 0 #006f6f !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .profile-creations-page .icon-link--primary:hover {
+    border-color: #005f5f !important;
+    background: #007f7f !important;
+    color: #ffffff !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .profile-creations-page .icon-link--secondary {
+    border-color: #6f9292 !important;
+    background: #ffffff !important;
+    color: #006f6f !important;
+    box-shadow: 2px 2px 0 #9eb8b8 !important;
+}
+
 [data-app-surface='user'][data-theme='light'] .profile-creations-page .icon-input {
     border-color: #9fbcbc !important;
     background: #ffffff !important;
@@ -1825,17 +1845,6 @@
     border-color: #009999 !important;
     background: #e3f5f5 !important;
     color: #006f6f !important;
-}
-
-[data-app-surface='user'][data-theme='light'] .profile-creations-page .editor-cta {
-    border-color: #087f7f !important;
-    background: #009999 !important;
-    color: #ffffff !important;
-}
-
-[data-app-surface='user'][data-theme='light'] .profile-creations-page .editor-cta:hover {
-    background: #087f7f !important;
-    color: #ffffff !important;
 }
 
 [data-app-surface='user'][data-theme='light'] .profile-creations-page .empty-state {
@@ -1880,8 +1889,8 @@
 }
 
 [data-app-surface='user'][data-theme='light'] .hall-light-page .icon-input__control {
-    border-color: #c6d6d6 !important;
-    background: #f7f7f7 !important;
+    border: 0 !important;
+    background: transparent !important;
     color: #202020 !important;
 }
 
@@ -1911,6 +1920,21 @@
     border-color: #009999 !important;
 }
 
+[data-app-surface='user'][data-theme='light'] .hall-light-page .hall-creation-status {
+    border-color: #007f7f !important;
+    background: #e3f3f3 !important;
+    color: #005f5f !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .hall-light-page .hall-creation-team {
+    border-color: #21824b !important;
+    background: #e7f6ed !important;
+    color: #176238 !important;
+    opacity: 1 !important;
+}
+
 [data-app-surface='user'][data-theme='light'] .hall-light-page .hall-creation-preview {
     border-color: #9fbcbc !important;
     background-color: #e2f3f3 !important;
@@ -1926,9 +1950,10 @@
 }
 
 [data-app-surface='user'][data-theme='light'] .hall-light-page .hall-creation-category {
-    border-color: #9fd0d0 !important;
-    background: #e2f3f3 !important;
-    color: #087f7f !important;
+    border-color: #009999 !important;
+    background: #e3f3f3 !important;
+    color: #006f6f !important;
+    opacity: 1 !important;
 }
 
 [data-app-surface='user'][data-theme='light'] .hall-light-page .creation-status--finished {

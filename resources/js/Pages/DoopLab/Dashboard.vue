@@ -1025,7 +1025,13 @@ onUnmounted(() => {
                     </aside>
 
                     <main ref="todoChatPanelRef" class="nb-panel nb-chat">
-                        <div class="panel-head panel-head--stacked">
+                        <div
+                            class="panel-head panel-head--stacked"
+                            :class="{
+                                'todo-panel-head': (panelMode === 'summary' && !selectedTodo)
+                                    || panelMode === 'logbook',
+                            }"
+                        >
                             <div>
                                 <h2>{{ workPanelTitle }}</h2>
                                 <p class="panel-subtitle">
@@ -1035,39 +1041,56 @@ onUnmounted(() => {
                             <button
                                 v-if="panelMode === 'summary' && !selectedTodo"
                                 type="button"
-                                class="source-add-btn todo-add-btn"
+                                class="source-add-btn todo-add-btn todo-add-btn--primary"
+                                style="background:#009999 !important;color:#ffffff !important;border:1px solid #006f6f !important;box-shadow:3px 3px 0 #006f6f !important;text-shadow:none !important;"
                                 @click="openTodoModal"
                             >
-                                <i class="fi fi-rr-plus"></i>
-                                Tambahkan to-do
+                                <i class="fi fi-rr-plus" style="color:#ffffff !important;"></i>
+                                <span class="todo-add-label">Tambahkan to-do</span>
                             </button>
                             <button
                                 v-if="panelMode === 'logbook' && !logbookPanelRef?.selectedLogbook"
                                 type="button"
-                                class="source-add-btn todo-add-btn"
+                                class="source-add-btn todo-add-btn todo-add-btn--primary"
+                                style="background:#009999 !important;color:#ffffff !important;border:1px solid #006f6f !important;box-shadow:3px 3px 0 #006f6f !important;text-shadow:none !important;"
                                 @click="logbookPanelRef?.openLogbookModal()"
                             >
-                                <i class="fi fi-rr-plus"></i>
-                                Buat Logbook
+                                <i class="fi fi-rr-plus" style="color:#ffffff !important;"></i>
+                                <span class="todo-add-label">Buat Logbook</span>
                             </button>
                             <div v-if="panelMode === 'logbook' && logbookPanelRef?.selectedLogbook" class="logbook-toolbar">
-                                <button type="button" class="chat-back-btn" @click="logbookPanelRef.backToLogbookList()">
+                                <button
+                                    type="button"
+                                    class="chat-back-btn logbook-detail-action"
+                                    title="Kembali ke daftar logbook"
+                                    aria-label="Kembali ke daftar logbook"
+                                    @click="logbookPanelRef.backToLogbookList()"
+                                >
                                     <i class="fi fi-rr-arrow-small-left"></i>
-                                    Kembali
+                                    <span class="logbook-action-label">Kembali</span>
                                 </button>
-                                <button type="button" class="source-add-btn todo-add-btn" @click="logbookPanelRef?.openEntryModal()">
-                                    <i class="fi fi-rr-plus"></i>
-                                    Tambah Entri
+                                <button
+                                    type="button"
+                                    class="source-add-btn todo-add-btn logbook-detail-action logbook-detail-action--primary"
+                                    style="background:#009999 !important;color:#ffffff !important;border:1px solid #006f6f !important;box-shadow:3px 3px 0 #006f6f !important;text-shadow:none !important;"
+                                    title="Tambah entri"
+                                    aria-label="Tambah entri"
+                                    @click="logbookPanelRef?.openEntryModal()"
+                                >
+                                    <i class="fi fi-rr-plus" style="color:#ffffff !important;"></i>
+                                    <span class="logbook-action-label">Tambah Entri</span>
                                 </button>
                                 <button
                                     v-if="logbookPanelRef?.selectedLogbook?.entries?.length"
                                     type="button"
-                                    class="source-add-btn todo-add-btn"
-                                    style="background:rgba(87,214,255,0.08);color:var(--cyan)"
+                                    class="source-add-btn todo-add-btn logbook-detail-action logbook-detail-action--primary"
+                                    style="background:#009999 !important;color:#ffffff !important;border:1px solid #006f6f !important;box-shadow:3px 3px 0 #006f6f !important;text-shadow:none !important;"
+                                    title="Export CSV"
+                                    aria-label="Export CSV"
                                     @click="logbookPanelRef?.exportEntryCsv()"
                                 >
-                                    <i class="fi fi-rr-file-csv"></i>
-                                    Export CSV
+                                    <i class="fi fi-rr-file-csv" style="color:#ffffff !important;"></i>
+                                    <span class="logbook-action-label">Export CSV</span>
                                 </button>
                             </div>
                             <button v-if="selectedTodo" type="button" class="chat-back-btn" @click="clearSelectedTodo">
@@ -5950,5 +5973,189 @@ onUnmounted(() => {
         background: rgba(247, 247, 247, 0.98) !important;
         color: #202020 !important;
     }
+
+    .todo-panel-head {
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        border-bottom: 1px solid #8eaaaa !important;
+        padding-bottom: 7px !important;
+        margin-bottom: 8px !important;
+    }
+
+    .todo-panel-head .panel-subtitle {
+        margin-top: 2px !important;
+        font-size: 8px !important;
+        line-height: 1.35 !important;
+    }
+
+    .todo-panel-head .todo-add-btn {
+        width: 34px !important;
+        min-width: 34px !important;
+        min-height: 32px !important;
+        padding: 0 !important;
+        border: 1px solid #006f6f !important;
+        background: #009999 !important;
+        color: #fff !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+
+    .todo-panel-head .todo-add-btn:hover,
+    .todo-panel-head .todo-add-btn:focus-visible {
+        background: #007f7f !important;
+        color: #fff !important;
+    }
+
+    .todo-panel-head .todo-add-btn i {
+        margin: 0 !important;
+        font-size: 12px !important;
+    }
+
+    .todo-panel-head .todo-add-label {
+        position: absolute !important;
+        width: 1px !important;
+        height: 1px !important;
+        overflow: hidden !important;
+        clip: rect(0, 0, 0, 0) !important;
+        white-space: nowrap !important;
+    }
+
+    .todo-list-workspace .source-search {
+        height: 32px !important;
+        min-height: 32px !important;
+        padding: 4px 8px !important;
+        border-width: 1px !important;
+        margin-bottom: 6px !important;
+        box-shadow: none !important;
+    }
+
+    .todo-list-workspace .source-search i {
+        font-size: 10px !important;
+        line-height: 1 !important;
+    }
+
+    .todo-list-workspace .source-search input {
+        height: 22px !important;
+        min-height: 22px !important;
+        padding: 0 !important;
+        font-size: 10px !important;
+        line-height: 22px !important;
+    }
+
+    .todo-list-workspace .todo-filters {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 4px !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        margin-bottom: 7px !important;
+    }
+
+    .todo-list-workspace .todo-filter {
+        width: 100% !important;
+        min-width: 0 !important;
+        padding: 6px 3px !important;
+        border-width: 1px !important;
+        font-size: 8px !important;
+        box-shadow: none !important;
+    }
+}
+
+/* The DoopLab work panel can be narrow even while the browser viewport is wide. */
+.nb-root .todo-panel-head .todo-add-btn {
+    width: 34px !important;
+    min-width: 34px !important;
+    min-height: 32px !important;
+    padding: 0 !important;
+    border: 1px solid #006f6f !important;
+    background: #009999 !important;
+    color: #fff !important;
+    box-shadow: 3px 3px 0 #006f6f !important;
+    text-shadow: none !important;
+}
+
+.nb-root .todo-panel-head .todo-add-btn:hover,
+.nb-root .todo-panel-head .todo-add-btn:focus-visible {
+    border-color: #005f5f !important;
+    background: #007f7f !important;
+    color: #fff !important;
+    box-shadow: 2px 2px 0 #005f5f !important;
+}
+
+.nb-root .todo-panel-head .todo-add-btn i {
+    margin: 0 !important;
+    font-size: 12px !important;
+}
+
+.nb-root .todo-panel-head .todo-add-label {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+}
+
+.nb-root .logbook-toolbar {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    justify-self: end !important;
+    gap: 6px !important;
+    width: max-content !important;
+    min-width: max-content !important;
+}
+
+.nb-root .logbook-toolbar .logbook-detail-action {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 34px !important;
+    min-width: 34px !important;
+    min-height: 32px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 1px solid #6f9292 !important;
+    background: #fff !important;
+    color: #006f6f !important;
+    box-shadow: 2px 2px 0 #9eb8b8 !important;
+    text-shadow: none !important;
+}
+
+.nb-root .logbook-toolbar .logbook-detail-action--primary {
+    border-color: #006f6f !important;
+    background: #009999 !important;
+    color: #fff !important;
+    box-shadow: 3px 3px 0 #006f6f !important;
+}
+
+.nb-root .logbook-toolbar .logbook-detail-action i {
+    margin: 0 !important;
+    font-size: 12px !important;
+    line-height: 1 !important;
+}
+
+.nb-root .logbook-toolbar .logbook-detail-action:hover,
+.nb-root .logbook-toolbar .logbook-detail-action:focus-visible {
+    border-color: #006f6f !important;
+    background: #e3f3f3 !important;
+    color: #005f5f !important;
+}
+
+.nb-root .logbook-toolbar .logbook-detail-action--primary:hover,
+.nb-root .logbook-toolbar .logbook-detail-action--primary:focus-visible {
+    background: #007f7f !important;
+    color: #fff !important;
+}
+
+.nb-root .logbook-toolbar .logbook-action-label {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
 }
 </style>

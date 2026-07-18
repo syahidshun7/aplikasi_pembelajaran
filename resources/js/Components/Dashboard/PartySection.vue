@@ -19,6 +19,10 @@ defineProps({
         type: Function,
         default: null,
     },
+    themeMode: {
+        type: String,
+        default: 'dark',
+    },
 });
 
 const page = usePage();
@@ -41,7 +45,7 @@ const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
 </script>
 
 <template>
-    <section class="dashboard-section-shell">
+    <section class="dashboard-section-shell" :class="{ 'party-section--light': themeMode === 'light' }">
         <div class="dashboard-section-header">
             <div>
                 <p class="dashboard-section-header__eyebrow text-emerald-300/80">Collaborate</p>
@@ -102,14 +106,14 @@ const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
                     <div v-if="group.is_member" class="flex flex-wrap items-center gap-2 sm:justify-end">
                         <Link
                             :href="route('groups.show', group.uuid)"
-                            class="border border-cyan-700 bg-cyan-900/40 px-3 py-1 text-[8px] uppercase text-cyan-300 transition-all hover:bg-cyan-500 hover:text-black"
+                            class="party-action-btn party-action-btn--detail px-3 py-1 text-[8px] uppercase transition-all"
                         >
                             Detail
                         </Link>
 
                         <button
                             type="button"
-                            class="border border-red-700 bg-red-900/50 px-3 py-1 text-[8px] uppercase text-red-400 transition-all hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                            class="party-action-btn party-action-btn--leave px-3 py-1 text-[8px] uppercase transition-all disabled:cursor-not-allowed disabled:opacity-60"
                             :disabled="!canManagePartyMembership"
                             @click="onLeave?.(group.uuid)"
                         >
@@ -189,4 +193,63 @@ const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
 .dashboard-empty-state__copy {
     @apply max-w-[280px] text-[9px] uppercase leading-relaxed text-slate-500;
 }
+
+.party-action-btn {
+    display: inline-flex;
+    min-height: 28px;
+    align-items: center;
+    justify-content: center;
+    border-width: 1px;
+    border-style: solid;
+    text-shadow: none;
+}
+
+.party-action-btn--detail {
+    border-color: #0e7490;
+    background: rgba(22, 78, 99, 0.4);
+    color: #67e8f9;
+}
+
+.party-action-btn--detail:hover {
+    background: #06b6d4;
+    color: #020617;
+}
+
+.party-action-btn--leave {
+    border-color: #b91c1c;
+    background: rgba(127, 29, 29, 0.5);
+    color: #f87171;
+}
+
+.party-action-btn--leave:hover:not(:disabled) {
+    background: #dc2626;
+    color: #fff;
+}
+
+.party-section--light .party-action-btn--detail {
+    border-color: #006f6f;
+    background: #009999;
+    color: #fff;
+    box-shadow: none;
+}
+
+.party-section--light .party-action-btn--detail:hover {
+    border-color: #005f5f;
+    background: #007f7f;
+    color: #fff;
+}
+
+.party-section--light .party-action-btn--leave {
+    border-color: #dc2626;
+    background: #fff;
+    color: #dc2626;
+    box-shadow: none;
+}
+
+.party-section--light .party-action-btn--leave:hover:not(:disabled) {
+    border-color: #b91c1c;
+    background: #dc2626;
+    color: #fff;
+}
+
 </style>

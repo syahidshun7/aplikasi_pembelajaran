@@ -586,6 +586,7 @@ onBeforeUnmount(() => {
                                 <PartySection
                                     v-else-if="activeMenu === 'party'"
                                     :items="groupPreview"
+                                    :theme-mode="themeMode"
                                     :join-processing="joinForm.processing"
                                     :on-join="handleJoin"
                                     :on-leave="handleLeave"
@@ -951,11 +952,22 @@ onBeforeUnmount(() => {
 }
 
 [data-theme='light'] .lobby-color-system :deep(.event-card__action) {
-    color: #007777 !important;
+    display: inline-flex !important;
+    min-height: 30px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 1px solid #006f6f !important;
+    background: #009999 !important;
+    padding: 0.45rem 0.65rem !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
 }
 
 [data-theme='light'] .lobby-color-system :deep(.event-card__action:hover) {
-    color: #00b3b3 !important;
+    border-color: #005f5f !important;
+    background: #007f7f !important;
+    color: #ffffff !important;
 }
 
 [data-theme='light'] .lobby-color-system :deep(.daily-claim-card) {

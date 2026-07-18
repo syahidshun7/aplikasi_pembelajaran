@@ -146,7 +146,6 @@ class StudyGroupController extends Controller
                 return $member->isMentor()
                     || in_array($pivotRole, ['mentor', 'mentor_observer'], true);
             })
-            ->take(12)
             ->map(fn (User $member) => [
                 'id' => (int) $member->id,
                 'name' => (string) $member->name,
