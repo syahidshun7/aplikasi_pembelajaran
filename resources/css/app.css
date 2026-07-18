@@ -822,9 +822,22 @@
 }
 
 [data-app-surface='user'] .nav-action.nav-action--theme-icon {
-    width: 42px;
-    min-width: 42px;
     padding-inline: 0.65rem;
+}
+
+@media (min-width: 1024px) {
+    [data-app-surface='user'] .nav-dock .nav-action.nav-action--theme-icon {
+        width: 42px;
+        min-width: 42px;
+    }
+}
+
+@media (max-width: 1023px) {
+    [data-app-surface='user'] .user-navbar-mobile-shell .nav-action.nav-action--theme-icon {
+        width: 100%;
+        min-width: 100%;
+        justify-content: center;
+    }
 }
 
 /* Authentication light theme follows the lobby palette. */
