@@ -2,6 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
 import UserNavbar from '@/Components/UserNavbar.vue';
+import { useUserTheme } from '@/Composables/useUserTheme';
 
 defineProps({
     fullBleed: {
@@ -13,6 +14,8 @@ defineProps({
         default: false,
     },
 });
+
+const { themeMode } = useUserTheme();
 </script>
 
 <template>
@@ -22,6 +25,7 @@ defineProps({
 
     <div
         data-app-surface="user"
+        :data-theme="themeMode"
         class="user-theme-root font-['Press_Start_2P'] selection:bg-[var(--accent)] relative isolate flex flex-col"
         :class="fullBleed ? 'h-screen overflow-hidden' : 'min-h-screen overflow-x-hidden'"
     >

@@ -109,7 +109,7 @@ const copyPublicLink = async () => {
     <Head :title="`EVENT | ${event.title}`" />
 
     <AuthenticatedLayout>
-        <div class="max-w-6xl mx-auto space-y-6">
+        <div class="lobby-detail-page max-w-6xl mx-auto space-y-6">
             <div class="rpg-panel border-blue-500/50 relative">
                 <Link
                     :href="route('lobby')"

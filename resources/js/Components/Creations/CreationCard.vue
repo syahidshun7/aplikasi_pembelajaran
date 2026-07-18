@@ -18,14 +18,14 @@ const statusClass = computed(() => {
     const status = String(props.creation?.status || '');
 
     if (status === 'finished') {
-        return 'border-emerald-500/70 text-emerald-300';
+        return 'creation-status--finished border-emerald-500/70 text-emerald-300';
     }
 
     if (status === 'refining') {
-        return 'border-amber-500/70 text-amber-300';
+        return 'creation-status--refining border-amber-500/70 text-amber-300';
     }
 
-    return 'border-cyan-500/70 text-cyan-300';
+    return 'creation-status--crafting border-cyan-500/70 text-cyan-300';
 });
 
 const previewClass = computed(() => {
@@ -44,13 +44,13 @@ const previewClass = computed(() => {
 </script>
 
 <template>
-    <article class="group w-full overflow-hidden border-2 border-slate-700 bg-[#121722]/90 shadow-[6px_6px_0_rgba(0,0,0,0.35)] transition-colors hover:border-cyan-500/60">
+    <article class="hall-creation-card group w-full overflow-hidden border-2 border-slate-700 bg-[#121722]/90 shadow-[6px_6px_0_rgba(0,0,0,0.35)] transition-colors hover:border-cyan-500/60">
         <button
             type="button"
             class="block w-full text-left"
             @click="emit('open', creation)"
         >
-            <div class="relative aspect-[4/3] overflow-hidden border-b border-slate-700 bg-gradient-to-br p-3" :class="previewClass">
+            <div class="hall-creation-preview relative aspect-[4/3] overflow-hidden border-b border-slate-700 bg-gradient-to-br p-3" :class="previewClass">
                 <div class="absolute -right-3 -top-3 h-12 w-12 rounded-full border border-white/10 bg-white/5 blur-sm" />
                 <div class="absolute -bottom-4 -left-4 h-10 w-10 rounded-full border border-white/10 bg-white/5 blur-sm" />
                 <img
@@ -86,9 +86,9 @@ const previewClass = computed(() => {
                 </div>
             </div>
 
-            <div class="space-y-2.5 p-3">
+            <div class="hall-creation-body space-y-2.5 p-3">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <h3 class="line-clamp-2 text-[8px] uppercase leading-relaxed tracking-wide text-white sm:text-[9px]">
+                    <h3 class="hall-creation-title line-clamp-2 text-[8px] uppercase leading-relaxed tracking-wide text-white sm:text-[9px]">
                         {{ creation.title }}
                     </h3>
                     <span class="w-fit rounded border px-2 py-[2px] text-[7px] uppercase" :class="statusClass">
@@ -97,11 +97,11 @@ const previewClass = computed(() => {
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2 text-[6px] uppercase sm:text-[7px]">
-                    <span class="inline-flex items-center gap-1 text-slate-400">
+                    <span class="hall-creation-author inline-flex items-center gap-1 text-slate-400">
                         <i class="fi fi-rr-user text-[8px]"></i>
                         <span class="line-clamp-1">{{ creation.creator?.username || creation.creator?.name || 'Adventurer' }}</span>
                     </span>
-                    <span v-if="creation.category" class="inline-flex items-center gap-1 border border-cyan-500/20 bg-cyan-500/5 px-2 py-1 text-cyan-200/80">
+                    <span v-if="creation.category" class="hall-creation-category inline-flex items-center gap-1 border border-cyan-500/20 bg-cyan-500/5 px-2 py-1 text-cyan-200/80">
                         <i class="fi fi-rr-apps text-[8px]"></i>
                         {{ creation.category }}
                     </span>
@@ -112,7 +112,7 @@ const previewClass = computed(() => {
                 </div>
 
                 <div v-if="creation.status !== 'finished'" class="space-y-1">
-                    <div class="h-1.5 overflow-hidden border border-slate-700 bg-slate-950">
+                    <div class="hall-creation-progress h-1.5 overflow-hidden border border-slate-700 bg-slate-950">
                         <div class="h-full bg-cyan-500 transition-all" :style="{ width: `${creation.progress || 0}%` }" />
                     </div>
                     <p class="text-[6px] uppercase tracking-wide text-slate-500">{{ creation.progress || 0 }}%</p>
@@ -120,7 +120,7 @@ const previewClass = computed(() => {
             </div>
         </button>
 
-        <div class="flex items-center justify-between border-t border-slate-700 px-3 py-2.5">
+        <div class="hall-creation-actions flex items-center justify-between border-t border-slate-700 px-3 py-2.5">
             <button
                 type="button"
                 class="inline-flex items-center gap-1 text-[8px] transition-colors"

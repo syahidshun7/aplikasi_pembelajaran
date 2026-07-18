@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Creation;
 use App\Models\CreationCategory;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -15,9 +16,9 @@ class CreationPageController extends Controller
         return Inertia::render('Creations/HallOfCreationsPage');
     }
 
-    public function index(): Response
+    public function index(): RedirectResponse
     {
-        return $this->profileCreations();
+        return redirect()->route('profile.creations');
     }
 
     public function profileCreations(): Response
@@ -30,18 +31,25 @@ class CreationPageController extends Controller
         return Inertia::render('Creations/Editor', [
             'mode' => 'create',
             'creationId' => null,
+            'creationSlug' => null,
             'categories' => $this->categoryOptions(),
         ]);
     }
 
-    public function edit(Request $request, Creation $creation): Response
+    public function edit(Request $request, Creation $creation): Response|RedirectResponse
     {
         $viewerId = (int) ($request->user()?->id ?? 0);
         abort_unless($creation->canEdit($viewerId), 403, 'CREATION_ACCESS_DENIED');
 
+        $routeValue = (string) $request->route()->originalParameter('creation', '');
+        if ($routeValue !== (string) $creation->slug) {
+            return redirect()->route('profile.creations.edit', ['creation' => $creation->slug], 301);
+        }
+
         return Inertia::render('Creations/Editor', [
             'mode' => 'edit',
             'creationId' => (int) $creation->id,
+            'creationSlug' => (string) $creation->slug,
             'categories' => $this->categoryOptions(),
         ]);
     }

@@ -91,7 +91,7 @@ const eventItemsWithTone = computed(() => {
             <article
                 v-for="event in eventItemsWithTone"
                 :key="event.uuid"
-                class="event-card border p-4 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
+                class="event-card flex h-full flex-col border p-4 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
                 :style="event.__tone_style"
             >
                 <div class="flex flex-wrap items-center justify-between gap-2">
@@ -102,9 +102,9 @@ const eventItemsWithTone = computed(() => {
                 </div>
                 <h3 class="mt-3 break-words text-[10px] uppercase text-white">{{ event.title }}</h3>
                 <p class="mt-2 text-[8px] uppercase leading-relaxed text-slate-400">{{ event.__starts_at_label }}</p>
-                <div class="mt-4 flex items-center justify-between gap-2 border-t border-slate-800 pt-3">
+                <div class="event-card__footer mt-4 flex min-h-[38px] items-center justify-between gap-2 border-t border-slate-800 pt-3">
                     <span class="text-[7px] uppercase text-cyan-300">Event Node</span>
-                    <Link :href="route('events.show', event.uuid)" class="text-[7px] uppercase text-blue-300 hover:text-white">
+                    <Link :href="route('events.show', event.uuid)" class="event-card__action text-[7px] uppercase text-blue-300">
                         View >
                     </Link>
                 </div>

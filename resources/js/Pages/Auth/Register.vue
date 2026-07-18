@@ -121,7 +121,7 @@ onMounted(async () => {
     <GuestLayout>
         <Head title="Register | P-QUEST" />
 
-        <form @submit.prevent="submit" class="space-y-4">
+        <form @submit.prevent="submit" class="auth-register-form space-y-4">
             <h2 class="text-yellow-500 text-[10px] text-center mb-6 border-b border-[var(--panel-border)] pb-4 tracking-widest uppercase">
                 -- NEW_HERO_REGISTRATION --
             </h2>
@@ -147,13 +147,13 @@ onMounted(async () => {
             <div class="mt-3">
                 <label class="block text-[var(--accent)] text-[8px] uppercase mb-1">Jobs_Path</label>
                 <div :class="[
-                    'border-2 p-3 bg-[var(--bg)]',
+                    'auth-job-selector border-2 p-3 bg-[var(--bg)]',
                     form.errors.job_id ? 'border-red-500' : 'border-[var(--panel-border)]'
                 ]">
                     <button
                         type="button"
                         @click="openJobModal"
-                        class="w-full text-left border-2 border-[var(--panel-border)] hover:border-[var(--accent)] transition-all p-3 bg-[var(--bg)]"
+                        class="auth-job-selector__button w-full text-left border-2 border-[var(--panel-border)] hover:border-[var(--accent)] transition-all p-3 bg-[var(--bg)]"
                     >
                         <div class="flex items-center justify-between gap-3">
                             <div>
@@ -166,9 +166,9 @@ onMounted(async () => {
                     </button>
                     <input type="hidden" v-model="form.job_id" />
                 </div>
-                <div v-if="isJobModalOpen" class="fixed inset-0 z-[70] flex items-center justify-center p-4">
-                    <div class="absolute inset-0 bg-black/80" @click="closeJobModal"></div>
-                    <div class="relative z-10 w-full max-w-6xl border-2 border-[var(--text)]/10 bg-[var(--panel)]/95 backdrop-blur-md p-4 md:p-6 shadow-2xl max-h-[92vh] overflow-hidden">
+                <div v-if="isJobModalOpen" class="auth-job-modal fixed inset-0 z-[70] flex items-center justify-center p-4">
+                    <div class="auth-job-modal__backdrop absolute inset-0 bg-black/80" @click="closeJobModal"></div>
+                    <div class="auth-job-modal__surface relative z-10 w-full max-w-6xl border-2 border-[var(--text)]/10 bg-[var(--panel)]/95 backdrop-blur-md p-4 md:p-6 shadow-2xl max-h-[92vh] overflow-hidden">
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="text-[10px] md:text-xs uppercase text-[var(--text)]">Select Job Path</h3>
                             <button type="button" @click="closeJobModal" class="text-[8px] uppercase px-3 py-1 bg-[var(--panel-border)] text-[var(--text)] border border-[var(--panel-border)] hover:brightness-125">

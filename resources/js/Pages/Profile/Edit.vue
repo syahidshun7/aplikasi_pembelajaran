@@ -1,10 +1,11 @@
 <script setup>
 import { Head, usePage, Link, useForm } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm.vue';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue';
 import DeleteUserForm from './Partials/DeleteUserForm.vue';
+import { setUserTheme, useUserTheme } from '@/Composables/useUserTheme';
 import { toast } from '@/Utils/Alert';
 
 const props = defineProps({
@@ -30,8 +31,7 @@ const props = defineProps({
 });
 
 const page = usePage();
-const USER_THEME_STORAGE_KEY = 'dooptech-user-theme';
-const USER_THEME_EVENT = 'dooptech:user-theme-change';
+const { themeMode } = useUserTheme();
 const userData = computed(() => props.user || page.props.auth.user);
 const isDashboardView = computed(() => props.profileView === 'dashboard');
 const userExp = computed(() => Number(userData.value?.exp ?? 0));
@@ -109,7 +109,6 @@ const resolveActiveTabFromLocation = () => {
 };
 
 const activeTab = ref(resolveActiveTabFromLocation());
-const themeMode = ref('dark');
 const isTransferModalOpen = ref(false);
 const recipientSearch = ref('');
 const recipientResults = ref([]);
@@ -122,6 +121,8 @@ const transferForm = useForm({
     password: '',
 });
 const skinForm = useForm({});
+const isThemeApplying = ref(false);
+const pendingTheme = ref(null);
 let recipientSearchTimer = null;
 
 const getGradeColor = (grade) => {
@@ -275,33 +276,29 @@ watch(recipientSearch, (value) => {
     }, 250);
 });
 
-const normalizeTheme = (value) => (String(value || '').toLowerCase() === 'light' ? 'light' : 'dark');
+const waitForThemePaint = () => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+});
 
-const setThemeMode = (nextTheme, options = {}) => {
-    const { persist = true, broadcast = true } = options;
-    const normalizedTheme = normalizeTheme(nextTheme);
-    themeMode.value = normalizedTheme;
-
-    if (typeof window === 'undefined') {
+const applyTheme = async (nextTheme) => {
+    if (isThemeApplying.value || themeMode.value === nextTheme) {
         return;
     }
 
-    if (persist) {
-        window.localStorage.setItem(USER_THEME_STORAGE_KEY, normalizedTheme);
-    }
+    pendingTheme.value = nextTheme;
+    isThemeApplying.value = true;
+    setUserTheme(nextTheme);
 
-    if (broadcast) {
-        window.dispatchEvent(new CustomEvent(USER_THEME_EVENT, { detail: { theme: normalizedTheme } }));
-    }
+    await nextTick();
+    await waitForThemePaint();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    pendingTheme.value = null;
+    isThemeApplying.value = false;
 };
 
-const applyDarkTheme = () => {
-    setThemeMode('dark');
-};
-
-const applyLightTheme = () => {
-    setThemeMode('light');
-};
+const applyDarkTheme = () => applyTheme('dark');
+const applyLightTheme = () => applyTheme('light');
 
 const activateSkin = (skin) => {
     const skinId = Number(skin?.id || 0);
@@ -336,36 +333,7 @@ const deactivateSkin = () => {
     });
 };
 
-const syncThemeFromStorage = (event) => {
-    if (event.key !== USER_THEME_STORAGE_KEY) {
-        return;
-    }
-
-    setThemeMode(event.newValue, { persist: false, broadcast: false });
-};
-
-const syncThemeFromBroadcast = (event) => {
-    setThemeMode(event?.detail?.theme, { persist: false, broadcast: false });
-};
-
-onMounted(() => {
-    if (typeof window === 'undefined') {
-        return;
-    }
-
-    setThemeMode(window.localStorage.getItem(USER_THEME_STORAGE_KEY), { persist: false, broadcast: false });
-    window.addEventListener('storage', syncThemeFromStorage);
-    window.addEventListener(USER_THEME_EVENT, syncThemeFromBroadcast);
-});
-
 onBeforeUnmount(() => {
-    if (typeof window === 'undefined') {
-        return;
-    }
-
-    window.removeEventListener('storage', syncThemeFromStorage);
-    window.removeEventListener(USER_THEME_EVENT, syncThemeFromBroadcast);
-
     if (recipientSearchTimer) {
         clearTimeout(recipientSearchTimer);
     }
@@ -376,7 +344,7 @@ onBeforeUnmount(() => {
     <AuthenticatedLayout>
         <Head :title="isDashboardView ? 'HERO_STATUS | P-QUEST' : 'PROFILE_SETTINGS | P-QUEST'" />
 
-        <div class="user-page-shell space-y-6 font-['Press_Start_2P'] text-[10px] leading-relaxed text-[#4ed4d4] md:space-y-8">
+        <div class="lobby-detail-page profile-light-page user-page-shell space-y-6 font-['Press_Start_2P'] text-[10px] leading-relaxed text-[#4ed4d4] md:space-y-8">
             <div class="rpg-panel flex flex-col items-center gap-4 border-cyan-500/50 bg-[#1a1c2c]/80 backdrop-blur-md md:flex-row md:gap-6">
                 <div class="w-20 h-20 border-4 border-cyan-400 bg-slate-800 shadow-[0_0_15px_rgba(78,212,212,0.3)] relative overflow-hidden">
                     <img
@@ -515,11 +483,11 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
                 </div>
-                <div class="rpg-panel border-purple-500/40 bg-black/40">
-                    <div class="mb-4 flex flex-col gap-3 border-b border-purple-900/70 pb-4 md:flex-row md:items-center md:justify-between">
+                <div class="profile-cosmetics-panel rpg-panel border-purple-500/40 bg-black/40">
+                    <div class="mb-3 flex flex-col gap-2 border-b border-purple-900/70 pb-3 md:flex-row md:items-center md:justify-between">
                         <div>
                             <p class="text-[7px] uppercase tracking-[0.25em] text-purple-300">Profile_Skin_Loadout</p>
-                            <h2 class="mt-2 text-[11px] uppercase text-white">Public_Profile_Cosmetics</h2>
+                            <h2 class="mt-1.5 text-[9px] uppercase text-white">Public_Profile_Cosmetics</h2>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
                             <Link
@@ -547,7 +515,7 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
 
-                    <div v-if="ownedProfileSkins.length > 0" class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div v-if="ownedProfileSkins.length > 0" class="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
                         <article
                             v-for="skin in ownedProfileSkins"
                             :key="skin.id"
@@ -555,35 +523,55 @@ onBeforeUnmount(() => {
                             :class="Number(skin.is_active || 0) === 1 ? 'border-purple-300 shadow-[0_0_18px_rgba(168,85,247,0.35)]' : 'border-slate-700'"
                         >
                             <div
-                                class="relative flex min-h-[120px] items-end border-b border-slate-800 p-3"
+                                class="profile-skin-hero relative flex min-h-[92px] items-end border-b border-slate-800 p-2.5"
                                 :style="{ background: skin.hero_gradient || 'linear-gradient(135deg,#101726,#0f172a)' }"
                             >
                                 <div
                                     class="absolute inset-0"
                                     :style="{ background: `radial-gradient(circle at top right, ${skin.glow_color || 'rgba(34,211,238,0.2)'}, transparent 34%)` }"
                                 />
+                                <div
+                                    v-if="themeMode === 'light'"
+                                    class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/70 to-transparent"
+                                />
                                 <div class="relative z-10">
-                                    <p class="text-[7px] uppercase tracking-[0.2em]" :style="{ color: skin.text_primary || '#c4b5fd' }">
+                                    <p
+                                        class="profile-skin-label text-[7px] font-bold uppercase tracking-[0.2em]"
+                                        :style="{
+                                            color: themeMode === 'light' ? '#ffffff' : (skin.text_primary || '#c4b5fd'),
+                                        }"
+                                    >
                                         Unlocked_Skin
                                     </p>
-                                    <h3 class="mt-2 break-words text-[10px] uppercase text-white">{{ skin.name }}</h3>
+                                    <h3
+                                        class="profile-skin-name mt-2 break-words text-[10px] font-bold uppercase text-white"
+                                        :style="themeMode === 'light'
+                                            ? {
+                                                color: '#202020',
+                                                WebkitTextStroke: '0.75px rgba(255,255,255,0.95)',
+                                                paintOrder: 'stroke fill',
+                                            }
+                                            : undefined"
+                                    >
+                                        {{ skin.name }}
+                                    </h3>
                                 </div>
                             </div>
 
-                            <div class="space-y-3 p-3">
+                            <div class="space-y-2 p-2.5">
                                 <div class="flex flex-wrap gap-2">
                                     <span
-                                        class="inline-flex h-5 w-5 border border-slate-700"
+                                        class="inline-flex h-4 w-4 border border-slate-700"
                                         :style="{ backgroundColor: skin.accent_color || '#4ed4d4' }"
                                         title="Accent color"
                                     />
                                     <span
-                                        class="inline-flex h-5 w-5 border border-slate-700"
+                                        class="inline-flex h-4 w-4 border border-slate-700"
                                         :style="{ backgroundColor: skin.border_color || '#3d415f' }"
                                         title="Border color"
                                     />
                                     <span
-                                        class="inline-flex h-5 w-5 border border-slate-700"
+                                        class="inline-flex h-4 w-4 border border-slate-700"
                                         :style="{ backgroundColor: skin.stat_panel_bg || '#141b29' }"
                                         title="Panel color"
                                     />
@@ -591,10 +579,18 @@ onBeforeUnmount(() => {
 
                                 <button
                                     type="button"
-                                    class="w-full border-2 px-3 py-2 text-[8px] uppercase transition-colors disabled:opacity-50"
-                                    :class="Number(skin.is_active || 0) === 1
-                                        ? 'border-purple-300 bg-purple-400 text-black'
-                                        : 'border-purple-700 text-purple-300 hover:bg-purple-400 hover:text-black'"
+                                    class="profile-skin-equip-button min-h-10 w-full border-2 px-2.5 py-2 text-[8px] font-bold uppercase leading-relaxed transition-colors disabled:opacity-50"
+                                    :class="[
+                                        Number(skin.is_active || 0) === 1
+                                            ? 'border-purple-300 bg-purple-400 text-black'
+                                            : 'border-purple-700 text-purple-300 hover:bg-purple-400 hover:text-black',
+                                        themeMode === 'light'
+                                            ? '!border-[#202020] !bg-[#087f7f] !text-white hover:!border-[#202020] hover:!bg-[#006f6f] hover:!text-white'
+                                            : '',
+                                    ]"
+                                    :style="themeMode === 'light'
+                                        ? { borderColor: '#202020', backgroundColor: '#087f7f', color: '#ffffff' }
+                                        : undefined"
                                     :disabled="skinForm.processing || Number(skin.is_active || 0) === 1"
                                     @click="activateSkin(skin)"
                                 >
@@ -754,35 +750,35 @@ onBeforeUnmount(() => {
             <template v-else>
                 <div class="grid grid-cols-12 gap-6">
                     <div class="col-span-12 lg:col-span-3 space-y-4">
-                        <div class="rpg-panel bg-slate-900/60">
+                        <div class="profile-settings-nav rpg-panel bg-slate-900/60">
                             <h2 class="text-white mb-6 border-b-2 border-slate-700 pb-2 uppercase text-center text-[8px]">
                                 Menu_Navigation
                             </h2>
                             <nav class="space-y-3">
                                 <Link
                                     :href="route('profile.dashboard')"
-                                    class="w-full p-3 text-left border-r-4 border-black transition-all uppercase text-[8px] bg-yellow-500 text-black hover:translate-x-1 block"
+                                    class="profile-settings-nav__dashboard w-full p-3 text-left border-r-4 border-black transition-all uppercase text-[8px] bg-yellow-500 text-black hover:translate-x-1 block"
                                 >
                                     [1] Profile_Dashboard
                                 </Link>
                                 <button
                                     @click="activeTab = 'profile'"
                                     :class="activeTab === 'profile' ? 'bg-cyan-400 text-black' : 'bg-slate-800 text-cyan-400'"
-                                    class="w-full p-3 text-left border-r-4 border-black hover:translate-x-1 transition-all uppercase text-[8px]"
+                                    class="profile-settings-nav__item w-full p-3 text-left border-r-4 border-black hover:translate-x-1 transition-all uppercase text-[8px]"
                                 >
                                     [2] Edit_Identity
                                 </button>
                                 <button
                                     @click="activeTab = 'password'"
                                     :class="activeTab === 'password' ? 'bg-cyan-400 text-black' : 'bg-slate-800 text-cyan-400'"
-                                    class="w-full p-3 text-left border-r-4 border-black hover:translate-x-1 transition-all uppercase text-[8px]"
+                                    class="profile-settings-nav__item w-full p-3 text-left border-r-4 border-black hover:translate-x-1 transition-all uppercase text-[8px]"
                                 >
                                     [3] Change_Password
                                 </button>
                                 <button
                                     @click="activeTab = 'danger'"
                                     :class="activeTab === 'danger' ? 'bg-red-600 text-white' : 'bg-slate-800 text-red-500'"
-                                    class="w-full p-3 text-left border-r-4 border-black hover:translate-x-1 transition-all uppercase text-[8px]"
+                                    class="profile-settings-nav__item profile-settings-nav__danger w-full p-3 text-left border-r-4 border-black hover:translate-x-1 transition-all uppercase text-[8px]"
                                 >
                                     [4] Danger_Zone
                                 </button>
@@ -796,7 +792,7 @@ onBeforeUnmount(() => {
                                 <h3 class="text-cyan-400 mb-6 uppercase tracking-widest border-l-4 border-cyan-400 pl-3">
                                     Update_Identity
                                 </h3>
-                                <div class="border-2 border-cyan-500/40 bg-black/35 p-4">
+                                <div class="profile-theme-panel border-2 border-cyan-500/40 bg-black/35 p-4">
                                     <p class="text-[7px] uppercase text-cyan-300">Theme_Display</p>
                                     <p class="mt-2 text-[7px] leading-relaxed text-slate-400">
                                         Atur mode tampilan aplikasi. Tema akan tersimpan di browser ini.
@@ -804,20 +800,28 @@ onBeforeUnmount(() => {
                                     <div class="mt-3 flex flex-wrap gap-2">
                                         <button
                                             type="button"
-                                            class="border px-3 py-2 text-[7px] uppercase transition-colors"
+                                            class="profile-theme-button profile-theme-button--dark border px-3 py-2 text-[7px] uppercase transition-colors"
                                             :class="themeMode === 'dark'
                                                 ? 'border-cyan-300 bg-cyan-400 text-black'
                                                 : 'border-slate-600 bg-slate-900 text-slate-200 hover:border-cyan-500/50'"
+                                            :style="themeMode === 'light'
+                                                ? { borderColor: '#202020', backgroundColor: '#202020', color: '#ffffff' }
+                                                : undefined"
+                                            :disabled="isThemeApplying"
                                             @click="applyDarkTheme"
                                         >
                                             Dark
                                         </button>
                                         <button
                                             type="button"
-                                            class="border px-3 py-2 text-[7px] uppercase transition-colors"
+                                            class="profile-theme-button profile-theme-button--light border px-3 py-2 text-[7px] uppercase transition-colors"
                                             :class="themeMode === 'light'
                                                 ? 'border-cyan-300 bg-cyan-400 text-black'
                                                 : 'border-slate-600 bg-slate-900 text-slate-200 hover:border-cyan-500/50'"
+                                            :style="themeMode === 'light'
+                                                ? { borderColor: '#087f7f', backgroundColor: '#009999', color: '#ffffff' }
+                                                : undefined"
+                                            :disabled="isThemeApplying"
                                             @click="applyLightTheme"
                                         >
                                             Light
@@ -859,7 +863,7 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="col-span-12 lg:col-span-3 space-y-4">
-                        <div class="rpg-panel border-indigo-500/50 bg-indigo-900/20">
+                        <div class="profile-job-panel rpg-panel border-indigo-500/50 bg-indigo-900/20">
                             <h2 class="text-indigo-400 mb-6 border-b-2 border-indigo-900 pb-2 uppercase text-center text-[8px]">
                                 Jobs_Status
                             </h2>
@@ -890,7 +894,7 @@ onBeforeUnmount(() => {
                             </div>
                         </div>
 
-                        <div class="rpg-panel border-emerald-500/40 bg-emerald-950/15">
+                        <div class="profile-biodata-panel rpg-panel border-emerald-500/40 bg-emerald-950/15">
                             <h2 class="text-emerald-300 mb-4 border-b border-emerald-900/60 pb-2 uppercase text-center text-[8px]">
                                 Biodata_User
                             </h2>
@@ -934,10 +938,31 @@ onBeforeUnmount(() => {
         </div>
 
         <Teleport to="body">
+            <div
+                v-if="isThemeApplying"
+                data-app-surface="user"
+                :data-theme="themeMode"
+                class="fixed inset-0 z-[300] flex items-center justify-center bg-black/55 px-4 font-['Press_Start_2P']"
+                role="status"
+                aria-live="polite"
+                aria-busy="true"
+            >
+                <div class="w-full max-w-sm border-2 border-[#009999] bg-[#202020] p-5 text-center shadow-[6px_6px_0_rgba(0,0,0,0.35)]">
+                    <div class="mx-auto h-8 w-8 animate-spin border-4 border-[#f7f7f7]/25 border-t-[#009999]" />
+                    <p class="mt-4 text-[9px] uppercase leading-relaxed text-[#f7f7f7]">
+                        Applying_{{ pendingTheme || themeMode }}_Theme
+                    </p>
+                    <p class="mt-2 text-[7px] uppercase text-[#b9d4d4]">Synchronizing_Display...</p>
+                </div>
+            </div>
+        </Teleport>
+
+        <Teleport to="body">
         <div
             v-if="isTransferModalOpen"
             data-app-surface="user"
-            class="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 px-4 py-6"
+            :data-theme="themeMode"
+            class="profile-transfer-modal fixed inset-0 z-[200] flex items-center justify-center bg-black/75 px-4 py-6"
             @click.self="closeTransferModal"
         >
             <div class="w-full max-w-lg border-4 border-yellow-600 bg-[#1a1c2c] p-5 shadow-[8px_8px_0_rgba(0,0,0,0.55)] font-['Press_Start_2P']">
@@ -1066,6 +1091,10 @@ button {
     box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 0.5);
 }
 
+.profile-cosmetics-panel {
+    padding: 1rem;
+}
+
 .form-container :deep(button) {
     @apply w-full mt-4 p-3 bg-cyan-900/40 border-2 border-cyan-400 text-cyan-400 text-[8px] hover:bg-cyan-400 hover:text-black transition-all font-['Press_Start_2P'];
 }
@@ -1103,4 +1132,3 @@ button {
     transform: translateY(0);
 }
 </style>
-

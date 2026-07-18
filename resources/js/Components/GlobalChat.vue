@@ -1442,7 +1442,7 @@ onBeforeUnmount(() => {
                 </p>
             </div>
 
-            <div class="mt-3 border-t border-slate-800 pt-3 flex flex-shrink-0 flex-col gap-2 sm:flex-row sm:items-end">
+            <div class="chat-composer mt-3 flex flex-shrink-0 items-end gap-2 border-t border-slate-800 pt-3">
                 <input
                     ref="imageInput"
                     type="file"
@@ -1450,7 +1450,7 @@ onBeforeUnmount(() => {
                     class="hidden"
                     @change="handleImageSelected"
                 >
-                <div class="relative w-full flex-1">
+                <div class="relative min-w-0 flex-1">
                     <div
                         v-if="draftImagePreviewUrl"
                         class="relative mb-2 inline-flex items-start gap-2 rounded-md border border-slate-700 bg-black/60 p-2"
@@ -1484,19 +1484,23 @@ onBeforeUnmount(() => {
                 </div>
                 <button
                     type="button"
-                    class="w-full px-3 py-2 border-2 border-fuchsia-500 text-fuchsia-300 hover:bg-fuchsia-500 hover:text-black uppercase text-[8px] disabled:opacity-50 sm:w-auto"
+                    class="chat-composer__action border-2 border-fuchsia-500 text-fuchsia-300 hover:bg-fuchsia-500 hover:text-black disabled:opacity-50"
                     :disabled="isUploadingImage || !isConnected"
+                    aria-label="Lampirkan gambar"
+                    title="Lampirkan gambar"
                     @click="openImagePicker"
                 >
-                    Image
+                    <i class="fi fi-rr-picture text-[14px] leading-none"></i>
                 </button>
                 <button
                     type="button"
-                    class="w-full px-3 py-2 border-2 border-cyan-500 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px] disabled:opacity-50 sm:w-auto"
+                    class="chat-composer__action border-2 border-cyan-500 text-cyan-300 hover:bg-cyan-500 hover:text-black disabled:opacity-50"
                     :disabled="!isConnected || isUploadingImage"
+                    :aria-label="isUploadingImage ? 'Mengirim pesan' : 'Kirim pesan'"
+                    :title="isUploadingImage ? 'Mengirim...' : 'Kirim pesan'"
                     @click="sendMessage"
                 >
-                    {{ isUploadingImage ? 'SENDING...' : 'Send' }}
+                    <i :class="['fi', isUploadingImage ? 'fi-rr-spinner' : 'fi-rr-paper-plane', 'text-[14px]', 'leading-none', { 'animate-spin': isUploadingImage }]"></i>
                 </button>
             </div>
         </div>
@@ -1504,6 +1508,16 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.chat-composer__action {
+    display: inline-flex;
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
 .custom-scroll {
     overflow-y: auto;
     scrollbar-width: thin;

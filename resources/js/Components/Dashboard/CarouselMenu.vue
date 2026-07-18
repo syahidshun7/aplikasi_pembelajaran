@@ -386,6 +386,71 @@ onBeforeUnmount(() => {
     box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.12);
 }
 
+[data-theme='light'] .carousel-card__frame {
+    border-color: #087f7f;
+    background:
+        linear-gradient(180deg, rgba(247, 247, 247, 0.28), rgba(247, 247, 247, 0.10) 42%, rgba(0, 153, 153, 0.12)),
+        #009999;
+    box-shadow:
+        0 18px 34px rgba(0, 153, 153, 0.20),
+        0 0 0 1px rgba(32, 32, 32, 0.10);
+}
+
+[data-theme='light'] .carousel-card__frame::before {
+    border-color: rgba(247, 247, 247, 0.28);
+}
+
+[data-theme='light'] .carousel-card__icon {
+    background: #202020;
+    color: #f7f7f7;
+    border-color: rgba(247, 247, 247, 0.58);
+    box-shadow: 0 8px 18px rgba(32, 32, 32, 0.18);
+}
+
+[data-theme='light'] .carousel-card__badge,
+[data-theme='light'] .carousel-card__chip {
+    border-color: rgba(247, 247, 247, 0.38);
+    background: rgba(247, 247, 247, 0.18);
+    color: #f7f7f7;
+}
+
+[data-theme='light'] .carousel-card__title {
+    color: #ffffff;
+    text-shadow: 0 1px 0 rgba(32, 32, 32, 0.18);
+}
+
+[data-theme='light'] .carousel-card__eyebrow,
+[data-theme='light'] .carousel-card__chip--state {
+    color: #ffffff;
+}
+
+[data-theme='light'] .carousel-card__stats {
+    border-top-color: rgba(247, 247, 247, 0.26);
+}
+
+[data-theme='light'] .from-amber-node,
+[data-theme='light'] .from-indigo-node,
+[data-theme='light'] .from-blue-node,
+[data-theme='light'] .from-emerald-node,
+[data-theme='light'] .from-cyan-node {
+    background:
+        linear-gradient(180deg, rgba(247, 247, 247, 0.30), rgba(247,247,247,0.08) 32%),
+        linear-gradient(160deg, #38b2b2, #009999 54%, #087f7f);
+}
+
+[data-theme='light'] .carousel-card--inactive .carousel-card__frame {
+    background:
+        linear-gradient(180deg, rgba(247, 247, 247, 0.22), rgba(247,247,247,0.06) 34%),
+        linear-gradient(160deg, #38b2b2, #009999 58%, #087f7f);
+}
+
+[data-theme='light'] .carousel-card--active .carousel-card__frame {
+    border-color: #005f5f;
+    box-shadow:
+        0 24px 42px rgba(0, 153, 153, 0.28),
+        0 0 0 2px rgba(0, 95, 95, 0.28);
+}
+
 @media (max-width: 767px) {
     .carousel-shell {
         @apply px-0 pb-5 pt-6;

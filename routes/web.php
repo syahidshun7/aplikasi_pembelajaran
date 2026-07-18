@@ -220,9 +220,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/dooplab/logbooks/{logbook}/entries/{entry}', [DoopLabLogbookController::class, 'destroyEntry'])->name('dooplab.logbooks.entries.destroy');
 
     Route::get('/my-creations', [CreationPageController::class, 'index'])->name('creations.index');
+    Route::redirect('/my-creation', '/profile/creations', 301);
     Route::get('/profile/creations', [CreationPageController::class, 'profileCreations'])->name('profile.creations');
     Route::get('/profile/creations/create', [CreationPageController::class, 'create'])->name('profile.creations.create');
-    Route::get('/profile/creations/{creation}/edit', [CreationPageController::class, 'edit'])->name('profile.creations.edit');
+    Route::get('/profile/creations/{creation:slug}/edit', [CreationPageController::class, 'edit'])->name('profile.creations.edit');
 
     Route::get('/profile', [ProfileController::class, 'dashboard'])->name('profile.dashboard');
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');

@@ -539,7 +539,7 @@ onBeforeUnmount(() => {
     <AuthenticatedLayout>
         <Head title="Creation Detail" />
 
-        <div class="mx-auto max-w-6xl space-y-6 font-['Press_Start_2P'] text-[#4ed4d4]">
+        <div class="lobby-detail-page creation-show-page mx-auto max-w-6xl space-y-6 font-['Press_Start_2P'] text-[#4ed4d4]">
             <section v-if="loadingCreation" class="rpg-panel border-slate-700 bg-[#1a1c2c]/80 text-center text-[8px] uppercase text-slate-400">
                 Loading creation detail...
             </section>
@@ -555,7 +555,7 @@ onBeforeUnmount(() => {
                             by {{ creation.creator?.username || creation.creator?.name || 'Unknown Creator' }}
                         </p>
                     </div>
-                    <Link :href="backToHallHref" class="text-[8px] uppercase text-amber-300 hover:text-amber-200">
+                    <Link :href="backToHallHref" class="creation-back-link text-[8px] uppercase text-amber-300 hover:text-amber-200">
                         Back To Hall
                     </Link>
                 </div>
@@ -596,14 +596,14 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="mb-4 flex flex-wrap items-center gap-2 text-[8px] uppercase">
-                    <span class="rounded border border-cyan-500 px-2 py-1 text-cyan-300">{{ creation.status }}</span>
-                    <span class="rounded border border-slate-600 px-2 py-1 text-slate-300">{{ creation.progress }}%</span>
-                    <span v-if="creation.team_size > 1" class="rounded border border-emerald-500/50 px-2 py-1 text-emerald-300">TEAM {{ creation.team_size }}</span>
-                    <span v-if="creation.is_open_for_collaboration" class="rounded border border-amber-500/50 px-2 py-1 text-amber-300">OPEN COLLAB</span>
+                    <span class="creation-status-badge rounded border border-cyan-500 px-2 py-1 text-cyan-300" :class="`creation-status-badge--${creation.status}`">{{ creation.status }}</span>
+                    <span class="creation-progress-badge rounded border border-slate-600 px-2 py-1 text-slate-300">{{ creation.progress }}%</span>
+                    <span v-if="creation.team_size > 1" class="creation-team-badge rounded border border-emerald-500/50 px-2 py-1 text-emerald-300">TEAM {{ creation.team_size }}</span>
+                    <span v-if="creation.is_open_for_collaboration" class="creation-collab-badge rounded border border-amber-500/50 px-2 py-1 text-amber-300">OPEN COLLAB</span>
                 </div>
 
                 <div v-if="creationTags.length > 0" class="mb-5 flex flex-wrap gap-2 text-[7px] uppercase">
-                    <span v-for="tag in creationTags" :key="tag" class="rounded border border-slate-600 bg-slate-900/60 px-2 py-1 text-slate-300">
+                    <span v-for="tag in creationTags" :key="tag" class="creation-tag rounded border border-slate-600 bg-slate-900/60 px-2 py-1 text-slate-300">
                         {{ tag }}
                     </span>
                 </div>
@@ -686,10 +686,10 @@ onBeforeUnmount(() => {
                         >
                             <div class="min-w-0">
                                 <p class="text-[8px] uppercase text-white">{{ member.username || member.name || 'User' }}</p>
-                                <p class="mt-1 text-[7px] uppercase text-slate-500">{{ collaborationRoleLabel(member.role) }}</p>
+                                <p class="creation-team-role mt-1 text-[7px] uppercase text-slate-500">{{ collaborationRoleLabel(member.role) }}</p>
                             </div>
                             <div class="flex items-center gap-2">
-                                <span v-if="member.is_owner" class="rounded border border-cyan-500/40 px-2 py-1 text-[7px] uppercase text-cyan-300">Owner</span>
+                                <span v-if="member.is_owner" class="creation-owner-badge rounded border border-cyan-500/40 px-2 py-1 text-[7px] uppercase text-cyan-300">Owner</span>
                                 <button
                                     v-else-if="creation.can_manage_collaboration"
                                     type="button"
@@ -757,7 +757,7 @@ onBeforeUnmount(() => {
                         </form>
 
                         <div v-else-if="hasPendingCollaborationRequest" class="space-y-3">
-                            <div class="border border-amber-500/40 bg-amber-500/10 p-3 text-[7px] uppercase text-amber-200">
+                            <div class="creation-request-status border border-amber-500/40 bg-amber-500/10 p-3 text-[7px] uppercase text-amber-200">
                                 Request status: pending
                             </div>
                             <button type="button" class="icon-btn text-rose-300 hover:text-rose-100" :disabled="collaborationSubmitting" @click="withdrawCollaborationRequest">
@@ -769,7 +769,7 @@ onBeforeUnmount(() => {
             </section>
 
             <section v-if="creation" ref="insightsSection" class="rpg-panel border-amber-500/30 bg-[#161b22]/90">
-                <h2 class="mb-4 flex items-center gap-2 border-b border-slate-700 pb-3 text-[10px] uppercase text-amber-300">
+                <h2 class="creation-insights-title mb-4 flex items-center gap-2 border-b border-slate-700 pb-3 text-[10px] uppercase text-amber-300">
                     <i class="fi fi-rr-comment-alt text-[12px]" />
                     Insights
                 </h2>

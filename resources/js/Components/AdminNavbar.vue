@@ -39,7 +39,11 @@ const handleLogout = () => {
     }).then((result) => {
         if (result.isConfirmed) {
             closeAllMenus();
-            router.post(route('logout'));
+            router.post(route('logout'), {}, {
+                preserveScroll: false,
+                preserveState: false,
+                replace: true,
+            });
         }
     });
 };
@@ -112,7 +116,7 @@ const handleLogout = () => {
                     <Link v-if="isAdminAccess" :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.users.index')" class="dropdown-item" @click="closeAllMenus">USERS</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.error-logs.index')" class="dropdown-item" @click="closeAllMenus">ERROR LOGS</Link>
-                    <button @click="handleLogout" class="dropdown-item w-full text-left text-red-400 hover:text-white">
+                    <button type="button" @click="handleLogout" class="dropdown-item w-full text-left text-red-400 hover:text-white">
                         DISCONNECT
                     </button>
                 </div>
@@ -147,7 +151,7 @@ const handleLogout = () => {
                 <Link v-if="isAdminAccess" :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.users.index')" class="dropdown-item" @click="closeAllMenus">USERS</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.error-logs.index')" class="dropdown-item" @click="closeAllMenus">ERROR LOGS</Link>
-                <button @click="handleLogout" class="dropdown-item w-full text-left text-red-400 hover:text-white">
+                <button type="button" @click="handleLogout" class="dropdown-item w-full text-left text-red-400 hover:text-white">
                     DISCONNECT
                 </button>
             </div>

@@ -2,6 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import { useUserTheme } from '@/Composables/useUserTheme';
 
 const props = defineProps({
     hasAccess: { type: Boolean, default: false },
@@ -9,6 +10,7 @@ const props = defineProps({
 });
 
 const page = usePage();
+const { themeMode } = useUserTheme();
 const userName = computed(() => page.props?.auth?.user?.name || 'Unknown');
 
 const doorOpening = ref(false);
@@ -29,7 +31,7 @@ const labModules = [
     <AuthenticatedLayout>
         <Head title="DOOPTECH | DoopLab" />
 
-        <div class="lab-root">
+        <div class="lab-root" :class="{ 'lab-root--light': themeMode === 'light' }">
             <!-- Background: Teleport ke body agar fixed tidak terjebak overflow:hidden -->
             <Teleport to="body">
                 <div class="bg-layer">
@@ -247,6 +249,131 @@ const labModules = [
     text-decoration: none; transition: 0.3s;
 }
 .back-btn:hover { background: var(--accent); color: #000; }
+
+/* ===== LIGHT THEME ===== */
+.lab-root--light {
+    --accent: #009999;
+    --accent-dim: rgba(0, 153, 153, 0.28);
+    color: #202020;
+}
+
+.lab-root--light .hud-text {
+    color: #087f7f;
+    text-shadow: 1px 1px 0 #f7f7f7;
+}
+
+.lab-root--light .hud-text.dim {
+    color: #4f5656;
+}
+
+.lab-root--light .content-card {
+    border-color: #087f7f;
+    background: rgba(247, 247, 247, 0.96);
+    box-shadow: 7px 7px 0 rgba(32, 32, 32, 0.18);
+}
+
+.lab-root--light .card-header {
+    border-color: #b9d4d4;
+    color: #087f7f;
+}
+
+.lab-root--light .blinker {
+    background: #009999;
+    box-shadow: none;
+}
+
+.lab-root--light .id-card {
+    border-color: #9fbcbc;
+    background: #ffffff;
+}
+
+.lab-root--light .id-card.granted {
+    border-color: #21824b;
+}
+
+.lab-root--light .id-label,
+.lab-root--light .hint,
+.lab-root--light .tele-key {
+    color: #626262;
+}
+
+.lab-root--light .id-avatar {
+    border-color: #087f7f;
+    background: #e2f3f3;
+    color: #087f7f;
+}
+
+.lab-root--light .id-name {
+    color: #202020;
+}
+
+.lab-root--light .id-role,
+.lab-root--light .text-emerald-400 {
+    color: #176238 !important;
+}
+
+.lab-root--light .text-amber-400 {
+    color: #825000 !important;
+}
+
+.lab-root--light .btn-enter {
+    border-color: #087f7f;
+    background: #009999;
+    color: #ffffff;
+}
+
+.lab-root--light .btn-enter:hover {
+    background: #087f7f;
+    color: #ffffff;
+    box-shadow: none;
+}
+
+.lab-root--light .btn-unlock {
+    border-color: #a56000;
+    background: #f5b900;
+    color: #202020;
+}
+
+.lab-root--light .btn-unlock:hover {
+    background: #dca600;
+    color: #202020;
+    box-shadow: none;
+}
+
+.lab-root--light .module-row {
+    border-color: #c6d6d6;
+}
+
+.lab-root--light .module-chip {
+    border: 1px solid #d7e1e1;
+    background: #ffffff;
+    color: #4f5656;
+}
+
+.lab-root--light .module-chip i {
+    color: #087f7f;
+}
+
+.lab-root--light .tele-chip {
+    border-color: #9fbcbc;
+    background: rgba(247, 247, 247, 0.96);
+    box-shadow: 3px 3px 0 rgba(32, 32, 32, 0.12);
+}
+
+.lab-root--light .tele-val {
+    color: #087f7f;
+}
+
+.lab-root--light .back-btn {
+    border-color: #087f7f;
+    background: #009999;
+    color: #ffffff;
+}
+
+.lab-root--light .back-btn:hover {
+    background: #087f7f;
+    color: #ffffff;
+}
 
 /* ===== RESPONSIVE ===== */
 @media (max-width: 520px) {

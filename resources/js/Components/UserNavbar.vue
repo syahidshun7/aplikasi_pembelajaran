@@ -1,7 +1,8 @@
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import NotificationBell from '@/Components/NotificationBell.vue';
+import { useUserTheme } from '@/Composables/useUserTheme';
 import { toast } from '@/Utils/Alert';
 
 const props = defineProps({
@@ -14,6 +15,32 @@ const props = defineProps({
 const page = usePage();
 const auth = computed(() => page.props.auth || {});
 const mobileMenuOpen = ref(false);
+const { themeMode, setUserTheme } = useUserTheme();
+const isThemeApplying = ref(false);
+const pendingTheme = ref(null);
+
+const themeActionLabel = computed(() => themeMode.value === 'light' ? 'Dark' : 'Light');
+const themeActionIcon = computed(() => themeMode.value === 'light' ? 'fi-rr-moon' : 'fi-rr-sun');
+
+const waitForThemePaint = () => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+});
+
+const applyNavbarTheme = async () => {
+    if (isThemeApplying.value) return;
+
+    const nextTheme = themeMode.value === 'light' ? 'dark' : 'light';
+    pendingTheme.value = nextTheme;
+    isThemeApplying.value = true;
+    setUserTheme(nextTheme);
+
+    await nextTick();
+    await waitForThemePaint();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    pendingTheme.value = null;
+    isThemeApplying.value = false;
+};
 
 const normalizedUserRole = computed(() => String(auth.value?.user?.role || '').trim().toLowerCase());
 const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(normalizedUserRole.value));
@@ -35,14 +62,19 @@ const handleLogout = () => {
         .then((result) => {
             if (result.isConfirmed) {
                 closeMobileMenu();
-                router.post(route('logout'));
+                router.post(route('logout'), {}, {
+                    preserveScroll: false,
+                    preserveState: false,
+                    replace: true,
+                });
             }
         });
 };
+
 </script>
 
 <template>
-    <div data-app-surface="user" class="user-navbar-theme-scope relative">
+    <div data-app-surface="user" :data-theme="themeMode" class="user-navbar-theme-scope relative">
     <nav class="user-navbar-shell sticky top-0 z-50 flex items-center justify-between border-b-4 border-[var(--panel-border)] bg-[var(--panel)] p-4 text-[var(--text)] shadow-2xl md:bg-[var(--panel-soft)] md:backdrop-blur-sm md:px-8">
         <div class="flex items-center gap-4">
             <Link :href="route('lobby')" class="group flex items-center gap-4" @click="closeMobileMenu">
@@ -86,6 +118,19 @@ const handleLogout = () => {
                         <i class="fi fi-rr-lightbulb-on text-[10px] leading-none"></i>
                         Hall of Creations
                     </Link>
+
+                    <button
+                        type="button"
+                        class="nav-action nav-action--theme nav-action--theme-icon"
+                        :class="themeMode === 'dark' ? 'nav-action--theme-light' : 'nav-action--theme-dark'"
+                        :aria-label="`Ubah tema ke ${themeActionLabel}`"
+                        :title="`Ubah tema ke ${themeActionLabel}`"
+                        :disabled="isThemeApplying"
+                        @click="applyNavbarTheme"
+                    >
+                        <i :class="['fi', themeActionIcon, 'text-[10px]', 'leading-none']"></i>
+                        <span class="sr-only">{{ themeActionLabel }}</span>
+                    </button>
 
                     <NotificationBell />
 
@@ -177,6 +222,18 @@ const handleLogout = () => {
                     Hall of Creations
                 </Link>
 
+                <button
+                    type="button"
+                    class="nav-action nav-action--theme nav-action--theme-icon w-full justify-center"
+                    :class="themeMode === 'dark' ? 'nav-action--theme-light' : 'nav-action--theme-dark'"
+                    :aria-label="`Ubah tema ke ${themeActionLabel}`"
+                    :disabled="isThemeApplying"
+                    @click="applyNavbarTheme"
+                >
+                    <i :class="['fi', themeActionIcon, 'text-[10px]', 'leading-none']"></i>
+                    <span class="sr-only">{{ themeActionLabel }}</span>
+                </button>
+
                 <Link
                     :href="route('notifications.index')"
                     class="nav-action nav-action--notifications w-full justify-center"
@@ -219,5 +276,25 @@ const handleLogout = () => {
             </template>
         </div>
     </div>
+
+    <Teleport to="body">
+        <div
+            v-if="isThemeApplying"
+            data-app-surface="user"
+            :data-theme="themeMode"
+            class="fixed inset-0 z-[300] flex items-center justify-center bg-black/55 px-4 font-['Press_Start_2P']"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+        >
+            <div class="w-full max-w-sm border-2 border-[#009999] bg-[#202020] p-5 text-center shadow-[6px_6px_0_rgba(0,0,0,0.35)]">
+                <div class="mx-auto h-8 w-8 animate-spin border-4 border-[#f7f7f7]/25 border-t-[#009999]" />
+                <p class="mt-4 text-[9px] uppercase leading-relaxed text-[#f7f7f7]">
+                    Applying_{{ pendingTheme || themeMode }}_Theme
+                </p>
+                <p class="mt-2 text-[7px] uppercase text-[#b9d4d4]">Synchronizing_Display...</p>
+            </div>
+        </div>
+    </Teleport>
     </div>
 </template>
