@@ -123,8 +123,8 @@ const previewClass = computed(() => {
         <div class="hall-creation-actions flex items-center justify-between border-t border-slate-700 px-3 py-2.5">
             <button
                 type="button"
-                class="inline-flex items-center gap-1 text-[8px] transition-colors"
-                :class="creation.is_appreciated ? 'text-rose-300' : 'text-slate-400 hover:text-rose-300'"
+                class="hall-creation-appreciate-btn inline-flex items-center gap-1 text-[8px] transition-colors"
+                :class="creation.is_appreciated ? 'is-appreciated text-rose-300' : 'text-slate-400 hover:text-rose-300'"
                 :disabled="busy"
                 @click="emit('appreciate', creation)"
             >

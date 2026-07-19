@@ -506,7 +506,7 @@ const openTodoModal = () => {
     todoForm.notify_deadline_email = false;
     todoForm.assignment_mode = 'self';
     todoForm.owner_user_id = null;
-    todoForm.creation_id = Number(researchWorkspaces.value?.[0]?.id || 0) || null;
+    todoForm.creation_id = null;
     todoForm.milestone_type = 'task';
     todoForm.clearErrors();
     showTodoModal.value = true;
@@ -660,11 +660,15 @@ watch(() => [todoForm.assignment_mode, todoForm.owner_user_id], () => {
     const creations = visibleResearchWorkspaces.value;
     const selectedWorkspaceId = Number(todoForm.creation_id || 0);
 
-    if (selectedWorkspaceId > 0 && creations.some((creation) => Number(creation?.id || 0) === selectedWorkspaceId)) {
+    if (selectedWorkspaceId <= 0) {
         return;
     }
 
-    todoForm.creation_id = Number(creations?.[0]?.id || 0) || null;
+    if (creations.some((creation) => Number(creation?.id || 0) === selectedWorkspaceId)) {
+        return;
+    }
+
+    todoForm.creation_id = null;
 });
 
 watch(() => hireMentorForm.value.creation_id, () => {
@@ -2302,6 +2306,9 @@ onUnmounted(() => {
 .todo-nav-check {
     width: 30px;
     height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+    aspect-ratio: 1 / 1;
     border: 1px solid rgba(255, 255, 255, 0.12);
     display: grid;
     place-items: center;
@@ -2309,6 +2316,7 @@ onUnmounted(() => {
     background: transparent;
     padding: 0;
     cursor: pointer;
+    line-height: 1;
 }
 
 .todo-nav-check.is-done {
@@ -6247,6 +6255,15 @@ onUnmounted(() => {
     .todo-modal button,
     .nb-root .todo-upload-btn {
         min-height: 42px !important;
+    }
+
+    .nb-root .todo-list-workspace .todo-nav-check {
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        min-height: 28px !important;
+        aspect-ratio: 1 / 1 !important;
+        padding: 0 !important;
     }
 
     .nb-root .chat-composer--todo .todo-note-upload-row {

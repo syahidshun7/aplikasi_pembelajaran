@@ -635,8 +635,8 @@ onBeforeUnmount(() => {
                     </Link>
                     <button
                         type="button"
-                        class="icon-btn inline-flex items-center gap-1"
-                        :class="creation.is_appreciated ? 'text-rose-300 hover:text-rose-200' : 'text-slate-300 hover:text-rose-300'"
+                        class="creation-appreciate-btn icon-btn inline-flex items-center gap-1"
+                        :class="creation.is_appreciated ? 'is-appreciated text-rose-300 hover:text-rose-200' : 'text-slate-300 hover:text-rose-300'"
                         :disabled="togglingAppreciation"
                         title="Appreciate"
                         @click="toggleAppreciation"

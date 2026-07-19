@@ -167,14 +167,14 @@ const resolveLevelTitleSymbol = (title) => {
             </button>
         </div>
 
-        <div v-if="selectedMode === 'class'" class="mb-4 flex flex-wrap items-center gap-2 border border-slate-800 bg-[#0d1117] p-2">
+        <div v-if="selectedMode === 'class'" class="leaderboard-class-picker mb-4 flex flex-wrap items-center gap-2 border border-slate-800 bg-[#0d1117] p-2">
             <label class="text-[8px] uppercase tracking-[0.16em] text-slate-400">
                 Pilih Kelas
             </label>
 
             <select
                 v-model.number="normalizedSelectedClassGroupId"
-                class="leaderboard-class-select min-w-[180px] border border-slate-700 bg-slate-900 px-3 py-2 text-[8px] uppercase text-cyan-100 outline-none transition-all focus:border-cyan-400"
+                class="leaderboard-class-select min-w-0 border border-slate-700 bg-slate-900 px-3 py-2 text-[8px] uppercase text-cyan-100 outline-none transition-all focus:border-cyan-400 sm:min-w-[180px]"
                 :disabled="props.classOptions.length === 0 || classLoading"
             >
                 <option
@@ -198,8 +198,8 @@ const resolveLevelTitleSymbol = (title) => {
         </div>
 
         <div v-if="activeItems.length > 0" class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-            <article class="border border-cyan-400/20 bg-[#0d1117] p-5 shadow-[0_0_30px_rgba(34,211,238,0.1)]">
-                <p class="text-[7px] uppercase tracking-[0.24em] text-cyan-300/70">{{ activeModeMeta.rankTitle }} {{ selectedMode === 'class' ? activeScopeLabel : '' }}</p>
+            <article class="leaderboard-champion-card min-w-0 overflow-hidden border border-cyan-400/20 bg-[#0d1117] p-5 shadow-[0_0_30px_rgba(34,211,238,0.1)]">
+                <p class="leaderboard-rank-title text-[7px] uppercase tracking-[0.24em] text-cyan-300/70">{{ activeModeMeta.rankTitle }} {{ selectedMode === 'class' ? activeScopeLabel : '' }}</p>
                 <div class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
                     <div class="relative">
                         <div class="absolute -left-2 -top-2 rounded-full border border-yellow-500/40 bg-yellow-500/10 px-2 py-1 text-[7px] uppercase text-yellow-300">
@@ -210,8 +210,8 @@ const resolveLevelTitleSymbol = (title) => {
                             <img v-else :src="activeItems[0].__dicebear_src" loading="lazy" decoding="async" class="h-full w-full">
                         </div>
                     </div>
-                    <div class="min-w-0 flex-1">
-                        <h3 class="truncate text-[12px] uppercase text-white">{{ activeItems[0].username || activeItems[0].name }}</h3>
+                    <div class="min-w-0 flex-1 overflow-hidden">
+                        <h3 class="leaderboard-champion-name text-[12px] uppercase text-white">{{ activeItems[0].username || activeItems[0].name }}</h3>
                         <p class="mt-2 text-[8px] uppercase text-slate-400">{{ activeItems[0].role || 'Adventurer' }}</p>
                         <div class="mt-4 flex flex-wrap items-center gap-2 text-[8px] uppercase">
                             <span class="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-1 text-cyan-100">LVL {{ activeItems[0].level || 1 }} — {{ activeItems[0].level_title || 'Novice' }}</span>
@@ -227,7 +227,7 @@ const resolveLevelTitleSymbol = (title) => {
                     :key="player.id"
                     :is="hasProfileRoute(player) ? Link : 'div'"
                     :href="hasProfileRoute(player) ? route('profiles.show', { user: player.username }) : undefined"
-                    class="flex items-center gap-3 overflow-hidden border border-slate-800 bg-[#0d1117] p-3 transition-all"
+                    class="leaderboard-row grid grid-cols-[2.5rem_2.75rem_minmax(0,1fr)] items-center gap-3 overflow-hidden border border-slate-800 bg-[#0d1117] p-3 transition-all"
                     :class="hasProfileRoute(player) ? 'hover:border-cyan-500/60' : 'opacity-90'"
                 >
                     <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-400/10 text-[9px] uppercase text-cyan-100">
@@ -240,15 +240,15 @@ const resolveLevelTitleSymbol = (title) => {
                     </div>
 
                     <div class="min-w-0 flex-1">
-                        <div class="leaderboard-row-top flex min-w-0 items-start justify-between gap-2">
-                            <span class="min-w-0 truncate text-[9px] uppercase text-white">{{ player.username || player.name }}</span>
+                        <div class="leaderboard-row-top grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                            <span class="leaderboard-player-name min-w-0 text-[9px] uppercase text-white">{{ player.username || player.name }}</span>
                             <span class="text-[8px] uppercase text-cyan-300" :title="`LVL ${player.level || 1} - ${player.level_title || 'Novice'}`">
                                 LVL {{ player.level || 1 }} {{ resolveLevelTitleSymbol(player.level_title) }}
                             </span>
                         </div>
                         <div class="leaderboard-row-bottom mt-2 flex min-w-0 items-center justify-between gap-2 text-[7px] uppercase text-slate-500">
                             <span>{{ resolvePlayerScoreLabel(player) }}</span>
-                            <span>{{ hasProfileRoute(player) ? 'Visit >' : 'Profile unavailable' }}</span>
+                            <span>{{ hasProfileRoute(player) ? 'Visit >' : 'Unavailable' }}</span>
                         </div>
                     </div>
                 </component>
@@ -296,15 +296,48 @@ const resolveLevelTitleSymbol = (title) => {
     @apply max-w-[280px] text-[9px] uppercase leading-relaxed text-slate-500;
 }
 
+.leaderboard-class-picker {
+    min-width: 0;
+}
+
+.leaderboard-class-select {
+    width: 100%;
+    max-width: 100%;
+}
+
+.leaderboard-rank-title {
+    max-width: 100%;
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+}
+
+.leaderboard-champion-name,
+.leaderboard-player-name {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.leaderboard-row {
+    min-width: 0;
+}
+
 .leaderboard-row-top span:last-child {
     max-width: 48%;
     text-align: right;
     line-height: 1.2;
     overflow-wrap: anywhere;
+    min-width: 0;
 }
 
 .leaderboard-row-bottom span:first-child {
     flex-shrink: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .leaderboard-row-bottom span:last-child {
@@ -313,6 +346,35 @@ const resolveLevelTitleSymbol = (title) => {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+@media (max-width: 420px) {
+    .dashboard-section-shell {
+        padding: 1rem;
+    }
+
+    .leaderboard-champion-card {
+        padding: 1rem;
+    }
+
+    .leaderboard-row {
+        grid-template-columns: 2.25rem 2.5rem minmax(0, 1fr);
+        gap: 0.5rem;
+        padding: 0.75rem;
+    }
+
+    .leaderboard-row-top {
+        grid-template-columns: minmax(0, 1fr) max-content;
+    }
+
+    .leaderboard-row-top span:last-child {
+        max-width: 3.75rem;
+    }
+
+    .leaderboard-row-bottom {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) max-content;
+    }
 }
 
 @media (min-width: 640px) {

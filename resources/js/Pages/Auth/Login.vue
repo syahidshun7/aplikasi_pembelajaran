@@ -155,7 +155,7 @@ onMounted(async () => {
 
             <div class="flex items-center justify-between mt-4">
                 <label class="flex items-center cursor-pointer">
-                    <input type="checkbox" v-model="form.remember" class="bg-[var(--bg)] border-[var(--panel-border)] text-[var(--accent)] focus:ring-0 rounded-none">
+                    <input type="checkbox" v-model="form.remember" class="auth-keep-session-checkbox bg-[var(--bg)] border-[var(--panel-border)] text-[var(--accent)] focus:ring-0 rounded-none">
                     <span class="ms-2 text-[8px] text-[var(--text-muted)] uppercase">Keep_Session</span>
                 </label>
                 
