@@ -1,8 +1,9 @@
 <script setup>
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 import { Head, Link } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
 
-defineProps({
+const props = defineProps({
     group: Object,
     student: Object,
     summary: Object,
@@ -14,6 +15,43 @@ defineProps({
         type: Array,
         default: () => [],
     },
+});
+
+const questSearch = ref('');
+const questTypeFilter = ref('all');
+const questProgressFilter = ref('all');
+const attendanceSearch = ref('');
+const attendanceStatusFilter = ref('all');
+
+const filteredQuestHistory = computed(() => {
+    const keyword = questSearch.value.trim().toLowerCase();
+
+    return props.questHistory.filter((quest) => {
+        const matchesSearch = keyword === ''
+            || String(quest.title || '').toLowerCase().includes(keyword)
+            || String(quest.difficulty || '').toLowerCase().includes(keyword);
+        const matchesType = questTypeFilter.value === 'all'
+            || quest.quest_type === questTypeFilter.value;
+        const isCompleted = Number(quest.attempts || 0) > 0;
+        const matchesProgress = questProgressFilter.value === 'all'
+            || (questProgressFilter.value === 'completed' && isCompleted)
+            || (questProgressFilter.value === 'not_started' && !isCompleted);
+
+        return matchesSearch && matchesType && matchesProgress;
+    });
+});
+
+const filteredAttendanceHistory = computed(() => {
+    const keyword = attendanceSearch.value.trim().toLowerCase();
+
+    return props.attendanceHistory.filter((attendance) => {
+        const matchesSearch = keyword === ''
+            || String(attendance.title || '').toLowerCase().includes(keyword);
+        const matchesStatus = attendanceStatusFilter.value === 'all'
+            || attendance.status === attendanceStatusFilter.value;
+
+        return matchesSearch && matchesStatus;
+    });
 });
 
 const percentageClass = (value) => {
@@ -106,11 +144,37 @@ const formatDate = (value) => {
 
             <section class="rpg-panel border-yellow-500/50">
                 <div class="mb-5 border-b border-slate-700 pb-4">
-                    <p class="text-[8px] uppercase text-yellow-300">Quest_History</p>
-                    <h2 class="mt-3 text-[12px] uppercase text-white">Quest Yang Sudah Dikerjakan</h2>
+                    <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                        <div>
+                            <p class="text-[8px] uppercase text-yellow-300">Quest_History</p>
+                            <h2 class="mt-3 text-[12px] uppercase text-white">Seluruh Quest Study Group</h2>
+                        </div>
+                        <div class="grid gap-2 sm:grid-cols-3 xl:w-[680px]">
+                            <input
+                                v-model="questSearch"
+                                type="search"
+                                placeholder="SEARCH_QUEST..."
+                                class="filter-control sm:col-span-1"
+                            >
+                            <select v-model="questTypeFilter" class="filter-control">
+                                <option value="all">ALL_TYPES</option>
+                                <option value="main">MAIN</option>
+                                <option value="optional">OPTIONAL</option>
+                            </select>
+                            <select v-model="questProgressFilter" class="filter-control">
+                                <option value="all">ALL_PROGRESS</option>
+                                <option value="completed">SUDAH_DIKERJAKAN</option>
+                                <option value="not_started">BELUM_DIKERJAKAN</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="mt-3 text-[7px] uppercase text-slate-500">
+                        Showing {{ filteredQuestHistory.length }} / {{ questHistory.length }} quest
+                    </p>
                 </div>
 
-                <div v-if="questHistory.length === 0" class="empty-state">Belum ada quest yang dikerjakan.</div>
+                <div v-if="questHistory.length === 0" class="empty-state">Belum ada quest di Study Group ini.</div>
+                <div v-else-if="filteredQuestHistory.length === 0" class="empty-state">Quest tidak ditemukan untuk filter ini.</div>
                 <div v-else class="overflow-x-auto">
                     <table class="min-w-full border-collapse">
                         <thead>
@@ -125,15 +189,20 @@ const formatDate = (value) => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="quest in questHistory" :key="quest.uuid" class="table-row">
+                            <tr v-for="quest in filteredQuestHistory" :key="quest.uuid" class="table-row">
                                 <td class="p-3 font-sans text-[13px] font-semibold text-white">{{ quest.title }}</td>
                                 <td class="p-3 uppercase" :class="quest.quest_type === 'main' ? 'text-yellow-300' : 'text-purple-300'">{{ quest.quest_type }}</td>
                                 <td class="p-3 uppercase text-slate-300">{{ quest.difficulty || '-' }}</td>
                                 <td class="p-3 text-center text-cyan-300">{{ quest.attempts }}</td>
                                 <td class="p-3 text-center text-[11px] font-bold" :class="percentageClass(quest.grade)">
-                                    {{ quest.grade === null ? 'Pending' : `${quest.grade}%` }}
+                                    {{ quest.attempts === 0 ? '-' : (quest.grade === null ? 'Pending' : `${quest.grade}%`) }}
                                 </td>
-                                <td class="p-3 uppercase text-slate-300">{{ quest.status || '-' }}</td>
+                                <td
+                                    class="p-3 uppercase"
+                                    :class="quest.attempts === 0 ? 'text-red-300' : 'text-slate-300'"
+                                >
+                                    {{ quest.attempts === 0 ? 'Belum_Dikerjakan' : (quest.status || '-') }}
+                                </td>
                                 <td class="p-3 font-sans text-[12px] text-slate-400">{{ formatDate(quest.submitted_at) }}</td>
                             </tr>
                         </tbody>
@@ -143,11 +212,34 @@ const formatDate = (value) => {
 
             <section class="rpg-panel border-emerald-500/50">
                 <div class="mb-5 border-b border-slate-700 pb-4">
-                    <p class="text-[8px] uppercase text-emerald-300">Attendance_History</p>
-                    <h2 class="mt-3 text-[12px] uppercase text-white">Riwayat Kehadiran</h2>
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                        <div>
+                            <p class="text-[8px] uppercase text-emerald-300">Attendance_History</p>
+                            <h2 class="mt-3 text-[12px] uppercase text-white">Riwayat Kehadiran</h2>
+                        </div>
+                        <div class="grid gap-2 sm:grid-cols-2 lg:w-[460px]">
+                            <input
+                                v-model="attendanceSearch"
+                                type="search"
+                                placeholder="SEARCH_EVENT..."
+                                class="filter-control"
+                            >
+                            <select v-model="attendanceStatusFilter" class="filter-control">
+                                <option value="all">ALL_STATUS</option>
+                                <option value="present">PRESENT</option>
+                                <option value="absent">ABSENT</option>
+                                <option value="excused">EXCUSED</option>
+                                <option value="pending">PENDING</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="mt-3 text-[7px] uppercase text-slate-500">
+                        Showing {{ filteredAttendanceHistory.length }} / {{ attendanceHistory.length }} event
+                    </p>
                 </div>
 
                 <div v-if="attendanceHistory.length === 0" class="empty-state">Belum ada event attendance di kelas ini.</div>
+                <div v-else-if="filteredAttendanceHistory.length === 0" class="empty-state">Attendance tidak ditemukan untuk filter ini.</div>
                 <div v-else class="overflow-x-auto">
                     <table class="min-w-full border-collapse">
                         <thead>
@@ -159,7 +251,7 @@ const formatDate = (value) => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="attendance in attendanceHistory" :key="attendance.uuid" class="table-row">
+                            <tr v-for="attendance in filteredAttendanceHistory" :key="attendance.uuid" class="table-row">
                                 <td class="p-3 font-sans text-[13px] font-semibold text-white">{{ attendance.title }}</td>
                                 <td class="p-3 font-sans text-[12px] text-slate-300">{{ formatDate(attendance.starts_at) }}</td>
                                 <td class="p-3 font-sans text-[12px] text-slate-400">{{ formatDate(attendance.checked_at) }}</td>
@@ -232,5 +324,26 @@ const formatDate = (value) => {
     font-size: 8px;
     text-align: center;
     text-transform: uppercase;
+}
+
+.filter-control {
+    width: 100%;
+    border: 2px solid #475569;
+    border-radius: 0;
+    background: #0d1117;
+    padding: 0.7rem;
+    color: #cbd5e1;
+    font-size: 8px;
+    text-transform: uppercase;
+}
+
+.filter-control:focus {
+    border-color: #22d3ee;
+    outline: none;
+    box-shadow: none;
+}
+
+.filter-control::placeholder {
+    color: #64748b;
 }
 </style>

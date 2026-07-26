@@ -51,6 +51,7 @@ const questIdToDelete = ref(null);
 const filterForm = useForm({
     search: props.filters?.search || '',
     view: props.filters?.view || 'active',
+    quest_type: props.filters?.quest_type || 'all',
 });
 const isTrashView = computed(() => filterForm.view === 'trash');
 
@@ -375,6 +376,7 @@ const applyFilters = () => {
 
 const resetFilters = () => {
     filterForm.search = '';
+    filterForm.quest_type = 'all';
     applyFilters();
 };
 
@@ -856,6 +858,15 @@ const commitThemeBundle = async () => {
                                 class="flex-1 bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
                                 @keyup.enter="applyFilters"
                             />
+                            <select
+                                v-model="filterForm.quest_type"
+                                class="min-w-[190px] bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none focus:border-cyan-400"
+                                @change="applyFilters"
+                            >
+                                <option value="all">ALL_QUEST_TYPES</option>
+                                <option value="main">MAIN_QUEST</option>
+                                <option value="optional">OPTIONAL_QUEST</option>
+                            </select>
                             <button @click="applyFilters"
                                 class="px-3 py-2 border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-black uppercase">
                                 APPLY

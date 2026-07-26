@@ -28,8 +28,8 @@ defineProps({
 const page = usePage();
 const isStaffPlayMode = computed(() => Boolean(page.props?.auth?.user?.staff_play_mode));
 const normalizedUserRole = computed(() => String(page.props?.auth?.user?.role || '').trim().toLowerCase());
-const isMentor = computed(() => normalizedUserRole.value === 'mentor');
-const canManagePartyMembership = computed(() => !isStaffPlayMode.value || isMentor.value);
+const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(normalizedUserRole.value));
+const canManagePartyMembership = computed(() => !isStaff.value);
 
 const viewerLevel = computed(() => {
     const lvl = Number(page.props?.auth?.user?.lvl ?? page.props?.auth?.user?.level_progress?.level ?? 1);
@@ -62,16 +62,10 @@ const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
 
         <div v-if="items.length > 0" class="grid gap-4 lg:grid-cols-2">
             <div
-                v-if="isStaffPlayMode && !isMentor"
+                v-if="isStaffPlayMode || isStaff"
                 class="lg:col-span-2 border border-cyan-500/40 bg-cyan-500/10 p-3 text-[8px] uppercase leading-relaxed text-cyan-100"
             >
-                Staff play mode aktif. Daftar party tetap bisa dilihat, tetapi admin/super admin tidak bisa join atau leave kelas student.
-            </div>
-            <div
-                v-else-if="isStaffPlayMode && isMentor"
-                class="lg:col-span-2 border border-cyan-500/40 bg-cyan-500/10 p-3 text-[8px] uppercase leading-relaxed text-cyan-100"
-            >
-                Mentor play mode: kamu bisa join party sebagai observer. Membership mentor tidak dihitung slot pemain dan tidak masuk absensi event.
+                Staff hanya dapat melihat daftar kelas. Akses admin dan mentor dikelola melalui Staff Access.
             </div>
             <article
                 v-for="group in items"

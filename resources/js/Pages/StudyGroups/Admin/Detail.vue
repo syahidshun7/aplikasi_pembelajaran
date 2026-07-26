@@ -2,11 +2,10 @@
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 import { swal } from '@/Utils/Alert';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     group: Object,
-    questCounts: Object,
     studentDashboard: {
         type: Array,
         default: () => [],
@@ -33,6 +32,48 @@ const assignedStaffIds = computed(() => new Set((props.staffMembers || []).map((
 const assignableStaff = computed(() => (props.availableStaff || []).filter((staff) => !assignedStaffIds.value.has(Number(staff.id))));
 const safeStudentCount = computed(() => props.studentDashboard.filter((student) => student.status === 'safe').length);
 const attentionStudentCount = computed(() => props.studentDashboard.filter((student) => student.status === 'needs_attention').length);
+const performanceStatusFilter = ref('all');
+const performanceSortKey = ref('performance_average');
+const performanceSortDirection = ref('desc');
+
+const displayedStudents = computed(() => {
+    const filtered = performanceStatusFilter.value === 'all'
+        ? [...props.studentDashboard]
+        : props.studentDashboard.filter((student) => student.status === performanceStatusFilter.value);
+    const key = performanceSortKey.value;
+    const direction = performanceSortDirection.value === 'asc' ? 1 : -1;
+
+    return filtered.sort((left, right) => {
+        const leftValue = left?.[key] ?? '';
+        const rightValue = right?.[key] ?? '';
+
+        if (['attendance_percentage', 'main_quest_average', 'performance_average'].includes(key)) {
+            return (Number(leftValue) - Number(rightValue)) * direction;
+        }
+
+        return String(leftValue).localeCompare(String(rightValue), 'id', {
+            sensitivity: 'base',
+            numeric: true,
+        }) * direction;
+    });
+});
+
+const sortPerformanceBy = (key) => {
+    if (performanceSortKey.value === key) {
+        performanceSortDirection.value = performanceSortDirection.value === 'asc' ? 'desc' : 'asc';
+        return;
+    }
+
+    performanceSortKey.value = key;
+    performanceSortDirection.value = ['attendance_percentage', 'main_quest_average', 'performance_average'].includes(key)
+        ? 'desc'
+        : 'asc';
+};
+
+const sortIndicator = (key) => {
+    if (performanceSortKey.value !== key) return 'SORT';
+    return performanceSortDirection.value === 'asc' ? 'ASC' : 'DESC';
+};
 
 const percentageClass = (value) => {
     const percentage = Number(value || 0);
@@ -84,22 +125,6 @@ const removeStaff = (staff) => {
                 <div class="flex gap-2">
                     <a :href="route('groups.export-recap', { uuid: group.uuid })" class="inline-flex items-center justify-center px-3 py-2 border border-emerald-600 bg-emerald-900/40 text-emerald-300 hover:text-white uppercase text-[9px] sm:text-[10px]">[↓ Download Rekap CSV]</a>
                     <Link :href="route('groups.manage')" class="inline-flex items-center justify-center px-3 py-2 border border-slate-600 bg-slate-900/40 text-slate-300 hover:text-white uppercase text-[9px] sm:text-[10px]">[Back]</Link>
-                </div>
-            </div>
-
-            <!-- Quest Stats -->
-            <div class="flex flex-wrap gap-4">
-                <div class="border border-slate-700 bg-slate-900/50 px-4 py-3 text-center min-w-[100px]">
-                    <p class="text-[7px] text-slate-400 uppercase mb-1">Total Quest</p>
-                    <p class="text-lg text-white">{{ questCounts?.total ?? 0 }}</p>
-                </div>
-                <div class="border border-cyan-700 bg-cyan-900/20 px-4 py-3 text-center min-w-[100px]">
-                    <p class="text-[7px] text-cyan-400 uppercase mb-1">Main Quest</p>
-                    <p class="text-lg text-cyan-300">{{ questCounts?.main ?? 0 }}</p>
-                </div>
-                <div class="border border-purple-700 bg-purple-900/20 px-4 py-3 text-center min-w-[100px]">
-                    <p class="text-[7px] text-purple-400 uppercase mb-1">Side Quest</p>
-                    <p class="text-lg text-purple-300">{{ questCounts?.optional ?? 0 }}</p>
                 </div>
             </div>
 
@@ -174,21 +199,63 @@ const removeStaff = (staff) => {
                     Belum ada user aktif di Study Group ini.
                 </div>
 
-                <div v-else class="overflow-x-auto border border-slate-800 bg-black/20">
+                <div v-else class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p class="text-[7px] uppercase text-slate-500">
+                        Showing {{ displayedStudents.length }} / {{ studentDashboard.length }} student
+                    </p>
+                    <select
+                        v-model="performanceStatusFilter"
+                        class="border-2 border-slate-700 bg-black p-2 text-[8px] uppercase text-cyan-300 outline-none focus:border-cyan-400 sm:min-w-[230px]"
+                    >
+                        <option value="all">ALL_STATUS</option>
+                        <option value="safe">AMAN</option>
+                        <option value="needs_attention">PERLU_DIPERHATIKAN</option>
+                    </select>
+                </div>
+
+                <div v-if="studentDashboard.length > 0 && displayedStudents.length === 0" class="border border-slate-800 bg-black/30 p-6 text-center text-[8px] uppercase text-slate-500">
+                    Tidak ada student untuk status ini.
+                </div>
+
+                <div v-else-if="studentDashboard.length > 0" class="overflow-x-auto border border-slate-800 bg-black/20">
                     <table class="min-w-full border-collapse">
                         <thead>
                             <tr class="border-b-2 border-slate-700 bg-slate-950/70 text-left text-[8px] uppercase text-slate-400">
-                                <th class="min-w-[160px] p-3">Username</th>
-                                <th class="min-w-[220px] p-3">Nama_Lengkap</th>
-                                <th class="min-w-[130px] p-3 text-center">Attendance</th>
-                                <th class="min-w-[160px] p-3 text-center">Main_Quest_Avg</th>
-                                <th class="min-w-[150px] p-3 text-center">Combined_Avg</th>
-                                <th class="min-w-[210px] p-3">Status</th>
+                                <th class="min-w-[160px] p-0">
+                                    <button type="button" class="sort-header" @click="sortPerformanceBy('username')">
+                                        <span>Username</span><span>{{ sortIndicator('username') }}</span>
+                                    </button>
+                                </th>
+                                <th class="min-w-[220px] p-0">
+                                    <button type="button" class="sort-header" @click="sortPerformanceBy('name')">
+                                        <span>Nama_Lengkap</span><span>{{ sortIndicator('name') }}</span>
+                                    </button>
+                                </th>
+                                <th class="min-w-[130px] p-0">
+                                    <button type="button" class="sort-header justify-center" @click="sortPerformanceBy('attendance_percentage')">
+                                        <span>Attendance</span><span>{{ sortIndicator('attendance_percentage') }}</span>
+                                    </button>
+                                </th>
+                                <th class="min-w-[160px] p-0">
+                                    <button type="button" class="sort-header justify-center" @click="sortPerformanceBy('main_quest_average')">
+                                        <span>Main_Quest_Avg</span><span>{{ sortIndicator('main_quest_average') }}</span>
+                                    </button>
+                                </th>
+                                <th class="min-w-[150px] p-0">
+                                    <button type="button" class="sort-header justify-center" @click="sortPerformanceBy('performance_average')">
+                                        <span>Combined_Avg</span><span>{{ sortIndicator('performance_average') }}</span>
+                                    </button>
+                                </th>
+                                <th class="min-w-[260px] p-0">
+                                    <button type="button" class="sort-header" @click="sortPerformanceBy('status')">
+                                        <span>Status</span><span>{{ sortIndicator('status') }}</span>
+                                    </button>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr
-                                v-for="student in studentDashboard"
+                                v-for="student in displayedStudents"
                                 :key="student.id"
                                 class="cursor-pointer border-b border-slate-800/80 hover:bg-cyan-500/10"
                                 tabindex="0"
@@ -517,5 +584,28 @@ const removeStaff = (staff) => {
     border-width: 4px;
     padding: 1rem;
     box-shadow: 8px 8px 0 0 rgba(0, 0, 0, 0.5);
+}
+
+.sort-header {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    color: #94a3b8;
+    text-align: left;
+    text-transform: uppercase;
+    transition: color 150ms ease, background-color 150ms ease;
+}
+
+.sort-header:hover {
+    background: rgba(34, 211, 238, 0.08);
+    color: #67e8f9;
+}
+
+.sort-header span:last-child {
+    color: #22d3ee;
+    font-size: 6px;
 }
 </style>

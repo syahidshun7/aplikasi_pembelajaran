@@ -36,8 +36,8 @@ const activeLeaveUuid = ref('');
 const page = usePage();
 const isStaffPlayMode = computed(() => Boolean(page.props?.auth?.user?.staff_play_mode));
 const normalizedUserRole = computed(() => String(page.props?.auth?.user?.role || '').trim().toLowerCase());
-const isMentor = computed(() => normalizedUserRole.value === 'mentor');
-const canManageMembership = computed(() => !isStaffPlayMode.value || isMentor.value);
+const isStaff = computed(() => ['super_admin', 'admin', 'mentor'].includes(normalizedUserRole.value));
+const canManageMembership = computed(() => !isStaff.value);
 
 const groupItems = computed(() => props.groups?.data || []);
 const paginationLinks = computed(() => props.groups?.links || []);
@@ -185,16 +185,10 @@ const leaveGroup = (group) => {
 
                 <div class="rpg-panel border-slate-700 flex flex-col min-h-[540px]">
                     <div
-                        v-if="isStaffPlayMode && !isMentor"
+                        v-if="isStaffPlayMode || isStaff"
                         class="mb-4 border border-cyan-500/50 bg-cyan-500/10 p-3 text-[9px] uppercase leading-relaxed text-cyan-100"
                     >
-                        Staff play mode aktif. Kamu tetap bisa melihat daftar kelas, tetapi admin/super admin tidak bisa join atau leave kelas student.
-                    </div>
-                    <div
-                        v-else-if="isStaffPlayMode && isMentor"
-                        class="mb-4 border border-cyan-500/50 bg-cyan-500/10 p-3 text-[9px] uppercase leading-relaxed text-cyan-100"
-                    >
-                        Mentor play mode: kamu bisa join/leave kelas sebagai observer. Membership mentor tidak dihitung slot pemain atau absensi event.
+                        Staff hanya dapat melihat daftar kelas. Akses admin dan mentor dikelola melalui Staff Access.
                     </div>
                     <form @submit.prevent="applySearch" class="mb-4 flex flex-col md:flex-row gap-2">
                         <input
@@ -249,7 +243,7 @@ const leaveGroup = (group) => {
                             <p class="mt-2 text-slate-500 text-[8px] uppercase">
                                 UUID: {{ group.uuid }}
                             </p>
-                            <div class="mt-3">
+                            <div v-if="canManageMembership" class="mt-3">
                                 <button
                                     v-if="group.is_member"
                                     type="button"
@@ -331,39 +325,42 @@ const leaveGroup = (group) => {
                                         </span>
                                     </td>
                                     <td class="py-3 px-2 text-right">
-                                        <button
-                                            v-if="group.is_member"
-                                            type="button"
-                                            class="party-leave-button inline-block px-3 py-1 border border-red-700 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[8px] disabled:opacity-50"
-                                            :disabled="leaveForm.processing || !canManageMembership"
-                                            @click="leaveGroup(group)"
-                                        >
-                                            {{ activeLeaveUuid === group.uuid && leaveForm.processing ? 'Leaving...' : 'Leave_Party' }}
-                                        </button>
-                                        <Link
-                                            v-if="group.is_member"
-                                            :href="route('groups.show', group.uuid)"
-                                            class="ml-2 inline-block px-3 py-1 border border-cyan-700 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px]"
-                                        >
-                                            Detail
-                                        </Link>
-                                        <button
-                                            v-if="!group.is_member && group.join_request_status === 'pending'"
-                                            type="button"
-                                            disabled
-                                            class="inline-block px-3 py-1 border border-slate-700 text-slate-400 uppercase text-[8px] cursor-not-allowed"
-                                        >
-                                            Request_Pending
-                                        </button>
-                                        <button
-                                            v-if="!group.is_member && group.join_request_status !== 'pending'"
-                                            type="button"
-                                            class="inline-block px-3 py-1 border border-emerald-700 text-emerald-400 hover:bg-emerald-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
-                                            :disabled="joinForm.processing || !canManageMembership || !canRequestAccess(group)"
-                                            @click="openJoinModal(group)"
-                                        >
-                                            {{ activeJoinUuid === group.uuid && joinForm.processing ? 'Sending...' : (canRequestAccess(group) ? 'Request_Access' : 'Level_Locked') }}
-                                        </button>
+                                        <template v-if="canManageMembership">
+                                            <button
+                                                v-if="group.is_member"
+                                                type="button"
+                                                class="party-leave-button inline-block px-3 py-1 border border-red-700 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[8px] disabled:opacity-50"
+                                                :disabled="leaveForm.processing"
+                                                @click="leaveGroup(group)"
+                                            >
+                                                {{ activeLeaveUuid === group.uuid && leaveForm.processing ? 'Leaving...' : 'Leave_Party' }}
+                                            </button>
+                                            <Link
+                                                v-if="group.is_member"
+                                                :href="route('groups.show', group.uuid)"
+                                                class="ml-2 inline-block px-3 py-1 border border-cyan-700 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px]"
+                                            >
+                                                Detail
+                                            </Link>
+                                            <button
+                                                v-if="!group.is_member && group.join_request_status === 'pending'"
+                                                type="button"
+                                                disabled
+                                                class="inline-block px-3 py-1 border border-slate-700 text-slate-400 uppercase text-[8px] cursor-not-allowed"
+                                            >
+                                                Request_Pending
+                                            </button>
+                                            <button
+                                                v-if="!group.is_member && group.join_request_status !== 'pending'"
+                                                type="button"
+                                                class="inline-block px-3 py-1 border border-emerald-700 text-emerald-400 hover:bg-emerald-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
+                                                :disabled="joinForm.processing || !canRequestAccess(group)"
+                                                @click="openJoinModal(group)"
+                                            >
+                                                {{ activeJoinUuid === group.uuid && joinForm.processing ? 'Sending...' : (canRequestAccess(group) ? 'Request_Access' : 'Level_Locked') }}
+                                            </button>
+                                        </template>
+                                        <span v-else class="text-[7px] uppercase text-slate-600">Managed_Via_Staff_Access</span>
                                     </td>
                                 </tr>
                                 <tr v-if="groupItems.length === 0">

@@ -21,8 +21,7 @@ class UserEventController extends Controller
     public function index(Request $request): Response
     {
         $user = Auth::user();
-        $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
-        $canManageMembership = $user && (! $isStaffPlayMode || (bool) $user->isMentor());
+        $canManageMembership = $user && ! $user->isStaff();
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'class_group_id' => ['nullable', 'integer'],
@@ -298,8 +297,7 @@ class UserEventController extends Controller
 
     private function ensureUserCanAccessEvent(Event $event, $user): void
     {
-        $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
-        $canManageMembership = $user && (! $isStaffPlayMode || (bool) $user->isMentor());
+        $canManageMembership = $user && ! $user->isStaff();
         $userJobId = $user?->job_id;
         $userGroupIds = $canManageMembership
             ? $user->studyGroups()

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Guide;
 use App\Models\Event;
+use App\Models\ErrorLog;
 use App\Models\JobRole;
 use App\Models\Quest;
 use App\Models\StudyGroup;
@@ -24,6 +25,7 @@ class DashboardController extends Controller
     {
         $authUser = auth()->user();
         $isMentor = (bool) $authUser?->isMentor();
+        $isSuperAdmin = (string) ($authUser?->role ?? '') === User::ROLE_SUPER_ADMIN;
         $mentorJobId = (int) ($authUser?->job_id ?? 0);
 
         if ($isMentor && $mentorJobId <= 0) {
@@ -81,35 +83,45 @@ class DashboardController extends Controller
         $scopeKey = $isMentor ? ('mentor_job.' . $mentorJobId) : 'global';
 
         $stats = Cache::remember(
-            "dashboard.stats.content-v2.v{$dashboardCacheVersion}.{$scopeKey}",
+            "dashboard.stats.content-v3.v{$dashboardCacheVersion}.{$scopeKey}",
             now()->addMinutes(3),
-            function () use ($guideQuery, $questQuery, $eventQuery, $studyGroupQuery, $studentQuery, $pendingSubmissionQuery, $gradedSubmissionQuery, $isMentor) {
-                $avgGrade30d = (float) (clone $gradedSubmissionQuery)
-                    ->where('created_at', '>=', now()->subDays(30))
-                    ->avg('grade');
-
-                $graded7dCount = (int) (clone $gradedSubmissionQuery)
-                    ->where('created_at', '>=', now()->subDays(7))
-                    ->count();
+            function () use ($guideQuery, $studyGroupQuery, $studentQuery, $pendingSubmissionQuery, $gradedSubmissionQuery, $isMentor, $isSuperAdmin) {
+                $avgGrade30d = $isSuperAdmin
+                    ? 0.0
+                    : (float) (clone $gradedSubmissionQuery)
+                        ->where('created_at', '>=', now()->subDays(30))
+                        ->avg('grade');
+                $graded7dCount = $isSuperAdmin
+                    ? 0
+                    : (int) (clone $gradedSubmissionQuery)
+                        ->where('created_at', '>=', now()->subDays(7))
+                        ->count();
+                $errors24h = $isSuperAdmin
+                    ? (int) ErrorLog::query()->where('created_at', '>=', now()->subDay())->count()
+                    : 0;
 
                 return [
-                    'total_materi' => (int) $guideQuery->count(),
-                    'total_guides' => (int) (clone $guideQuery)->count(),
-                    'total_quests' => (int) $questQuery->count(),
-                    'total_events' => (int) $eventQuery->count(),
+                    'total_materi' => $isSuperAdmin ? 0 : (int) $guideQuery->count(),
                     'total_study_groups' => (int) $studyGroupQuery->count(),
                     'total_jobs' => $isMentor ? 1 : (int) JobRole::query()->count(),
                     'total_students' => (int) $studentQuery->count(),
                     'pending_verdicts' => (int) $pendingSubmissionQuery->count(),
-                    'total_graded' => (int) (clone $gradedSubmissionQuery)->count(),
                     'avg_grade_30d' => round($avgGrade30d, 1),
                     'graded_7d' => $graded7dCount,
+                    'system_errors_24h' => $errors24h,
+                    'system_health' => $errors24h === 0
+                        ? 'healthy'
+                        : ($errors24h < 5 ? 'warning' : 'critical'),
                 ];
             }
         );
 
         $page = LengthAwarePaginator::resolveCurrentPage();
-        $studentsCachePayload = Cache::remember(
+        $studentsCachePayload = $isSuperAdmin ? [
+            'items' => [],
+            'total' => 0,
+            'per_page' => 10,
+        ] : Cache::remember(
             "dashboard.students.v{$dashboardCacheVersion}.{$scopeKey}.page.{$page}",
             now()->addMinutes(3),
             function () use ($isMentor, $mentorJobId, $levelColumn, $page) {
@@ -333,7 +345,7 @@ class DashboardController extends Controller
             $helpUsersQuery->where('job_id', $mentorJobId);
         }
 
-        $helpUsers = Cache::remember(
+        $helpUsers = $isSuperAdmin ? collect() : Cache::remember(
             "dashboard.help_users.v{$dashboardCacheVersion}.{$scopeKey}",
             now()->addMinutes(3),
             function () use ($helpUsersQuery, $levelColumn) {
