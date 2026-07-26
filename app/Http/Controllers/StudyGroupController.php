@@ -14,14 +14,17 @@ use App\Models\StudyGroupJoinRequest;
 use App\Models\User;
 use App\Services\LevelingService;
 use App\Services\StudyGroupAccessService;
+use App\Services\StudyGroupStaffAccessService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 
 class StudyGroupController extends Controller
 {
-    public function __construct(private readonly StudyGroupAccessService $groupAccessService)
-    {
+    public function __construct(
+        private readonly StudyGroupAccessService $groupAccessService,
+        private readonly StudyGroupStaffAccessService $staffAccessService,
+    ) {
     }
     // Lihat daftar semua party
     public function index(Request $request)
@@ -101,14 +104,7 @@ class StudyGroupController extends Controller
     {
         $user = $request->user();
 
-        $group = StudyGroup::query()
-            ->with('job:id,name')
-            ->withCount([
-                'users as members_count' => fn ($userQuery) => $userQuery->whereNotIn('users.role', User::staffRoles()),
-                'quests as quests_count',
-            ])
-            ->where('uuid', $uuid)
-            ->firstOrFail();
+        $group = $this->resolveStudyGroupForDetail($uuid);
 
         $isMember = $group->users()
             ->where('users.id', (int) $user->id)
@@ -116,6 +112,36 @@ class StudyGroupController extends Controller
 
         abort_unless($isMember, 403, 'GROUP_DETAIL_FOR_MEMBERS_ONLY');
 
+        return Inertia::render('StudyGroups/Show', $this->buildStudyGroupDetailPayload($group));
+    }
+
+    public function staffPreview(Request $request, string $uuid)
+    {
+        $group = $this->resolveStudyGroupForDetail($uuid);
+
+        abort_unless(
+            $this->staffAccessService->canAccess($request->user(), $group),
+            403,
+            'STUDY_GROUP_STAFF_ACCESS_DENIED'
+        );
+
+        return Inertia::render('StudyGroups/Show', $this->buildStudyGroupDetailPayload($group, true));
+    }
+
+    private function resolveStudyGroupForDetail(string $uuid): StudyGroup
+    {
+        return StudyGroup::query()
+            ->with('job:id,name')
+            ->withCount([
+                'users as members_count' => fn ($userQuery) => $userQuery->whereNotIn('users.role', User::staffRoles()),
+                'quests as quests_count',
+            ])
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+    }
+
+    private function buildStudyGroupDetailPayload(StudyGroup $group, bool $staffPreview = false): array
+    {
         $memberRows = $group->users()
             ->select('users.id', 'users.name', 'users.username', 'users.role', 'users.profile_photo', 'users.job_id')
             ->with('job:id,name')
@@ -168,7 +194,7 @@ class StudyGroupController extends Controller
             ->map(fn (DoopLabRoadmap $roadmap) => $this->serializeClassRoadmap($roadmap))
             ->values();
 
-        return Inertia::render('StudyGroups/Show', [
+        return [
             'group' => [
                 'uuid' => (string) $group->uuid,
                 'name' => (string) $group->name,
@@ -185,7 +211,9 @@ class StudyGroupController extends Controller
             'mentors' => $mentors,
             'classmates' => $classmates,
             'classRoadmaps' => $classRoadmaps,
-        ]);
+            'staffPreview' => $staffPreview,
+            'backUrl' => $staffPreview ? route('groups.detail', $group->uuid) : route('groups.index'),
+        ];
     }
 
     // Logic JOIN Party

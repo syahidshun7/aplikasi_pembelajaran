@@ -65,6 +65,51 @@ class ProfileController extends Controller
     }
 
     /**
+     * Display account settings inside the staff console.
+     */
+    public function adminEdit(Request $request): Response
+    {
+        $user = $request->user();
+        $user->loadMissing([
+            'job:id,name',
+            'detailUser:id,user_id,bio,experience,location,skills',
+        ]);
+        $studyGroups = $user->isAdmin()
+            ? collect()
+            : $user->staffStudyGroups()
+                ->with('job:id,name')
+                ->orderBy('name')
+                ->get(['study_groups.id', 'study_groups.uuid', 'study_groups.name', 'study_groups.job_id'])
+                ->map(fn ($group) => [
+                    'uuid' => (string) $group->uuid,
+                    'name' => (string) $group->name,
+                    'job' => (string) ($group->job?->name ?? ''),
+                    'role' => (string) ($group->pivot?->role_in_group ?? $user->role),
+                ])
+                ->values();
+
+        return Inertia::render('Admin/Profile/Edit', [
+            'user' => [
+                'name' => (string) $user->name,
+                'username' => (string) ($user->username ?? ''),
+                'email' => (string) $user->email,
+                'email_verified_at' => $user->email_verified_at,
+                'profile_photo' => (string) ($user->profile_photo ?? ''),
+                'role' => (string) $user->role,
+                'job' => (string) ($user->job?->name ?? ''),
+                'bio' => (string) ($user->detailUser?->bio ?? ''),
+                'experience' => (string) ($user->detailUser?->experience ?? ''),
+                'location' => (string) ($user->detailUser?->location ?? ''),
+                'skills' => $user->detailUser?->skills ?? [],
+            ],
+            'mustVerifyEmail' => $user instanceof MustVerifyEmail,
+            'status' => session('status'),
+            'studyGroups' => $studyGroups,
+            'hasGlobalAccess' => $user->isAdmin(),
+        ]);
+    }
+
+    /**
      * Display a public-style profile for another user.
      */
     public function show(Request $request, User $user): Response
@@ -221,7 +266,11 @@ class ProfileController extends Controller
             CacheVersion::bump('landing');
         }
 
-        return Redirect::route('profile.edit')->with('status', 'profile-updated');
+        $redirectRoute = $request->routeIs('admin.profile.update')
+            ? 'admin.profile.edit'
+            : 'profile.edit';
+
+        return Redirect::route($redirectRoute)->with('status', 'profile-updated');
     }
     /**
      * Delete the user's account.

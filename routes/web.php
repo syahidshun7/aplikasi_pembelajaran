@@ -177,6 +177,11 @@ Route::get('/hall-of-creations/{creation}/review', [CreationPageController::clas
 Route::get('/profiles/{user:username}', [ProfileController::class, 'show'])->name('profiles.show');
 
 Route::middleware('auth')->group(function () {
+    Route::middleware('role:admin,mentor')->group(function () {
+        Route::get('/admin/profile', [ProfileController::class, 'adminEdit'])->name('admin.profile.edit');
+        Route::patch('/admin/profile', [ProfileController::class, 'update'])->name('admin.profile.update');
+    });
+
     Route::get('/dooplab/dashboard', [DoopLabDashboardController::class, 'index'])->name('dooplab.dashboard');
     Route::get('/dooplab/roadmaps', [DoopLabRoadmapController::class, 'index'])->name('dooplab.roadmaps.index');
     Route::post('/dooplab/roadmaps', [DoopLabRoadmapController::class, 'storeRoadmap'])->name('dooplab.roadmaps.store');
@@ -414,6 +419,7 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::prefix('admin/jobs')->name('admin.jobs.')->group(function () {
         Route::get('/', [AdminJobRoleController::class, 'index'])->name('index');
         Route::post('/', [AdminJobRoleController::class, 'store'])->name('store');
+        Route::get('/{jobRole}', [AdminJobRoleController::class, 'show'])->name('show');
         Route::put('/{jobRole}', [AdminJobRoleController::class, 'update'])->name('update');
         Route::delete('/{jobRole}', [AdminJobRoleController::class, 'destroy'])->name('destroy');
     });
@@ -473,11 +479,24 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->prefix('admin')->g
     Route::delete('/materi/{uuid}', [AdminGuideController::class, 'destroy'])->name('materi.destroy');
 });
 
-Route::middleware(['auth', 'verified', 'admin'])->group(function () {
+Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () {
 
     // --- ADMIN AREA ---
     Route::get('/admin/study-groups/index', [AdminStudyGroupController::class, 'manage'])->name('groups.manage');
+    Route::get('/admin/study-groups/{uuid}/user-preview', [StudyGroupController::class, 'staffPreview'])->name('groups.user-preview');
+    Route::get('/admin/study-groups/{uuid}/attendance', [AdminStudyGroupController::class, 'attendanceDashboard'])->name('groups.attendance');
+    Route::get('/admin/study-groups/{uuid}/join-requests', [AdminStudyGroupController::class, 'joinRequests'])->name('groups.join-requests');
+    Route::get('/admin/study-groups/{uuid}/roadmaps', [AdminStudyGroupController::class, 'roadmaps'])->name('groups.roadmaps');
     Route::get('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'detail'])->name('groups.detail');
+    Route::get('/admin/study-groups/{groupUuid}/quests', [QuestController::class, 'index'])->name('groups.quests.index');
+    Route::get('/admin/study-groups/{groupUuid}/guides', [AdminGuideController::class, 'index'])->name('groups.guides.index');
+    Route::get('/admin/study-groups/{groupUuid}/events', [AdminEventController::class, 'index'])->name('groups.events.index');
+    Route::get('/admin/quests/{quest}/user-preview', [QuestController::class, 'userPreview'])->name('quests.user-preview');
+    Route::post('/admin/quests/{quest}/user-preview/submissions', [QuestController::class, 'previewSubmission'])->name('quests.user-preview.submissions');
+    Route::get('/admin/guides/{guide:uuid}/user-preview', [GuideController::class, 'userPreview'])->name('guides.user-preview');
+    Route::get('/admin/events/{event:uuid}/user-preview', [UserEventController::class, 'userPreview'])->name('events.user-preview');
+    Route::post('/admin/study-groups/{uuid}/staff', [AdminStudyGroupController::class, 'assignStaff'])->name('groups.staff.assign');
+    Route::delete('/admin/study-groups/{uuid}/staff/{userId}', [AdminStudyGroupController::class, 'removeStaff'])->name('groups.staff.remove');
     Route::get('/admin/study-groups/{uuid}/export-recap', [AdminStudyGroupController::class, 'exportRecap'])->name('groups.export-recap');
     Route::post('/admin/study-groups', [AdminStudyGroupController::class, 'store'])->name('groups.store');
     Route::put('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'update'])->name('groups.update');

@@ -11,21 +11,18 @@ use App\Models\StudyGroupJoinRequest;
 use App\Notifications\JoinGroupRequestRejectedNotification;
 use App\Models\User;
 use App\Services\LevelingService;
+use App\Services\StudyGroupStaffAccessService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use Inertia\Response;
 use Illuminate\Support\Facades\Auth;
 
 class AdminStudyGroupController extends Controller
 {
-     public function manage(Request $request)
+     public function manage(Request $request, StudyGroupStaffAccessService $access)
 {
-    // Pastikan hanya admin boleh masuk
-    if (!auth()->user()->isAdmin()) {
-        abort(403, 'Hanya Admin (Grandmaster) yang dibenarkan masuk ke Command Center!');
-    }
-
     $validated = $request->validate([
         'search' => ['nullable', 'string', 'max:255'],
         'view' => ['nullable', 'in:active,trash'],
@@ -35,8 +32,10 @@ class AdminStudyGroupController extends Controller
 
     return Inertia::render('StudyGroups/Admin/Index', [
         'groups' => StudyGroup::query()
+            ->tap(fn ($query) => $access->scopeAccessibleGroups($query, auth()->user()))
             ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
             ->with('job:id,name')
+            ->withCount('staff as staff_count')
             ->withCount([
                 'users as users_count' => fn ($userQuery) => $userQuery->whereNotIn('users.role', User::staffRoles()),
                 'joinRequests as pending_requests_count' => function ($q) {
@@ -95,6 +94,8 @@ class AdminStudyGroupController extends Controller
 
     public function update(Request $request, $uuid)
     {
+        abort_unless(auth()->user()?->isAdmin(), 403, 'ADMIN_ONLY_STUDY_GROUP_MUTATION');
+
         $group = StudyGroup::where('uuid', $uuid)->firstOrFail();
         $oldJobId = (int) ($group->job_id ?? 0);
 
@@ -155,30 +156,18 @@ class AdminStudyGroupController extends Controller
         return back()->with('message', 'DATA_UPDATED_SUCCESSFULLY');
     }
 
-    public function detail($uuid)
+    public function detail($uuid, StudyGroupStaffAccessService $access)
     {
         $group = StudyGroup::query()
-            ->with(['roadmaps' => fn ($query) => $query->orderBy('study_group_roadmaps.sort_order')->orderBy('study_group_roadmaps.id')])
+            ->with([
+                'staff' => fn ($query) => $query->select('users.id', 'users.name', 'users.username', 'users.email', 'users.role')->orderBy('users.name'),
+            ])
             ->where('uuid', $uuid)
             ->firstOrFail();
 
-        $members = $group->users()
-            ->select('users.id', 'users.name', 'users.username', 'users.email')
-            ->orderBy('users.name')
-            ->get();
-
-        $requests = $group->joinRequests()
-            ->with('user:id,name,username,email,exp')
-            ->where('status', 'pending')
-            ->latest()
-            ->get()
-            ->map(function ($requestItem) {
-                $userExp = (int) ($requestItem->user?->exp ?? 0);
-                $requestItem->user_level = LevelingService::levelFromExp($userExp);
-
-                return $requestItem;
-            })
-            ->values();
+        if (! $access->canAccess(auth()->user(), $group)) {
+            abort(403, 'STUDY_GROUP_STAFF_ACCESS_DENIED');
+        }
 
         $questCounts = \App\Models\Quest::query()
             ->where('study_group_id', $group->id)
@@ -187,14 +176,58 @@ class AdminStudyGroupController extends Controller
 
         return Inertia::render('StudyGroups/Admin/Detail', [
             'group' => $group,
-            'members' => $members,
-            'requests' => $requests,
-            'attendanceDashboard' => $this->buildAttendanceDashboard($group),
             'questCounts' => [
                 'total' => (int) ($questCounts->total ?? 0),
                 'main' => (int) ($questCounts->main_count ?? 0),
                 'optional' => (int) ($questCounts->optional_count ?? 0),
             ],
+            'studentDashboard' => $this->buildStudentDashboard($group),
+            'staffMembers' => $group->staff
+                ->map(fn (User $staff) => [
+                    'id' => (int) $staff->id,
+                    'name' => (string) $staff->name,
+                    'username' => (string) ($staff->username ?? ''),
+                    'email' => (string) $staff->email,
+                    'role' => (string) $staff->role,
+                    'role_in_group' => (string) ($staff->pivot?->role_in_group ?? 'mentor'),
+                ])
+                ->values(),
+            'availableStaff' => auth()->user()?->isAdmin()
+                ? User::query()
+                    ->whereIn('role', User::staffRoles())
+                    ->where('id', '!=', auth()->id())
+                    ->orderBy('name')
+                    ->get(['id', 'name', 'username', 'email', 'role'])
+                    ->map(fn (User $staff) => [
+                        'id' => (int) $staff->id,
+                        'name' => (string) $staff->name,
+                        'username' => (string) ($staff->username ?? ''),
+                        'email' => (string) $staff->email,
+                        'role' => (string) $staff->role,
+                    ])
+                    ->values()
+                : [],
+            'canManageStaffAccess' => (bool) auth()->user()?->isAdmin(),
+        ]);
+    }
+
+    public function roadmaps($uuid, StudyGroupStaffAccessService $access): Response
+    {
+        $group = StudyGroup::query()
+            ->with([
+                'roadmaps' => fn ($query) => $query
+                    ->orderBy('study_group_roadmaps.sort_order')
+                    ->orderBy('study_group_roadmaps.id'),
+            ])
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+
+        if (! $access->canAccess(auth()->user(), $group)) {
+            abort(403, 'STUDY_GROUP_STAFF_ACCESS_DENIED');
+        }
+
+        return Inertia::render('StudyGroups/Admin/Roadmaps', [
+            'group' => $group,
             'attachedRoadmaps' => $group->roadmaps
                 ->map(fn (DoopLabRoadmap $roadmap) => [
                     'uuid' => (string) $roadmap->uuid,
@@ -218,8 +251,94 @@ class AdminStudyGroupController extends Controller
         ]);
     }
 
+    public function attendanceDashboard($uuid, StudyGroupStaffAccessService $access): Response
+    {
+        $group = StudyGroup::query()->where('uuid', $uuid)->firstOrFail();
+
+        if (! $access->canAccess(auth()->user(), $group)) {
+            abort(403, 'STUDY_GROUP_STAFF_ACCESS_DENIED');
+        }
+
+        return Inertia::render('StudyGroups/Admin/AttendanceDashboard', [
+            'group' => $group,
+            'attendanceDashboard' => $this->buildAttendanceDashboard($group),
+        ]);
+    }
+
+    public function joinRequests($uuid, StudyGroupStaffAccessService $access): Response
+    {
+        $group = StudyGroup::query()->where('uuid', $uuid)->firstOrFail();
+
+        if (! $access->canAccess(auth()->user(), $group)) {
+            abort(403, 'STUDY_GROUP_STAFF_ACCESS_DENIED');
+        }
+
+        $requests = $group->joinRequests()
+            ->with('user:id,name,username,email,exp')
+            ->where('status', 'pending')
+            ->latest()
+            ->get()
+            ->map(function ($requestItem) {
+                $requestItem->user_level = LevelingService::levelFromExp((int) ($requestItem->user?->exp ?? 0));
+
+                return $requestItem;
+            })
+            ->values();
+
+        return Inertia::render('StudyGroups/Admin/JoinRequests', [
+            'group' => $group,
+            'requests' => $requests,
+            'members' => $group->users()
+                ->select('users.id', 'users.name', 'users.username', 'users.email')
+                ->orderBy('users.name')
+                ->get(),
+        ]);
+    }
+
+    public function assignStaff(Request $request, string $uuid)
+    {
+        abort_unless(auth()->user()?->isAdmin(), 403, 'ADMIN_ONLY_STAFF_ASSIGNMENT');
+
+        $group = StudyGroup::query()->where('uuid', $uuid)->firstOrFail();
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'role_in_group' => ['required', 'in:admin,mentor,viewer'],
+        ]);
+
+        $staff = User::query()->findOrFail((int) $validated['user_id']);
+        if (! $staff->isStaff()) {
+            return back()->withErrors(['user_id' => 'STAFF_ROLE_REQUIRED']);
+        }
+
+        $group->staff()->syncWithoutDetaching([
+            $staff->id => [
+                'role_in_group' => (string) $validated['role_in_group'],
+                'assigned_by' => auth()->id(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        CacheVersion::bump('study_groups');
+
+        return back()->with('message', 'STUDY_GROUP_STAFF_ACCESS_GRANTED');
+    }
+
+    public function removeStaff(string $uuid, int $userId)
+    {
+        abort_unless(auth()->user()?->isAdmin(), 403, 'ADMIN_ONLY_STAFF_ASSIGNMENT');
+
+        $group = StudyGroup::query()->where('uuid', $uuid)->firstOrFail();
+        $group->staff()->detach($userId);
+
+        CacheVersion::bump('study_groups');
+
+        return back()->with('message', 'STUDY_GROUP_STAFF_ACCESS_REVOKED');
+    }
+
     public function attachRoadmap(Request $request, string $uuid)
     {
+        abort_unless(auth()->user()?->isAdmin(), 403, 'ADMIN_ONLY_STUDY_GROUP_MUTATION');
+
         $group = StudyGroup::query()->where('uuid', $uuid)->firstOrFail();
 
         $validated = $request->validate([
@@ -245,6 +364,8 @@ class AdminStudyGroupController extends Controller
 
     public function detachRoadmap(string $uuid, string $roadmapUuid)
     {
+        abort_unless(auth()->user()?->isAdmin(), 403, 'ADMIN_ONLY_STUDY_GROUP_MUTATION');
+
         $group = StudyGroup::query()->where('uuid', $uuid)->firstOrFail();
         $roadmap = DoopLabRoadmap::query()->where('uuid', $roadmapUuid)->firstOrFail();
 
@@ -255,6 +376,8 @@ class AdminStudyGroupController extends Controller
 
     public function approveRequest($uuid, $requestId)
     {
+        abort_unless(auth()->user()?->isAdmin(), 403, 'ADMIN_ONLY_STUDY_GROUP_MUTATION');
+
         $group = StudyGroup::where('uuid', $uuid)->firstOrFail();
         $joinRequest = StudyGroupJoinRequest::where('id', $requestId)
             ->where('study_group_id', $group->id)
@@ -317,6 +440,8 @@ class AdminStudyGroupController extends Controller
 
     public function rejectRequest(Request $request, $uuid, $requestId)
     {
+        abort_unless(auth()->user()?->isAdmin(), 403, 'ADMIN_ONLY_STUDY_GROUP_MUTATION');
+
         $validated = $request->validate([
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
@@ -354,6 +479,8 @@ class AdminStudyGroupController extends Controller
 
     public function removeMember($uuid, $userId)
     {
+        abort_unless(auth()->user()?->isAdmin(), 403, 'ADMIN_ONLY_STUDY_GROUP_MUTATION');
+
         $group = StudyGroup::where('uuid', $uuid)->firstOrFail();
 
         $group->softRemoveMember((int) $userId);
@@ -422,9 +549,13 @@ class AdminStudyGroupController extends Controller
         return back()->with('message', 'PARTY_PERMANENTLY_DELETED');
     }
 
-    public function exportRecap($uuid)
+    public function exportRecap($uuid, StudyGroupStaffAccessService $access)
     {
         $group = StudyGroup::where('uuid', $uuid)->firstOrFail();
+
+        if (! $access->canAccess(auth()->user(), $group)) {
+            abort(403, 'STUDY_GROUP_STAFF_ACCESS_DENIED');
+        }
 
         $members = $group->users()
             ->whereNotIn('users.role', User::staffRoles())
@@ -663,6 +794,86 @@ class AdminStudyGroupController extends Controller
             'events' => $eventPayloads,
             'students' => $studentPayloads,
         ];
+    }
+
+    private function buildStudentDashboard(StudyGroup $group): array
+    {
+        $students = $group->users()
+            ->whereNotIn('users.role', User::staffRoles())
+            ->orderBy('users.name')
+            ->get(['users.id', 'users.username', 'users.name']);
+
+        if ($students->isEmpty()) {
+            return [];
+        }
+
+        $studentIds = $students->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $eventIds = Event::query()
+            ->where('study_group_id', (int) $group->id)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        $mainQuestIds = \App\Models\Quest::query()
+            ->where('study_group_id', (int) $group->id)
+            ->where('quest_type', 'main')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $presentCountByUser = empty($eventIds)
+            ? collect()
+            : EventAttendance::query()
+                ->whereIn('event_id', $eventIds)
+                ->whereIn('user_id', $studentIds)
+                ->where('status', 'present')
+                ->selectRaw('user_id, COUNT(*) as total')
+                ->groupBy('user_id')
+                ->pluck('total', 'user_id');
+
+        $latestGradeSumByUser = collect();
+        if (! empty($mainQuestIds)) {
+            $latestGradeSumByUser = \App\Models\Submission::query()
+                ->joinSub(
+                    \App\Models\Submission::query()
+                        ->whereIn('user_id', $studentIds)
+                        ->whereIn('quest_id', $mainQuestIds)
+                        ->selectRaw('MAX(id) as id')
+                        ->groupBy('user_id', 'quest_id'),
+                    'latest_main_submissions',
+                    fn ($join) => $join->on('submissions.id', '=', 'latest_main_submissions.id')
+                )
+                ->selectRaw('submissions.user_id, SUM(COALESCE(submissions.grade, 0)) as grade_sum')
+                ->groupBy('submissions.user_id')
+                ->pluck('grade_sum', 'submissions.user_id');
+        }
+
+        $totalEvents = count($eventIds);
+        $totalMainQuests = count($mainQuestIds);
+
+        return $students
+            ->map(function (User $student) use ($presentCountByUser, $latestGradeSumByUser, $totalEvents, $totalMainQuests) {
+                $attendanceRate = $totalEvents > 0
+                    ? round(((int) ($presentCountByUser[$student->id] ?? 0) / $totalEvents) * 100, 1)
+                    : 0.0;
+                $mainQuestAverage = $totalMainQuests > 0
+                    ? round(((float) ($latestGradeSumByUser[$student->id] ?? 0) / $totalMainQuests), 1)
+                    : 0.0;
+                $performanceAverage = round(($attendanceRate + $mainQuestAverage) / 2, 1);
+
+                return [
+                    'id' => (int) $student->id,
+                    'username' => (string) ($student->username ?? ''),
+                    'name' => (string) $student->name,
+                    'attendance_percentage' => $attendanceRate,
+                    'main_quest_average' => $mainQuestAverage,
+                    'performance_average' => $performanceAverage,
+                    'status' => $performanceAverage < 75
+                        ? 'needs_attention'
+                        : 'safe',
+                ];
+            })
+            ->values()
+            ->all();
     }
 
    

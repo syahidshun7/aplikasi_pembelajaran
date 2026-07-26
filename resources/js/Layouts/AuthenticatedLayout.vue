@@ -12,8 +12,6 @@ const showFloatingChat = computed(() => Boolean(auth.value?.user) && !isDoopLabP
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
 const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
-const isStaffPlayMode = computed(() => Boolean(auth.value?.user?.staff_play_mode));
-const playerModeNotice = computed(() => String(auth.value?.user?.player_mode_notice || '').trim());
 const isDoopLabPage = computed(() => String(page.url || '').startsWith('/dooplab'));
 const isProfilePage = computed(() => {
     const currentRoute = route().current();
@@ -25,9 +23,17 @@ const isInventoryPage = computed(() => route().current() === 'inventory.index');
 const isShopPage = computed(() => route().current() === 'shop.index');
 const isHallPage = computed(() => String(route().current() || '').startsWith('hall.creations.'));
 const isSubmissionPage = computed(() => String(page.url || '').split('?')[0].startsWith('/submissions/'));
+const isAdminUserPreviewPage = computed(() => {
+    const path = String(page.url || '').split('?')[0];
+    return path.startsWith('/admin/quests/') && path.endsWith('/user-preview')
+        || path.startsWith('/admin/study-groups/') && path.endsWith('/user-preview')
+        || path.startsWith('/admin/guides/') && path.endsWith('/user-preview')
+        || path.startsWith('/admin/events/') && path.endsWith('/user-preview');
+});
 const isLobbyDetailPage = computed(() => {
     const path = String(page.url || '').split('?')[0];
     return path === '/quests-user'
+        || isAdminUserPreviewPage.value
         || path.startsWith('/quests/')
         || path.startsWith('/submissions/')
         || isProfilePage.value
@@ -38,10 +44,10 @@ const isLobbyDetailPage = computed(() => {
         || path.startsWith('/guides/')
         || path === '/events'
         || path.startsWith('/events/')
+        || path === '/notifications'
         || path === '/study-groups'
         || path.startsWith('/study-groups/');
 });
-const showStaffPlayModeNotice = computed(() => isStaffPlayMode.value && !isDoopLabPage.value);
 const { themeMode } = useUserTheme();
 const userBackgroundImage = computed(() => (
     themeMode.value === 'light' && isLobbyDetailPage.value ? '/images/bg-loby5.png' : '/images/bg-loby.png'
@@ -96,7 +102,7 @@ const inlineWorkspaceBackgroundStyle = {
             :glow-class="userBackgroundGlowClass"
         />
 
-        <UserNavbar class="relative z-20" />
+        <UserNavbar v-if="!isAdminUserPreviewPage" class="relative z-20" />
 
         <div v-if="isEmailUnverified" class="relative z-20 px-4 md:px-8 pt-4">
             <div class="border-2 border-amber-400/60 bg-amber-500/10 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -124,20 +130,6 @@ const inlineWorkspaceBackgroundStyle = {
                 </Link>
             </div>
         </div>
-        <div v-if="showStaffPlayModeNotice" class="relative z-20 px-4 md:px-8 pt-4">
-            <div class="border-2 border-cyan-400/60 bg-cyan-500/10 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div class="text-[9px] leading-relaxed text-cyan-100 uppercase tracking-wide">
-                    {{ playerModeNotice || 'Mode preview aktif. Reward, leaderboard, dan akses kelas student tidak dihitung.' }}
-                </div>
-                <Link
-                    :href="route('admin.dashboard')"
-                    class="text-[8px] bg-cyan-300 text-black px-3 py-2 btn-pixel border-cyan-700 uppercase font-bold hover:bg-cyan-200 transition-colors text-center"
-                >
-                    Kembali ke Admin
-                </Link>
-            </div>
-        </div>
-
         <main
             class="relative z-10 animate-in fade-in zoom-in-95 duration-500 flex-1"
             :class="isDoopLabPage ? 'p-0' : 'p-4 md:p-8'"

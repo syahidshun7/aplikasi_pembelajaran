@@ -6,153 +6,65 @@ import { computed } from 'vue';
 
 const props = defineProps({
     group: Object,
-    members: Array,
-    requests: Array,
     questCounts: Object,
-    attachedRoadmaps: {
+    studentDashboard: {
         type: Array,
         default: () => [],
     },
-    availableRoadmaps: {
+    staffMembers: {
         type: Array,
         default: () => [],
     },
-    attendanceDashboard: {
-        type: Object,
-        default: () => ({
-            summary: {},
-            events: [],
-            students: [],
-        }),
+    availableStaff: {
+        type: Array,
+        default: () => [],
+    },
+    canManageStaffAccess: {
+        type: Boolean,
+        default: false,
     },
 });
 
-const roadmapForm = useForm({
-    roadmap_uuid: '',
-    sort_order: 0,
+const staffForm = useForm({
+    user_id: '',
+    role_in_group: 'mentor',
 });
+const assignedStaffIds = computed(() => new Set((props.staffMembers || []).map((staff) => Number(staff.id))));
+const assignableStaff = computed(() => (props.availableStaff || []).filter((staff) => !assignedStaffIds.value.has(Number(staff.id))));
+const safeStudentCount = computed(() => props.studentDashboard.filter((student) => student.status === 'safe').length);
+const attentionStudentCount = computed(() => props.studentDashboard.filter((student) => student.status === 'needs_attention').length);
 
-const attachedRoadmapUuidSet = computed(() => new Set((props.attachedRoadmaps || []).map((roadmap) => String(roadmap.uuid))));
-
-const attachableRoadmaps = computed(() => {
-    return (props.availableRoadmaps || []).filter((roadmap) => !attachedRoadmapUuidSet.value.has(String(roadmap.uuid)));
-});
-
-const nextRoadmapSortOrder = computed(() => {
-    const maxOrder = Math.max(0, ...(props.attachedRoadmaps || []).map((roadmap) => Number(roadmap.sort_order || 0)));
-    return maxOrder + 1;
-});
-
-const attendanceEvents = computed(() => props.attendanceDashboard?.events || []);
-const attendanceStudents = computed(() => props.attendanceDashboard?.students || []);
-const attendanceSummary = computed(() => props.attendanceDashboard?.summary || {});
-
-const attendanceStatusClass = (status) => {
-    const value = String(status || 'pending');
-    if (value === 'present') return 'border-emerald-600 bg-emerald-500/15 text-emerald-300';
-    if (value === 'absent') return 'border-red-600 bg-red-500/15 text-red-300';
-    if (value === 'excused') return 'border-cyan-600 bg-cyan-500/15 text-cyan-300';
-    return 'border-slate-700 bg-slate-800/40 text-slate-400';
-};
-
-const attendanceStatusLabel = (status) => {
-    const value = String(status || 'pending');
-    if (value === 'present') return 'P';
-    if (value === 'absent') return 'A';
-    if (value === 'excused') return 'I';
-    return '-';
-};
-
-const rateClass = (rate) => {
-    const value = Number(rate || 0);
-    if (value >= 85) return 'text-emerald-300';
-    if (value >= 75) return 'text-yellow-300';
+const percentageClass = (value) => {
+    const percentage = Number(value || 0);
+    if (percentage >= 75) return 'text-emerald-300';
+    if (percentage >= 60) return 'text-yellow-300';
     return 'text-red-300';
 };
 
-const formatShortDate = (value) => {
-    if (!value) return 'No_Date';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'No_Date';
-    return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-};
-
-const attachRoadmap = (roadmap) => {
-    if (!roadmap?.uuid) return;
-    roadmapForm.roadmap_uuid = String(roadmap.uuid);
-    roadmapForm.sort_order = nextRoadmapSortOrder.value;
-    roadmapForm.post(route('groups.roadmaps.attach', { uuid: props.group.uuid }), {
+const assignStaff = () => {
+    if (!staffForm.user_id) return;
+    staffForm.post(route('groups.staff.assign', { uuid: props.group.uuid }), {
         preserveScroll: true,
-        onSuccess: () => roadmapForm.reset(),
+        onSuccess: () => staffForm.reset(),
     });
 };
 
-const detachRoadmap = (roadmap) => {
+const removeStaff = (staff) => {
     swal.fire({
-        title: 'DETACH_ROADMAP?',
-        text: `Lepas ${roadmap.title || 'roadmap'} dari group ini?`,
+        title: 'REVOKE_ACCESS?',
+        text: `Cabut akses ${staff.username || staff.name} dari group ini?`,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'DETACH',
+        confirmButtonText: 'REVOKE',
         cancelButtonText: 'CANCEL',
     }).then((result) => {
         if (!result.isConfirmed) return;
-        router.delete(route('groups.roadmaps.detach', {
-            uuid: props.group.uuid,
-            roadmapUuid: roadmap.uuid,
-        }), {
+        router.delete(route('groups.staff.remove', { uuid: props.group.uuid, userId: staff.id }), {
             preserveScroll: true,
         });
     });
 };
 
-const approveRequest = (requestId) => {
-    router.post(route('groups.requests.approve', { uuid: props.group.uuid, requestId }), {}, {
-        preserveScroll: true,
-    });
-};
-
-const rejectRequest = async (requestItem) => {
-    const result = await swal.fire({
-        title: 'REJECT_REQUEST',
-        text: `Kamu bisa isi alasan reject untuk ${requestItem.user?.username || requestItem.user?.name || 'user'} (opsional).`,
-        input: 'textarea',
-        inputPlaceholder: 'Alasan reject (opsional)',
-        inputClass: 'rpg-alert-textarea',
-        inputAttributes: {
-            maxlength: 500,
-        },
-        showCancelButton: true,
-        confirmButtonText: 'REJECT',
-        cancelButtonText: 'BATAL',
-    });
-
-    if (!result.isConfirmed) {
-        return;
-    }
-
-    router.post(route('groups.requests.reject', { uuid: props.group.uuid, requestId: requestItem.id }), {
-        reason: String(result.value || '').trim() || null,
-    }, {
-        preserveScroll: true,
-    });
-};
-
-const removeMember = (member) => {
-    swal.fire({
-        title: 'REMOVE_MEMBER?',
-        text: `Keluarkan ${member.username || member.name} dari group ini?`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'YES_REMOVE',
-        cancelButtonText: 'CANCEL',
-    }).then((result) => {
-        if (!result.isConfirmed) return;
-        router.delete(route('groups.members.remove', { uuid: props.group.uuid, userId: member.id }), {
-            preserveScroll: true,
-        });
-    });
-};
 </script>
 
 <template>
@@ -191,7 +103,186 @@ const removeMember = (member) => {
                 </div>
             </div>
 
-            <section class="rpg-panel border-indigo-500/50">
+            <section class="rpg-panel border-emerald-500/50">
+                <h2 class="mb-4 text-emerald-300 uppercase">Class_Operations</h2>
+                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <Link
+                        :href="route('groups.quests.index', group.uuid)"
+                        class="border border-yellow-600 bg-yellow-950/20 p-4 text-yellow-300 hover:bg-yellow-500 hover:text-black uppercase"
+                    >
+                        <p class="text-[10px]">Quest</p>
+                        <p class="mt-2 text-[7px]">Manage class missions</p>
+                    </Link>
+                    <Link
+                        :href="route('groups.guides.index', group.uuid)"
+                        class="border border-indigo-600 bg-indigo-950/20 p-4 text-indigo-300 hover:bg-indigo-500 hover:text-black uppercase"
+                    >
+                        <p class="text-[10px]">Guide</p>
+                        <p class="mt-2 text-[7px]">Manage class materials</p>
+                    </Link>
+                    <Link
+                        :href="route('groups.events.index', group.uuid)"
+                        class="border border-blue-600 bg-blue-950/20 p-4 text-blue-300 hover:bg-blue-500 hover:text-black uppercase"
+                    >
+                        <p class="text-[10px]">Event</p>
+                        <p class="mt-2 text-[7px]">Manage class schedule</p>
+                    </Link>
+                    <Link
+                        :href="route('groups.attendance', group.uuid)"
+                        class="border border-emerald-600 bg-emerald-950/20 p-4 text-emerald-300 hover:bg-emerald-500 hover:text-black uppercase"
+                    >
+                        <p class="text-[10px]">Attendance</p>
+                        <p class="mt-2 text-[7px]">Monitor class presence</p>
+                    </Link>
+                    <Link
+                        :href="route('groups.join-requests', group.uuid)"
+                        class="border border-orange-600 bg-orange-950/20 p-4 text-orange-300 hover:bg-orange-500 hover:text-black uppercase"
+                    >
+                        <p class="text-[10px]">Membership</p>
+                        <p class="mt-2 text-[7px]">Requests and active members</p>
+                    </Link>
+                    <Link
+                        :href="route('groups.roadmaps', group.uuid)"
+                        class="border border-purple-600 bg-purple-950/20 p-4 text-purple-300 hover:bg-purple-500 hover:text-black uppercase"
+                    >
+                        <p class="text-[10px]">Roadmap</p>
+                        <p class="mt-2 text-[7px]">Manage class curriculum</p>
+                    </Link>
+                </div>
+            </section>
+
+            <section class="rpg-panel border-cyan-500/50">
+                <div class="mb-5 flex flex-col gap-4 border-b border-slate-700 pb-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                        <p class="text-[8px] uppercase text-cyan-300">Class_Health</p>
+                        <h2 class="mt-3 text-[12px] uppercase text-white">Student_Performance_Dashboard</h2>
+                        <p class="mt-3 font-sans text-[12px] leading-relaxed text-slate-400">
+                            Status dihitung dari rata-rata persentase attendance dan nilai main quest. Nilai di bawah 75% perlu diperhatikan.
+                        </p>
+                    </div>
+                    <div class="flex shrink-0 flex-wrap gap-2">
+                        <span class="border border-emerald-600 bg-emerald-950/30 px-3 py-2 text-[8px] uppercase text-emerald-300">
+                            Aman {{ safeStudentCount }}
+                        </span>
+                        <span class="border border-red-600 bg-red-950/30 px-3 py-2 text-[8px] uppercase text-red-300">
+                            Perlu_Diperhatikan {{ attentionStudentCount }}
+                        </span>
+                    </div>
+                </div>
+
+                <div v-if="studentDashboard.length === 0" class="border border-slate-800 bg-black/30 p-6 text-center text-[8px] uppercase text-slate-500">
+                    Belum ada user aktif di Study Group ini.
+                </div>
+
+                <div v-else class="overflow-x-auto border border-slate-800 bg-black/20">
+                    <table class="min-w-full border-collapse">
+                        <thead>
+                            <tr class="border-b-2 border-slate-700 bg-slate-950/70 text-left text-[8px] uppercase text-slate-400">
+                                <th class="min-w-[160px] p-3">Username</th>
+                                <th class="min-w-[220px] p-3">Nama_Lengkap</th>
+                                <th class="min-w-[130px] p-3 text-center">Attendance</th>
+                                <th class="min-w-[160px] p-3 text-center">Main_Quest_Avg</th>
+                                <th class="min-w-[150px] p-3 text-center">Combined_Avg</th>
+                                <th class="min-w-[210px] p-3">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="student in studentDashboard"
+                                :key="student.id"
+                                class="border-b border-slate-800/80 hover:bg-white/5"
+                            >
+                                <td class="p-3 text-[9px] text-cyan-300">@{{ student.username || 'user' }}</td>
+                                <td class="p-3 font-sans text-[13px] font-semibold text-white">{{ student.name }}</td>
+                                <td class="p-3 text-center text-[10px] font-bold" :class="percentageClass(student.attendance_percentage)">
+                                    {{ student.attendance_percentage }}%
+                                </td>
+                                <td class="p-3 text-center text-[10px] font-bold" :class="percentageClass(student.main_quest_average)">
+                                    {{ student.main_quest_average }}%
+                                </td>
+                                <td class="p-3 text-center text-[10px] font-bold" :class="percentageClass(student.performance_average)">
+                                    {{ student.performance_average }}%
+                                </td>
+                                <td class="p-3">
+                                    <span
+                                        class="inline-flex border px-3 py-2 text-[7px] uppercase"
+                                        :class="student.status === 'safe'
+                                            ? 'border-emerald-600 bg-emerald-950/30 text-emerald-300'
+                                            : 'border-red-600 bg-red-950/30 text-red-300'"
+                                    >
+                                        {{ student.status === 'safe' ? 'Aman' : 'Perlu_Diperhatikan' }}
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="rpg-panel border-cyan-500/50">
+                <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                        <h2 class="text-cyan-300 uppercase">Staff_Access_Control</h2>
+                        <p class="mt-2 font-sans text-[12px] leading-relaxed text-slate-300">
+                            Admin dan mentor yang ada di panel ini menjadi pemilik akses operasional untuk kelas ini.
+                        </p>
+                    </div>
+                </div>
+
+                <form v-if="canManageStaffAccess" @submit.prevent="assignStaff" class="mb-4 grid gap-2 md:grid-cols-[1fr_180px_auto]">
+                    <select
+                        v-model="staffForm.user_id"
+                        class="bg-black border-2 border-slate-700 p-2 text-cyan-300 uppercase focus:border-cyan-400 focus:ring-0"
+                        required
+                    >
+                        <option value="" disabled>-- SELECT STAFF --</option>
+                        <option v-for="staff in assignableStaff" :key="staff.id" :value="staff.id">
+                            {{ staff.name }} / {{ staff.role }}
+                        </option>
+                    </select>
+                    <select
+                        v-model="staffForm.role_in_group"
+                        class="bg-black border-2 border-slate-700 p-2 text-cyan-300 uppercase focus:border-cyan-400 focus:ring-0"
+                    >
+                        <option value="mentor">Mentor</option>
+                        <option value="admin">Admin</option>
+                        <option value="viewer">Viewer</option>
+                    </select>
+                    <button
+                        type="submit"
+                        :disabled="staffForm.processing || !staffForm.user_id"
+                        class="border-2 border-cyan-500 px-4 py-2 text-[8px] uppercase text-cyan-300 hover:bg-cyan-400 hover:text-black disabled:opacity-40"
+                    >
+                        Grant
+                    </button>
+                </form>
+
+                <div v-if="staffMembers.length === 0" class="border border-slate-800 bg-black/30 p-4 text-[8px] uppercase text-slate-500">
+                    Belum ada staff yang di-assign khusus ke group ini.
+                </div>
+
+                <div v-else class="grid gap-3 md:grid-cols-2">
+                    <article v-for="staff in staffMembers" :key="staff.id" class="flex items-start justify-between gap-3 border border-slate-800 bg-black/40 p-3">
+                        <div class="min-w-0">
+                            <p class="break-words text-[10px] uppercase text-white">{{ staff.name }}</p>
+                            <p class="mt-1 break-words text-[8px] text-slate-500">{{ staff.email }}</p>
+                            <p class="mt-2 text-[7px] uppercase text-cyan-300">
+                                System {{ staff.role }} | Group {{ staff.role_in_group }}
+                            </p>
+                        </div>
+                        <button
+                            v-if="canManageStaffAccess"
+                            type="button"
+                            class="shrink-0 border border-red-600 px-3 py-2 text-[8px] uppercase text-red-400 hover:bg-red-600 hover:text-white"
+                            @click="removeStaff(staff)"
+                        >
+                            Revoke
+                        </button>
+                    </article>
+                </div>
+            </section>
+
+            <section v-if="false" class="rpg-panel border-indigo-500/50">
                 <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
                         <h2 class="text-indigo-300 uppercase">Class_Roadmap_View_Only</h2>
@@ -256,7 +347,7 @@ const removeMember = (member) => {
                 </div>
             </section>
 
-            <section class="rpg-panel border-emerald-500/50">
+            <section v-if="false" class="rpg-panel border-emerald-500/50">
                 <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
                         <h2 class="text-emerald-300 uppercase">Attendance_Dashboard</h2>
@@ -350,8 +441,8 @@ const removeMember = (member) => {
                 </div>
             </section>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <section class="rpg-panel border-orange-500/50">
+            <div v-if="false" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <section v-if="false" class="rpg-panel border-orange-500/50">
                     <h2 class="text-orange-400 mb-4 uppercase">Pending_Join_Requests [{{ requests.length }}]</h2>
 
                     <div v-if="requests.length === 0" class="text-slate-500 uppercase text-[8px] py-4">
@@ -386,7 +477,7 @@ const removeMember = (member) => {
                     </div>
                 </section>
 
-                <section class="rpg-panel border-cyan-500/50">
+                <section class="rpg-panel border-cyan-500/50 lg:col-span-2">
                 <h2 class="text-cyan-400 mb-4 uppercase">
                     Members [{{ members.length }} / {{ group.max_members }}]
                 </h2>

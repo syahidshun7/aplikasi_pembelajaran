@@ -3,10 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Guide;
+use App\Models\Event;
+use App\Models\JobRole;
 use App\Models\Quest;
+use App\Models\StudyGroup;
 use App\Models\Submission;
 use App\Models\User;
 use App\Services\LevelingService;
+use App\Services\StudyGroupStaffAccessService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
@@ -16,7 +20,7 @@ use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(StudyGroupStaffAccessService $studyGroupAccess)
     {
         $authUser = auth()->user();
         $isMentor = (bool) $authUser?->isMentor();
@@ -29,6 +33,9 @@ class DashboardController extends Controller
         $levelColumn = Schema::hasColumn('users', 'lvl') ? 'lvl' : 'level';
 
         $guideQuery = Guide::query();
+        $questQuery = Quest::query();
+        $eventQuery = Event::query();
+        $studyGroupQuery = StudyGroup::query();
         $studentQuery = User::query()->whereNotIn('role', User::staffRoles());
         $pendingSubmissionQuery = Submission::query()->where('status', 'Pending');
         $gradedSubmissionQuery = Submission::query()->whereIn('status', ['Approved', 'Rejected']);
@@ -38,6 +45,15 @@ class DashboardController extends Controller
                 $q->where('job_id', $mentorJobId);
             });
 
+            $questQuery->whereHas('studyGroup', function ($q) use ($mentorJobId) {
+                $q->where('job_id', $mentorJobId);
+            });
+
+            $eventQuery->whereHas('studyGroup', function ($q) use ($mentorJobId) {
+                $q->where('job_id', $mentorJobId);
+            });
+
+            $studyGroupQuery->where('job_id', $mentorJobId);
             $studentQuery->where('job_id', $mentorJobId);
 
             $pendingSubmissionQuery->whereHas('quest', function ($q) use ($mentorJobId) {
@@ -65,9 +81,9 @@ class DashboardController extends Controller
         $scopeKey = $isMentor ? ('mentor_job.' . $mentorJobId) : 'global';
 
         $stats = Cache::remember(
-            "dashboard.stats.v{$dashboardCacheVersion}.{$scopeKey}",
+            "dashboard.stats.content-v2.v{$dashboardCacheVersion}.{$scopeKey}",
             now()->addMinutes(3),
-            function () use ($guideQuery, $studentQuery, $pendingSubmissionQuery, $gradedSubmissionQuery) {
+            function () use ($guideQuery, $questQuery, $eventQuery, $studyGroupQuery, $studentQuery, $pendingSubmissionQuery, $gradedSubmissionQuery, $isMentor) {
                 $avgGrade30d = (float) (clone $gradedSubmissionQuery)
                     ->where('created_at', '>=', now()->subDays(30))
                     ->avg('grade');
@@ -78,8 +94,14 @@ class DashboardController extends Controller
 
                 return [
                     'total_materi' => (int) $guideQuery->count(),
+                    'total_guides' => (int) (clone $guideQuery)->count(),
+                    'total_quests' => (int) $questQuery->count(),
+                    'total_events' => (int) $eventQuery->count(),
+                    'total_study_groups' => (int) $studyGroupQuery->count(),
+                    'total_jobs' => $isMentor ? 1 : (int) JobRole::query()->count(),
                     'total_students' => (int) $studentQuery->count(),
                     'pending_verdicts' => (int) $pendingSubmissionQuery->count(),
+                    'total_graded' => (int) (clone $gradedSubmissionQuery)->count(),
                     'avg_grade_30d' => round($avgGrade30d, 1),
                     'graded_7d' => $graded7dCount,
                 ];
@@ -343,10 +365,60 @@ class DashboardController extends Controller
             }
         );
 
+        $accessibleGroups = $studyGroupAccess
+            ->scopeAccessibleGroups(\App\Models\StudyGroup::query(), $authUser)
+            ->with('job:id,name')
+            ->withCount([
+                'staff as staff_count',
+                'users as students_count' => fn ($query) => $query->whereNotIn('users.role', User::staffRoles()),
+                'quests as quests_count',
+                'events as events_count',
+            ])
+            ->orderBy('name')
+            ->get(['id', 'uuid', 'name', 'description', 'job_id', 'max_members', 'min_level'])
+            ->map(fn (\App\Models\StudyGroup $group) => [
+                'uuid' => (string) $group->uuid,
+                'name' => (string) $group->name,
+                'description' => (string) ($group->description ?? ''),
+                'job' => $group->job ? [
+                    'id' => (int) $group->job->id,
+                    'name' => (string) $group->job->name,
+                ] : null,
+                'students_count' => (int) ($group->students_count ?? 0),
+                'staff_count' => (int) ($group->staff_count ?? 0),
+                'quests_count' => (int) ($group->quests_count ?? 0),
+                'events_count' => (int) ($group->events_count ?? 0),
+                'max_members' => (int) ($group->max_members ?? 0),
+                'min_level' => (int) ($group->min_level ?? 1),
+                'detail_url' => route('groups.detail', $group->uuid),
+                'preview_url' => route('groups.user-preview', $group->uuid),
+            ])
+            ->values();
+
+        $jobCommandItems = $authUser?->isAdmin()
+            ? \App\Models\JobRole::query()
+                ->withCount(['users', 'studyGroups', 'taskBanks'])
+                ->orderBy('name')
+                ->get(['id', 'name', 'slug', 'status', 'description'])
+                ->map(fn (\App\Models\JobRole $job) => [
+                    'id' => (int) $job->id,
+                    'name' => (string) $job->name,
+                    'slug' => (string) $job->slug,
+                    'status' => (string) ($job->status ?? \App\Models\JobRole::STATUS_ACTIVE),
+                    'users_count' => (int) ($job->users_count ?? 0),
+                    'study_groups_count' => (int) ($job->study_groups_count ?? 0),
+                    'task_banks_count' => (int) ($job->task_banks_count ?? 0),
+                    'detail_url' => route('admin.jobs.show', $job->id),
+                ])
+                ->values()
+            : collect();
+
         return Inertia::render('Dashboard', [
             'stats' => $stats,
             'students' => $students,
             'helpUsers' => $helpUsers,
+            'accessibleGroups' => $accessibleGroups,
+            'jobCommandItems' => $jobCommandItems,
             'scope' => [
                 'role' => (string) ($authUser?->role ?? ''),
                 'job_id' => $isMentor ? $mentorJobId : null,

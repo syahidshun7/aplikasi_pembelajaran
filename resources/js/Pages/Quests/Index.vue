@@ -12,11 +12,14 @@ const props = defineProps({
     jobRoles: Array,
     rubrics: Array,
     filters: Object,
+    selectedStudyGroup: Object,
 });
 const page = usePage();
 const isMentor = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase() === 'mentor');
 const isAdminScope = computed(() => !isMentor.value);
 const firstStudyGroupId = computed(() => props.studyGroups?.[0]?.id ?? null);
+const isScopedGroup = computed(() => Boolean(props.selectedStudyGroup?.uuid));
+const indexRouteUrl = computed(() => props.selectedStudyGroup?.quests_url || route('quests.index'));
 const firstTaskBankId = computed(() => props.taskBanks?.[0]?.id ?? null);
 
 const rankGoldMap = {
@@ -132,6 +135,10 @@ const form = useForm({
 const mentorCannotSubmitQuest = computed(() => isMentor.value && !form.study_group_id && !form.task_bank_id);
 
 const applyMentorDefaults = () => {
+    if (isScopedGroup.value && props.selectedStudyGroup?.id) {
+        form.study_group_id = props.selectedStudyGroup.id;
+        return;
+    }
     if (!isMentor.value) return;
     if (!form.study_group_id && !form.task_bank_id) {
         form.study_group_id = firstStudyGroupId.value;
@@ -285,6 +292,9 @@ const cancelEdit = () => {
     showAiGeneratorModal.value = false;
     themePreview.value = null;
     form.reset();
+    if (isScopedGroup.value && props.selectedStudyGroup?.id) {
+        form.study_group_id = props.selectedStudyGroup.id;
+    }
     form.rubric_id = null;
     selectedJobScope.value = '';
     taskBankSearch.value = '';
@@ -357,7 +367,7 @@ const hardDeleteQuest = (uuid) => {
 };
 
 const applyFilters = () => {
-    router.get(route('quests.index'), filterForm.data(), {
+    router.get(indexRouteUrl.value, filterForm.data(), {
         preserveState: true,
         preserveScroll: true,
     });
@@ -468,6 +478,18 @@ const commitThemeBundle = async () => {
         <div class="max-w-7xl mx-auto space-y-8">
 
             <AdminNavbar />
+
+            <div v-if="isScopedGroup" class="border-2 border-emerald-500/50 bg-emerald-950/20 p-4">
+                <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <p class="text-[8px] uppercase text-emerald-300">Study_Group_Context</p>
+                        <h1 class="mt-2 text-[13px] uppercase text-white">{{ selectedStudyGroup.name }}</h1>
+                    </div>
+                    <Link :href="selectedStudyGroup.back_url" class="border border-slate-600 px-3 py-2 text-[8px] uppercase text-slate-300 hover:text-white">
+                        Back_To_Group
+                    </Link>
+                </div>
+            </div>
 
             <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b-4 border-cyan-900 pb-4">
                 <h1 class="text-base sm:text-xl uppercase tracking-widest animate-pulse">Quest_Management_System</h1>
@@ -625,7 +647,7 @@ const commitThemeBundle = async () => {
                                 <label class="block mb-2 text-white">ASSIGN_TO_PARTY:</label>
                                 <select v-model="form.study_group_id"
                                     class="w-full bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-emerald-400 uppercase">
-                                    <option v-if="!isMentor" :value="null">-- GLOBAL_QUEST (PUBLIC) --</option>
+                                    <option v-if="!isMentor && !isScopedGroup" :value="null">-- GLOBAL_QUEST (PUBLIC) --</option>
                                     <option v-if="isMentor && !filteredStudyGroups.length" :value="null" disabled>-- NO_STUDY_GROUP_AVAILABLE --</option>
                                     <option v-for="group in filteredStudyGroups" :key="group.id" :value="group.id">
                                         >> PARTY: {{ group.name }}{{ group.job?.name ? ` [${group.job.name}]` : '' }}
@@ -894,6 +916,8 @@ const commitThemeBundle = async () => {
                                 </div>
 
                                 <div class="flex gap-4 self-end mt-auto">
+                                    <Link v-if="!isTrashView" :href="route('quests.user-preview', q.uuid)"
+                                        class="text-emerald-400 hover:text-white text-[8px] uppercase font-bold">[User_View]</Link>
                                     <Link v-if="!isTrashView" :href="route('admin.quests.submissions', q.uuid)"
                                         class="text-cyan-400 hover:text-white text-[8px] uppercase font-bold">[Detail]</Link>
                                     <button v-if="!isTrashView" @click="startEdit(q)"

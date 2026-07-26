@@ -1377,6 +1377,7 @@
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .quest-item-card,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .guide-item-card,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-item-card,
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .notification-item-card,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .quest-row,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .guide-row,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-row {
@@ -1388,8 +1389,33 @@
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page tr:hover,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .quest-item-card:hover,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .guide-item-card:hover,
-[data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-item-card:hover {
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-item-card:hover,
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .notification-item-card:hover {
     background: #f0fafa !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .notification-item-card {
+    border-color: #b8cccc !important;
+    border-left: 4px solid #009999 !important;
+    box-shadow: 4px 4px 0 rgba(32, 32, 32, 0.1) !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .notification-item-card > div > div:first-child > div:first-child > span {
+    border-color: #b8cccc !important;
+    background: #edf7f7 !important;
+    color: #3f4b4b !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .notification-primary-action {
+    border-color: #006f6f !important;
+    background: #009999 !important;
+    color: #fff !important;
+    box-shadow: 4px 4px 0 rgba(32, 32, 32, 0.18) !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .notification-primary-action:hover {
+    background: #007f7f !important;
+    color: #fff !important;
 }
 
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .bg-black,

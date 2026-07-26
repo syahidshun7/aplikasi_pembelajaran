@@ -7,6 +7,14 @@ import { toast } from '@/Utils/Alert';
 const props = defineProps({
     event: Object,
     userAttendance: Object,
+    previewMode: {
+        type: Boolean,
+        default: false,
+    },
+    backUrl: {
+        type: String,
+        default: null,
+    },
 });
 
 const formatDateTime = (value) => {
@@ -63,6 +71,7 @@ const attendanceBadgeClass = computed(() => {
 const attendanceStatusLabel = computed(() => {
     const status = String(props.userAttendance?.status || 'pending');
 
+    if (status === 'preview') return 'Mode preview';
     if (status === 'present') return 'Sudah hadir';
     if (status === 'absent') return 'Tidak hadir';
     if (status === 'excused') return 'Izin';
@@ -80,12 +89,16 @@ const attendanceCheckedAtLabel = computed(() => {
 });
 
 const submitSelfAttendance = () => {
+    if (props.previewMode) return;
+
     attendanceForm.post(route('events.attendance.self', props.event.uuid), {
         preserveScroll: true,
     });
 };
 
 const submitCodeAttendance = () => {
+    if (props.previewMode) return;
+
     codeAttendanceForm.post(route('events.attendance.code', props.event.uuid), {
         preserveScroll: true,
     });
@@ -93,6 +106,14 @@ const submitCodeAttendance = () => {
 
 const isPublicEvent = computed(() => !props.event?.study_group_id && !props.event?.study_group);
 const publicShareUrl = computed(() => isPublicEvent.value ? route('public.events.show', { uuid: props.event.uuid }) : '');
+const backHref = computed(() => props.backUrl || route('events.user.index'));
+const backLabel = computed(() => props.previewMode ? '[Back_to_Admin_Events]' : '[Back_Event_List]');
+const guideHref = (guide) => props.previewMode
+    ? route('guides.user-preview', guide.uuid)
+    : route('guides.user.show', guide.uuid);
+const questHref = (quest) => props.previewMode
+    ? route('quests.user-preview', quest.uuid)
+    : route('quests.show', quest.uuid);
 
 const copyPublicLink = async () => {
     if (!publicShareUrl.value) return;
@@ -112,6 +133,7 @@ const copyPublicLink = async () => {
         <div class="lobby-detail-page max-w-6xl mx-auto space-y-6">
             <div class="rpg-panel border-blue-500/50 relative">
                 <Link
+                    v-if="!previewMode"
                     :href="route('lobby')"
                     class="absolute right-3 top-3 z-20 text-[8px] uppercase leading-none text-slate-400 hover:text-white md:right-4 md:top-4"
                 >
@@ -142,11 +164,14 @@ const copyPublicLink = async () => {
                     </div>
                 </div>
                 <div class="mt-3">
-                    <Link :href="route('events.user.index')" class="text-[8px] text-blue-300 hover:text-white uppercase">
-                        [Back_Event_List]
+                    <Link :href="backHref" class="text-[8px] text-blue-300 hover:text-white uppercase">
+                        {{ backLabel }}
                     </Link>
                 </div>
-                <div v-if="isPublicEvent" class="mt-3 border-t border-slate-800 pt-3">
+                <div v-if="previewMode" class="mt-4 border border-cyan-500/50 bg-cyan-950/30 px-4 py-3 text-[8px] uppercase text-cyan-200">
+                    User_View_Simulation: attendance, reward, dan activity tidak akan tercatat.
+                </div>
+                <div v-if="isPublicEvent && !previewMode" class="mt-3 border-t border-slate-800 pt-3">
                     <button
                         type="button"
                         class="inline-flex items-center gap-2 border border-cyan-600 bg-cyan-900/30 px-3 py-2 text-[8px] uppercase text-cyan-200 hover:bg-cyan-500/40"
@@ -163,7 +188,7 @@ const copyPublicLink = async () => {
                         Tercatat: {{ attendanceCheckedAtLabel }}
                     </p>
                 </div>
-                <div v-if="userAttendance?.can_self_attend" class="mt-4">
+                <div v-if="userAttendance?.can_self_attend && !previewMode" class="mt-4">
                     <button
                         type="button"
                         class="px-3 py-2 border border-emerald-500 text-emerald-300 hover:bg-emerald-500 hover:text-black uppercase text-[8px] disabled:opacity-50"
@@ -173,7 +198,7 @@ const copyPublicLink = async () => {
                         {{ attendanceForm.processing ? 'Saving_Attendance...' : '[Check_In_Myself]' }}
                     </button>
                 </div>
-                <div v-if="userAttendance?.can_code_attend" class="mt-4 border border-emerald-700 bg-emerald-950/20 p-4">
+                <div v-if="userAttendance?.can_code_attend && !previewMode" class="mt-4 border border-emerald-700 bg-emerald-950/20 p-4">
                     <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                         <div class="min-w-0">
                             <p class="text-[8px] uppercase text-emerald-300">Validated_Check_In</p>
@@ -259,7 +284,7 @@ const copyPublicLink = async () => {
                             <p class="text-[7px] text-cyan-400 uppercase mb-2">{{ guide.study_group?.name || 'Public' }}</p>
                             <p class="text-[8px] text-slate-500 line-clamp-2 font-sans mb-3">{{ guide.description || 'No description.' }}</p>
                             <Link
-                                :href="route('guides.user.show', guide.uuid)"
+                                :href="guideHref(guide)"
                                 class="text-[8px] px-3 py-1 bg-indigo-900/40 border border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white uppercase"
                             >
                                 Open_Guide
@@ -284,7 +309,7 @@ const copyPublicLink = async () => {
                             </p>
                             <Link
                                 v-if="String(quest.status || '') === 'Available'"
-                                :href="route('quests.show', quest.uuid)"
+                                :href="questHref(quest)"
                                 class="text-[8px] px-3 py-1 bg-yellow-900/40 border border-yellow-700 text-yellow-300 hover:bg-yellow-500 hover:text-black uppercase"
                             >
                                 Open_Quest
