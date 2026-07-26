@@ -30,15 +30,14 @@ class QuestController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'class_group_id' => ['nullable', 'integer'],
+            'quest_type' => ['nullable', 'in:all,main,optional'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
-        $classGroupId = (int) ($validated['class_group_id'] ?? 0);
+        $questType = (string) ($validated['quest_type'] ?? 'all');
         $userId = auth()->id();
         $user = auth()->user();
-        $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
-        $canManageMembership = $user && (! $isStaffPlayMode || (bool) $user->isMentor());
+        $canManageMembership = $user && ! $user->isStaff();
         $userJobId = $user?->job_id;
         $userGroupIds = $canManageMembership
             ? $user->studyGroups()
@@ -46,26 +45,16 @@ class QuestController extends Controller
                 ->pluck('study_groups.id')
                 ->toArray()
             : [];
-        $availableClassGroups = StudyGroup::query()
-            ->whereIn('id', $userGroupIds)
-            ->orderBy('name')
-            ->get(['id', 'name']);
-
-        if ($classGroupId > 0 && !in_array($classGroupId, $userGroupIds, true)) {
-            $classGroupId = 0;
-        }
-
         $questsCacheVersion = CacheVersion::get('quests');
         $groupKey = sha1(json_encode(collect($userGroupIds)->map(fn ($id) => (int) $id)->unique()->sort()->values()->all()));
         $searchKey = $search === '' ? 'none' : sha1($search);
-        $classGroupKey = $classGroupId > 0 ? (string) $classGroupId : 'all';
         $page = max(1, (int) $request->query('page', 1));
         $perPage = 15;
 
         $cached = Cache::remember(
-            "quests.page.v{$questsCacheVersion}.groups.{$groupKey}.class.{$classGroupKey}.search.{$searchKey}.page.{$page}",
+            "quests.page.v{$questsCacheVersion}.groups.{$groupKey}.type.{$questType}.search.{$searchKey}.page.{$page}",
             now()->addMinutes(5),
-            function () use ($userGroupIds, $search, $classGroupId, $page, $perPage) {
+            function () use ($userGroupIds, $search, $questType, $page, $perPage) {
                 $paginator = Quest::query()
                     ->where(function ($query) use ($userGroupIds) {
                         $query->whereNull('study_group_id')
@@ -83,8 +72,8 @@ class QuestController extends Controller
                                 });
                         });
                     })
-                    ->when($classGroupId > 0, function ($query) use ($classGroupId) {
-                        $query->where('study_group_id', $classGroupId);
+                    ->when($questType !== 'all', function ($query) use ($questType) {
+                        $query->where('quest_type', $questType);
                     })
                     ->with('studyGroup:id,uuid,name')
                     ->latest()
@@ -170,9 +159,8 @@ class QuestController extends Controller
             'quests' => $quests,
             'filters' => [
                 'search' => $search,
-                'class_group_id' => $classGroupId > 0 ? $classGroupId : null,
+                'quest_type' => $questType,
             ],
-            'classGroups' => $availableClassGroups,
         ]);
     }
 
@@ -184,14 +172,17 @@ class QuestController extends Controller
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'view' => ['nullable', 'in:active,trash'],
+            'quest_type' => ['nullable', 'in:all,main,optional'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
         $view = (string) ($validated['view'] ?? 'active');
+        $questType = (string) ($validated['quest_type'] ?? 'all');
 
         $adminQuestQuery = Quest::query()
             ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
             ->when($scopedGroup, fn ($query) => $query->where('study_group_id', (int) $scopedGroup->id))
+            ->when($questType !== 'all', fn ($query) => $query->where('quest_type', $questType))
             ->with([
                 'studyGroup' => function ($query) {
                     $query->withTrashed();
@@ -269,6 +260,7 @@ class QuestController extends Controller
             'filters' => [
                 'search' => $search,
                 'view' => $view,
+                'quest_type' => $questType,
             ],
             'selectedStudyGroup' => $scopedGroup ? [
                 'uuid' => (string) $scopedGroup->uuid,

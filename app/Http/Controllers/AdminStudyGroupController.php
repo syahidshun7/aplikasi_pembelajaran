@@ -169,18 +169,8 @@ class AdminStudyGroupController extends Controller
             abort(403, 'STUDY_GROUP_STAFF_ACCESS_DENIED');
         }
 
-        $questCounts = \App\Models\Quest::query()
-            ->where('study_group_id', $group->id)
-            ->selectRaw("COUNT(*) as total, SUM(quest_type = 'main') as main_count, SUM(quest_type = 'optional') as optional_count")
-            ->first();
-
         return Inertia::render('StudyGroups/Admin/Detail', [
             'group' => $group,
-            'questCounts' => [
-                'total' => (int) ($questCounts->total ?? 0),
-                'main' => (int) ($questCounts->main_count ?? 0),
-                'optional' => (int) ($questCounts->optional_count ?? 0),
-            ],
             'studentDashboard' => $this->buildStudentDashboard($group),
             'staffMembers' => $group->staff
                 ->map(fn (User $staff) => [
@@ -252,7 +242,6 @@ class AdminStudyGroupController extends Controller
                 ->groupBy('quest_id');
 
         $questHistory = $quests
-            ->filter(fn ($quest) => $submissions->has($quest->id))
             ->map(function ($quest) use ($submissions) {
                 $attempts = $submissions->get($quest->id, collect());
                 $latest = $attempts->first();
@@ -263,7 +252,9 @@ class AdminStudyGroupController extends Controller
                     'quest_type' => (string) $quest->quest_type,
                     'difficulty' => (string) ($quest->difficulty ?? ''),
                     'grade' => $latest?->grade !== null ? (int) $latest->grade : null,
-                    'status' => (string) ($latest?->status ?? ''),
+                    'status' => $latest
+                        ? (string) ($latest->status ?? 'Pending')
+                        : 'Not_Started',
                     'attempts' => (int) $attempts->count(),
                     'submitted_at' => $latest?->created_at?->toISOString(),
                 ];
@@ -330,7 +321,7 @@ class AdminStudyGroupController extends Controller
                 'main_quest_average' => $mainQuestAverage,
                 'performance_average' => $performanceAverage,
                 'status' => $performanceAverage < 75 ? 'needs_attention' : 'safe',
-                'quests_completed' => (int) $questHistory->count(),
+                'quests_completed' => (int) $questHistory->where('attempts', '>', 0)->count(),
                 'total_main_quests' => (int) $quests->where('quest_type', \App\Models\Quest::TYPE_MAIN)->count(),
                 'events_total' => (int) $events->count(),
             ],
@@ -403,6 +394,7 @@ class AdminStudyGroupController extends Controller
 
         $requests = $group->joinRequests()
             ->with('user:id,name,username,email,exp')
+            ->whereHas('user', fn ($query) => $query->whereNotIn('role', User::staffRoles()))
             ->where('status', 'pending')
             ->latest()
             ->get()
@@ -418,6 +410,7 @@ class AdminStudyGroupController extends Controller
             'requests' => $requests,
             'members' => $group->users()
                 ->select('users.id', 'users.name', 'users.username', 'users.email')
+                ->whereNotIn('users.role', User::staffRoles())
                 ->orderBy('users.name')
                 ->get(),
         ]);
@@ -514,11 +507,18 @@ class AdminStudyGroupController extends Controller
 
         $member = User::query()->findOrFail((int) $joinRequest->user_id);
         $isStaffMember = (bool) $member->isStaff();
+
+        if ($isStaffMember) {
+            return back()->withErrors([
+                'group' => 'STAFF_MEMBERSHIP_DISABLED: Admin dan mentor harus menggunakan Staff Access, bukan join request.',
+            ]);
+        }
+
         $activePlayerCount = (int) $group->users()
             ->whereNotIn('users.role', User::staffRoles())
             ->count();
 
-        if (! $isStaffMember && $activePlayerCount >= (int) $group->max_members) {
+        if ($activePlayerCount >= (int) $group->max_members) {
             return back()->withErrors(['group' => 'PARTY_FULL: Kapasitas player sudah penuh.']);
         }
 
@@ -554,7 +554,7 @@ class AdminStudyGroupController extends Controller
             }
         }
 
-        $group->attachOrRestoreMember((int) $joinRequest->user_id, $member->isMentor() ? 'mentor_observer' : 'member');
+        $group->attachOrRestoreMember((int) $joinRequest->user_id, 'member');
 
         $joinRequest->update([
             'status' => 'approved',

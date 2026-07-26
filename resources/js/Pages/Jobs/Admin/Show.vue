@@ -104,9 +104,6 @@ const statusClass = (status) => {
                                 <p class="break-words text-[10px] uppercase text-white">{{ group.name }}</p>
                                 <p class="mt-2 text-[7px] uppercase text-slate-500">Code {{ group.invite_code || '-' }}</p>
                             </div>
-                            <Link :href="group.detail_url" class="shrink-0 border border-cyan-600 px-2 py-1 text-[7px] uppercase text-cyan-300 hover:bg-cyan-400 hover:text-black">
-                                Open
-                            </Link>
                         </div>
 
                         <div class="grid grid-cols-2 gap-2 text-[7px] uppercase text-slate-400">
@@ -116,11 +113,11 @@ const statusClass = (status) => {
                             <span>Event {{ group.events_count }}</span>
                         </div>
 
-                        <div class="mt-4 flex flex-wrap gap-2">
+                        <div class="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-slate-800 pt-3">
                             <Link :href="group.user_preview_url" class="border border-emerald-700 px-2 py-1 text-[7px] uppercase text-emerald-300 hover:bg-emerald-400 hover:text-black">User_View</Link>
-                            <Link :href="group.quests_url" class="border border-yellow-700 px-2 py-1 text-[7px] uppercase text-yellow-300 hover:bg-yellow-400 hover:text-black">Quest</Link>
-                            <Link :href="group.guides_url" class="border border-indigo-700 px-2 py-1 text-[7px] uppercase text-indigo-300 hover:bg-indigo-400 hover:text-black">Guide</Link>
-                            <Link :href="group.events_url" class="border border-blue-700 px-2 py-1 text-[7px] uppercase text-blue-300 hover:bg-blue-400 hover:text-black">Event</Link>
+                            <Link :href="group.detail_url" class="border border-cyan-600 px-2 py-1 text-[7px] uppercase text-cyan-300 hover:bg-cyan-400 hover:text-black">
+                                Open
+                            </Link>
                         </div>
                     </article>
                 </div>

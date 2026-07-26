@@ -5,15 +5,11 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 const props = defineProps({
     quests: Object,
     filters: Object,
-    classGroups: {
-        type: Array,
-        default: () => [],
-    },
 });
 
 const form = useForm({
     search: props.filters?.search || '',
-    class_group_id: props.filters?.class_group_id ? String(props.filters.class_group_id) : '',
+    quest_type: props.filters?.quest_type || 'all',
 });
 
 const applySearch = () => {
@@ -22,7 +18,7 @@ const applySearch = () => {
 
 const resetSearch = () => {
     form.search = '';
-    form.class_group_id = '';
+    form.quest_type = 'all';
     applySearch();
 };
 
@@ -175,13 +171,12 @@ const classLabelForQuest = (item) => {
                             class="flex-1 bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
                         />
                         <select
-                            v-model="form.class_group_id"
-                            class="w-full md:w-56 bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
+                            v-model="form.quest_type"
+                            class="quest-type-filter w-full md:w-56 bg-black border-2 border-slate-700 p-2 text-[9px] text-cyan-400 uppercase outline-none"
                         >
-                            <option value="">ALL_CLASSES</option>
-                            <option v-for="group in classGroups" :key="group.id" :value="String(group.id)">
-                                {{ group.name }}
-                            </option>
+                            <option value="all">ALL_QUEST_TYPES</option>
+                            <option value="main">MAIN_QUEST</option>
+                            <option value="optional">OPTIONAL_QUEST</option>
                         </select>
                         <div class="flex gap-2">
                             <button type="submit"
@@ -308,6 +303,15 @@ const classLabelForQuest = (item) => {
 </template>
 
 <style scoped>
+.quest-type-filter,
+.quest-type-filter option {
+    font-size: 9px;
+}
+
+.quest-type-filter option {
+    padding: 4px 6px;
+}
+
 .rpg-panel {
     background-color: #1a1c2c;
     border-width: 4px;

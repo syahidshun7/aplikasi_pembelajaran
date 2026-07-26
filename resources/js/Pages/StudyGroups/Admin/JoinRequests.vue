@@ -123,20 +123,39 @@ const removeMember = async (member) => {
                 <div v-if="members.length === 0" class="border border-slate-800 bg-black/30 p-6 text-center text-[8px] uppercase text-slate-500">
                     No_Active_Member
                 </div>
-                <div v-else class="grid gap-3 md:grid-cols-2">
-                    <article v-for="member in members" :key="member.id" class="flex items-center justify-between gap-4 border border-slate-700 bg-black/35 p-4">
-                        <div class="min-w-0">
-                            <p class="break-words text-[10px] uppercase text-white">{{ member.username || member.name }}</p>
-                            <p class="mt-2 break-words font-sans text-[12px] text-slate-500">{{ member.email }}</p>
-                        </div>
-                        <button
-                            type="button"
-                            class="shrink-0 border border-red-600 px-3 py-2 text-[8px] uppercase text-red-400 hover:bg-red-600 hover:text-white"
-                            @click="removeMember(member)"
-                        >
-                            Remove
-                        </button>
-                    </article>
+                <div v-else class="overflow-x-auto border border-slate-700 bg-black/25">
+                    <table class="min-w-full border-collapse">
+                        <thead>
+                            <tr class="border-b-2 border-slate-700 bg-slate-950/70 text-left text-[8px] uppercase text-slate-400">
+                                <th class="w-[64px] p-3 text-center">No</th>
+                                <th class="min-w-[180px] p-3">Username</th>
+                                <th class="min-w-[240px] p-3">Nama_Lengkap</th>
+                                <th class="min-w-[300px] p-3">Email</th>
+                                <th class="w-[130px] p-3 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="(member, index) in members"
+                                :key="member.id"
+                                class="border-b border-slate-800/80 transition-colors last:border-b-0 hover:bg-cyan-500/5"
+                            >
+                                <td class="p-3 text-center text-[8px] text-slate-500">{{ index + 1 }}</td>
+                                <td class="p-3 text-[9px] uppercase text-cyan-300">@{{ member.username || 'user' }}</td>
+                                <td class="p-3 font-sans text-[13px] font-semibold text-white">{{ member.name }}</td>
+                                <td class="p-3 font-sans text-[12px] text-slate-400">{{ member.email }}</td>
+                                <td class="p-3 text-right">
+                                    <button
+                                        type="button"
+                                        class="border border-red-600 px-3 py-2 text-[8px] uppercase text-red-400 hover:bg-red-600 hover:text-white"
+                                        @click="removeMember(member)"
+                                    >
+                                        Remove
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
         </div>

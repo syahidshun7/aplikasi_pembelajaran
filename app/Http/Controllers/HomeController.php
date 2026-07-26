@@ -33,8 +33,7 @@ class HomeController extends Controller
     $userId = Auth::id();
     $user = Auth::user();
     $userJobId = $user?->job_id;
-    $isStaffPlayMode = (bool) $user?->isStaffPlayMode();
-    $canManageMembership = $user && (! $isStaffPlayMode || (bool) $user->isMentor());
+    $canManageMembership = $user && ! $user->isStaff();
     if ($user) {
         $user->loadMissing('job:id,name');
     }

@@ -221,7 +221,7 @@ class StudyGroupController extends Controller
     {
         if (! $this->canManageStudentMembership($request->user())) {
             return back()->withErrors([
-                'study_group_uuid' => 'Staff play mode admin tidak bisa join kelas student.',
+                'study_group_uuid' => 'Akun staff tidak menggunakan membership kelas student.',
             ]);
         }
 
@@ -293,7 +293,7 @@ class StudyGroupController extends Controller
     {
         if (! $this->canManageStudentMembership(Auth::user())) {
             return back()->withErrors([
-                'study_group_uuid' => 'Staff play mode admin tidak memakai membership kelas student.',
+                'study_group_uuid' => 'Akun staff tidak menggunakan membership kelas student.',
             ]);
         }
 
@@ -309,11 +309,7 @@ class StudyGroupController extends Controller
             return false;
         }
 
-        if (! $user->isStaffPlayMode()) {
-            return true;
-        }
-
-        return $user->isMentor();
+        return ! $user->isStaff();
     }
 
     private function serializeClassRoadmap(DoopLabRoadmap $roadmap): array

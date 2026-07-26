@@ -31,7 +31,6 @@ const dailyQuestStatusClassMap = {
     expired: 'daily-claim-card__activity-status--expired',
 };
 
-const dailyQuestSummary = computed(() => props.dailyQuestBoard?.summary ?? {});
 const dailyQuestItems = computed(() => {
     return Array.isArray(props.dailyQuestBoard?.items) ? props.dailyQuestBoard.items : [];
 });
@@ -159,48 +158,13 @@ const partyLabelForQuest = (quest) => {
             class="daily-claim-card"
         >
             <div class="daily-claim-card__header">
-                <div>
-                    <p class="daily-claim-card__eyebrow">Daily Quest</p>
-                    <h3 class="daily-claim-card__title">Reward Claim Board</h3>
-                    <p class="daily-claim-card__copy">
-                        {{ claimableDailyQuestCount > 0
-                            ? `${claimableDailyQuestCount} reward siap di-claim hari ini.`
-                            : 'Belum ada reward yang siap di-claim. Selesaikan aktivitas harian dulu.' }}
-                    </p>
-                </div>
-
-                <div class="daily-claim-card__count-shell">
-                    <span class="daily-claim-card__count-label">Claimable</span>
-                    <strong class="daily-claim-card__count">{{ claimableDailyQuestCount }}</strong>
-                </div>
-            </div>
-
-            <div class="daily-claim-card__meta-grid">
-                <div class="daily-claim-card__meta">
-                    <span class="daily-claim-card__meta-label">Completed</span>
-                    <strong class="daily-claim-card__meta-value text-cyan-200">
-                        {{ dailyQuestSummary.completed || 0 }}/{{ dailyQuestSummary.total || 0 }}
-                    </strong>
-                </div>
-                <div class="daily-claim-card__meta">
-                    <span class="daily-claim-card__meta-label">Claimed Today</span>
-                    <strong class="daily-claim-card__meta-value text-emerald-200">
-                        +{{ dailyQuestSummary.today_claimed_exp || 0 }} EXP / +{{ dailyQuestSummary.today_claimed_gold || 0 }} GOLD
-                    </strong>
-                </div>
+                <h3 class="daily-claim-card__title">Daily Quest</h3>
+                <span v-if="claimableDailyQuestCount > 0" class="daily-claim-card__activities-count">
+                    {{ claimableDailyQuestCount }} Ready_To_Claim
+                </span>
             </div>
 
             <div v-if="dailyQuestItems.length > 0" class="daily-claim-card__activities">
-                <div class="daily-claim-card__activities-header">
-                    <div>
-                        <p class="daily-claim-card__activities-eyebrow">Aktivitas Hari Ini</p>
-                        <h4 class="daily-claim-card__activities-title">Objective & Claim List</h4>
-                    </div>
-                    <span class="daily-claim-card__activities-count">
-                        {{ dailyQuestItems.length }} activity
-                    </span>
-                </div>
-
                 <div class="daily-claim-card__activities-list">
                     <article
                         v-for="quest in dailyQuestItems"
@@ -209,19 +173,17 @@ const partyLabelForQuest = (quest) => {
                     >
                         <div class="daily-claim-card__activity-top">
                             <div class="daily-claim-card__activity-main">
-                                <span class="daily-claim-card__objective-box">[ ]</span>
-                                <h5 class="daily-claim-card__activity-title">{{ quest.title }}</h5>
+                                <div>
+                                    <h5 class="daily-claim-card__activity-title">{{ quest.title }}</h5>
+                                    <span class="daily-claim-card__activity-progress-inline">
+                                        {{ progressText(quest) }}
+                                    </span>
+                                </div>
                             </div>
 
                             <div class="daily-claim-card__activity-side">
-                                <span
-                                    v-if="quest.is_claimable"
-                                    class="daily-claim-card__activity-reward"
-                                >
+                                <span class="daily-claim-card__activity-reward">
                                     +{{ quest.reward_exp }} EXP / +{{ quest.reward_gold }} GOLD
-                                </span>
-                                <span class="daily-claim-card__activity-progress-inline">
-                                    {{ progressText(quest) }}
                                 </span>
                                 <button
                                     v-if="quest.is_claimable"
@@ -432,47 +394,11 @@ const partyLabelForQuest = (quest) => {
 }
 
 .daily-claim-card__header {
-    @apply flex flex-col gap-4 border-b border-cyan-950/80 pb-4 md:flex-row md:items-start md:justify-between;
-}
-
-.daily-claim-card__eyebrow {
-    @apply text-[7px] uppercase tracking-[0.24em] text-cyan-300/80;
+    @apply flex flex-wrap items-center justify-between gap-3 border-b border-cyan-950/80 pb-3;
 }
 
 .daily-claim-card__title {
-    @apply mt-2 text-[10px] uppercase tracking-[0.18em] text-white;
-}
-
-.daily-claim-card__copy {
-    @apply mt-2 max-w-[520px] text-[7px] uppercase leading-relaxed tracking-[0.12em] text-slate-300;
-}
-
-.daily-claim-card__count-shell {
-    @apply flex min-w-[112px] flex-col border border-emerald-500/40 bg-emerald-500/10 px-3 py-3 text-left md:items-end md:text-right;
-}
-
-.daily-claim-card__count-label {
-    @apply text-[7px] uppercase tracking-[0.2em] text-emerald-200/70;
-}
-
-.daily-claim-card__count {
-    @apply mt-2 text-[18px] uppercase tracking-[0.14em] text-emerald-100;
-}
-
-.daily-claim-card__meta-grid {
-    @apply mt-4 grid gap-3 md:grid-cols-2;
-}
-
-.daily-claim-card__meta {
-    @apply border border-slate-700/80 bg-slate-950/40 px-3 py-3;
-}
-
-.daily-claim-card__meta-label {
-    @apply block text-[7px] uppercase tracking-[0.2em] text-slate-400;
-}
-
-.daily-claim-card__meta-value {
-    @apply mt-2 block text-[9px] uppercase tracking-[0.14em];
+    @apply text-[10px] uppercase tracking-[0.18em] text-white;
 }
 
 .daily-claim-card__action {
@@ -507,19 +433,7 @@ const partyLabelForQuest = (quest) => {
 }
 
 .daily-claim-card__activities {
-    @apply mt-5 border-t border-cyan-950/80 pt-4;
-}
-
-.daily-claim-card__activities-header {
-    @apply flex flex-col gap-3 md:flex-row md:items-center md:justify-between;
-}
-
-.daily-claim-card__activities-eyebrow {
-    @apply text-[7px] uppercase tracking-[0.22em] text-cyan-300/80;
-}
-
-.daily-claim-card__activities-title {
-    @apply mt-2 text-[9px] uppercase tracking-[0.16em] text-white;
+    @apply mt-3;
 }
 
 .daily-claim-card__activities-count {
@@ -527,7 +441,7 @@ const partyLabelForQuest = (quest) => {
 }
 
 .daily-claim-card__activities-list {
-    @apply mt-4 space-y-2;
+    @apply space-y-2;
 }
 
 .daily-claim-card__activity {
@@ -536,10 +450,6 @@ const partyLabelForQuest = (quest) => {
 
 .daily-claim-card__activity-top {
     @apply flex flex-col gap-3 md:flex-row md:items-center md:justify-between;
-}
-
-.daily-claim-card__objective-box {
-    @apply pt-[1px] text-[8px] uppercase tracking-[0.16em] text-cyan-100;
 }
 
 .daily-claim-card__activity-main {
@@ -559,7 +469,7 @@ const partyLabelForQuest = (quest) => {
 }
 
 .daily-claim-card__activity-progress-inline {
-    @apply text-[8px] uppercase tracking-[0.14em] text-cyan-200;
+    @apply mt-1 block text-[7px] uppercase tracking-[0.14em] text-cyan-200;
 }
 
 .daily-claim-card__activity-status {
