@@ -211,6 +211,134 @@ class AdminStudyGroupController extends Controller
         ]);
     }
 
+    public function studentDetail($uuid, $userId, StudyGroupStaffAccessService $access): Response
+    {
+        $group = StudyGroup::query()
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+
+        if (! $access->canAccess(auth()->user(), $group)) {
+            abort(403, 'STUDY_GROUP_STAFF_ACCESS_DENIED');
+        }
+
+        $student = $group->users()
+            ->whereNotIn('users.role', User::staffRoles())
+            ->where('users.id', (int) $userId)
+            ->firstOrFail([
+                'users.id',
+                'users.name',
+                'users.username',
+                'users.email',
+                'users.profile_photo',
+                'users.level',
+                'users.exp',
+                'users.gold',
+            ]);
+
+        $quests = \App\Models\Quest::query()
+            ->where('study_group_id', (int) $group->id)
+            ->orderByRaw("CASE WHEN quest_type = 'main' THEN 0 ELSE 1 END")
+            ->orderBy('title')
+            ->get(['id', 'uuid', 'title', 'quest_type', 'difficulty']);
+
+        $questIds = $quests->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $submissions = empty($questIds)
+            ? collect()
+            : \App\Models\Submission::query()
+                ->where('user_id', (int) $student->id)
+                ->whereIn('quest_id', $questIds)
+                ->orderByDesc('id')
+                ->get(['id', 'uuid', 'quest_id', 'grade', 'status', 'created_at'])
+                ->groupBy('quest_id');
+
+        $questHistory = $quests
+            ->filter(fn ($quest) => $submissions->has($quest->id))
+            ->map(function ($quest) use ($submissions) {
+                $attempts = $submissions->get($quest->id, collect());
+                $latest = $attempts->first();
+
+                return [
+                    'uuid' => (string) $quest->uuid,
+                    'title' => (string) $quest->title,
+                    'quest_type' => (string) $quest->quest_type,
+                    'difficulty' => (string) ($quest->difficulty ?? ''),
+                    'grade' => $latest?->grade !== null ? (int) $latest->grade : null,
+                    'status' => (string) ($latest?->status ?? ''),
+                    'attempts' => (int) $attempts->count(),
+                    'submitted_at' => $latest?->created_at?->toISOString(),
+                ];
+            })
+            ->values();
+
+        $mainQuestGrades = $questHistory
+            ->where('quest_type', \App\Models\Quest::TYPE_MAIN)
+            ->pluck('grade')
+            ->filter(fn ($grade) => $grade !== null);
+        $mainQuestAverage = $quests->where('quest_type', \App\Models\Quest::TYPE_MAIN)->count() > 0
+            ? round($mainQuestGrades->sum() / $quests->where('quest_type', \App\Models\Quest::TYPE_MAIN)->count(), 1)
+            : 0.0;
+
+        $events = Event::query()
+            ->where('study_group_id', (int) $group->id)
+            ->orderBy('starts_at')
+            ->orderBy('title')
+            ->get(['id', 'uuid', 'title', 'starts_at', 'ends_at']);
+        $attendanceByEvent = $events->isEmpty()
+            ? collect()
+            : EventAttendance::query()
+                ->where('user_id', (int) $student->id)
+                ->whereIn('event_id', $events->pluck('id'))
+                ->get()
+                ->keyBy('event_id');
+
+        $attendanceHistory = $events
+            ->map(function (Event $event) use ($attendanceByEvent) {
+                $attendance = $attendanceByEvent->get($event->id);
+
+                return [
+                    'uuid' => (string) $event->uuid,
+                    'title' => (string) $event->title,
+                    'starts_at' => $event->starts_at?->toISOString(),
+                    'status' => (string) ($attendance?->status ?? 'pending'),
+                    'checked_at' => $attendance?->checked_at?->toISOString(),
+                ];
+            })
+            ->values();
+
+        $attendancePercentage = $events->count() > 0
+            ? round(($attendanceHistory->where('status', 'present')->count() / $events->count()) * 100, 1)
+            : 0.0;
+        $performanceAverage = round(($attendancePercentage + $mainQuestAverage) / 2, 1);
+
+        return Inertia::render('StudyGroups/Admin/StudentDetail', [
+            'group' => [
+                'uuid' => (string) $group->uuid,
+                'name' => (string) $group->name,
+            ],
+            'student' => [
+                'id' => (int) $student->id,
+                'name' => (string) $student->name,
+                'username' => (string) ($student->username ?? ''),
+                'email' => (string) $student->email,
+                'profile_photo' => $student->profile_photo,
+                'level' => (int) ($student->level ?? 1),
+                'exp' => (int) ($student->exp ?? 0),
+                'gold' => (int) ($student->gold ?? 0),
+            ],
+            'summary' => [
+                'attendance_percentage' => $attendancePercentage,
+                'main_quest_average' => $mainQuestAverage,
+                'performance_average' => $performanceAverage,
+                'status' => $performanceAverage < 75 ? 'needs_attention' : 'safe',
+                'quests_completed' => (int) $questHistory->count(),
+                'total_main_quests' => (int) $quests->where('quest_type', \App\Models\Quest::TYPE_MAIN)->count(),
+                'events_total' => (int) $events->count(),
+            ],
+            'questHistory' => $questHistory,
+            'attendanceHistory' => $attendanceHistory,
+        ]);
+    }
+
     public function roadmaps($uuid, StudyGroupStaffAccessService $access): Response
     {
         $group = StudyGroup::query()

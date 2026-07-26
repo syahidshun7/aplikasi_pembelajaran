@@ -487,6 +487,7 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
     Route::get('/admin/study-groups/{uuid}/attendance', [AdminStudyGroupController::class, 'attendanceDashboard'])->name('groups.attendance');
     Route::get('/admin/study-groups/{uuid}/join-requests', [AdminStudyGroupController::class, 'joinRequests'])->name('groups.join-requests');
     Route::get('/admin/study-groups/{uuid}/roadmaps', [AdminStudyGroupController::class, 'roadmaps'])->name('groups.roadmaps');
+    Route::get('/admin/study-groups/{uuid}/students/{userId}', [AdminStudyGroupController::class, 'studentDetail'])->name('groups.students.detail');
     Route::get('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'detail'])->name('groups.detail');
     Route::get('/admin/study-groups/{groupUuid}/quests', [QuestController::class, 'index'])->name('groups.quests.index');
     Route::get('/admin/study-groups/{groupUuid}/guides', [AdminGuideController::class, 'index'])->name('groups.guides.index');
