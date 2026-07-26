@@ -77,7 +77,7 @@ const handleLogout = () => {
     <div data-app-surface="user" :data-theme="themeMode" class="user-navbar-theme-scope relative">
     <nav class="user-navbar-shell sticky top-0 z-50 flex items-center justify-between border-b-4 border-[var(--panel-border)] bg-[var(--panel)] p-4 text-[var(--text)] shadow-2xl md:bg-[var(--panel-soft)] md:backdrop-blur-sm md:px-8">
         <div class="flex items-center gap-4">
-            <Link :href="route('lobby')" class="group flex items-center gap-4" @click="closeMobileMenu">
+            <Link :href="isStaff ? route('admin.dashboard') : route('lobby')" class="group flex items-center gap-4" @click="closeMobileMenu">
                 <div class="user-navbar-brand-logo flex h-10 w-10 items-center justify-center overflow-hidden border-b-4 border-r-4 border-[var(--accent)] bg-[var(--bg)] transition-transform group-hover:scale-110">
                     <img src="/images/logo.png" alt="Logo" class="pixelated h-7 w-7 object-contain">
                 </div>
@@ -94,17 +94,17 @@ const handleLogout = () => {
                         {{ staffNavLabel }}
                     </Link>
 
-                    <Link :href="route('profile.dashboard')" class="nav-action nav-action--profile" @click="closeMobileMenu">
+                    <Link v-if="!isStaff" :href="route('profile.dashboard')" class="nav-action nav-action--profile" @click="closeMobileMenu">
                         <i class="fi fi-rr-user text-[10px] leading-none"></i>
                         Profile
                     </Link>
 
-                    <Link :href="route('shop.index')" class="nav-action nav-action--shop" @click="closeMobileMenu">
+                    <Link v-if="!isStaff" :href="route('shop.index')" class="nav-action nav-action--shop" @click="closeMobileMenu">
                         <i class="fi fi-rr-shopping-cart text-[10px] leading-none"></i>
                         Shop
                     </Link>
 
-                    <Link :href="route('inventory.index')" class="nav-action nav-action--inventory" @click="closeMobileMenu">
+                    <Link v-if="!isStaff" :href="route('inventory.index')" class="nav-action nav-action--inventory" @click="closeMobileMenu">
                         <i class="fi fi-rr-box-open text-[10px] leading-none"></i>
                         Inventory
                     </Link>
@@ -132,7 +132,7 @@ const handleLogout = () => {
                         <span class="sr-only">{{ themeActionLabel }}</span>
                     </button>
 
-                    <NotificationBell />
+                    <NotificationBell v-if="!isStaff" />
 
                     <button @click="handleLogout" class="nav-action nav-action--logout" type="button">
                         <span class="sr-only">Logout</span>
@@ -178,6 +178,7 @@ const handleLogout = () => {
                 </Link>
 
                 <Link
+                    v-if="!isStaff"
                     :href="route('profile.dashboard')"
                     class="nav-action nav-action--profile w-full justify-center"
                     @click="closeMobileMenu"
@@ -187,6 +188,7 @@ const handleLogout = () => {
                 </Link>
 
                 <Link
+                    v-if="!isStaff"
                     :href="route('shop.index')"
                     class="nav-action nav-action--shop w-full justify-center"
                     @click="closeMobileMenu"
@@ -196,6 +198,7 @@ const handleLogout = () => {
                 </Link>
 
                 <Link
+                    v-if="!isStaff"
                     :href="route('inventory.index')"
                     class="nav-action nav-action--inventory w-full justify-center"
                     @click="closeMobileMenu"
@@ -235,6 +238,7 @@ const handleLogout = () => {
                 </button>
 
                 <Link
+                    v-if="!isStaff"
                     :href="route('notifications.index')"
                     class="nav-action nav-action--notifications w-full justify-center"
                     @click="closeMobileMenu"

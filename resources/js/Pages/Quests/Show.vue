@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { useUserTheme } from '@/Composables/useUserTheme';
 
 const props = defineProps({
     quest: Object,
@@ -15,11 +16,26 @@ const props = defineProps({
     timeKeyQty: Number,
     isStaffPlayMode: Boolean,
     initialPlatformingProgress: Object,
+    previewMode: {
+        type: Boolean,
+        default: false,
+    },
+    previewSubmitUrl: {
+        type: String,
+        default: null,
+    },
+    backUrl: {
+        type: String,
+        default: null,
+    },
 });
 
 const existingStatus = computed(() => props.existingSubmission?.status || null);
 const canResubmitPending = computed(() => props.hasSubmitted && props.canSubmit && existingStatus.value === 'Pending');
 const canResubmitRejected = computed(() => props.hasSubmitted && props.canSubmit && existingStatus.value === 'Rejected');
+const questBackUrl = computed(() => props.backUrl || route('lobby'));
+const submitUrl = computed(() => props.previewSubmitUrl || route('submissions.store', props.quest.uuid));
+const { themeMode } = useUserTheme();
 
 const taskAnswersFromSubmission = computed(() => {
     const answers = props.existingSubmission?.scores_detail?.answers;
@@ -146,7 +162,7 @@ const saveGameState = async (force = false) => {
     
     localStorage.setItem(taskBankType.value === 'word_match' ? wmGameStateKey.value : pfGameStateKey.value, JSON.stringify(state));
 
-    if (force || (now - lastSyncTime > 3000)) {
+    if (!props.previewMode && (force || (now - lastSyncTime > 3000))) {
         lastSyncTime = now;
         try {
             const payload = taskBankType.value === 'word_match' 
@@ -381,7 +397,7 @@ const wmSubmitGame = (isTimeout = false) => {
         wmResults.value.forEach(r => {
             form.task_answers[r.uuid] = JSON.stringify({ placed: r.placed, correct_count: r.correct_count, total: r.total, timeout: r.timeout, complete: r.complete });
         });
-        setTimeout(() => { form.post(route('submissions.store', props.quest.uuid), { preserveScroll: true }); }, 2000);
+        setTimeout(() => { form.post(submitUrl.value, { preserveScroll: true }); }, 2000);
     }
 };
 
@@ -390,7 +406,7 @@ const submitFinalGamePayload = (type, extra = {}) => {
     taskQuestions.value.filter(q => q.question_type === 'platforming').forEach(q => {
         form.task_answers[q.uuid] = JSON.stringify(payload);
     });
-    setTimeout(() => { form.post(route('submissions.store', props.quest.uuid), { preserveScroll: true }); }, 2000);
+    setTimeout(() => { form.post(submitUrl.value, { preserveScroll: true }); }, 2000);
 };
 
 const submitReport = () => {
@@ -420,7 +436,7 @@ const submitReport = () => {
         return;
     }
 
-    form.post(route('submissions.store', props.quest.uuid), {
+    form.post(submitUrl.value, {
         preserveScroll: true,
         onSuccess: () => {
             clearDraft();
@@ -482,10 +498,10 @@ const unlockLateQuest = () => {
                             <!-- Header -->
                             <div class="shrink-0 flex items-center justify-between px-3 py-2 border-b border-cyan-300/20 bg-slate-950/90 relative z-30">
                                 <div class="flex items-center gap-2 shrink-0">
-                                    <Link :href="route('lobby')" class="text-rose-400 hover:text-rose-300 text-[8px] border border-rose-500/30 px-2 py-1 pf-bevel-xs bg-rose-500/5 font-bold uppercase">✕ EXIT</Link>
+                                    <Link :href="questBackUrl" class="text-rose-400 hover:text-rose-300 text-[8px] border border-rose-500/30 px-2 py-1 pf-bevel-xs bg-rose-500/5 font-bold uppercase">EXIT</Link>
                                     <div class="flex items-center gap-1 px-1.5 py-0.5 bg-black/40 border border-slate-800 pf-bevel-xs">
                                         <span class="w-1 h-1 rounded-full bg-red-500 animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.8)]"></span>
-                                        <span class="text-[7px] text-red-400 font-bold uppercase tracking-tighter">Live</span>
+                                        <span class="text-[7px] text-red-400 font-bold uppercase tracking-tighter">{{ previewMode ? 'Preview' : 'Live' }}</span>
                                     </div>
                                 </div>
                                 <span class="hidden sm:block text-white text-[9px] font-bold truncate tracking-widest uppercase flex-1 text-center px-4">{{ quest.title }}</span>
@@ -662,7 +678,7 @@ const unlockLateQuest = () => {
                 <div v-else-if="hasSubmitted" class="h-full flex flex-col overflow-y-auto bg-slate-950 relative">
                     <!-- Header -->
                     <div class="shrink-0 px-4 py-3 border-b border-emerald-500/20 bg-slate-950/90 flex items-center justify-between relative z-10">
-                        <Link :href="route('lobby')" class="text-emerald-400 text-[9px] border border-emerald-500/30 px-3 py-1.5 font-bold uppercase hover:bg-emerald-500 hover:text-black transition-all">← Lobby</Link>
+                        <Link :href="questBackUrl" class="text-emerald-400 text-[9px] border border-emerald-500/30 px-3 py-1.5 font-bold uppercase hover:bg-emerald-500 hover:text-black transition-all">Back</Link>
                         <span class="text-emerald-400 text-[8px] font-bold uppercase tracking-wider">Selesai</span>
                     </div>
 
@@ -714,7 +730,7 @@ const unlockLateQuest = () => {
                 <!-- ACCESS DENIED -->
                 <div v-else class="h-full flex flex-col bg-slate-950/90">
                     <div class="shrink-0 p-3 border-b border-rose-300/20 bg-slate-950 flex items-center justify-between">
-                        <Link :href="route('lobby')" class="text-rose-400 text-[8px] border border-rose-500/30 px-3 py-1 pf-bevel-xs font-bold uppercase">✕ CANCEL</Link>
+                        <Link :href="questBackUrl" class="text-rose-400 text-[8px] border border-rose-500/30 px-3 py-1 pf-bevel-xs font-bold uppercase">CANCEL</Link>
                         <span class="text-white text-[10px] font-bold uppercase tracking-widest">ACCESS_DENIED: {{ quest.title }}</span>
                         <div class="bg-rose-500/10 border border-rose-500/30 px-2 py-1 pf-bevel-xs"><span class="text-rose-400 text-[8px] font-black uppercase">LOCKED</span></div>
                     </div>
@@ -734,13 +750,20 @@ const unlockLateQuest = () => {
         </div>
 
         <!-- NORMAL QUEST PAGE -->
-        <div v-else class="lobby-detail-page min-h-screen p-0 md:p-4 font-['Press_Start_2P'] text-[#4ed4d4] flex justify-center items-start">
+        <div
+            v-else
+            class="lobby-detail-page quest-page min-h-screen p-0 md:p-4 font-['Press_Start_2P'] text-[#4ed4d4] flex justify-center items-start"
+            :class="themeMode === 'light' ? 'quest-page--light' : 'quest-page--dark'"
+        >
             <Head :title="'DETAILS - ' + quest.title" />
             <div class="quest-shell w-full max-w-6xl border-4 border-slate-700 shadow-[20px_20px_0px_0px_rgba(0,0,0,0.5)] relative overflow-hidden" :style="questToneStyle">
                 <div class="quest-detail-header p-4 md:p-8 border-b-4 border-slate-700 bg-slate-900/50">
                     <div class="flex justify-between items-center gap-3 mb-4">
-                        <Link :href="route('lobby')" class="quest-back-button shrink-0 whitespace-nowrap border-2 border-slate-700 bg-slate-900/40 px-2 py-1.5 text-[7px] uppercase text-slate-300 hover:border-cyan-400 hover:text-white sm:px-2.5 sm:py-2 sm:text-[8px]">[ BACK_TO_LOBBY ]</Link>
+                        <Link :href="questBackUrl" class="quest-back-button shrink-0 whitespace-nowrap border-2 border-slate-700 bg-slate-900/40 px-2 py-1.5 text-[7px] uppercase text-slate-300 hover:border-cyan-400 hover:text-white sm:px-2.5 sm:py-2 sm:text-[8px]">{{ previewMode ? '[ BACK_TO_ADMIN_QUESTS ]' : '[ BACK_TO_LOBBY ]' }}</Link>
                         <span class="text-yellow-500 text-[11px]">REF_ID: #{{ quest.uuid.substring(0, 8) }}</span>
+                    </div>
+                    <div v-if="previewMode" class="mb-4 border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-[8px] uppercase leading-relaxed text-emerald-300">
+                        User_View_Simulation: submit tidak membuat submission, score, gold, atau exp.
                     </div>
                     <h1 class="text-lg md:text-2xl text-white uppercase tracking-tighter leading-tight">{{ quest.title }}</h1>
                 </div>
@@ -766,9 +789,14 @@ const unlockLateQuest = () => {
                                     </div>
                                     <p class="quest-question-text border-l-4 border-cyan-500 pl-4 font-sans text-[15px] font-semibold leading-7 text-slate-200 md:text-[16px]">{{ q.question_text }}</p>
                                     <div v-if="q.question_type === 'multiple_choice'" class="grid grid-cols-1 gap-2">
-                                        <label v-for="(opt, oi) in (q.options_json || [])" :key="oi" class="quest-answer-option flex items-center gap-3 border border-slate-700 px-3 py-3 cursor-pointer hover:border-cyan-500 transition-colors">
-                                            <input v-model="form.task_answers[q.uuid]" type="radio" :value="opt" class="accent-cyan-500">
-                                            <span class="text-[12px] text-slate-300 font-sans">{{ opt }}</span>
+                                        <label
+                                            v-for="(opt, oi) in (q.options_json || [])"
+                                            :key="oi"
+                                            class="quest-answer-option flex items-center gap-2 border border-slate-700 px-3 py-2 cursor-pointer hover:border-cyan-500 transition-colors"
+                                            :class="{ 'quest-answer-option--selected': form.task_answers[q.uuid] === opt }"
+                                        >
+                                            <input v-model="form.task_answers[q.uuid]" type="radio" :value="opt" class="quest-answer-radio accent-cyan-500">
+                                            <span class="quest-answer-label font-sans text-[12px] font-semibold">{{ opt }}</span>
                                         </label>
                                     </div>
                                     <textarea v-else v-model="form.task_answers[q.uuid]" class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[13px] outline-none" rows="3" placeholder="Jawaban..."></textarea>
@@ -816,6 +844,114 @@ const unlockLateQuest = () => {
 </template>
 
 <style scoped>
+.quest-page--dark {
+    color: #4ed4d4;
+}
+
+.quest-page--dark .quest-shell {
+    border-color: #334155 !important;
+    background: rgba(15, 23, 42, 0.92) !important;
+    color: #e2e8f0 !important;
+    box-shadow: 20px 20px 0 rgba(0, 0, 0, 0.5) !important;
+}
+
+.quest-page--dark .quest-detail-header {
+    border-bottom-color: #334155 !important;
+    background: rgba(15, 23, 42, 0.5) !important;
+}
+
+.quest-page--dark .quest-objective-card,
+.quest-page--dark .quest-question-card,
+.quest-page--dark .quest-submit-panel {
+    border-color: #334155 !important;
+    background: rgba(0, 0, 0, 0.28) !important;
+    color: #cbd5e1 !important;
+}
+
+.quest-page--dark .quest-question-text {
+    color: #e2e8f0 !important;
+}
+
+.quest-page--dark .quest-answer-option {
+    border-color: #334155 !important;
+    background: rgba(15, 23, 42, 0.5) !important;
+    color: #cbd5e1 !important;
+}
+
+.quest-page--dark .quest-answer-option:hover,
+.quest-page--dark .quest-answer-option--selected {
+    border-color: #22d3ee !important;
+    background: rgba(14, 116, 144, 0.24) !important;
+    box-shadow: inset 4px 0 0 #22d3ee, 0 0 0 1px rgba(34, 211, 238, 0.2) !important;
+}
+
+.quest-page--dark .quest-answer-label {
+    color: #e2e8f0 !important;
+}
+
+.quest-page--dark textarea,
+.quest-page--dark input:not([type='radio']):not([type='checkbox']):not([type='file']) {
+    border-color: #1e293b !important;
+    background: #0d1117 !important;
+    color: #f8fafc !important;
+}
+
+.quest-page--dark .quest-back-button {
+    border-color: #334155 !important;
+    background: rgba(15, 23, 42, 0.55) !important;
+    color: #cbd5e1 !important;
+}
+
+.quest-page--light .quest-shell {
+    border-color: #087f7f !important;
+    background: #f7f7f7 !important;
+    color: #202020 !important;
+}
+
+.quest-page--light .quest-detail-header {
+    border-bottom-color: #009999 !important;
+    background: linear-gradient(180deg, rgba(0, 153, 153, 0.1), rgba(247, 247, 247, 0.35)) !important;
+}
+
+.quest-page--light .quest-objective-card,
+.quest-page--light .quest-question-card,
+.quest-page--light .quest-submit-panel {
+    color: #202020 !important;
+}
+
+.quest-page--light .quest-answer-option {
+    min-height: 42px;
+    border-width: 2px !important;
+    border-color: #b8cccc !important;
+    background: #ffffff !important;
+    color: #202020 !important;
+}
+
+.quest-page--light .quest-answer-option:hover {
+    border-color: #009999 !important;
+    background: #eefafa !important;
+}
+
+.quest-page--light .quest-answer-option--selected {
+    border-color: #009999 !important;
+    background: #dff6f6 !important;
+    box-shadow: inset 5px 0 0 #009999, 0 8px 18px rgba(0, 153, 153, 0.12) !important;
+}
+
+.quest-page--light .quest-answer-label {
+    color: #202020 !important;
+}
+
+.quest-answer-radio {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+}
+
+.quest-answer-option--selected .quest-answer-label {
+    font-weight: 800;
+}
+
 .game-scene {
     --pf-nav-offset: 96px;
     font-family: 'Press Start 2P', 'VT323', ui-monospace, monospace;

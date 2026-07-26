@@ -21,6 +21,14 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    staffPreview: {
+        type: Boolean,
+        default: false,
+    },
+    backUrl: {
+        type: String,
+        default: null,
+    },
 });
 
 const selectedRoadmapUuid = ref(props.classRoadmaps[0]?.uuid || '');
@@ -268,14 +276,16 @@ const initials = (name) => {
             <div class="mx-auto max-w-6xl space-y-6">
                 <div class="flex flex-col gap-3 border-b-4 border-emerald-900 pb-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <p class="text-[8px] uppercase text-slate-500">Study_Group_Detail</p>
+                        <p class="text-[8px] uppercase text-slate-500">
+                            {{ staffPreview ? 'Study_Group_User_View_Preview' : 'Study_Group_Detail' }}
+                        </p>
                         <h1 class="mt-2 text-base uppercase tracking-widest text-white sm:text-xl">{{ group.name }}</h1>
                     </div>
                     <Link
-                        :href="route('groups.index')"
+                        :href="backUrl || route('groups.index')"
                         class="inline-flex items-center justify-center border-2 border-slate-700 bg-slate-900/40 px-3 py-2 text-[9px] uppercase text-slate-300 hover:border-emerald-400 hover:text-white sm:text-[10px]"
                     >
-                        [Back_to_Groups]
+                        {{ staffPreview ? '[Back_to_Admin_Group]' : '[Back_to_Groups]' }}
                     </Link>
                 </div>
 

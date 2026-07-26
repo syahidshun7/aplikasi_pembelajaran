@@ -41,6 +41,18 @@ class StudyGroup extends Model
             ->withTimestamps();
     }
 
+    public function staff()
+    {
+        return $this->belongsToMany(User::class, 'study_group_staff', 'study_group_id', 'user_id')
+            ->withPivot(['role_in_group', 'permissions', 'assigned_by'])
+            ->withTimestamps();
+    }
+
+    public function staffAccesses()
+    {
+        return $this->hasMany(StudyGroupStaff::class);
+    }
+
     public function usersWithArchivedMemberships()
     {
         return $this->belongsToMany(User::class, 'group_user')

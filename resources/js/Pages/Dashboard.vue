@@ -7,16 +7,28 @@ const props = defineProps({
     stats: Object,
     students: Object,
     helpUsers: Array,
+    accessibleGroups: {
+        type: Array,
+        default: () => [],
+    },
+    jobCommandItems: {
+        type: Array,
+        default: () => [],
+    },
     scope: Object,
 });
 
 const page = usePage();
-const isAdminAccess = computed(() => ['super_admin', 'admin'].includes(String(page.props?.auth?.user?.role || '').toLowerCase()));
-const isMentor = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase() === 'mentor');
+const currentRole = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase());
+const isSuperAdmin = computed(() => currentRole.value === 'super_admin');
+const isAdminAccess = computed(() => ['super_admin', 'admin'].includes(currentRole.value));
+const isMentor = computed(() => currentRole.value === 'mentor');
 const performanceTab = ref('all'); // all | help
 
 const studentItems = computed(() => props.students?.data || []);
 const studentLinks = computed(() => props.students?.links || []);
+const groupItems = computed(() => props.accessibleGroups || []);
+const jobItems = computed(() => props.jobCommandItems || []);
 
 // Helper untuk warna grade
 const getGradeColor = (grade) => {
@@ -41,7 +53,42 @@ const getRiskColor = (grade) => {
 
         <AdminNavbar />
 
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+        <div v-if="isSuperAdmin" class="grid grid-cols-2 gap-4 mb-8 md:grid-cols-4 xl:grid-cols-8">
+            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+                <p class="text-[7px] text-slate-500 uppercase italic mb-2">Jobs</p>
+                <div class="text-xl font-bold text-cyan-400">{{ stats?.total_jobs || 0 }}</div>
+            </div>
+            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+                <p class="text-[7px] text-slate-500 uppercase italic mb-2">Study_Groups</p>
+                <div class="text-xl font-bold text-emerald-400">{{ stats?.total_study_groups || 0 }}</div>
+            </div>
+            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+                <p class="text-[7px] text-slate-500 uppercase italic mb-2">Guides</p>
+                <div class="text-xl font-bold text-indigo-400">{{ stats?.total_guides || 0 }}</div>
+            </div>
+            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+                <p class="text-[7px] text-slate-500 uppercase italic mb-2">Quests</p>
+                <div class="text-xl font-bold text-yellow-400">{{ stats?.total_quests || 0 }}</div>
+            </div>
+            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+                <p class="text-[7px] text-slate-500 uppercase italic mb-2">Events</p>
+                <div class="text-xl font-bold text-blue-400">{{ stats?.total_events || 0 }}</div>
+            </div>
+            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+                <p class="text-[7px] text-slate-500 uppercase italic mb-2">Students</p>
+                <div class="text-xl font-bold text-cyan-400">{{ stats?.total_students || 0 }}</div>
+            </div>
+            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+                <p class="text-[7px] text-slate-500 uppercase italic mb-2">Pending</p>
+                <div class="text-xl font-bold text-red-500">{{ stats?.pending_verdicts || 0 }}</div>
+            </div>
+            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+                <p class="text-[7px] text-slate-500 uppercase italic mb-2">Graded_All</p>
+                <div class="text-xl font-bold text-emerald-400">{{ stats?.total_graded || 0 }}</div>
+            </div>
+        </div>
+
+        <div v-else class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
             <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
                 <p class="text-[8px] text-slate-500 uppercase italic mb-2">Total_Materi</p>
                 <div class="text-xl font-bold text-indigo-400">{{ stats?.total_materi || 0 }}</div>
@@ -64,9 +111,115 @@ const getRiskColor = (grade) => {
             </div>
         </div>
 
+        <section v-if="isSuperAdmin" class="rpg-panel border-cyan-500/40 bg-black/20">
+            <div class="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <h2 class="text-[12px] uppercase tracking-widest text-cyan-300">
+                        Job_Command
+                    </h2>
+                    <p class="mt-2 text-[8px] uppercase leading-relaxed text-slate-500">
+                        Super admin mulai dari job/program, lalu masuk ke study group dan operasional kelas.
+                    </p>
+                </div>
+                <Link
+                    :href="route('admin.jobs.index')"
+                    class="shrink-0 border border-cyan-500 px-3 py-2 text-[8px] uppercase text-cyan-300 hover:bg-cyan-400 hover:text-black"
+                >
+                    Manage_Jobs
+                </Link>
+            </div>
+
+            <div v-if="jobItems.length === 0" class="border border-slate-800 bg-slate-950/60 p-5 text-[8px] uppercase text-slate-500">
+                Belum ada job/program.
+            </div>
+
+            <div v-else class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <Link
+                    v-for="job in jobItems"
+                    :key="job.id"
+                    :href="job.detail_url"
+                    class="block border border-slate-700 bg-slate-950/60 p-4 transition-colors hover:border-cyan-400 hover:bg-cyan-950/20"
+                >
+                    <div class="mb-3 flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="break-words text-[10px] uppercase text-white">{{ job.name }}</p>
+                            <p class="mt-2 text-[7px] uppercase text-cyan-300">{{ job.slug }}</p>
+                        </div>
+                        <span class="shrink-0 border border-cyan-700 px-2 py-1 text-[7px] uppercase text-cyan-300">
+                            Open
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-[7px] uppercase text-slate-400">
+                        <span>Groups {{ job.study_groups_count }}</span>
+                        <span>Users {{ job.users_count }}</span>
+                        <span>Banks {{ job.task_banks_count }}</span>
+                    </div>
+                </Link>
+            </div>
+        </section>
+
+        <section v-if="!isSuperAdmin" class="rpg-panel border-emerald-500/40 bg-black/20">
+            <div class="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <h2 class="text-[12px] uppercase tracking-widest text-emerald-300">
+                        Study_Group_Command
+                    </h2>
+                    <p class="mt-2 text-[8px] uppercase leading-relaxed text-slate-500">
+                        {{ isMentor ? 'Pilih kelas yang diberikan ke akun mentor ini.' : 'Mulai operasional dari kelas, lalu quest/event/guide mengikuti konteks kelas.' }}
+                    </p>
+                </div>
+                <Link
+                    v-if="isAdminAccess"
+                    :href="route('groups.manage')"
+                    class="shrink-0 border border-emerald-500 px-3 py-2 text-[8px] uppercase text-emerald-300 hover:bg-emerald-400 hover:text-black"
+                >
+                    Manage_Access
+                </Link>
+            </div>
+
+            <div v-if="groupItems.length === 0" class="border border-slate-800 bg-slate-950/60 p-5 text-[8px] uppercase text-slate-500">
+                Belum ada study group yang bisa diakses akun ini.
+            </div>
+
+            <div v-else class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <article
+                    v-for="group in groupItems"
+                    :key="group.uuid"
+                    class="border border-slate-700 bg-slate-950/60 p-4 transition-colors hover:border-emerald-400 hover:bg-emerald-950/20"
+                >
+                    <div class="mb-3 flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="break-words text-[10px] uppercase text-white">{{ group.name }}</p>
+                            <p class="mt-2 text-[7px] uppercase text-cyan-300">{{ group.job?.name || 'No Job' }}</p>
+                        </div>
+                        <Link
+                            :href="group.detail_url"
+                            class="shrink-0 border border-emerald-700 px-2 py-1 text-[7px] uppercase text-emerald-300 hover:bg-emerald-400 hover:text-black"
+                        >
+                            Open
+                        </Link>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-[7px] uppercase text-slate-400">
+                        <span>Students {{ group.students_count }} / {{ group.max_members }}</span>
+                        <span>Staff {{ group.staff_count }}</span>
+                        <span>Quest {{ group.quests_count }}</span>
+                        <span>Event {{ group.events_count }}</span>
+                    </div>
+                    <div class="mt-4 border-t border-slate-800 pt-3">
+                        <Link
+                            :href="group.preview_url"
+                            class="inline-flex border border-cyan-600 bg-cyan-950/20 px-3 py-2 text-[7px] uppercase text-cyan-300 hover:bg-cyan-400 hover:text-black"
+                        >
+                            Preview_Group
+                        </Link>
+                    </div>
+                </article>
+            </div>
+        </section>
+
         <div class="grid grid-cols-12 gap-6">
 
-            <div class="col-span-12 lg:col-span-3 space-y-4">
+            <div v-if="isSuperAdmin" class="col-span-12 lg:col-span-3 space-y-4">
                 <div class="rpg-panel bg-slate-900/60 border-indigo-500/30">
                     <h2 class="text-white mb-6 border-b-2 border-slate-700 pb-2 uppercase text-center">Menu</h2>
                     <nav class="space-y-3">
@@ -128,17 +281,17 @@ const getRiskColor = (grade) => {
                 </div>
             </div>
 
-            <div class="col-span-12 lg:col-span-9 space-y-6">
+            <div class="col-span-12 space-y-6" :class="isSuperAdmin ? 'lg:col-span-9' : 'lg:col-span-12'">
                 <div class="grid grid-cols-12 gap-6">
-                    <div class="col-span-12 xl:col-span-7 space-y-6">
-                        <div class="rpg-panel min-h-[450px]">
+                    <div class="col-span-12 space-y-6" :class="isSuperAdmin ? 'xl:col-span-7' : 'xl:col-span-12'">
+                        <div v-if="!isMentor" class="rpg-panel min-h-[450px]">
                             <div class="flex flex-col md:flex-row md:justify-between md:items-start gap-3 mb-6 border-l-4 border-green-500 pl-3">
                                 <div class="min-w-0">
                                     <h3 class="text-green-400 uppercase tracking-widest text-[11px] md:text-[12px] break-words">
-                                        {{ isMentor ? 'Mentor_Performance_Console' : 'Student_Performance_Console' }}
+                                        Student_Performance_Console
                                     </h3>
                                     <p class="text-[7px] text-slate-500 mt-2 italic break-words">
-                                        {{ isMentor ? 'Scope: job-based. Review pending, help struggling students.' : 'Scope: global. Sorted by avg grade.' }}
+                                        Scope: global. Sorted by avg grade.
                                     </p>
                                 </div>
                                 <div class="flex flex-wrap gap-2 self-start md:self-auto shrink-0 md:justify-end md:pt-1">
@@ -255,7 +408,7 @@ const getRiskColor = (grade) => {
                         </div>
                     </div>
 
-                    <div class="col-span-12 xl:col-span-5 space-y-6">
+                    <div v-if="isSuperAdmin" class="col-span-12 xl:col-span-5 space-y-6">
                         <div class="rpg-panel border-cyan-500/30 bg-black/20">
                             <div class="flex items-center justify-between mb-4 border-b border-slate-700 pb-3">
                                 <h2 class="text-[10px] text-cyan-300 uppercase tracking-widest">Quick_Operations</h2>

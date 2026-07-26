@@ -142,7 +142,7 @@ const goToPage = (url) => {
     <Head :title="isStaff ? 'ADMIN_NOTIFICATIONS' : 'Notifications'" />
 
     <AuthenticatedLayout v-if="!isStaff">
-        <section class="space-y-6">
+        <section class="lobby-detail-page notification-page space-y-6">
             <div class="flex flex-col gap-3 border-b border-slate-800 pb-4 md:flex-row md:items-center md:justify-between">
                 <div>
                     <p class="text-[8px] uppercase tracking-[0.28em] text-cyan-400/80">Notification Center</p>
@@ -154,7 +154,7 @@ const goToPage = (url) => {
 
                 <button
                     type="button"
-                    class="nav-action nav-action--profile"
+                    class="notification-primary-action nav-action nav-action--profile"
                     :disabled="!canMarkAllRead"
                     :class="{ 'opacity-50 cursor-not-allowed': !canMarkAllRead }"
                     @click="markAllAsRead"
@@ -167,7 +167,7 @@ const goToPage = (url) => {
                 <article
                     v-for="notification in notificationItems"
                     :key="notification.id"
-                    class="border p-3 transition-colors hover:bg-white/[0.03]"
+                    class="notification-item-card border p-3 transition-colors hover:bg-white/[0.03]"
                     :class="panelAccentClass(notification.accent)"
                 >
                     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -209,7 +209,7 @@ const goToPage = (url) => {
 
                 <div
                     v-if="notificationItems.length === 0"
-                    class="border-2 border-dashed border-slate-700 bg-slate-900/40 p-10 text-center text-[10px] uppercase text-slate-500"
+                    class="notification-empty border-2 border-dashed border-slate-700 bg-slate-900/40 p-10 text-center text-[10px] uppercase text-slate-500"
                 >
                     Belum ada notifikasi untuk akun ini.
                 </div>
@@ -450,5 +450,61 @@ const goToPage = (url) => {
 
 .custom-scroll::-webkit-scrollbar-thumb:hover {
     background: #4ed4d4;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .notification-page {
+    color: #20242c;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .notification-page > div:first-child,
+:global([data-app-surface='user'][data-theme='light']) .notification-page > div:last-child {
+    border-color: #cbd5e1;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .notification-page .text-cyan-100,
+:global([data-app-surface='user'][data-theme='light']) .notification-page .text-slate-100 {
+    color: #20242c;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .notification-page .text-slate-300 {
+    color: #3f4858;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .notification-page .text-slate-500 {
+    color: #64748b;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .notification-page .text-cyan-300,
+:global([data-app-surface='user'][data-theme='light']) .notification-page .text-cyan-400\/80 {
+    color: #007f86;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .notification-page .text-amber-300 {
+    color: #9a5b00;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .notification-page .bg-black\/20 {
+    background: #eef3f5;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .notification-page .border-white\/10,
+:global([data-app-surface='user'][data-theme='light']) .notification-page .border-slate-700 {
+    border-color: #b8c4cf;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .notification-empty {
+    border-color: #aebbc7;
+    background: rgba(255, 255, 255, 0.72);
+    color: #64748b;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .notification-page button.border-slate-700 {
+    background: rgba(255, 255, 255, 0.82);
+    color: #334155;
+}
+
+:global([data-app-surface='user'][data-theme='light']) .notification-page button.border-slate-700:hover {
+    background: #dce6eb;
+    color: #111827;
 }
 </style>

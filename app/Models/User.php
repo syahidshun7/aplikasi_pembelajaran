@@ -80,6 +80,18 @@ public function studyGroups()
                 ->withTimestamps();
 }
 
+public function staffStudyGroups()
+{
+    return $this->belongsToMany(StudyGroup::class, 'study_group_staff', 'user_id', 'study_group_id')
+        ->withPivot(['role_in_group', 'permissions', 'assigned_by'])
+        ->withTimestamps();
+}
+
+public function studyGroupStaffAccesses()
+{
+    return $this->hasMany(StudyGroupStaff::class);
+}
+
 public function job()
 {
     return $this->belongsTo(JobRole::class, 'job_id');

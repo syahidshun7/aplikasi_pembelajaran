@@ -77,11 +77,7 @@ const handleLogout = () => {
         </button>
 
         <div class="hidden md:flex flex-wrap justify-center items-center gap-3 md:gap-4">
-            <Link :href="route('lobby')" 
-                  class="nav-item hover:text-white transition-colors">
-                USER_DASHBOARD
-            </Link>
-             <Link :href="route('dashboard')"
+            <Link :href="route('dashboard')"
                   class="nav-item hover:text-indigo-300 transition-colors">
                 ADMIN_DASHBOARD
             </Link>
@@ -89,6 +85,11 @@ const handleLogout = () => {
             <Link :href="route('dooplab.dashboard')"
                   class="nav-item hover:text-cyan-300 transition-colors text-cyan-500">
                 DOOPLAB
+            </Link>
+
+            <Link :href="route('hall.creations.index')"
+                  class="nav-item hover:text-emerald-300 transition-colors text-emerald-400">
+                HALL_OF_CREATIONS
             </Link>
 
             <NotificationBell variant="admin" />
@@ -102,6 +103,7 @@ const handleLogout = () => {
                     MENU
                 </button>
                 <div v-if="desktopMenuOpen" class="absolute right-0 mt-2 min-w-[220px] bg-[#0f101a] border-2 border-slate-700 shadow-xl p-2 z-[140]">
+                    <Link :href="route('admin.profile.edit')" class="dropdown-item text-emerald-400" @click="closeAllMenus">PROFILE</Link>
                     <Link href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
                     <Link :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
                     <Link :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
@@ -128,15 +130,16 @@ const handleLogout = () => {
             class="md:hidden absolute left-0 right-0 top-[calc(100%+8px)] bg-[#0f101a] border-2 border-slate-700 shadow-xl p-2 z-[140] mx-3"
         >
             <div class="grid grid-cols-1 gap-2">
-                <Link :href="route('lobby')" class="dropdown-item" @click="closeAllMenus">USER_DASHBOARD</Link>
                 <Link :href="route('dashboard')" class="dropdown-item" @click="closeAllMenus">ADMIN_DASHBOARD</Link>
                 <Link :href="route('dooplab.dashboard')" class="dropdown-item text-cyan-400" @click="closeAllMenus">DOOPLAB</Link>
+                <Link :href="route('hall.creations.index')" class="dropdown-item text-emerald-400" @click="closeAllMenus">HALL_OF_CREATIONS</Link>
                 <Link :href="route('notifications.index')" class="dropdown-item" @click="closeAllMenus">
                     NOTIFICATIONS
                     <span v-if="Number(page.props?.notificationCenter?.unread_count || 0) > 0" class="ml-2 text-cyan-300">
                         [{{ Number(page.props?.notificationCenter?.unread_count || 0) }}]
                     </span>
                 </Link>
+                <Link :href="route('admin.profile.edit')" class="dropdown-item text-emerald-400" @click="closeAllMenus">PROFILE</Link>
                 <Link href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
                 <Link :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
                 <Link :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;// Sesuaikan dengan folder Admin kamu
 use App\Http\Controllers\Controller;
 use App\Models\Guide;
 use App\Models\StudyGroup;
+use App\Services\StudyGroupStaffAccessService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -18,8 +19,11 @@ class AdminGuideController extends Controller
     /**
      * Menampilkan daftar materi (guides)
      */
-    public function index(Request $request)
+    public function index(Request $request, ?string $groupUuid = null)
     {
+        $scopedGroup = $this->resolveScopedStudyGroup($request, $groupUuid);
+        $this->abortNonSuperAdminGlobalIndex($request, $scopedGroup);
+
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'view' => ['nullable', 'in:active,trash'],
@@ -30,9 +34,10 @@ class AdminGuideController extends Controller
 
         $guideQuery = Guide::query()
             ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
-            ->with('studyGroup:id,name,job_id');
+            ->when($scopedGroup, fn ($query) => $query->where('study_group_id', (int) $scopedGroup->id))
+            ->with('studyGroup:id,uuid,name,job_id');
 
-        if ($this->isMentorUser()) {
+        if ($this->isMentorUser() && ! $scopedGroup) {
             $mentorJobId = $this->requireMentorJobId();
             $guideQuery->whereHas('studyGroup', function ($query) use ($mentorJobId) {
                 $query->withTrashed();
@@ -41,7 +46,10 @@ class AdminGuideController extends Controller
         }
 
         $studyGroupQuery = StudyGroup::query()->select('id', 'name')->orderBy('name');
-        if ($this->isMentorUser()) {
+        if ($scopedGroup) {
+            $studyGroupQuery->whereKey((int) $scopedGroup->id);
+        }
+        if ($this->isMentorUser() && ! $scopedGroup) {
             $studyGroupQuery->where('job_id', $this->requireMentorJobId());
         }
 
@@ -64,6 +72,13 @@ class AdminGuideController extends Controller
                 'search' => $search,
                 'view' => $view,
             ],
+            'selectedStudyGroup' => $scopedGroup ? [
+                'uuid' => (string) $scopedGroup->uuid,
+                'id' => (int) $scopedGroup->id,
+                'name' => (string) $scopedGroup->name,
+                'back_url' => route('groups.detail', $scopedGroup->uuid),
+                'guides_url' => route('groups.guides.index', $scopedGroup->uuid),
+            ] : null,
         ]);
     }
 
@@ -216,6 +231,36 @@ class AdminGuideController extends Controller
         return (bool) auth()->user()?->isMentor();
     }
 
+    private function resolveScopedStudyGroup(Request $request, ?string $groupUuid): ?StudyGroup
+    {
+        $groupUuid = trim((string) ($groupUuid ?? ''));
+        if ($groupUuid === '') {
+            return null;
+        }
+
+        $group = StudyGroup::query()->where('uuid', $groupUuid)->firstOrFail();
+        abort_unless(
+            app(StudyGroupStaffAccessService::class)->canAccess($request->user(), $group),
+            403,
+            'STUDY_GROUP_STAFF_ACCESS_DENIED'
+        );
+
+        return $group;
+    }
+
+    private function abortNonSuperAdminGlobalIndex(Request $request, ?StudyGroup $scopedGroup): void
+    {
+        if ($scopedGroup) {
+            return;
+        }
+
+        abort_unless(
+            (string) ($request->user()?->role ?? '') === \App\Models\User::ROLE_SUPER_ADMIN,
+            403,
+            'SUPER_ADMIN_ONLY_GLOBAL_GUIDE_INDEX'
+        );
+    }
+
     private function requireMentorJobId(): int
     {
         $jobId = (int) (auth()->user()?->job_id ?? 0);
@@ -229,12 +274,9 @@ class AdminGuideController extends Controller
             return;
         }
 
-        $mentorJobId = $this->requireMentorJobId();
-        $groupJobId = (int) StudyGroup::withTrashed()
-            ->whereKey((int) ($guide->study_group_id ?? 0))
-            ->value('job_id');
+        $group = StudyGroup::withTrashed()->find((int) ($guide->study_group_id ?? 0));
 
-        abort_unless($groupJobId === $mentorJobId, 403, 'MENTOR_CANNOT_ACCESS_GUIDE_OUTSIDE_JOB');
+        abort_unless($group && app(StudyGroupStaffAccessService::class)->canAccess(auth()->user(), $group), 403, 'MENTOR_CANNOT_ACCESS_GUIDE_OUTSIDE_GROUP');
     }
 
     private function assertMentorCanManageStudyGroupId(int $studyGroupId): void
@@ -243,18 +285,14 @@ class AdminGuideController extends Controller
             return;
         }
 
-        $mentorJobId = $this->requireMentorJobId();
-
         if ($studyGroupId <= 0) {
             abort(403, 'MENTOR_GUIDE_MUST_HAVE_STUDY_GROUP');
         }
 
-        $isAllowed = StudyGroup::query()
-            ->whereKey($studyGroupId)
-            ->where('job_id', $mentorJobId)
-            ->exists();
+        $group = StudyGroup::query()->find($studyGroupId);
+        $isAllowed = $group && app(StudyGroupStaffAccessService::class)->canAccess(auth()->user(), $group);
 
-        abort_unless($isAllowed, 403, 'MENTOR_CANNOT_MANAGE_GUIDE_OUTSIDE_JOB');
+        abort_unless($isAllowed, 403, 'MENTOR_CANNOT_MANAGE_GUIDE_OUTSIDE_GROUP');
     }
 
     private function normalizeGoogleDocsEmbedUrl(string $url): ?string

@@ -8,6 +8,7 @@ use App\Models\Event;
 use App\Models\EventAttendance;
 use App\Models\EventCheckInCode;
 use App\Models\StudyGroup;
+use App\Services\StudyGroupStaffAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -134,6 +135,42 @@ class UserEventController extends Controller
                 'check_in_code_available' => (bool) $activeCheckInCode,
                 'check_in_code_expires_at' => $activeCheckInCode?->expires_at?->toISOString(),
                 'qr_check_in_token' => trim((string) $request->query('check_in_token', '')),
+            ],
+        ]);
+    }
+
+    public function userPreview(Request $request, Event $event): Response
+    {
+        $this->authorizeStaffPreviewAccess($request, $event);
+
+        $event->load([
+            'studyGroup:id,uuid,name',
+            'job:id,name',
+            'images:id,event_id,path,sort_order',
+            'guides' => function ($q) {
+                $q->select('guides.id', 'guides.uuid', 'guides.title', 'guides.description', 'guides.file_path', 'guides.google_docs_embed_url', 'guides.study_group_id')
+                    ->with('studyGroup:id,name');
+            },
+            'quests' => function ($q) {
+                $q->select('quests.id', 'quests.uuid', 'quests.title', 'quests.description', 'quests.difficulty', 'quests.status', 'quests.deadline', 'quests.reward_gold', 'quests.reward_exp', 'quests.study_group_id')
+                    ->with('studyGroup:id,name');
+            },
+        ]);
+
+        return Inertia::render('Events/UserShow', [
+            'event' => $event,
+            'previewMode' => true,
+            'backUrl' => $event->studyGroup
+                ? route('groups.events.index', $event->studyGroup->uuid)
+                : route('admin.events.index'),
+            'userAttendance' => [
+                'status' => 'preview',
+                'checked_at' => null,
+                'can_self_attend' => false,
+                'can_code_attend' => false,
+                'check_in_code_available' => false,
+                'check_in_code_expires_at' => null,
+                'qr_check_in_token' => '',
             ],
         ]);
     }
@@ -280,6 +317,26 @@ class UserEventController extends Controller
         ) || in_array((int) $event->study_group_id, $userGroupIds, true);
 
         abort_unless($isAccessible, 403, 'EVENT_ACCESS_DENIED');
+    }
+
+    private function authorizeStaffPreviewAccess(Request $request, Event $event): void
+    {
+        $user = $request->user();
+
+        abort_unless($user?->isStaff(), 403, 'EVENT_PREVIEW_STAFF_ONLY');
+
+        if (! $event->study_group_id) {
+            abort_unless($user->isAdmin(), 403, 'GLOBAL_EVENT_PREVIEW_ADMIN_ONLY');
+            return;
+        }
+
+        $event->loadMissing('studyGroup');
+
+        abort_unless(
+            app(StudyGroupStaffAccessService::class)->canAccess($user, $event->studyGroup),
+            403,
+            'EVENT_PREVIEW_ACCESS_DENIED'
+        );
     }
 
     private function recordPresentAttendance(Event $event, EventAttendance $attendance, int $userId): void

@@ -12,6 +12,7 @@ use App\Models\Quest;
 use App\Models\StudyGroup;
 use App\Models\User;
 use App\Services\LmsNotificationService;
+use App\Services\StudyGroupStaffAccessService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -29,8 +30,11 @@ class AdminEventController extends Controller
 {
     private const MENTOR_JOB_REQUIRED_MESSAGE = 'Akun mentor wajib punya jurusan (job) sebelum mengelola event.';
 
-    public function index(Request $request): Response
+    public function index(Request $request, ?string $groupUuid = null): Response
     {
+        $scopedGroup = $this->resolveScopedStudyGroup($request, $groupUuid);
+        $this->abortNonSuperAdminGlobalIndex($request, $scopedGroup);
+
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'view' => ['nullable', 'in:active,trash'],
@@ -41,10 +45,11 @@ class AdminEventController extends Controller
 
         $eventsQuery = Event::query()
             ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
-            ->with(['studyGroup:id,name', 'job:id,name', 'images:id,event_id,path,sort_order'])
+            ->when($scopedGroup, fn ($query) => $query->where('study_group_id', (int) $scopedGroup->id))
+            ->with(['studyGroup:id,uuid,name', 'job:id,name', 'images:id,event_id,path,sort_order'])
             ->withCount(['guides', 'quests']);
 
-        if ($this->isMentorUser()) {
+        if ($this->isMentorUser() && ! $scopedGroup) {
             $mentorJobId = $this->requireMentorJobId();
             $eventsQuery->whereHas('studyGroup', function ($query) use ($mentorJobId) {
                 $query->withTrashed();
@@ -68,7 +73,10 @@ class AdminEventController extends Controller
             ->withQueryString();
 
         $studyGroupQuery = StudyGroup::query()->orderBy('name');
-        if ($this->isMentorUser()) {
+        if ($scopedGroup) {
+            $studyGroupQuery->whereKey((int) $scopedGroup->id);
+        }
+        if ($this->isMentorUser() && ! $scopedGroup) {
             $studyGroupQuery->where('job_id', $this->requireMentorJobId());
         }
 
@@ -80,6 +88,13 @@ class AdminEventController extends Controller
                 'search' => $search,
                 'view' => $view,
             ],
+            'selectedStudyGroup' => $scopedGroup ? [
+                'uuid' => (string) $scopedGroup->uuid,
+                'id' => (int) $scopedGroup->id,
+                'name' => (string) $scopedGroup->name,
+                'back_url' => route('groups.detail', $scopedGroup->uuid),
+                'events_url' => route('groups.events.index', $scopedGroup->uuid),
+            ] : null,
         ]);
     }
 
@@ -186,30 +201,30 @@ class AdminEventController extends Controller
         $this->assertMentorCanAccessEvent($event);
 
         $event->load([
-            'studyGroup:id,name',
+            'studyGroup:id,uuid,name',
             'job:id,name',
             'images:id,event_id,path,sort_order',
             'guides' => function ($q) {
                 $q->select('guides.id', 'guides.uuid', 'guides.title', 'guides.study_group_id')
-                    ->with('studyGroup:id,name');
+                    ->with('studyGroup:id,uuid,name');
             },
             'quests' => function ($q) {
                 $q->select('quests.id', 'quests.uuid', 'quests.title', 'quests.status', 'quests.deadline', 'quests.study_group_id')
-                    ->with('studyGroup:id,name');
+                    ->with('studyGroup:id,uuid,name');
             },
         ]);
 
         $groupId = $event->study_group_id;
 
         $availableGuides = Guide::query()
-            ->with('studyGroup:id,name')
+            ->with('studyGroup:id,uuid,name')
             ->when($groupId, function ($q) use ($groupId) {
                 $q->where(function ($w) use ($groupId) {
                     $w->whereNull('study_group_id')
                         ->orWhere('study_group_id', $groupId);
                 });
             })
-            ->when($this->isMentorUser(), function ($q) {
+            ->when($this->isMentorUser() && ! $event->study_group_id, function ($q) {
                 $mentorJobId = $this->requireMentorJobId();
                 $q->whereHas('studyGroup', function ($sq) use ($mentorJobId) {
                     $sq->where('job_id', $mentorJobId);
@@ -219,14 +234,14 @@ class AdminEventController extends Controller
             ->get(['id', 'uuid', 'title', 'study_group_id']);
 
         $availableQuests = Quest::query()
-            ->with('studyGroup:id,name')
+            ->with('studyGroup:id,uuid,name')
             ->when($groupId, function ($q) use ($groupId) {
                 $q->where(function ($w) use ($groupId) {
                     $w->whereNull('study_group_id')
                         ->orWhere('study_group_id', $groupId);
                 });
             })
-            ->when($this->isMentorUser(), function ($q) {
+            ->when($this->isMentorUser() && ! $event->study_group_id, function ($q) {
                 $mentorJobId = $this->requireMentorJobId();
                 $q->where(function ($w) use ($mentorJobId) {
                     $w->whereHas('studyGroup', function ($sg) use ($mentorJobId) {
@@ -250,7 +265,7 @@ class AdminEventController extends Controller
     {
         $this->assertMentorCanAccessEvent($event);
 
-        $event->load(['studyGroup:id,name', 'attendances']);
+        $event->load(['studyGroup:id,uuid,name', 'attendances']);
         $activeCheckInCode = EventCheckInCode::query()
             ->where('event_id', (int) $event->id)
             ->where('is_active', true)
@@ -520,6 +535,36 @@ class AdminEventController extends Controller
         return (bool) auth()->user()?->isMentor();
     }
 
+    private function resolveScopedStudyGroup(Request $request, ?string $groupUuid): ?StudyGroup
+    {
+        $groupUuid = trim((string) ($groupUuid ?? ''));
+        if ($groupUuid === '') {
+            return null;
+        }
+
+        $group = StudyGroup::query()->where('uuid', $groupUuid)->firstOrFail();
+        abort_unless(
+            app(StudyGroupStaffAccessService::class)->canAccess($request->user(), $group),
+            403,
+            'STUDY_GROUP_STAFF_ACCESS_DENIED'
+        );
+
+        return $group;
+    }
+
+    private function abortNonSuperAdminGlobalIndex(Request $request, ?StudyGroup $scopedGroup): void
+    {
+        if ($scopedGroup) {
+            return;
+        }
+
+        abort_unless(
+            (string) ($request->user()?->role ?? '') === \App\Models\User::ROLE_SUPER_ADMIN,
+            403,
+            'SUPER_ADMIN_ONLY_GLOBAL_EVENT_INDEX'
+        );
+    }
+
     private function requireMentorJobId(): int
     {
         $jobId = (int) (auth()->user()?->job_id ?? 0);
@@ -533,12 +578,9 @@ class AdminEventController extends Controller
             return;
         }
 
-        $mentorJobId = $this->requireMentorJobId();
-        $groupJobId = (int) StudyGroup::withTrashed()
-            ->whereKey((int) ($event->study_group_id ?? 0))
-            ->value('job_id');
+        $group = StudyGroup::withTrashed()->find((int) ($event->study_group_id ?? 0));
 
-        abort_unless($groupJobId === $mentorJobId, 403, 'MENTOR_CANNOT_ACCESS_EVENT_OUTSIDE_JOB');
+        abort_unless($group && app(StudyGroupStaffAccessService::class)->canAccess(auth()->user(), $group), 403, 'MENTOR_CANNOT_ACCESS_EVENT_OUTSIDE_GROUP');
     }
 
     private function assertMentorCanManageStudyGroupId(int $studyGroupId): void
@@ -547,17 +589,14 @@ class AdminEventController extends Controller
             return;
         }
 
-        $mentorJobId = $this->requireMentorJobId();
         if ($studyGroupId <= 0) {
             abort(403, 'MENTOR_EVENT_MUST_HAVE_STUDY_GROUP');
         }
 
-        $isAllowed = StudyGroup::query()
-            ->whereKey($studyGroupId)
-            ->where('job_id', $mentorJobId)
-            ->exists();
+        $group = StudyGroup::query()->find($studyGroupId);
+        $isAllowed = $group && app(StudyGroupStaffAccessService::class)->canAccess(auth()->user(), $group);
 
-        abort_unless($isAllowed, 403, 'MENTOR_CANNOT_MANAGE_EVENT_OUTSIDE_JOB');
+        abort_unless($isAllowed, 403, 'MENTOR_CANNOT_MANAGE_EVENT_OUTSIDE_GROUP');
     }
 
     private function normalizeEventAudiencePayload(array $validated): array

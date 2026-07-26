@@ -14,6 +14,7 @@ use App\Models\StudyGroup;
 use App\Models\UserInventory;
 use App\Models\UserInventoryLog;
 use App\Models\UserQuestUnlock;
+use App\Services\StudyGroupStaffAccessService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
@@ -85,7 +86,7 @@ class QuestController extends Controller
                     ->when($classGroupId > 0, function ($query) use ($classGroupId) {
                         $query->where('study_group_id', $classGroupId);
                     })
-                    ->with('studyGroup:id,name')
+                    ->with('studyGroup:id,uuid,name')
                     ->latest()
                     ->paginate($perPage, ['*'], 'page', $page);
 
@@ -175,8 +176,11 @@ class QuestController extends Controller
         ]);
     }
 
-    public function index(Request $request)
+    public function index(Request $request, ?string $groupUuid = null)
     {
+        $scopedGroup = $this->resolveScopedStudyGroup($request, $groupUuid);
+        $this->abortNonSuperAdminGlobalIndex($request, $scopedGroup);
+
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'view' => ['nullable', 'in:active,trash'],
@@ -187,6 +191,7 @@ class QuestController extends Controller
 
         $adminQuestQuery = Quest::query()
             ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
+            ->when($scopedGroup, fn ($query) => $query->where('study_group_id', (int) $scopedGroup->id))
             ->with([
                 'studyGroup' => function ($query) {
                     $query->withTrashed();
@@ -199,7 +204,7 @@ class QuestController extends Controller
                 },
             ]);
 
-        if ($this->isMentorUser()) {
+        if ($this->isMentorUser() && ! $scopedGroup) {
             $mentorJobId = $this->requireMentorJobId();
 
             $adminQuestQuery->where(function ($query) use ($mentorJobId) {
@@ -216,7 +221,10 @@ class QuestController extends Controller
         $studyGroupQuery = StudyGroup::query()
             ->with('job:id,name')
             ->select('id', 'name', 'job_id');
-        if ($this->isMentorUser()) {
+        if ($scopedGroup) {
+            $studyGroupQuery->whereKey((int) $scopedGroup->id);
+        }
+        if ($this->isMentorUser() && ! $scopedGroup) {
             $studyGroupQuery->where('job_id', $this->requireMentorJobId());
         }
 
@@ -262,6 +270,13 @@ class QuestController extends Controller
                 'search' => $search,
                 'view' => $view,
             ],
+            'selectedStudyGroup' => $scopedGroup ? [
+                'uuid' => (string) $scopedGroup->uuid,
+                'id' => (int) $scopedGroup->id,
+                'name' => (string) $scopedGroup->name,
+                'back_url' => route('groups.detail', $scopedGroup->uuid),
+                'quests_url' => route('groups.quests.index', $scopedGroup->uuid),
+            ] : null,
         ]);
     }
 
@@ -418,9 +433,28 @@ class QuestController extends Controller
     {
         $this->authorizeQuestAccessForCurrentUser($quest);
 
+        return $this->renderQuestShow($quest);
+    }
+
+    public function userPreview(Request $request, Quest $quest)
+    {
+        $this->authorizeQuestPreviewAccess($request, $quest);
+
+        return $this->renderQuestShow($quest, true);
+    }
+
+    public function previewSubmission(Request $request, Quest $quest)
+    {
+        $this->authorizeQuestPreviewAccess($request, $quest);
+
+        return back()->with('message', 'QUEST_PREVIEW_SUBMIT_SIMULATED');
+    }
+
+    private function renderQuestShow(Quest $quest, bool $previewMode = false)
+    {
         $userId = (int) auth()->id();
         $quest->load([
-            'studyGroup:id,name',
+            'studyGroup:id,uuid,name',
             'taskBank:id,uuid,name,assessment_type,duration',
             'taskBank.questions' => function ($query) {
                 $query->where('is_active', true)
@@ -480,19 +514,44 @@ class QuestController extends Controller
         $canSubmit = $canFirstSubmit || $canResubmitSubmission;
 
         $progressKey = "pf-game-state:{$userId}:" . ($quest->uuid ?: $quest->id);
-        $initialProgress = Cache::get($progressKey);
+        $initialProgress = $previewMode ? null : Cache::get($progressKey);
 
         return Inertia::render('Quests/Show', [
             'quest' => $quest,
-            'hasSubmitted' => !!$submission,
-            'existingSubmission' => $submission,
+            'hasSubmitted' => $previewMode ? false : !!$submission,
+            'existingSubmission' => $previewMode ? null : $submission,
             'isLate' => $isLate,
             'hasQuestUnlock' => $hasQuestUnlock,
-            'canSubmit' => $canSubmit,
+            'canSubmit' => $previewMode ? true : $canSubmit,
             'timeKeyQty' => $timeKeyQty,
             'isStaffPlayMode' => $isStaffPlayMode,
             'initialPlatformingProgress' => $initialProgress,
+            'previewMode' => $previewMode,
+            'previewSubmitUrl' => $previewMode ? route('quests.user-preview.submissions', $quest->uuid) : null,
+            'backUrl' => $previewMode && $quest->studyGroup
+                ? route('groups.quests.index', $quest->studyGroup->uuid)
+                : null,
         ]);
+    }
+
+    private function authorizeQuestPreviewAccess(Request $request, Quest $quest): void
+    {
+        $user = $request->user();
+
+        abort_unless($user?->isStaff(), 403, 'QUEST_PREVIEW_STAFF_ONLY');
+
+        $quest->loadMissing('studyGroup');
+
+        if (! $quest->studyGroup) {
+            abort_unless($user->isAdmin(), 403, 'GLOBAL_QUEST_PREVIEW_ADMIN_ONLY');
+            return;
+        }
+
+        abort_unless(
+            app(StudyGroupStaffAccessService::class)->canAccess($user, $quest->studyGroup),
+            403,
+            'QUEST_PREVIEW_STUDY_GROUP_ACCESS_DENIED'
+        );
     }
 
     public function savePlatformingProgress(Request $request, Quest $quest)
@@ -631,6 +690,36 @@ class QuestController extends Controller
         return (bool) auth()->user()?->isMentor();
     }
 
+    private function resolveScopedStudyGroup(Request $request, ?string $groupUuid): ?StudyGroup
+    {
+        $groupUuid = trim((string) ($groupUuid ?? ''));
+        if ($groupUuid === '') {
+            return null;
+        }
+
+        $group = StudyGroup::query()->where('uuid', $groupUuid)->firstOrFail();
+        abort_unless(
+            app(StudyGroupStaffAccessService::class)->canAccess($request->user(), $group),
+            403,
+            'STUDY_GROUP_STAFF_ACCESS_DENIED'
+        );
+
+        return $group;
+    }
+
+    private function abortNonSuperAdminGlobalIndex(Request $request, ?StudyGroup $scopedGroup): void
+    {
+        if ($scopedGroup) {
+            return;
+        }
+
+        abort_unless(
+            (string) ($request->user()?->role ?? '') === \App\Models\User::ROLE_SUPER_ADMIN,
+            403,
+            'SUPER_ADMIN_ONLY_GLOBAL_QUEST_INDEX'
+        );
+    }
+
     private function requireMentorJobId(): int
     {
         $jobId = (int) (auth()->user()?->job_id ?? 0);
@@ -652,7 +741,8 @@ class QuestController extends Controller
 
         $groupJobId = (int) ($quest->studyGroup?->job_id ?? 0);
         $taskJobId = (int) ($quest->taskBank?->job_role_id ?? 0);
-        $isAllowed = $groupJobId === $mentorJobId || $taskJobId === $mentorJobId;
+        $isAllowed = ($quest->studyGroup && app(StudyGroupStaffAccessService::class)->canAccess(auth()->user(), $quest->studyGroup))
+            || $taskJobId === $mentorJobId;
 
         abort_unless($isAllowed, 403, 'MENTOR_CANNOT_MANAGE_QUEST_OUTSIDE_JOB');
     }
@@ -674,14 +764,12 @@ class QuestController extends Controller
         }
 
         if ($studyGroupId > 0) {
-            $isValidGroup = StudyGroup::query()
-                ->whereKey($studyGroupId)
-                ->where('job_id', $mentorJobId)
-                ->exists();
+            $group = StudyGroup::query()->find($studyGroupId);
+            $isValidGroup = $group && app(StudyGroupStaffAccessService::class)->canAccess(auth()->user(), $group);
 
             if (! $isValidGroup) {
                 throw ValidationException::withMessages([
-                    'study_group_id' => 'Study group tidak sesuai dengan jurusan mentor.',
+                    'study_group_id' => 'Mentor tidak punya akses ke study group ini.',
                 ]);
             }
         }

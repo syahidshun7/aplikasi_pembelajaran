@@ -9,10 +9,13 @@ const props = defineProps({
     studyGroups: Array,
     jobRoles: Array,
     filters: Object,
+    selectedStudyGroup: Object,
 });
 const page = usePage();
 const isMentor = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase() === 'mentor');
 const firstStudyGroupId = computed(() => props.studyGroups?.[0]?.id ?? '');
+const isScopedGroup = computed(() => Boolean(props.selectedStudyGroup?.uuid));
+const indexRouteUrl = computed(() => props.selectedStudyGroup?.events_url || route('admin.events.index'));
 const studyGroupJobMap = computed(() => Object.fromEntries((props.studyGroups || []).map((group) => [String(group.id), group.job_id || ''])));
 
 const isEditing = ref(false);
@@ -68,6 +71,10 @@ const resetImageState = () => {
 };
 
 const applyMentorDefaultStudyGroup = () => {
+    if (isScopedGroup.value && props.selectedStudyGroup?.id && !form.study_group_id) {
+        form.study_group_id = props.selectedStudyGroup.id;
+        return;
+    }
     if (isMentor.value && !form.study_group_id) {
         form.study_group_id = firstStudyGroupId.value || '';
     }
@@ -102,6 +109,9 @@ const cancelEdit = () => {
     form.sequence_order = 1;
     form.self_attendance_enabled = false;
     resetImageState();
+    if (isScopedGroup.value && props.selectedStudyGroup?.id) {
+        form.study_group_id = props.selectedStudyGroup.id;
+    }
     applyMentorDefaultStudyGroup();
     showFormModal.value = false;
 };
@@ -236,7 +246,7 @@ const hardDeleteEvent = (uuid) => {
 };
 
 const applyFilters = () => {
-    router.get(route('admin.events.index'), filterForm.data(), {
+    router.get(indexRouteUrl.value, filterForm.data(), {
         preserveState: true,
         preserveScroll: true,
     });
@@ -281,6 +291,18 @@ onBeforeUnmount(() => {
     <div class="min-h-screen bg-[#0d1117] p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px] relative">
         <div class="max-w-7xl mx-auto space-y-8">
             <AdminNavbar />
+
+            <div v-if="isScopedGroup" class="border-2 border-blue-500/50 bg-blue-950/20 p-4">
+                <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <p class="text-[8px] uppercase text-blue-300">Study_Group_Context</p>
+                        <h1 class="mt-2 text-[13px] uppercase text-white">{{ selectedStudyGroup.name }}</h1>
+                    </div>
+                    <Link :href="selectedStudyGroup.back_url" class="border border-slate-600 px-3 py-2 text-[8px] uppercase text-slate-300 hover:text-white">
+                        Back_To_Group
+                    </Link>
+                </div>
+            </div>
 
             <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b-4 border-blue-900 pb-4">
                 <h1 class="text-base sm:text-xl uppercase tracking-widest animate-pulse">Events_Registry_System</h1>
@@ -344,7 +366,7 @@ onBeforeUnmount(() => {
                                         v-model="form.study_group_id"
                                         class="w-full bg-black border-2 border-slate-700 p-2 focus:border-blue-400 outline-none text-blue-300 uppercase"
                                     >
-                                        <option v-if="!isMentor" value="">NO_GROUP</option>
+                                        <option v-if="!isMentor && !isScopedGroup" value="">NO_GROUP</option>
                                         <option v-if="isMentor && !studyGroups.length" value="" disabled>NO_STUDY_GROUP_AVAILABLE</option>
                                         <option v-for="group in studyGroups" :key="group.id" :value="group.id">
                                             {{ group.name }}
@@ -553,6 +575,13 @@ onBeforeUnmount(() => {
                                         class="text-cyan-400 hover:text-white text-[8px] uppercase font-bold"
                                     >
                                         [Detail]
+                                    </Link>
+                                    <Link
+                                        v-if="!isTrashView"
+                                        :href="route('events.user-preview', event.uuid)"
+                                        class="text-blue-300 hover:text-white text-[8px] uppercase font-bold"
+                                    >
+                                        [User_View]
                                     </Link>
                                     <button
                                         v-if="!isTrashView"

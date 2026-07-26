@@ -8,10 +8,13 @@ const props = defineProps({
     materi: [Array, Object], // Data dari tabel 'guides'
     studyGroups: Array,
     filters: Object,
+    selectedStudyGroup: Object,
 });
 const page = usePage();
 const isMentor = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase() === 'mentor');
 const firstStudyGroupId = computed(() => props.studyGroups?.[0]?.id ?? null);
+const isScopedGroup = computed(() => Boolean(props.selectedStudyGroup?.uuid));
+const indexRouteUrl = computed(() => props.selectedStudyGroup?.guides_url || route('materi.index'));
 
 // State untuk UI
 const isEditing = ref(false);
@@ -98,7 +101,7 @@ const goToPage = (url) => {
 };
 
 const applySearch = () => {
-    router.get(route('materi.index'), searchForm.data(), {
+    router.get(indexRouteUrl.value, searchForm.data(), {
         preserveState: true,
         preserveScroll: true,
     });
@@ -151,7 +154,7 @@ const cancelEdit = () => {
     isEditing.value = false;
     editId.value = null;
     form.reset();
-    form.study_group_id = isMentor.value ? firstStudyGroupId.value : null;
+    form.study_group_id = isScopedGroup.value ? props.selectedStudyGroup.id : (isMentor.value ? firstStudyGroupId.value : null);
     form.content_source = 'file';
     form.google_docs_url = '';
     form.file = null;
@@ -289,6 +292,10 @@ watch(() => usePage().props.flash, (flash) => {
 }, { deep: true });
 
 watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
+    if (isScopedGroup.value && props.selectedStudyGroup?.id && !form.study_group_id) {
+        form.study_group_id = props.selectedStudyGroup.id;
+        return;
+    }
     if (mentor && !form.study_group_id) {
         form.study_group_id = firstGroup;
     }
@@ -303,6 +310,18 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
         <div class="max-w-7xl mx-auto space-y-8">
 
             <AdminNavbar />
+
+            <div v-if="isScopedGroup" class="border-2 border-indigo-500/50 bg-indigo-950/20 p-4">
+                <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <p class="text-[8px] uppercase text-indigo-300">Study_Group_Context</p>
+                        <h1 class="mt-2 text-[13px] uppercase text-white">{{ selectedStudyGroup.name }}</h1>
+                    </div>
+                    <Link :href="selectedStudyGroup.back_url" class="border border-slate-600 px-3 py-2 text-[8px] uppercase text-slate-300 hover:text-white">
+                        Back_To_Group
+                    </Link>
+                </div>
+            </div>
 
             <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b-4 border-indigo-900 pb-4">
                 <h1 class="text-base sm:text-xl uppercase tracking-widest animate-pulse">Guide_Library_System</h1>
@@ -351,7 +370,7 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                                 <label class="block mb-2 text-white">ASSIGN_TO_PARTY:</label>
                                 <select v-model="form.study_group_id"
                                     class="w-full bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-emerald-400 uppercase">
-                                    <option v-if="!isMentor" :value="null">-- GLOBAL_GUIDE (PUBLIC) --</option>
+                                    <option v-if="!isMentor && !isScopedGroup" :value="null">-- GLOBAL_GUIDE (PUBLIC) --</option>
                                     <option v-if="isMentor && !studyGroups.length" :value="null" disabled>-- NO_STUDY_GROUP_AVAILABLE --</option>
                                     <option v-for="group in studyGroups" :key="group.id" :value="group.id">
                                         >> PARTY: {{ group.name }}
@@ -496,8 +515,8 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                                 </div>
 
                                 <div class="flex gap-4 self-end mt-2">
-                                    <Link v-if="canPreviewAsUser" :href="route('guides.user.show', item.uuid)"
-                                        class="text-cyan-400 hover:text-white text-[8px] uppercase font-bold">[View]</Link>
+                                    <Link v-if="canPreviewAsUser && !isTrashView" :href="route('guides.user-preview', item.uuid)"
+                                        class="text-cyan-400 hover:text-white text-[8px] uppercase font-bold">[User_View]</Link>
                                     <button v-if="!isTrashView" @click="startEdit(item)"
                                         class="text-green-500 hover:text-white text-[8px] uppercase font-bold">[Edit]</button>
                                     <button v-if="!isTrashView" @click="confirmDelete(item.uuid)"

@@ -306,6 +306,12 @@ const statusClass = (status) => {
                                 </div>
 
                                 <div class="flex gap-4 self-end mt-2">
+                                    <Link
+                                        :href="route('admin.jobs.show', job.id)"
+                                        class="text-cyan-400 hover:text-white text-[8px] uppercase font-bold"
+                                    >
+                                        [Open]
+                                    </Link>
                                     <button
                                         @click="startEdit(job)"
                                         class="text-green-500 hover:text-white text-[8px] uppercase font-bold"

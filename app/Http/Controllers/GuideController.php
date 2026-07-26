@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Guide;
 use App\Models\StudyGroup;
+use App\Services\StudyGroupStaffAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -90,6 +91,20 @@ class GuideController extends Controller
         ]);
     }
 
+    public function userPreview(Request $request, Guide $guide): Response
+    {
+        $this->authorizeStaffPreviewAccess($request, $guide);
+        $guide->load('studyGroup:id,uuid,name');
+
+        return Inertia::render('Guide/UserShow', [
+            'guide' => $guide,
+            'previewMode' => true,
+            'backUrl' => $guide->studyGroup
+                ? route('groups.guides.index', $guide->studyGroup->uuid)
+                : route('materi.index'),
+        ]);
+    }
+
     private function authorizeGuideAccessForCurrentUser(Guide $guide): void
     {
         if (! $guide->study_group_id) {
@@ -118,6 +133,26 @@ class GuideController extends Controller
             in_array((int) $guide->study_group_id, $userGroupIds, true),
             403,
             'GUIDE_ACCESS_DENIED'
+        );
+    }
+
+    private function authorizeStaffPreviewAccess(Request $request, Guide $guide): void
+    {
+        $user = $request->user();
+
+        abort_unless($user?->isStaff(), 403, 'GUIDE_PREVIEW_STAFF_ONLY');
+
+        if (! $guide->study_group_id) {
+            abort_unless($user->isAdmin(), 403, 'GLOBAL_GUIDE_PREVIEW_ADMIN_ONLY');
+            return;
+        }
+
+        $guide->loadMissing('studyGroup');
+
+        abort_unless(
+            app(StudyGroupStaffAccessService::class)->canAccess($user, $guide->studyGroup),
+            403,
+            'GUIDE_PREVIEW_ACCESS_DENIED'
         );
     }
 }

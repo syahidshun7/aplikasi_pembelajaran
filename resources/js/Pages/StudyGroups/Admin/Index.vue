@@ -9,6 +9,9 @@ const props = defineProps({
     filters: Object,
     jobs: Array,
 });
+const page = usePage();
+const currentRole = computed(() => String(page.props?.auth?.user?.role || '').toLowerCase());
+const canManageGroups = computed(() => ['super_admin', 'admin'].includes(currentRole.value));
 
 // INITIALIZE SWEETALERT TOAST
 const Toast = Swal.mixin({
@@ -211,6 +214,7 @@ const goToPage = (url) => {
                 <h1 class="text-base sm:text-xl uppercase tracking-widest animate-pulse">Party_Registry_System</h1>
                 <div class="flex items-center gap-2">
                     <button
+                        v-if="canManageGroups"
                         type="button"
                         @click="openCreateModal"
                         class="inline-flex items-center justify-center px-3 py-2 border border-emerald-500 bg-emerald-900/20 text-emerald-300 hover:bg-emerald-500 hover:text-black transition-colors uppercase text-[9px] sm:text-[10px]"
@@ -356,15 +360,16 @@ const goToPage = (url) => {
                                 </div>
 
                                 <div class="flex gap-4 self-end mt-2">
+                                    <span class="text-slate-500 text-[8px] uppercase font-bold">[Staff: {{ g.staff_count || 0 }}]</span>
                                     <Link v-if="!isTrashView" :href="route('groups.detail', g.uuid)"
                                         class="text-cyan-400 hover:text-white text-[8px] uppercase font-bold">[Detail]</Link>
-                                    <button v-if="!isTrashView" @click="startEdit(g)"
+                                    <button v-if="!isTrashView && canManageGroups" @click="startEdit(g)"
                                         class="text-emerald-500 hover:text-white text-[8px] uppercase font-bold">[Edit]</button>
-                                    <button v-if="!isTrashView" @click="confirmAbort(g.uuid)"
+                                    <button v-if="!isTrashView && canManageGroups" @click="confirmAbort(g.uuid)"
                                         class="text-red-500 hover:text-white text-[8px] uppercase font-bold">[Purge]</button>
-                                    <button v-if="isTrashView" @click="restoreGroup(g.uuid)"
+                                    <button v-if="isTrashView && canManageGroups" @click="restoreGroup(g.uuid)"
                                         class="text-emerald-400 hover:text-white text-[8px] uppercase font-bold">[Restore]</button>
-                                    <button v-if="isTrashView" @click="hardDeleteGroup(g.uuid)"
+                                    <button v-if="isTrashView && canManageGroups" @click="hardDeleteGroup(g.uuid)"
                                         class="text-red-500 hover:text-white text-[8px] uppercase font-bold">[Hard_Delete]</button>
                                 </div>
                             </div>

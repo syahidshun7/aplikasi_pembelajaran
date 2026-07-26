@@ -5,6 +5,14 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 
 const props = defineProps({
     guide: Object,
+    previewMode: {
+        type: Boolean,
+        default: false,
+    },
+    backUrl: {
+        type: String,
+        default: null,
+    },
 });
 
 const normalizedDescription = computed(() => {
@@ -106,6 +114,9 @@ const guideClassLabel = computed(() => {
     const name = String(props.guide?.study_group?.name || '').trim();
     return name !== '' ? name : `#${props.guide.study_group_id}`;
 });
+
+const backHref = computed(() => props.backUrl || route('guides.user.index'));
+const backLabel = computed(() => props.previewMode ? '[Back_to_Admin_Guides]' : '[Back_to_Guides]');
 </script>
 
 <template>
@@ -118,18 +129,23 @@ const guideClassLabel = computed(() => {
                     <h1 class="text-base sm:text-lg md:text-xl uppercase tracking-widest">Guide_Detail</h1>
                     <div class="flex items-center gap-2">
                         <Link
-                            :href="route('guides.user.index')"
+                            :href="backHref"
                             class="inline-flex items-center justify-center px-3 py-2 border-2 border-slate-700 bg-slate-900/40 text-slate-300 hover:text-white hover:border-cyan-400 uppercase text-[9px] sm:text-[10px] whitespace-nowrap"
                         >
-                            [Back_to_Guides]
+                            {{ backLabel }}
                         </Link>
                         <Link
+                            v-if="!previewMode"
                             :href="route('lobby')"
                             class="inline-flex items-center justify-center px-3 py-2 border-2 border-slate-700 bg-slate-900/40 text-slate-300 hover:text-white hover:border-cyan-400 uppercase text-[9px] sm:text-[10px] whitespace-nowrap"
                         >
                             [Back_to_Home]
                         </Link>
                     </div>
+                </div>
+
+                <div v-if="previewMode" class="border border-cyan-500/50 bg-cyan-950/30 px-4 py-3 text-[8px] uppercase text-cyan-200">
+                    User_View_Simulation: mode baca admin aktif, tidak membuka akses navigasi user.
                 </div>
 
                 <div class="rpg-panel border-indigo-700/70 space-y-6" :style="guideToneStyle">
