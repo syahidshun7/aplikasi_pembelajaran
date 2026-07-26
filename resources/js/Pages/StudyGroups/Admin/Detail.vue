@@ -190,7 +190,10 @@ const removeStaff = (staff) => {
                             <tr
                                 v-for="student in studentDashboard"
                                 :key="student.id"
-                                class="border-b border-slate-800/80 hover:bg-white/5"
+                                class="cursor-pointer border-b border-slate-800/80 hover:bg-cyan-500/10"
+                                tabindex="0"
+                                @click="router.visit(route('groups.students.detail', { uuid: group.uuid, userId: student.id }))"
+                                @keydown.enter="router.visit(route('groups.students.detail', { uuid: group.uuid, userId: student.id }))"
                             >
                                 <td class="p-3 text-[9px] text-cyan-300">@{{ student.username || 'user' }}</td>
                                 <td class="p-3 font-sans text-[13px] font-semibold text-white">{{ student.name }}</td>
@@ -211,6 +214,9 @@ const removeStaff = (staff) => {
                                             : 'border-red-600 bg-red-950/30 text-red-300'"
                                     >
                                         {{ student.status === 'safe' ? 'Aman' : 'Perlu_Diperhatikan' }}
+                                    </span>
+                                    <span class="ml-2 inline-flex border border-cyan-700 px-3 py-2 text-[7px] uppercase text-cyan-300">
+                                        View_Detail
                                     </span>
                                 </td>
                             </tr>
