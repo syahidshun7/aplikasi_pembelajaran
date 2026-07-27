@@ -6,9 +6,15 @@ import FloatingChat from '@/Components/FloatingChat.vue';
 import UserNavbar from '@/Components/UserNavbar.vue';
 import { useUserTheme } from '@/Composables/useUserTheme';
 
+const layoutProps = defineProps({
+    immersive: {
+        type: Boolean,
+        default: false,
+    },
+});
 const page = usePage();
 const auth = computed(() => page.props.auth);
-const showFloatingChat = computed(() => Boolean(auth.value?.user) && !isDoopLabPage.value);
+const showFloatingChat = computed(() => Boolean(auth.value?.user) && !isDoopLabPage.value && !layoutProps.immersive);
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
 const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
@@ -89,22 +95,22 @@ const inlineWorkspaceBackgroundStyle = {
         }"
     >
         <div
-            v-if="usesInlineWorkspaceBackground"
+            v-if="usesInlineWorkspaceBackground && !immersive"
             aria-hidden="true"
             class="pointer-events-none absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
             :style="inlineWorkspaceBackgroundStyle"
         />
 
         <AppBackgroundLayer
-            v-if="!isDoopLabPage && !usesInlineWorkspaceBackground"
+            v-if="!immersive && !isDoopLabPage && !usesInlineWorkspaceBackground"
             :image="userBackgroundImage"
             :overlay-class="userBackgroundOverlayClass"
             :glow-class="userBackgroundGlowClass"
         />
 
-        <UserNavbar v-if="!isAdminUserPreviewPage" class="relative z-20" />
+        <UserNavbar v-if="!immersive && !isAdminUserPreviewPage" class="relative z-20" />
 
-        <div v-if="isEmailUnverified" class="relative z-20 px-4 md:px-8 pt-4">
+        <div v-if="!immersive && isEmailUnverified" class="relative z-20 px-4 md:px-8 pt-4">
             <div class="border-2 border-amber-400/60 bg-amber-500/10 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div class="text-[9px] leading-relaxed text-amber-100 uppercase tracking-wide">
                     Email belum terverifikasi. Buka profile untuk kirim ulang verifikasi, lalu cek inbox/spam.
@@ -117,7 +123,7 @@ const inlineWorkspaceBackgroundStyle = {
                 </Link>
             </div>
         </div>
-        <div v-else-if="isEmailVerifiedSuccess" class="relative z-20 px-4 md:px-8 pt-4">
+        <div v-else-if="!immersive && isEmailVerifiedSuccess" class="relative z-20 px-4 md:px-8 pt-4">
             <div class="border-2 border-emerald-400/60 bg-emerald-500/15 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div class="text-[9px] leading-relaxed text-emerald-100 uppercase tracking-wide">
                     Verifikasi email berhasil. Semua fitur akun sekarang sudah terbuka.
@@ -131,12 +137,15 @@ const inlineWorkspaceBackgroundStyle = {
             </div>
         </div>
         <main
-            class="relative z-10 animate-in fade-in zoom-in-95 duration-500 flex-1"
-            :class="isDoopLabPage ? 'p-0' : 'p-4 md:p-8'"
+            class="relative z-10 flex-1"
+            :class="immersive ? 'p-0' : [
+                'animate-in fade-in zoom-in-95 duration-500',
+                isDoopLabPage ? 'p-0' : 'p-4 md:p-8',
+            ]"
         >
             <slot />
         </main>
-        <footer v-if="!isDoopLabPage" class="user-theme-footer relative z-10 mt-auto border-t-2 p-6 text-center backdrop-blur-md md:p-8">
+        <footer v-if="!immersive && !isDoopLabPage" class="user-theme-footer relative z-10 mt-auto border-t-2 p-6 text-center backdrop-blur-md md:p-8">
             <p class="user-theme-muted break-words text-[7px] uppercase tracking-[0.18em] sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
         </footer>
 
