@@ -98,6 +98,7 @@ watch(() => form.content, persistDraft);
 watch(() => form.task_answers, persistDraft, { deep: true });
 
 const taskBankType = computed(() => props.quest?.task_bank?.assessment_type || null);
+const isImmersiveGame = computed(() => ['platforming', 'word_match'].includes(taskBankType.value));
 const taskQuestions = computed(() => props.quest?.task_bank?.questions || []);
 const isStructuredTaskBankQuest = computed(() => !!props.quest?.task_bank && ['multiple_choice', 'mixed', 'essay', 'platforming', 'word_match'].includes(taskBankType.value));
 const isAutoCheckedTaskBankQuest = computed(() => (taskBankType.value === 'multiple_choice' || taskBankType.value === 'platforming' || taskBankType.value === 'word_match'));
@@ -483,9 +484,10 @@ const unlockLateQuest = () => {
 </script>
 
 <template>
-    <AuthenticatedLayout>
+    <AuthenticatedLayout :immersive="isImmersiveGame">
         <!-- GAME UI (Platforming or Word Match) -->
-        <div v-if="taskBankType === 'platforming' || taskBankType === 'word_match'" class="game-scene fixed inset-0 flex items-center justify-center overflow-hidden">
+        <Teleport to="body">
+        <div v-if="taskBankType === 'platforming' || taskBankType === 'word_match'" class="game-scene fixed inset-0 z-[60] flex items-center justify-center overflow-hidden">
             <Head :title="'MISSION - ' + quest.title" />
 
             <div class="pf-frame w-full mx-auto overflow-hidden transition-all duration-300"
@@ -748,10 +750,11 @@ const unlockLateQuest = () => {
                 </div>
             </div>
         </div>
+        </Teleport>
 
         <!-- NORMAL QUEST PAGE -->
         <div
-            v-else
+            v-if="taskBankType !== 'platforming' && taskBankType !== 'word_match'"
             class="lobby-detail-page quest-page min-h-screen p-0 md:p-4 font-['Press_Start_2P'] text-[#4ed4d4] flex justify-center items-start"
             :class="themeMode === 'light' ? 'quest-page--light' : 'quest-page--dark'"
         >
@@ -953,12 +956,10 @@ const unlockLateQuest = () => {
 }
 
 .game-scene {
-    --pf-nav-offset: 96px;
     font-family: 'Press Start 2P', 'VT323', ui-monospace, monospace;
     background: radial-gradient(circle at 15% 10%, rgba(14, 116, 144, 0.2), transparent 38%), linear-gradient(160deg, #020617, #0b132b);
-    padding-top: var(--pf-nav-offset);
 }
-.pf-frame { width: 100%; height: calc(100vh - var(--pf-nav-offset)); display: flex; flex-direction: column; background: rgba(2, 6, 23, 0.95); position: relative; overflow: hidden; }
+.pf-frame { width: 100%; height: 100vh; height: 100dvh; display: flex; flex-direction: column; background: rgba(2, 6, 23, 0.95); position: relative; overflow: hidden; }
 .pf-desktop-grid { display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; }
 .pf-main-col { flex: 1; display: flex; flex-direction: column; min-height: 0; width: 100%; }
 .pf-main-inner { flex: 1; display: flex; flex-direction: column; min-height: 0; width: 100%; }
@@ -967,7 +968,7 @@ const unlockLateQuest = () => {
 .pf-char-sprite { width: 30px; height: 30px; }
 .pf-char-fallback { width: 20px; height: 20px; }
 
-@media (max-width: 640px) { .game-scene { --pf-nav-offset: 88px; } .pf-side-col { display: none; } }
+@media (max-width: 640px) { .pf-side-col { display: none; } }
 @media (min-width: 1024px) { .pf-desktop-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; } .pf-main-col { border-right: 1px solid rgba(103, 232, 249, 0.1); } .pf-side-col { display: flex; flex-direction: column; gap: 0.65rem; padding: 0.75rem; background: rgba(15, 23, 42, 0.65); overflow-y: auto; } }
 @media (min-width: 640px) { .pf-platform-row { height: 44px; } .pf-char-sprite { width: 32px; height: 32px; } .pf-char-fallback { width: 22px; height: 22px; } }
 @media (min-width: 1024px) { .pf-platform-row { height: 66px; } .pf-char-sprite { width: 52px; height: 52px; } .pf-char-fallback { width: 34px; height: 34px; } }
