@@ -2,8 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Quest;
+use App\Models\Submission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 class ProfileTest extends TestCase
@@ -19,6 +22,46 @@ class ProfileTest extends TestCase
             ->get('/profile');
 
         $response->assertOk();
+    }
+
+    public function test_profile_uses_one_effective_submission_per_quest(): void
+    {
+        $user = User::factory()->create();
+        $quest = Quest::query()->create([
+            'title' => 'Effective Profile Quest',
+            'difficulty' => 'C-Rank',
+            'status' => Quest::STATUS_AVAILABLE,
+            'quest_type' => Quest::TYPE_MAIN,
+            'grading_attempt' => Quest::GRADE_HIGHEST,
+        ]);
+        $best = Submission::query()->create([
+            'quest_id' => $quest->id,
+            'user_id' => $user->id,
+            'attempt_number' => 1,
+            'status' => Submission::STATUS_APPROVED,
+            'grade' => 100,
+            'content' => 'best',
+        ]);
+        Submission::query()->create([
+            'quest_id' => $quest->id,
+            'user_id' => $user->id,
+            'attempt_number' => 2,
+            'status' => Submission::STATUS_APPROVED,
+            'grade' => 50,
+            'content' => 'later but lower',
+        ]);
+
+        $this->actingAs($user)
+            ->get('/profile')
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('averageGrade', 100)
+                ->where('totalCompleted', 1)
+                ->has('userQuests.data', 1)
+                ->where('userQuests.data.0.uuid', (string) $best->uuid)
+                ->where('userQuests.data.0.grade', 100)
+                ->where('userQuests.data.0.attempt_number', 1)
+            );
     }
 
     public function test_profile_information_can_be_updated(): void

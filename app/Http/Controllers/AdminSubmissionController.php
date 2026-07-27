@@ -432,6 +432,14 @@ class AdminSubmissionController extends Controller
             'reward_counted' => false,
         ];
     }
+    if (! $submission->reward_eligible) {
+        $finalGold = 0;
+        $finalExp = 0;
+        $verdictDetail['attempt_reward'] = [
+            'eligible' => false,
+            'reason' => 'Reward hanya diberikan pada attempt pertama.',
+        ];
+    }
 
     $scoresDetail = $submission->scores_detail;
     if (! is_array($scoresDetail)) {

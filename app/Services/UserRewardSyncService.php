@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\UserGoldAdjustment;
 use App\Models\UserGoldTransfer;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use App\Services\LevelingService;
 
 class UserRewardSyncService
@@ -24,10 +25,15 @@ class UserRewardSyncService
             return;
         }
 
-        $submissionTotals = Submission::query()
+        $rewardPerQuest = Submission::query()
             ->where('user_id', $userId)
             ->whereIn('status', ['Approved', 'Rejected'])
-            ->selectRaw('COALESCE(SUM(earned_exp),0) as exp_total, COALESCE(SUM(earned_gold),0) as gold_total')
+            ->where('reward_eligible', true)
+            ->selectRaw('quest_id, MAX(COALESCE(earned_exp, 0)) as exp_total, MAX(COALESCE(earned_gold, 0)) as gold_total')
+            ->groupBy('quest_id');
+        $submissionTotals = DB::query()
+            ->fromSub($rewardPerQuest, 'quest_rewards')
+            ->selectRaw('COALESCE(SUM(exp_total),0) as exp_total, COALESCE(SUM(gold_total),0) as gold_total')
             ->first();
 
         $dailyTotals = DailyQuest::query()

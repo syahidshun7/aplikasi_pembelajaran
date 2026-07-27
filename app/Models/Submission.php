@@ -37,6 +37,9 @@ class Submission extends Model
         'submission_id',
         'quest_id',
         'user_id',
+        'attempt_number',
+        'reward_eligible',
+        'client_submission_token',
         'content',
         'status',
         'pipeline_status',
@@ -104,6 +107,8 @@ class Submission extends Model
         'result_presentation_items' => 'array',
         'result_presentation_result' => 'array',
         'result_presented_at' => 'datetime',
+        'attempt_number' => 'integer',
+        'reward_eligible' => 'boolean',
     ];
 
     protected static function booted()

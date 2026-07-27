@@ -1,11 +1,13 @@
 <script setup>
 import { Head, router } from '@inertiajs/vue3'; // FIXED: Ditambahkan router
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { useUserTheme } from '@/Composables/useUserTheme';
 import { computed } from 'vue';
 
 const props = defineProps({
     submission: Object
 });
+const { themeMode } = useUserTheme();
 
 const attachmentUrl = computed(() => {
     if (!props.submission?.file_path) return null;
@@ -43,7 +45,10 @@ const actionButtonClass = computed(() => {
     <AuthenticatedLayout>
         <Head :title="'QUEST_REPORT - ' + submission.quest.title" />
 
-        <div class="submission-detail-page lobby-detail-page max-w-5xl mx-auto font-['Press_Start_2P'] text-[10px] leading-relaxed p-2 sm:p-4">
+        <div
+            class="submission-detail-page lobby-detail-page max-w-5xl mx-auto font-['Press_Start_2P'] text-[10px] leading-relaxed p-2 sm:p-4"
+            :class="{ 'submission-detail-page--light': themeMode === 'light' }"
+        >
 
             <div class="grid grid-cols-12 gap-6">
                 <div class="col-span-12 lg:col-span-4 space-y-6">
@@ -221,6 +226,21 @@ const actionButtonClass = computed(() => {
     color: #202020 !important;
     font-weight: 600;
     line-height: 1.7;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.submission-detail-page--light .submission-feedback-title {
+    color: #5b21b6 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
+.submission-detail-page--light .submission-feedback-box {
+    border-left-color: #007f7f !important;
+    background: #e6f3f3 !important;
+    color: #202020 !important;
+    font-weight: 700;
     opacity: 1 !important;
     text-shadow: none !important;
 }

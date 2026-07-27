@@ -699,10 +699,6 @@
                         <span v-else class="text-[8px] text-slate-400 uppercase italic">
                             MANUAL_SCORE: <span class="text-cyan-300 font-bold">1–100</span>
                         </span>
-                        <button @click="scanWithAI" :disabled="isScanning || isPreparingAiPreview" 
-                            class="text-[8px] bg-indigo-900/30 text-indigo-400 px-3 py-1 border border-indigo-700 hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-50">
-                            {{ isPreparingAiPreview ? 'PREPARING...' : (isScanning ? 'ANALYZING...' : '[ AI_ADVISOR_SCAN ]') }}
-                        </button>
                     </div>
                 </div>
 
@@ -1007,9 +1003,17 @@
                                 </select>
                             </div>
 
-                            <textarea v-model="feedbackText"
-                                class="w-full bg-black border-2 border-slate-800 p-4 text-slate-200 font-sans text-xs focus:border-green-500 outline-none h-32 custom-scrollbar"
-                                placeholder="TYPE_COMMANDER_FEEDBACK_LOG_HERE..."></textarea>
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between gap-2 text-[7px] uppercase">
+                                    <span class="text-slate-500">Commander_Feedback</span>
+                                    <span v-if="pipelineFeedbackDraft && !submission.feedback" class="text-emerald-400">
+                                        Pipeline_Present_Draft
+                                    </span>
+                                </div>
+                                <textarea v-model="feedbackText"
+                                    class="w-full bg-black border-2 border-slate-800 p-4 text-slate-200 font-sans text-xs focus:border-green-500 outline-none h-32 custom-scrollbar"
+                                    placeholder="RUN_PIPELINE_TO_GENERATE_FEEDBACK..."></textarea>
+                            </div>
 
                             <div class="flex flex-col gap-2">
                                 <p class="text-[7px] text-slate-500 uppercase italic">Execution_Command:</p>
@@ -1234,8 +1238,38 @@ const props = defineProps({
     },
 });
 
+const buildPipelineFeedbackDraft = (items) => {
+    if (!Array.isArray(items)) return '';
+
+    const rows = items
+        .map((item, index) => {
+            const mentorView = item?.mentor_view || {};
+            const summary = String(mentorView.feedback_summary || '').trim();
+            const improvements = Array.isArray(mentorView.improvements)
+                ? mentorView.improvements.map((value) => String(value).trim()).filter(Boolean)
+                : [];
+            const notification = String(item?.notification?.message || '').trim();
+            const message = summary || notification;
+
+            if (!message && improvements.length === 0) return '';
+
+            const questionLabel = item?.question_number
+                ? `Soal ${item.question_number}`
+                : `Bagian ${index + 1}`;
+            const improvementText = improvements.length
+                ? ` Saran: ${improvements.join('; ')}.`
+                : '';
+
+            return `${questionLabel}: ${message}${improvementText}`.trim();
+        })
+        .filter(Boolean);
+
+    return rows.join('\n\n');
+};
+
 // 1. STATE & DATA
-const feedbackText = ref(props.submission.feedback || '');
+const pipelineFeedbackDraft = buildPipelineFeedbackDraft(props.submission.result_presentation_items);
+const feedbackText = ref(props.submission.feedback || pipelineFeedbackDraft);
 const localStatus = ref(['Approved', 'Rejected'].includes(props.submission.status) ? props.submission.status : 'Approved');
 const isScanning = ref(false);
 const isPreparingAiPreview = ref(false);
@@ -2454,10 +2488,10 @@ const startAllPipelineStages = async () => {
         }
 
         runAllProgress.value = 100;
-        runAllCurrentStep.value = 'All stages completed.';
+        runAllCurrentStep.value = 'All stages completed. Feedback draft is ready.';
         runAllLogs.value.push('PIPELINE_COMPLETE [OK]');
 
-        await Swal.fire('PIPELINE_COMPLETED', 'All stages finished successfully.', 'success');
+        await Swal.fire('PIPELINE_COMPLETED', 'All stages finished. Draft feedback siap direview.', 'success');
         window.location.reload();
     } finally {
         isRunningAllStages.value = false;
