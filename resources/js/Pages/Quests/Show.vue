@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Swal from 'sweetalert2';
 import axios from 'axios';
@@ -16,6 +16,10 @@ const props = defineProps({
     timeKeyQty: Number,
     isStaffPlayMode: Boolean,
     initialPlatformingProgress: Object,
+    attemptContext: {
+        type: Object,
+        default: () => ({}),
+    },
     previewMode: {
         type: Boolean,
         default: false,
@@ -35,6 +39,28 @@ const canResubmitPending = computed(() => props.hasSubmitted && props.canSubmit 
 const canResubmitRejected = computed(() => props.hasSubmitted && props.canSubmit && existingStatus.value === 'Rejected');
 const questBackUrl = computed(() => props.backUrl || route('lobby'));
 const submitUrl = computed(() => props.previewSubmitUrl || route('submissions.store', props.quest.uuid));
+const retryUrl = computed(() => `${route('quests.show', props.quest.uuid)}?attempt=new`);
+const attemptLimitLabel = computed(() => {
+    if (props.attemptContext?.attempt_mode === 'unlimited') return 'UNLIMITED';
+    return String(props.attemptContext?.max_attempts || 1);
+});
+const remainingAttemptLabel = computed(() => {
+    if (props.attemptContext?.attempt_mode === 'unlimited') return 'UNLIMITED';
+    return `SISA ${Math.max(0, Number(props.attemptContext?.remaining_attempts || 0))} ATTEMPT`;
+});
+const retakeAvailabilityLabel = computed(() => (
+    props.attemptContext?.unlocked_by_ticket
+        ? 'TICKET ATTEMPT'
+        : remainingAttemptLabel.value
+));
+const gradingAttemptLabel = computed(() => ({
+    highest: 'NILAI_TERTINGGI',
+    latest: 'ATTEMPT_TERBARU',
+    first: 'ATTEMPT_PERTAMA',
+}[props.attemptContext?.grading_attempt] || 'NILAI_TERTINGGI'));
+const completionAttemptHistory = computed(() => (
+    props.attemptContext?.history || []
+).slice(0, 5));
 const { themeMode } = useUserTheme();
 
 const taskAnswersFromSubmission = computed(() => {
@@ -42,20 +68,41 @@ const taskAnswersFromSubmission = computed(() => {
     return answers && typeof answers === 'object' ? answers : {};
 });
 
+const createSubmissionToken = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+        const random = Math.floor(Math.random() * 16);
+        const value = char === 'x' ? random : ((random & 0x3) | 0x8);
+        return value.toString(16);
+    });
+};
+const requestedAttemptNumber = Number(
+    props.attemptContext?.is_new_attempt
+        ? props.attemptContext?.next_attempt_number
+        : (props.existingSubmission?.attempt_number || props.attemptContext?.next_attempt_number || 1)
+);
+
 const form = useForm({
     content: props.existingSubmission?.content || '',
     file: null,
     task_answers: { ...(taskAnswersFromSubmission.value || {}) },
+    new_attempt: Boolean(props.attemptContext?.is_new_attempt),
+    client_submission_token: createSubmissionToken(),
+    requested_attempt_number: requestedAttemptNumber,
 });
 
 const unlockForm = useForm({});
+const retakeUnlockForm = useForm({});
 const page = usePage();
 const maxSubmissionFileBytes = 10 * 1024 * 1024;
 
 const questDraftStorageKey = computed(() => {
     const questKey = String(props.quest?.uuid || props.quest?.id || 'quest');
     const userKey = String(page.props?.auth?.user?.id || 'guest');
-    return `quest-draft:${userKey}:${questKey}`;
+    const attemptKey = Number(props.attemptContext?.next_attempt_number || props.attemptContext?.attempt_count || 1);
+    return `quest-draft:${userKey}:${questKey}:${attemptKey}`;
 });
 
 let draftSaveTimer = null;
@@ -148,18 +195,22 @@ const gameDuration = computed(() => props.quest?.task_bank?.duration || 60);
 const pfTimeLeft = ref(gameDuration.value);
 const wmTimeLeft = ref(gameDuration.value);
 let gameTimerInterval = null;
+let gameSubmissionTimer = null;
 let lastSyncTime = 0;
 let isResuming = false;
+const gameSubmissionStarted = ref(false);
 
-const pfGameStateKey = computed(() => `pf-state:${page.props.auth.user.id}:${props.quest.uuid}`);
-const wmGameStateKey = computed(() => `wm-state:${page.props.auth.user.id}:${props.quest.uuid}`);
+const attemptStorageKey = computed(() => Number(props.attemptContext?.next_attempt_number || props.attemptContext?.attempt_count || 1));
+const gameStateVersion = 2;
+const pfGameStateKey = computed(() => `pf-state:${page.props.auth.user.id}:${props.quest.uuid}:${attemptStorageKey.value}`);
+const wmGameStateKey = computed(() => `wm-state:${page.props.auth.user.id}:${props.quest.uuid}:${attemptStorageKey.value}`);
 
 const saveGameState = async (force = false) => {
     if (typeof window === 'undefined' || pfFinished.value || wmFinished.value) return;
     const now = Date.now();
     const state = taskBankType.value === 'word_match' 
-        ? { placed: wmPlacedWords.value, time_left: wmTimeLeft.value, all_cards: wmAllCards.value, question_index: wmQuestionIndex.value, results: wmResults.value }
-        : { index: pfStageIndex.value, level: pfPlayerLevel.value, answers: pfAnswers.value, time_left: pfTimeLeft.value };
+        ? { placed: wmPlacedWords.value, time_left: wmTimeLeft.value, all_cards: wmAllCards.value, question_index: wmQuestionIndex.value, results: wmResults.value, attempt_number: attemptStorageKey.value, state_version: gameStateVersion }
+        : { index: pfStageIndex.value, level: pfPlayerLevel.value, answers: pfAnswers.value, time_left: pfTimeLeft.value, attempt_number: attemptStorageKey.value, state_version: gameStateVersion };
     
     localStorage.setItem(taskBankType.value === 'word_match' ? wmGameStateKey.value : pfGameStateKey.value, JSON.stringify(state));
 
@@ -169,6 +220,7 @@ const saveGameState = async (force = false) => {
             const payload = taskBankType.value === 'word_match' 
                 ? { index: wmQuestionIndex.value, level: 0, answers: [], time_left: wmTimeLeft.value, wm_state: state }
                 : { ...state };
+            payload.attempt_number = attemptStorageKey.value;
             await axios.post(route('quests.platforming-progress.save', props.quest.uuid), payload);
         } catch (e) { }
     }
@@ -180,6 +232,12 @@ const loadGameState = () => {
     const state = serverProgress || (localRaw ? JSON.parse(localRaw) : null);
     
     if (!state) return;
+    const savedAttemptNumber = Number(state.attempt_number || state.wm_state?.attempt_number || 0);
+    const savedStateVersion = Number(state.state_version || state.wm_state?.state_version || 0);
+    if (savedAttemptNumber !== attemptStorageKey.value || savedStateVersion !== gameStateVersion) {
+        clearGameState();
+        return;
+    }
     isResuming = true;
 
     if (taskBankType.value === 'word_match') {
@@ -205,6 +263,28 @@ const clearGameState = () => {
 };
 
 const stopGameTimer = () => { if (gameTimerInterval) { clearInterval(gameTimerInterval); gameTimerInterval = null; } };
+const submitGameOnce = () => {
+    if (gameSubmissionStarted.value || form.processing) return;
+    gameSubmissionStarted.value = true;
+    stopGameTimer();
+
+    gameSubmissionTimer = window.setTimeout(() => {
+        form.post(submitUrl.value, {
+            preserveScroll: true,
+            onError: (errors) => {
+                gameSubmissionStarted.value = false;
+                const firstError = Object.values(errors || {}).find((value) => Boolean(value));
+                Swal.fire({
+                    title: 'SUBMIT_FAILED',
+                    text: String(firstError || 'Submission gagal dikirim.'),
+                    icon: 'error',
+                    background: '#161b22',
+                    color: '#ef4444',
+                });
+            },
+        });
+    }, 800);
+};
 
 const startGameTimer = () => {
     stopGameTimer();
@@ -398,7 +478,7 @@ const wmSubmitGame = (isTimeout = false) => {
         wmResults.value.forEach(r => {
             form.task_answers[r.uuid] = JSON.stringify({ placed: r.placed, correct_count: r.correct_count, total: r.total, timeout: r.timeout, complete: r.complete });
         });
-        setTimeout(() => { form.post(submitUrl.value, { preserveScroll: true }); }, 2000);
+        submitGameOnce();
     }
 };
 
@@ -407,7 +487,7 @@ const submitFinalGamePayload = (type, extra = {}) => {
     taskQuestions.value.filter(q => q.question_type === 'platforming').forEach(q => {
         form.task_answers[q.uuid] = JSON.stringify(payload);
     });
-    setTimeout(() => { form.post(submitUrl.value, { preserveScroll: true }); }, 2000);
+    submitGameOnce();
 };
 
 const submitReport = () => {
@@ -474,12 +554,31 @@ onMounted(() => {
 onBeforeUnmount(() => {
     if (typeof window !== 'undefined') window.removeEventListener('resize', syncViewportWidth);
     if (draftSaveTimer) clearTimeout(draftSaveTimer);
+    if (gameSubmissionTimer) clearTimeout(gameSubmissionTimer);
     stopGameTimer();
 });
 
 const unlockLateQuest = () => {
     Swal.fire({ title: 'USE_TIME_KEY?', text: '1 Time Key akan digunakan.', icon: 'warning', showCancelButton: true, confirmButtonText: 'YES', background: '#161b22', color: '#4ed4d4' })
     .then((res) => { if (res.isConfirmed) unlockForm.post(route('quests.unlock-late', props.quest.uuid)); });
+};
+
+const useRetakeTicket = () => {
+    Swal.fire({
+        title: 'USE_RETAKE_TICKET?',
+        text: '1 Retake Ticket membuka satu attempt tambahan. Nilai dan reward terbaik tetap digunakan.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'USE TICKET',
+        background: '#161b22',
+        color: '#4ed4d4',
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+        retakeUnlockForm.post(route('quests.unlock-retake', props.quest.uuid), {
+            preserveScroll: true,
+            onSuccess: () => router.visit(retryUrl.value),
+        });
+    });
 };
 </script>
 
@@ -636,7 +735,7 @@ const unlockLateQuest = () => {
                                 <div class="px-3 py-2 bg-slate-900/95 border-y border-cyan-300/10 flex items-center justify-between">
                                     <div class="flex items-center gap-2">
                                         <div class="flex gap-0.5"><div v-for="i in 3" :key="i" class="w-0.5 bg-cyan-400 animate-bounce h-2"></div></div>
-                                        <span class="text-slate-400 uppercase tracking-widest text-[8px]">Link_Status: Active</span>
+                                        <span class="text-slate-400 uppercase tracking-widest text-[8px]">Score_Status</span>
                                     </div>
                                     <span class="text-cyan-300 font-black text-[10px] tabular-nums">{{ pfCorrectCount }}/{{ pfTotalStages }}</span>
                                 </div>
@@ -685,7 +784,7 @@ const unlockLateQuest = () => {
                     </div>
 
                     <!-- Content -->
-                    <div class="flex-1 flex flex-col items-center justify-center p-6 space-y-6 relative z-10">
+                    <div class="flex-1 flex flex-col items-center justify-start p-6 py-8 space-y-6 relative z-10">
                         <!-- Success Icon -->
                         <div class="w-14 h-14 rounded-full border-2 border-emerald-400 bg-emerald-500/10 flex items-center justify-center">
                             <svg class="w-7 h-7 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
@@ -702,14 +801,14 @@ const unlockLateQuest = () => {
                         <!-- Stats -->
                         <div class="w-full max-w-xs space-y-3">
                             <!-- Score -->
-                            <div v-if="existingSubmission.grade" class="border border-slate-700 bg-black/40 p-4 flex items-center justify-between">
+                            <div v-if="existingSubmission.grade !== null" class="border border-slate-700 bg-black/40 p-4 flex items-center justify-between">
                                 <span class="text-[10px] text-slate-400 uppercase font-bold">Skor</span>
                                 <span class="text-white text-2xl font-black">{{ existingSubmission.grade }}%</span>
                             </div>
 
                             <!-- Rewards -->
                             <div class="border border-slate-700 bg-black/40 p-4 space-y-2">
-                                <p class="text-[9px] text-amber-500 uppercase font-bold mb-2">Reward</p>
+                                <p class="text-[9px] text-amber-500 uppercase font-bold mb-2">Reward Attempt</p>
                                 <div class="flex items-center justify-between">
                                     <span class="text-amber-400 font-black text-base">+{{ existingSubmission.earned_gold ?? quest.reward_gold }}</span>
                                     <span class="text-[9px] text-amber-600 uppercase">Gold</span>
@@ -718,6 +817,30 @@ const unlockLateQuest = () => {
                                     <span class="text-cyan-400 font-black text-base">+{{ existingSubmission.earned_exp ?? (quest.reward_exp || quest.reward_gold) }}</span>
                                     <span class="text-[9px] text-cyan-600 uppercase">Exp</span>
                                 </div>
+                                <p class="border-t border-slate-800 pt-2 text-[7px] leading-4 uppercase text-slate-500">
+                                    Saldo mengikuti reward terbaik.
+                                </p>
+                            </div>
+
+                            <div v-if="completionAttemptHistory.length" class="border border-slate-800 bg-black/30">
+                                <div class="flex items-center justify-between gap-3 border-b border-slate-800 px-3 py-2 text-[8px] font-bold uppercase">
+                                    <span class="text-slate-400">Riwayat Attempt</span>
+                                    <span class="text-emerald-500">{{ gradingAttemptLabel }}</span>
+                                </div>
+                                <Link
+                                    v-for="attempt in completionAttemptHistory"
+                                    :key="attempt.uuid"
+                                    :href="route('submissions.show', attempt.uuid)"
+                                    class="flex items-center justify-between gap-2 border-b border-slate-900 px-3 py-2 text-[8px] last:border-b-0 hover:bg-cyan-950/30"
+                                >
+                                    <span :class="attempt.is_effective ? 'text-emerald-400' : 'text-slate-400'">
+                                        #{{ attempt.attempt_number }}{{ attempt.is_effective ? ' · DIPAKAI' : '' }}
+                                    </span>
+                                    <span class="text-slate-500">{{ attempt.status }}</span>
+                                    <strong :class="attempt.grade >= 75 ? 'text-emerald-400' : 'text-yellow-400'">
+                                        {{ attempt.grade === null ? '-' : `${attempt.grade}%` }}
+                                    </strong>
+                                </Link>
                             </div>
                         </div>
 
@@ -725,6 +848,29 @@ const unlockLateQuest = () => {
                         <Link :href="route('submissions.show', existingSubmission.uuid)" 
                             class="w-full max-w-xs text-center py-3 border border-emerald-500 text-emerald-400 text-[10px] font-bold uppercase hover:bg-emerald-500 hover:text-black transition-all">
                             Lihat Detail
+                        </Link>
+                        <Link
+                            v-if="attemptContext.can_start_new_attempt"
+                            :href="retryUrl"
+                            class="w-full max-w-xs text-center py-3 border border-cyan-500 text-cyan-300 text-[10px] font-bold uppercase hover:bg-cyan-500 hover:text-black transition-all"
+                        >
+                            Retake · {{ retakeAvailabilityLabel }}
+                        </Link>
+                        <button
+                            v-else-if="attemptContext.can_use_retake_ticket && attemptContext.retake_ticket_quantity > 0"
+                            type="button"
+                            :disabled="retakeUnlockForm.processing"
+                            class="w-full max-w-xs border border-yellow-500 py-3 text-center text-[10px] font-bold uppercase text-yellow-300 hover:bg-yellow-500 hover:text-black disabled:opacity-50"
+                            @click="useRetakeTicket"
+                        >
+                            Use Retake Ticket · {{ attemptContext.retake_ticket_quantity }}
+                        </button>
+                        <Link
+                            v-else-if="attemptContext.can_use_retake_ticket"
+                            :href="route('shop.index')"
+                            class="w-full max-w-xs border border-slate-600 py-3 text-center text-[10px] font-bold uppercase text-slate-300 hover:border-yellow-500 hover:text-yellow-300"
+                        >
+                            Retake Ticket · Shop
                         </Link>
                     </div>
                 </div>
@@ -780,8 +926,61 @@ const unlockLateQuest = () => {
                         <div class="quest-objective-card bg-black/30 p-4 border-l-4 border-slate-700 font-sans text-[14px] text-slate-300 whitespace-pre-wrap">{{ quest.description || 'NO DATA.' }}</div>
                     </div>
 
+                    <section v-if="!previewMode && attemptContext.attempt_count > 0" class="border border-slate-700 bg-black/20 p-4">
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 pb-3">
+                            <div>
+                                <p class="text-[10px] text-cyan-400 uppercase">Attempt_History</p>
+                                <p class="mt-2 font-sans text-[12px] text-slate-400">
+                                    {{ attemptContext.attempt_count }} / {{ attemptLimitLabel }} attempt · Nilai aktif: {{ gradingAttemptLabel }}
+                                </p>
+                            </div>
+                            <Link
+                                v-if="attemptContext.can_start_new_attempt && !attemptContext.is_new_attempt"
+                                :href="retryUrl"
+                                class="border border-cyan-500 px-3 py-2 text-[9px] uppercase text-cyan-300 hover:bg-cyan-500 hover:text-black"
+                            >
+                                Retake · {{ retakeAvailabilityLabel }}
+                            </Link>
+                            <button
+                                v-else-if="attemptContext.can_use_retake_ticket && attemptContext.retake_ticket_quantity > 0"
+                                type="button"
+                                :disabled="retakeUnlockForm.processing"
+                                class="border border-yellow-500 px-3 py-2 text-[9px] uppercase text-yellow-300 hover:bg-yellow-500 hover:text-black disabled:opacity-50"
+                                @click="useRetakeTicket"
+                            >
+                                Use_Ticket · {{ attemptContext.retake_ticket_quantity }}
+                            </button>
+                            <Link
+                                v-else-if="attemptContext.can_use_retake_ticket"
+                                :href="route('shop.index')"
+                                class="border border-slate-600 px-3 py-2 text-[9px] uppercase text-slate-300 hover:border-yellow-500 hover:text-yellow-300"
+                            >
+                                Get_Retake_Ticket
+                            </Link>
+                            <span v-else-if="attemptContext.is_new_attempt" class="border border-yellow-500 px-3 py-2 text-[9px] uppercase text-yellow-300">
+                                Attempt_{{ attemptContext.next_attempt_number }}
+                            </span>
+                        </div>
+                        <div class="mt-3 grid gap-2">
+                            <Link
+                                v-for="attempt in attemptContext.history"
+                                :key="attempt.uuid"
+                                :href="route('submissions.show', attempt.uuid)"
+                                class="flex flex-wrap items-center justify-between gap-2 border border-slate-800 px-3 py-2 font-sans text-[12px] hover:border-cyan-700"
+                            >
+                                <span class="text-slate-300">Attempt {{ attempt.attempt_number }}</span>
+                                <span class="text-slate-500">{{ attempt.status }}</span>
+                                <strong :class="attempt.grade >= 75 ? 'text-emerald-400' : 'text-yellow-400'">
+                                    {{ attempt.grade === null ? '-' : `${attempt.grade}%` }}
+                                </strong>
+                            </Link>
+                        </div>
+                    </section>
+
                     <div v-if="canSubmit" class="quest-submit-panel mt-8 p-4 border-2 border-dashed border-cyan-900 bg-black/20">
-                        <h3 class="text-[12px] mb-6 uppercase tracking-widest text-white">>> {{ props.hasSubmitted ? 'EDIT_REPORT' : 'SUBMIT_REPORT' }}</h3>
+                        <h3 class="text-[12px] mb-6 uppercase tracking-widest text-white">
+                            >> {{ attemptContext.is_new_attempt ? `SUBMIT_ATTEMPT_${attemptContext.next_attempt_number}` : (props.hasSubmitted ? 'EDIT_REPORT' : 'SUBMIT_REPORT') }}
+                        </h3>
                         <form @submit.prevent="submitReport" class="space-y-6">
                             <div v-if="isStructuredTaskBankQuest" class="space-y-4">
                                 <div class="bg-slate-900/40 border border-cyan-900/50 p-3"><p class="text-[10px] text-cyan-300 uppercase">BANK: {{ quest.task_bank?.name }}</p></div>

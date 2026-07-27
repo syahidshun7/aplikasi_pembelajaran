@@ -149,26 +149,19 @@ test('word match submission is auto graded from game payload', function () {
         'complete' => true,
     ];
 
-    $perfectSubmission = Submission::query()->create([
-        'quest_id' => $quest->id,
-        'user_id' => $user->id,
-        'content' => '[TASK_BANK_RAW_SUBMISSION]',
-        'status' => Submission::STATUS_REJECTED,
-        'pipeline_status' => Submission::PIPELINE_STATUS_EVALUATED,
-        'preprocess_started' => true,
-        'grade' => 0,
-        'earned_exp' => 0,
-        'earned_gold' => 0,
-    ]);
+    $perfectUser = User::factory()->create();
 
-    $perfectAttempt = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+    $perfectAttempt = $this->actingAs($perfectUser)->post(route('submissions.store', $quest->uuid), [
         'task_answers' => [
             $question->uuid => json_encode($perfectPayload),
         ],
     ]);
     $perfectAttempt->assertSessionHasNoErrors();
 
-    $perfectSubmission->refresh();
+    $perfectSubmission = Submission::query()
+        ->where('quest_id', $quest->id)
+        ->where('user_id', $perfectUser->id)
+        ->firstOrFail();
     expect($perfectSubmission->status)->toBe('Approved');
     expect($perfectSubmission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_EVALUATED);
     expect($perfectSubmission->scores_detail['answers'][$question->uuid] ?? null)->toBe(json_encode($perfectPayload));
@@ -871,6 +864,8 @@ test('rejected submission can be retaken before deadline and resets reward to pe
         'reward_exp' => 500,
         'status' => 'Available',
         'deadline' => now()->addDay(),
+        'attempt_mode' => Quest::ATTEMPT_LIMITED,
+        'max_attempts' => 2,
     ]);
 
     $submission = Submission::query()->create([
@@ -881,26 +876,135 @@ test('rejected submission can be retaken before deadline and resets reward to pe
         'grade' => 80,
         'earned_exp' => 400,
         'earned_gold' => 400,
+        'attempt_number' => 1,
+        'reward_eligible' => true,
         'file_path' => UploadedFile::fake()->create('old.pdf', 10, 'application/pdf')->store('submissions', 'public'),
     ]);
 
     $response = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
         'content' => 'new answer',
         'file' => UploadedFile::fake()->create('new.pdf', 10, 'application/pdf'),
+        'new_attempt' => true,
+        'requested_attempt_number' => 2,
+        'client_submission_token' => (string) Str::uuid(),
     ]);
 
     $response->assertSessionHasNoErrors();
 
     $submission->refresh();
+    $retakeSubmission = Submission::query()
+        ->where('quest_id', $quest->id)
+        ->where('user_id', $user->id)
+        ->where('attempt_number', 2)
+        ->firstOrFail();
     $user->refresh();
 
-    expect((string) $submission->status)->toBe('Pending');
-    expect($submission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
-    expect($submission->preprocess_started)->toBeFalse();
-    expect($submission->file_type)->toBe('pdf');
-    expect((string) $submission->content)->toBe('new answer');
-    expect((int) $submission->earned_exp)->toBe(0);
-    expect((int) $submission->earned_gold)->toBe(0);
-    expect((int) $user->exp)->toBe(0);
-    expect((int) $user->gold)->toBe(0);
+    expect((string) $submission->status)->toBe('Rejected');
+    expect((string) $retakeSubmission->status)->toBe('Pending');
+    expect($retakeSubmission->pipeline_status)->toBe(Submission::PIPELINE_STATUS_PENDING_PREPROCESSING);
+    expect($retakeSubmission->preprocess_started)->toBeFalse();
+    expect($retakeSubmission->file_type)->toBe('pdf');
+    expect((string) $retakeSubmission->content)->toBe('new answer');
+    expect((int) $retakeSubmission->earned_exp)->toBe(0);
+    expect((int) $retakeSubmission->earned_gold)->toBe(0);
+    expect((int) $user->exp)->toBe(400);
+    expect((int) $user->gold)->toBe(400);
+});
+
+test('duplicate game completion token creates only one submission', function () {
+    $user = User::factory()->create();
+    $taskBank = TaskBank::query()->create([
+        'name' => 'Idempotent Platform Bank',
+        'assessment_type' => 'platforming',
+        'is_active' => true,
+    ]);
+    $question = $taskBank->questions()->create([
+        'question_text' => 'Node test',
+        'question_type' => 'platforming',
+        'options_json' => [
+            'stages' => [[
+                'prompt' => '2 + 2?',
+                'correct_answer' => '4',
+                'wrong_answers' => ['3'],
+            ]],
+        ],
+        'weight' => 1,
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
+    $quest = Quest::query()->create([
+        'title' => 'Idempotent Platform Quest',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => Quest::STATUS_AVAILABLE,
+        'deadline' => now()->addDay(),
+        'task_bank_id' => $taskBank->id,
+        'attempt_mode' => Quest::ATTEMPT_LIMITED,
+        'max_attempts' => 3,
+    ]);
+    $token = (string) Str::uuid();
+    $payload = [
+        'new_attempt' => false,
+        'requested_attempt_number' => 1,
+        'client_submission_token' => $token,
+        'task_answers' => [
+            $question->uuid => json_encode([
+                'answers' => [['stage' => 0, 'answer' => '4', 'correct' => true]],
+                'score' => 1,
+                'total' => 1,
+            ]),
+        ],
+    ];
+
+    $this->actingAs($user)
+        ->from(route('quests.show', $quest->uuid).'?attempt=new')
+        ->post(route('submissions.store', $quest->uuid), $payload)
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('quests.show', $quest->uuid));
+    $this->actingAs($user)
+        ->from(route('quests.show', $quest->uuid).'?attempt=new')
+        ->post(route('submissions.store', $quest->uuid), $payload)
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('quests.show', $quest->uuid));
+
+    expect(Submission::query()
+        ->where('quest_id', $quest->id)
+        ->where('user_id', $user->id)
+        ->count())->toBe(1);
+});
+
+test('reward sync uses the best eligible reward per quest', function () {
+    $user = User::factory()->create(['exp' => 0, 'gold' => 0]);
+    $quest = Quest::query()->create([
+        'title' => 'Best Reward Quest',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => Quest::STATUS_AVAILABLE,
+    ]);
+
+    foreach ([
+        ['attempt' => 1, 'grade' => 50, 'reward' => 250, 'eligible' => true],
+        ['attempt' => 2, 'grade' => 100, 'reward' => 500, 'eligible' => true],
+        ['attempt' => 3, 'grade' => 100, 'reward' => 500, 'eligible' => false],
+    ] as $row) {
+        Submission::query()->create([
+            'quest_id' => $quest->id,
+            'user_id' => $user->id,
+            'attempt_number' => $row['attempt'],
+            'reward_eligible' => $row['eligible'],
+            'content' => 'attempt',
+            'status' => Submission::STATUS_APPROVED,
+            'grade' => $row['grade'],
+            'earned_exp' => $row['reward'],
+            'earned_gold' => $row['reward'],
+        ]);
+    }
+
+    app(\App\Services\UserRewardSyncService::class)->sync($user->id);
+    $user->refresh();
+
+    expect((int) $user->exp)->toBe(500);
+    expect((int) $user->gold)->toBe(500);
 });

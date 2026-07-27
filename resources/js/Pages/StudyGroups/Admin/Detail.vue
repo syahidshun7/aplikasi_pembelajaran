@@ -221,6 +221,7 @@ const removeStaff = (staff) => {
                     <table class="min-w-full border-collapse">
                         <thead>
                             <tr class="border-b-2 border-slate-700 bg-slate-950/70 text-left text-[8px] uppercase text-slate-400">
+                                <th class="w-[64px] p-3 text-center">No</th>
                                 <th class="min-w-[160px] p-0">
                                     <button type="button" class="sort-header" @click="sortPerformanceBy('username')">
                                         <span>Username</span><span>{{ sortIndicator('username') }}</span>
@@ -255,13 +256,14 @@ const removeStaff = (staff) => {
                         </thead>
                         <tbody>
                             <tr
-                                v-for="student in displayedStudents"
+                                v-for="(student, index) in displayedStudents"
                                 :key="student.id"
                                 class="cursor-pointer border-b border-slate-800/80 hover:bg-cyan-500/10"
                                 tabindex="0"
                                 @click="router.visit(route('groups.students.detail', { uuid: group.uuid, userId: student.id }))"
                                 @keydown.enter="router.visit(route('groups.students.detail', { uuid: group.uuid, userId: student.id }))"
                             >
+                                <td class="p-3 text-center text-[9px] text-slate-500">{{ index + 1 }}</td>
                                 <td class="p-3 text-[9px] text-cyan-300">@{{ student.username || 'user' }}</td>
                                 <td class="p-3 font-sans text-[13px] font-semibold text-white">{{ student.name }}</td>
                                 <td class="p-3 text-center text-[10px] font-bold" :class="percentageClass(student.attendance_percentage)">
@@ -282,9 +284,6 @@ const removeStaff = (staff) => {
                                     >
                                         {{ student.status === 'safe' ? 'Aman' : 'Perlu_Diperhatikan' }}
                                     </span>
-                                    <span class="ml-2 inline-flex border border-cyan-700 px-3 py-2 text-[7px] uppercase text-cyan-300">
-                                        View_Detail
-                                    </span>
                                 </td>
                             </tr>
                         </tbody>
@@ -292,20 +291,20 @@ const removeStaff = (staff) => {
                 </div>
             </section>
 
-            <section class="rpg-panel border-cyan-500/50">
+            <section class="rpg-panel staff-access-panel min-w-0 overflow-hidden border-cyan-500/50">
                 <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                        <h2 class="text-cyan-300 uppercase">Staff_Access_Control</h2>
+                    <div class="min-w-0">
+                        <h2 class="break-words text-[9px] uppercase leading-relaxed text-cyan-300 sm:text-[10px]">Staff_Access_Control</h2>
                         <p class="mt-2 font-sans text-[12px] leading-relaxed text-slate-300">
                             Admin dan mentor yang ada di panel ini menjadi pemilik akses operasional untuk kelas ini.
                         </p>
                     </div>
                 </div>
 
-                <form v-if="canManageStaffAccess" @submit.prevent="assignStaff" class="mb-4 grid gap-2 md:grid-cols-[1fr_180px_auto]">
+                <form v-if="canManageStaffAccess" @submit.prevent="assignStaff" class="mb-4 grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_180px_auto]">
                     <select
                         v-model="staffForm.user_id"
-                        class="bg-black border-2 border-slate-700 p-2 text-cyan-300 uppercase focus:border-cyan-400 focus:ring-0"
+                        class="min-w-0 w-full bg-black border-2 border-slate-700 p-2 text-[8px] text-cyan-300 uppercase focus:border-cyan-400 focus:ring-0"
                         required
                     >
                         <option value="" disabled>-- SELECT STAFF --</option>
@@ -315,7 +314,7 @@ const removeStaff = (staff) => {
                     </select>
                     <select
                         v-model="staffForm.role_in_group"
-                        class="bg-black border-2 border-slate-700 p-2 text-cyan-300 uppercase focus:border-cyan-400 focus:ring-0"
+                        class="min-w-0 w-full bg-black border-2 border-slate-700 p-2 text-[8px] text-cyan-300 uppercase focus:border-cyan-400 focus:ring-0"
                     >
                         <option value="mentor">Mentor</option>
                         <option value="admin">Admin</option>
@@ -324,7 +323,7 @@ const removeStaff = (staff) => {
                     <button
                         type="submit"
                         :disabled="staffForm.processing || !staffForm.user_id"
-                        class="border-2 border-cyan-500 px-4 py-2 text-[8px] uppercase text-cyan-300 hover:bg-cyan-400 hover:text-black disabled:opacity-40"
+                        class="w-full border-2 border-cyan-500 px-4 py-3 text-[8px] uppercase text-cyan-300 hover:bg-cyan-400 hover:text-black disabled:opacity-40 md:w-auto md:py-2"
                     >
                         Grant
                     </button>
@@ -335,18 +334,18 @@ const removeStaff = (staff) => {
                 </div>
 
                 <div v-else class="grid gap-3 md:grid-cols-2">
-                    <article v-for="staff in staffMembers" :key="staff.id" class="flex items-start justify-between gap-3 border border-slate-800 bg-black/40 p-3">
-                        <div class="min-w-0">
+                    <article v-for="staff in staffMembers" :key="staff.id" class="flex min-w-0 flex-col gap-4 border border-slate-800 bg-black/40 p-3 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                        <div class="min-w-0 w-full">
                             <p class="break-words text-[10px] uppercase text-white">{{ staff.name }}</p>
-                            <p class="mt-1 break-words text-[8px] text-slate-500">{{ staff.email }}</p>
-                            <p class="mt-2 text-[7px] uppercase text-cyan-300">
+                            <p class="mt-1 break-all font-sans text-[11px] leading-relaxed text-slate-500">{{ staff.email }}</p>
+                            <p class="mt-2 break-words text-[7px] uppercase leading-relaxed text-cyan-300">
                                 System {{ staff.role }} | Group {{ staff.role_in_group }}
                             </p>
                         </div>
                         <button
                             v-if="canManageStaffAccess"
                             type="button"
-                            class="shrink-0 border border-red-600 px-3 py-2 text-[8px] uppercase text-red-400 hover:bg-red-600 hover:text-white"
+                            class="w-full shrink-0 border border-red-600 px-3 py-3 text-[8px] uppercase text-red-400 hover:bg-red-600 hover:text-white sm:w-auto sm:py-2"
                             @click="removeStaff(staff)"
                         >
                             Revoke
@@ -607,5 +606,12 @@ const removeStaff = (staff) => {
 .sort-header span:last-child {
     color: #22d3ee;
     font-size: 6px;
+}
+
+@media (max-width: 639px) {
+    .staff-access-panel {
+        padding: 0.75rem;
+        box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 0.5);
+    }
 }
 </style>

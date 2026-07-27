@@ -23,6 +23,12 @@ class Quest extends Model
 
     public const TYPE_MAIN = 'main';
     public const TYPE_OPTIONAL = 'optional';
+    public const ATTEMPT_SINGLE = 'single';
+    public const ATTEMPT_LIMITED = 'limited';
+    public const ATTEMPT_UNLIMITED = 'unlimited';
+    public const GRADE_HIGHEST = 'highest';
+    public const GRADE_LATEST = 'latest';
+    public const GRADE_FIRST = 'first';
 
     protected $fillable = [
         'uuid',
@@ -33,6 +39,10 @@ class Quest extends Model
         'reward_gold',
         'difficulty',
         'quest_type',
+        'attempt_mode',
+        'max_attempts',
+        'grading_attempt',
+        'allow_retry_after_approved',
         'is_completed',
         'study_group_id',
         'task_bank_id',
@@ -87,7 +97,27 @@ public function events()
         'deadline' => 'datetime',
         'available_from' => 'datetime',
         'available_until' => 'datetime',
+        'max_attempts' => 'integer',
+        'allow_retry_after_approved' => 'boolean',
     ];
+
+    public function allowsAnotherAttempt(int $attemptCount, ?Submission $latestSubmission = null): bool
+    {
+        return match ((string) ($this->attempt_mode ?? self::ATTEMPT_SINGLE)) {
+            self::ATTEMPT_UNLIMITED => true,
+            self::ATTEMPT_LIMITED => $attemptCount < max(1, (int) ($this->max_attempts ?? 1)),
+            default => $attemptCount < 1,
+        };
+    }
+
+    public function remainingAttempts(int $attemptCount): ?int
+    {
+        return match ((string) ($this->attempt_mode ?? self::ATTEMPT_SINGLE)) {
+            self::ATTEMPT_UNLIMITED => null,
+            self::ATTEMPT_LIMITED => max(0, max(1, (int) ($this->max_attempts ?? 1)) - $attemptCount),
+            default => max(0, 1 - $attemptCount),
+        };
+    }
 
     protected function deadline(): Attribute
     {

@@ -124,6 +124,9 @@ const form = useForm({
     reward_exp: 500,
     description: '',
     quest_type: 'main',
+    attempt_mode: 'single',
+    max_attempts: null,
+    grading_attempt: 'highest',
     is_active: true,
     study_group_id: null,
     task_bank_id: null,
@@ -268,6 +271,9 @@ const startEdit = (quest) => {
     form.reward_exp = quest.reward_exp ?? quest.reward_gold ?? 0;
     form.description = quest.description || '';
     form.quest_type = quest.quest_type || 'main';
+    form.attempt_mode = quest.attempt_mode || 'single';
+    form.max_attempts = quest.max_attempts ?? null;
+    form.grading_attempt = quest.grading_attempt || 'highest';
     const isScheduledOnceQuest = String(quest.schedule_type || 'manual') === 'once';
     // Manual quest legacy bisa pernah berstatus Done; anggap tetap aktif selama bukan In-Progress.
     form.is_active = isScheduledOnceQuest
@@ -602,6 +608,33 @@ const commitThemeBundle = async () => {
                                     <label class="block mb-2 text-white text-orange-500">SET_DEADLINE:</label>
                                     <input v-model="form.deadline" type="datetime-local"
                                         class="w-full bg-black border-2 border-slate-700 p-2 focus:border-orange-500 outline-none text-orange-400 uppercase text-[8px]">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block mb-2 text-white">ATTEMPT_MODE:</label>
+                                    <select v-model="form.attempt_mode"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 focus:border-cyan-400 outline-none text-cyan-300 uppercase">
+                                        <option value="single">SINGLE</option>
+                                        <option value="limited">LIMITED</option>
+                                        <option value="unlimited">UNLIMITED</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block mb-2 text-white">MAX_ATTEMPTS:</label>
+                                    <input v-model="form.max_attempts" type="number" min="2" max="100"
+                                        :disabled="form.attempt_mode !== 'limited'"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-300 outline-none disabled:cursor-not-allowed disabled:opacity-40">
+                                </div>
+                                <div>
+                                    <label class="block mb-2 text-white">GRADE_SOURCE:</label>
+                                    <select v-model="form.grading_attempt"
+                                        class="w-full bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-emerald-300 uppercase">
+                                        <option value="highest">HIGHEST_SCORE</option>
+                                        <option value="latest">LATEST_SCORE</option>
+                                        <option value="first">FIRST_SCORE</option>
+                                    </select>
                                 </div>
                             </div>
 

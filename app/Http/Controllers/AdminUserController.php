@@ -579,14 +579,22 @@ class AdminUserController extends Controller
 
     private function buildSubmissionLedgerRecords(User $user): Collection
     {
+        $bestGoldByQuest = [];
+
         return Submission::query()
             ->where('user_id', (int) $user->id)
             ->whereIn('status', ['Approved', 'Rejected'])
-            ->where('earned_gold', '!=', 0)
+            ->where('reward_eligible', true)
             ->with('quest:id,uuid,title')
-            ->get(['id', 'uuid', 'quest_id', 'status', 'earned_gold', 'created_at'])
-            ->map(function (Submission $submission) {
-                $goldChange = (int) ($submission->earned_gold ?? 0);
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get(['id', 'uuid', 'quest_id', 'status', 'grade', 'earned_gold', 'created_at'])
+            ->map(function (Submission $submission) use (&$bestGoldByQuest) {
+                $questId = (int) $submission->quest_id;
+                $previousBest = (int) ($bestGoldByQuest[$questId] ?? 0);
+                $attemptReward = max(0, (int) ($submission->earned_gold ?? 0));
+                $goldChange = max(0, $attemptReward - $previousBest);
+                $bestGoldByQuest[$questId] = max($previousBest, $attemptReward);
                 $occurredAt = $submission->created_at ?? now();
 
                 return [
@@ -597,9 +605,10 @@ class AdminUserController extends Controller
                     'gold_change' => $goldChange,
                     'amount' => abs($goldChange),
                     'note' => trim(sprintf(
-                        'Quest: %s | Status: %s',
+                        'Quest: %s | Status: %s | Grade: %d%% | Best reward increase',
                         (string) ($submission->quest?->title ?? 'Unknown Quest'),
-                        (string) ($submission->status ?? '-')
+                        (string) ($submission->status ?? '-'),
+                        (int) ($submission->grade ?? 0),
                     )),
                     'reference' => (string) ($submission->uuid ?? ''),
                     'item_name' => (string) ($submission->quest?->title ?? ''),
@@ -608,6 +617,7 @@ class AdminUserController extends Controller
                     'occurred_at_ts' => (int) $occurredAt->timestamp,
                 ];
             })
+            ->filter(fn (array $record) => (int) $record['gold_change'] > 0)
             ->values();
     }
 

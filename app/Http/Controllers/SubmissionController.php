@@ -7,19 +7,46 @@ use App\Models\DailyQuestDefinition;
 use App\Models\Submission;
 use App\Models\Quest;
 use App\Models\User;
+use App\Models\UserQuestAttemptUnlock;
 use App\Services\LmsNotificationService;
+use App\Services\QuestAttemptNumberService;
 use App\Services\UserRewardSyncService;
 use App\Models\UserQuestUnlock;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class SubmissionController extends Controller
 {
-    public function store(Request $request, Quest $quest, LmsNotificationService $notifications, UserRewardSyncService $rewardSync)
+    public function store(
+        Request $request,
+        Quest $quest,
+        LmsNotificationService $notifications,
+        UserRewardSyncService $rewardSync,
+        QuestAttemptNumberService $attemptNumbers,
+    )
     {
+        $request->validate([
+            'client_submission_token' => ['nullable', 'uuid'],
+            'requested_attempt_number' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $clientSubmissionToken = (string) ($request->input('client_submission_token') ?: Str::uuid());
+        $duplicateSubmission = Submission::withTrashed()
+            ->where('user_id', auth()->id())
+            ->where('quest_id', $quest->id)
+            ->where('client_submission_token', $clientSubmissionToken)
+            ->first();
+
+        if ($duplicateSubmission) {
+            return redirect()
+                ->route('quests.show', $quest)
+                ->with('message', 'MISSION_REPORT_ALREADY_RECEIVED');
+        }
+
         $quest->load(['taskBank.questions' => function ($query) {
             $query->where('is_active', true)->orderBy('sort_order');
         }]);
@@ -34,6 +61,28 @@ class SubmissionController extends Controller
         $existingSubmission = Submission::where('quest_id', $quest->id)
             ->where('user_id', auth()->id())
             ->latest('id')
+            ->first();
+        $attemptCount = Submission::query()
+            ->where('quest_id', $quest->id)
+            ->where('user_id', auth()->id())
+            ->count();
+        $nextAttemptNumber = $attemptNumbers->nextForSubmission($quest->id, (int) auth()->id());
+        $startNewAttempt = $request->boolean('new_attempt');
+        $expectedAttemptNumber = ($existingSubmission && ! $startNewAttempt)
+            ? (int) ($existingSubmission->attempt_number ?? 1)
+            : $nextAttemptNumber;
+        $requestedAttemptNumber = (int) $request->input('requested_attempt_number', $expectedAttemptNumber);
+
+        if ($requestedAttemptNumber !== $expectedAttemptNumber) {
+            throw ValidationException::withMessages([
+                'submission' => 'Attempt ini sudah berubah atau telah dikirim. Muat ulang halaman quest.',
+            ]);
+        }
+        $attemptUnlock = UserQuestAttemptUnlock::query()
+            ->where('user_id', auth()->id())
+            ->where('quest_id', $quest->id)
+            ->where('attempt_number', $nextAttemptNumber)
+            ->whereNull('used_at')
             ->first();
 
         $hasQuestUnlock = UserQuestUnlock::query()
@@ -50,7 +99,31 @@ class SubmissionController extends Controller
         $isUpdate = false;
         $submission = null;
 
-        if ($existingSubmission) {
+        if ($existingSubmission && $startNewAttempt) {
+            if (! $this->isSubmissionEvaluated($existingSubmission)) {
+                throw ValidationException::withMessages([
+                    'submission' => 'Attempt sebelumnya masih diproses.',
+                ]);
+            }
+
+            if (! $quest->allowsAnotherAttempt($attemptCount, $existingSubmission) && ! $attemptUnlock) {
+                throw ValidationException::withMessages([
+                    'submission' => 'Batas attempt untuk quest ini sudah tercapai.',
+                ]);
+            }
+
+            if (! $this->isDeadlineActive($quest)) {
+                throw ValidationException::withMessages([
+                    'submission' => 'Deadline sudah berakhir. Attempt baru tidak tersedia.',
+                ]);
+            }
+
+            $submission = new Submission();
+            $submission->quest_id = $quest->id;
+            $submission->user_id = auth()->id();
+            $submission->attempt_number = $nextAttemptNumber;
+            $submission->reward_eligible = true;
+        } elseif ($existingSubmission) {
             if (! $this->canResubmitSubmission($existingSubmission, $quest)) {
                 throw ValidationException::withMessages([
                     'submission' => 'Submission sudah diproses dan tidak bisa diubah.',
@@ -69,12 +142,29 @@ class SubmissionController extends Controller
             $submission = new Submission();
             $submission->quest_id = $quest->id;
             $submission->user_id = auth()->id();
+            $submission->attempt_number = $nextAttemptNumber;
+            $submission->reward_eligible = true;
         }
 
         $wasEvaluated = $this->isSubmissionEvaluated($submission);
+        if (! $isUpdate) {
+            $submission->client_submission_token = $clientSubmissionToken;
+        }
         $isAutoChecked = $this->applyUserSubmissionPayload($request, $quest, $submission, $isUpdate);
+        try {
+            $submission->save();
+        } catch (QueryException $exception) {
+            if ((int) ($exception->errorInfo[1] ?? 0) === 1062) {
+                return redirect()
+                    ->route('quests.show', $quest)
+                    ->with('message', 'MISSION_REPORT_ALREADY_RECEIVED');
+            }
 
-        $submission->save();
+            throw $exception;
+        }
+        if (! $isUpdate && $attemptUnlock) {
+            $attemptUnlock->update(['used_at' => now()]);
+        }
 
         if ($wasEvaluated || $this->isSubmissionEvaluated($submission)) {
             $rewardSync->sync((int) $submission->user_id);
@@ -97,7 +187,9 @@ class SubmissionController extends Controller
         CacheVersion::bump('dashboard');
         CacheVersion::bump('quests');
 
-        return back()->with('message', $isUpdate ? 'MISSION_REPORT_UPDATED' : 'MISSION_REPORT_SENT');
+        return redirect()
+            ->route('quests.show', $quest)
+            ->with('message', $isUpdate ? 'MISSION_REPORT_UPDATED' : 'MISSION_REPORT_SENT');
     }
 
     public function showSubmission(Submission $submission)
@@ -513,7 +605,7 @@ class SubmissionController extends Controller
             return false;
         }
 
-        return in_array((string) $submission->status, [Submission::STATUS_PENDING, Submission::STATUS_REJECTED], true);
+        return (string) $submission->status === Submission::STATUS_PENDING;
     }
 
     private function isStaffPlayModeUser(): bool

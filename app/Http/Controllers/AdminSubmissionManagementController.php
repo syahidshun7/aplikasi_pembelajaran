@@ -7,6 +7,7 @@ use App\Support\Cache\CacheVersion;
 use App\Services\UserRewardSyncService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -43,7 +44,8 @@ class AdminSubmissionManagementController extends Controller
                 $subQuery->from('submissions as s2')
                     ->selectRaw('COUNT(*)')
                     ->whereColumn('s2.user_id', 'submissions.user_id')
-                    ->whereColumn('s2.quest_id', 'submissions.quest_id');
+                    ->whereColumn('s2.quest_id', 'submissions.quest_id')
+                    ->whereNull('s2.deleted_at');
             }, 'duplicate_count')
             ->when($search !== '', function ($builder) use ($search) {
                 $builder->where(function ($q) use ($search) {
@@ -65,7 +67,7 @@ class AdminSubmissionManagementController extends Controller
             })
             ->when($duplicates === '1', function ($builder) {
                 $builder->whereRaw(
-                    '(SELECT COUNT(*) FROM submissions s2 WHERE s2.user_id = submissions.user_id AND s2.quest_id = submissions.quest_id) > 1'
+                    '(SELECT COUNT(*) FROM submissions s2 WHERE s2.user_id = submissions.user_id AND s2.quest_id = submissions.quest_id AND s2.deleted_at IS NULL) > 1'
                 );
             })
             ->latest('submissions.id');
@@ -104,6 +106,10 @@ class AdminSubmissionManagementController extends Controller
             $earnedExp = 0;
             $earnedGold = 0;
         }
+        if (! $submission->reward_eligible) {
+            $earnedExp = 0;
+            $earnedGold = 0;
+        }
 
         $submission->update([
             'content' => $validated['content'],
@@ -125,6 +131,13 @@ class AdminSubmissionManagementController extends Controller
     {
         $userId = (int) $submission->user_id;
 
+        Log::notice('Submission archived from admin management.', [
+            'submission_uuid' => (string) $submission->uuid,
+            'submission_user_id' => $userId,
+            'quest_id' => (int) $submission->quest_id,
+            'attempt_number' => (int) $submission->attempt_number,
+            'actor_user_id' => (int) auth()->id(),
+        ]);
         $submission->delete();
         $this->rewardSync->sync($userId);
 
@@ -139,6 +152,13 @@ class AdminSubmissionManagementController extends Controller
             ->where('uuid', $uuid)
             ->firstOrFail();
 
+        Log::notice('Submission restored from admin management.', [
+            'submission_uuid' => (string) $submission->uuid,
+            'submission_user_id' => (int) $submission->user_id,
+            'quest_id' => (int) $submission->quest_id,
+            'attempt_number' => (int) $submission->attempt_number,
+            'actor_user_id' => (int) auth()->id(),
+        ]);
         $submission->restore();
         $this->rewardSync->sync((int) $submission->user_id);
 
@@ -155,6 +175,13 @@ class AdminSubmissionManagementController extends Controller
 
         $userId = (int) $submission->user_id;
 
+        Log::warning('Submission permanently deleted from admin management.', [
+            'submission_uuid' => (string) $submission->uuid,
+            'submission_user_id' => $userId,
+            'quest_id' => (int) $submission->quest_id,
+            'attempt_number' => (int) $submission->attempt_number,
+            'actor_user_id' => (int) auth()->id(),
+        ]);
         if (!empty($submission->file_path) && Storage::disk('public')->exists($submission->file_path)) {
             Storage::disk('public')->delete($submission->file_path);
         }

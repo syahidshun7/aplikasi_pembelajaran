@@ -14,6 +14,7 @@ use App\Models\Submission;
 use App\Models\User;
 use App\Support\Cache\CacheVersion;
 use App\Services\LevelingService;
+use App\Services\QuestEffectiveSubmissionService;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -374,7 +376,7 @@ class ProfileController extends Controller
                 }
             })
             ->publishedForAverage()
-            ->get(['id', 'study_group_id']);
+            ->get(['id', 'study_group_id', 'grading_attempt']);
 
         $totalAvailableQuests = (int) $availableQuests->count();
         $availableQuestIds = $availableQuests
@@ -389,29 +391,31 @@ class ProfileController extends Controller
             $questCountByGroup[$groupKey] = (int) ($questCountByGroup[$groupKey] ?? 0) + 1;
         }
 
-        $latestSubmissions = empty($availableQuestIds)
+        $attemptsByQuest = empty($availableQuestIds)
             ? collect()
             : Submission::query()
-                ->joinSub(
-                    Submission::query()
-                        ->where('user_id', (int) $user->id)
-                        ->whereIn('quest_id', $availableQuestIds)
-                        ->selectRaw('MAX(id) as id')
-                        ->groupBy('quest_id'),
-                    'latest',
-                    fn ($join) => $join->on('submissions.id', '=', 'latest.id')
-                )
-                ->leftJoin('quests', 'quests.id', '=', 'submissions.quest_id')
-                ->get(['submissions.grade', 'submissions.status', 'quests.study_group_id']);
+                ->where('user_id', (int) $user->id)
+                ->whereIn('quest_id', $availableQuestIds)
+                ->get(['id', 'quest_id', 'attempt_number', 'grade', 'status'])
+                ->groupBy('quest_id');
+        $effectiveSubmissions = $availableQuests
+            ->map(function (Quest $quest) use ($attemptsByQuest) {
+                return app(QuestEffectiveSubmissionService::class)->select(
+                    $attemptsByQuest->get($quest->id, collect()),
+                    (string) ($quest->grading_attempt ?? Quest::GRADE_HIGHEST),
+                );
+            })
+            ->filter();
 
         $gradeSum = 0;
         $gradeSumByGroup = [];
         $completedCountByGroup = [];
 
-        foreach ($latestSubmissions as $submission) {
+        foreach ($effectiveSubmissions as $submission) {
             $grade = (int) ($submission->grade ?? 0);
             $status = (string) ($submission->status ?? '');
-            $groupKey = is_null($submission->study_group_id) ? 0 : (int) $submission->study_group_id;
+            $quest = $availableQuests->firstWhere('id', (int) $submission->quest_id);
+            $groupKey = is_null($quest?->study_group_id) ? 0 : (int) $quest->study_group_id;
 
             $gradeSum += $grade;
             $gradeSumByGroup[$groupKey] = (int) ($gradeSumByGroup[$groupKey] ?? 0) + $grade;
@@ -471,31 +475,52 @@ class ProfileController extends Controller
 
     private function resolveUserQuests($user)
     {
-        return Submission::where('user_id', $user->id)
-            ->with('quest:id,uuid,title')
-            ->select([
-                'id',
-                'uuid',
-                'user_id',
-                'quest_id',
-                'status',
-                'grade',
-                'created_at',
+        $attemptsByQuest = Submission::query()
+            ->where('user_id', $user->id)
+            ->with('quest:id,uuid,title,grading_attempt')
+            ->orderByDesc('id')
+            ->get([
+                'id', 'uuid', 'user_id', 'quest_id', 'attempt_number',
+                'status', 'grade', 'created_at',
             ])
-            ->orderBy('created_at', 'desc')
-            ->paginate(12)
-            ->withQueryString()
-            ->through(function ($submission) {
+            ->groupBy('quest_id');
+
+        $items = $attemptsByQuest
+            ->map(function ($attempts) {
+                $quest = $attempts->first()?->quest;
+                $effective = app(QuestEffectiveSubmissionService::class)->select(
+                    $attempts,
+                    (string) ($quest?->grading_attempt ?? Quest::GRADE_HIGHEST),
+                );
+                $submission = $effective ?? $attempts->first();
+
                 return [
                     'id'           => $submission->id,
                     'uuid'         => $submission->uuid,
-                    'title'        => $submission->quest?->title ?? 'Unknown Quest',
+                    'title'        => $quest?->title ?? 'Unknown Quest',
                     'status'       => $submission->status,
                     'grade'        => $submission->grade,
                     'submitted_at' => $submission->created_at->diffForHumans(),
-                    'quest_uuid'   => $submission->quest?->uuid,
+                    'quest_uuid'   => $quest?->uuid,
+                    'attempt_number' => (int) ($submission->attempt_number ?? 1),
                 ];
-            });
+            })
+            ->sortByDesc('id')
+            ->values();
+
+        $perPage = 12;
+        $page = LengthAwarePaginator::resolveCurrentPage();
+
+        return (new LengthAwarePaginator(
+            $items->forPage($page, $perPage)->values(),
+            $items->count(),
+            $perPage,
+            $page,
+            [
+                'path' => request()->url(),
+                'query' => request()->query(),
+            ],
+        ));
     }
 
     private function resolvePublicCreations(User $user, int $viewerId): array

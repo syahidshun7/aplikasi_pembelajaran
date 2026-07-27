@@ -242,6 +242,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/quests/{quest}/platforming-progress', [QuestController::class, 'savePlatformingProgress'])->name('quests.platforming-progress.save');
     Route::get('/quests/{quest}/platforming-progress', [QuestController::class, 'loadPlatformingProgress'])->name('quests.platforming-progress.load');
     Route::post('/quests/{quest}/unlock-late', [QuestController::class, 'unlockLate'])->name('quests.unlock-late');
+    Route::post('/quests/{quest}/unlock-retake', [QuestController::class, 'unlockRetake'])->name('quests.unlock-retake');
     Route::post('/quests/{quest}/submissions', [SubmissionController::class, 'store'])
         ->middleware('verified')
         ->name('submissions.store');

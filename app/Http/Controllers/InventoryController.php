@@ -55,12 +55,14 @@ class InventoryController extends Controller
                             'background_image_path' => (string) ($profileSkin->background_image_path ?? ''),
                             'is_equipped' => $activeProfileSkinId === (int) $profileSkin->id,
                         ] : null,
-                        'is_usable' => $code === 'TIME_KEY',
+                        'is_usable' => in_array($code, ['TIME_KEY', 'RETAKE_TICKET'], true),
                         'use_hint' => $profileSkin
                             ? 'Cosmetic skin untuk profil publik. Equip langsung dari Inventory.'
-                            : ($code === 'TIME_KEY'
-                            ? 'Gunakan dari halaman quest yang sudah melewati deadline.'
-                            : 'Item ini belum punya aksi langsung.'),
+                            : match ($code) {
+                                'TIME_KEY' => 'Gunakan dari halaman quest yang sudah melewati deadline.',
+                                'RETAKE_TICKET' => 'Gunakan dari halaman quest Approved setelah attempt normal habis.',
+                                default => 'Item ini belum punya aksi langsung.',
+                            },
                     ],
                 ];
             });

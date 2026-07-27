@@ -172,3 +172,46 @@ it('admin update logs gold adjustment audit entry', function () {
     expect((int) $adjustment->gold_change)->toBe(150);
     expect((int) $adjustment->admin_user_id)->toBe((int) $admin->id);
 });
+
+it('submission ledger records only increases to the best quest reward', function () {
+    $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+    $target = User::factory()->create(['role' => User::ROLE_USER]);
+    $quest = Quest::query()->create([
+        'title' => 'Best Reward Ledger Quest',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => Quest::STATUS_AVAILABLE,
+    ]);
+
+    foreach ([
+        ['grade' => 50, 'reward' => 250],
+        ['grade' => 100, 'reward' => 500],
+        ['grade' => 50, 'reward' => 250],
+        ['grade' => 100, 'reward' => 500],
+    ] as $index => $attempt) {
+        Submission::query()->create([
+            'quest_id' => $quest->id,
+            'user_id' => $target->id,
+            'attempt_number' => $index + 1,
+            'reward_eligible' => true,
+            'content' => 'attempt',
+            'status' => Submission::STATUS_APPROVED,
+            'grade' => $attempt['grade'],
+            'earned_exp' => $attempt['reward'],
+            'earned_gold' => $attempt['reward'],
+            'created_at' => now()->addSeconds($index),
+        ]);
+    }
+
+    $this->actingAs($admin)
+        ->get(route('admin.users.ledger', $target->id))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('summary.income_total', 500)
+            ->where('summary.transaction_count', 2)
+            ->has('ledger.data', 2)
+            ->where('ledger.data.0.gold_change', 250)
+            ->where('ledger.data.1.gold_change', 250)
+        );
+});

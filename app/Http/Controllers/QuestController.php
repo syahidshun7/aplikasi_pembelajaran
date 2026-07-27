@@ -13,8 +13,10 @@ use Inertia\Inertia;
 use App\Models\StudyGroup;
 use App\Models\UserInventory;
 use App\Models\UserInventoryLog;
+use App\Models\UserQuestAttemptUnlock;
 use App\Models\UserQuestUnlock;
 use App\Services\StudyGroupStaffAccessService;
+use App\Services\QuestAttemptNumberService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
@@ -281,6 +283,9 @@ class QuestController extends Controller
             'reward_exp' => 'nullable|integer|min:0',
             'description' => 'nullable|string',
             'quest_type' => 'nullable|in:main,optional',
+            'attempt_mode' => 'nullable|in:single,limited,unlimited',
+            'max_attempts' => 'nullable|integer|min:2|max:100|required_if:attempt_mode,limited',
+            'grading_attempt' => 'nullable|in:highest,latest,first',
             'is_active' => 'nullable|boolean',
             'study_group_id' => 'nullable|exists:study_groups,id',
             'task_bank_id' => 'nullable|exists:task_banks,id',
@@ -304,6 +309,11 @@ class QuestController extends Controller
         $validated['reward_exp'] = $goldTable[$request->difficulty] ?? 0;
         $validated['uuid'] = (string) \Illuminate\Support\Str::uuid();
         $validated['quest_type'] = (string) ($validated['quest_type'] ?? Quest::TYPE_MAIN);
+        $validated['attempt_mode'] = (string) ($validated['attempt_mode'] ?? Quest::ATTEMPT_SINGLE);
+        $validated['max_attempts'] = $validated['attempt_mode'] === Quest::ATTEMPT_LIMITED
+            ? (int) $validated['max_attempts']
+            : null;
+        $validated['grading_attempt'] = (string) ($validated['grading_attempt'] ?? Quest::GRADE_HIGHEST);
         $validated['schedule_type'] = (string) ($validated['schedule_type'] ?? Quest::SCHEDULE_MANUAL);
         $validated['status'] = $this->resolveQuestStatusFromPayload($validated);
 
@@ -333,6 +343,9 @@ class QuestController extends Controller
             'reward_gold' => 'required|integer|min:0',
             'reward_exp' => 'nullable|integer|min:0',
             'quest_type' => 'nullable|in:main,optional',
+            'attempt_mode' => 'nullable|in:single,limited,unlimited',
+            'max_attempts' => 'nullable|integer|min:2|max:100|required_if:attempt_mode,limited',
+            'grading_attempt' => 'nullable|in:highest,latest,first',
             'is_active' => 'nullable|boolean',
             'study_group_id' => 'nullable|exists:study_groups,id',
             'task_bank_id' => 'nullable|exists:task_banks,id',
@@ -356,6 +369,11 @@ class QuestController extends Controller
         $validated['reward_gold'] = $goldTable[$request->difficulty] ?? $validated['reward_gold'];
         $validated['reward_exp'] = $goldTable[$request->difficulty] ?? ($validated['reward_exp'] ?? 0);
         $validated['quest_type'] = (string) ($validated['quest_type'] ?? Quest::TYPE_MAIN);
+        $validated['attempt_mode'] = (string) ($validated['attempt_mode'] ?? Quest::ATTEMPT_SINGLE);
+        $validated['max_attempts'] = $validated['attempt_mode'] === Quest::ATTEMPT_LIMITED
+            ? (int) $validated['max_attempts']
+            : null;
+        $validated['grading_attempt'] = (string) ($validated['grading_attempt'] ?? Quest::GRADE_HIGHEST);
         $validated['schedule_type'] = (string) ($validated['schedule_type'] ?? Quest::SCHEDULE_MANUAL);
         $validated['status'] = $this->resolveQuestStatusFromPayload($validated);
 
@@ -421,11 +439,11 @@ class QuestController extends Controller
     }
 
 
-    public function show(Quest $quest)
+    public function show(Request $request, Quest $quest)
     {
         $this->authorizeQuestAccessForCurrentUser($quest);
 
-        return $this->renderQuestShow($quest);
+        return $this->renderQuestShow($quest, false, $request->query('attempt') === 'new');
     }
 
     public function userPreview(Request $request, Quest $quest)
@@ -442,7 +460,7 @@ class QuestController extends Controller
         return back()->with('message', 'QUEST_PREVIEW_SUBMIT_SIMULATED');
     }
 
-    private function renderQuestShow(Quest $quest, bool $previewMode = false)
+    private function renderQuestShow(Quest $quest, bool $previewMode = false, bool $newAttemptRequested = false)
     {
         $userId = (int) auth()->id();
         $quest->load([
@@ -455,11 +473,15 @@ class QuestController extends Controller
             },
         ]);
 
-        $submission = $quest->submissions()
+        $submissions = $quest->submissions()
             ->where('user_id', $userId)
             ->latest('id')
-            ->first();
-
+            ->get();
+        $submission = $submissions->first();
+        $attemptCount = $submissions->count();
+        $remainingAttempts = $quest->remainingAttempts($attemptCount);
+        $nextAttemptNumber = app(QuestAttemptNumberService::class)
+            ->nextForSubmission($quest->id, $userId);
         $isLate = $this->isQuestLate($quest);
         $isInactive = (string) ($quest->status ?? '') === 'In-Progress';
         $isStaff = (bool) auth()->user()?->isStaff();
@@ -498,26 +520,97 @@ class QuestController extends Controller
         }
 
         $deadlineActive = $quest->deadline === null || $quest->deadline->isFuture();
-        $canFirstSubmit = ! $submission && (! $isLate || $hasQuestUnlock);
-        $canResubmitSubmission = (bool) $submission
-            && in_array((string) $submission->status, ['Pending', 'Rejected'], true)
+        $normalAttemptAvailable = (bool) $submission
+            && $deadlineActive
+            && in_array((string) $submission->status, [Submission::STATUS_APPROVED, Submission::STATUS_REJECTED], true)
+            && $quest->allowsAnotherAttempt($attemptCount, $submission);
+        $attemptUnlock = UserQuestAttemptUnlock::query()
+            ->where('user_id', $userId)
+            ->where('quest_id', $quest->id)
+            ->where('attempt_number', $nextAttemptNumber)
+            ->whereNull('used_at')
+            ->first();
+        $canStartNewAttempt = $normalAttemptAvailable || (bool) $attemptUnlock;
+        $isNewAttempt = ! $previewMode && $newAttemptRequested && $canStartNewAttempt;
+        $displaySubmission = $isNewAttempt ? null : $submission;
+        $canFirstSubmit = ! $displaySubmission && (! $isLate || $hasQuestUnlock);
+        $canResubmitSubmission = (bool) $displaySubmission
+            && (string) $displaySubmission->status === Submission::STATUS_PENDING
             && $deadlineActive;
 
-        $canSubmit = $canFirstSubmit || $canResubmitSubmission;
+        $canSubmit = $isNewAttempt || $canFirstSubmit || $canResubmitSubmission;
 
-        $progressKey = "pf-game-state:{$userId}:" . ($quest->uuid ?: $quest->id);
-        $initialProgress = $previewMode ? null : Cache::get($progressKey);
+        $progressAttemptNumber = $displaySubmission
+            ? (int) ($displaySubmission->attempt_number ?? 1)
+            : $nextAttemptNumber;
+        $progressKey = "pf-game-state:{$userId}:" . ($quest->uuid ?: $quest->id) . ":{$progressAttemptNumber}";
+        $initialProgress = ($previewMode || $isNewAttempt) ? null : Cache::get($progressKey);
+        $gradedAttempts = $submissions
+            ->filter(fn (Submission $item) => in_array((string) $item->status, [Submission::STATUS_APPROVED, Submission::STATUS_REJECTED], true));
+        $retakeTicketItem = ShopItem::query()
+            ->where('code', 'RETAKE_TICKET')
+            ->where('is_active', true)
+            ->first();
+        $retakeTicketQty = (! $previewMode && $retakeTicketItem && ! $isStaffPlayMode)
+            ? (int) UserInventory::query()
+                ->where('user_id', $userId)
+                ->where('shop_item_id', $retakeTicketItem->id)
+                ->value('quantity')
+            : 0;
+        $canUseRetakeTicket = ! $previewMode
+            && ! $isStaffPlayMode
+            && $deadlineActive
+            && ! $normalAttemptAvailable
+            && ! $attemptUnlock
+            && (string) ($submission?->status ?? '') === Submission::STATUS_APPROVED;
+        $effectiveSubmission = match ((string) ($quest->grading_attempt ?? Quest::GRADE_HIGHEST)) {
+            Quest::GRADE_FIRST => $gradedAttempts->sortBy('attempt_number')->first(),
+            Quest::GRADE_LATEST => $gradedAttempts->sortByDesc('attempt_number')->first(),
+            default => $gradedAttempts->sortByDesc(fn (Submission $item) => (int) ($item->grade ?? 0))->first(),
+        };
 
         return Inertia::render('Quests/Show', [
             'quest' => $quest,
-            'hasSubmitted' => $previewMode ? false : !!$submission,
-            'existingSubmission' => $previewMode ? null : $submission,
+            'hasSubmitted' => $previewMode ? false : !!$displaySubmission,
+            'existingSubmission' => $previewMode ? null : $displaySubmission,
             'isLate' => $isLate,
             'hasQuestUnlock' => $hasQuestUnlock,
             'canSubmit' => $previewMode ? true : $canSubmit,
             'timeKeyQty' => $timeKeyQty,
             'isStaffPlayMode' => $isStaffPlayMode,
             'initialPlatformingProgress' => $initialProgress,
+            'attemptContext' => [
+                'attempt_count' => (int) $attemptCount,
+                'remaining_attempts' => $remainingAttempts,
+                'next_attempt_number' => $nextAttemptNumber,
+                'is_new_attempt' => $isNewAttempt,
+                'can_start_new_attempt' => $canStartNewAttempt,
+                'unlocked_by_ticket' => (bool) $attemptUnlock,
+                'can_use_retake_ticket' => $canUseRetakeTicket,
+                'retake_ticket_quantity' => $retakeTicketQty,
+                'attempt_mode' => (string) ($quest->attempt_mode ?? Quest::ATTEMPT_SINGLE),
+                'max_attempts' => $quest->max_attempts ? (int) $quest->max_attempts : null,
+                'grading_attempt' => (string) ($quest->grading_attempt ?? Quest::GRADE_HIGHEST),
+                'effective_grade' => $effectiveSubmission?->grade !== null ? (int) $effectiveSubmission->grade : null,
+                'effective_attempt_number' => $effectiveSubmission
+                    ? (int) ($effectiveSubmission->attempt_number ?? 1)
+                    : null,
+                'best_grade' => $gradedAttempts->max('grade'),
+                'history' => $submissions
+                    ->sortByDesc('attempt_number')
+                    ->map(fn (Submission $item) => [
+                        'uuid' => (string) $item->uuid,
+                        'attempt_number' => (int) ($item->attempt_number ?? 1),
+                        'status' => (string) $item->status,
+                        'grade' => $item->grade !== null ? (int) $item->grade : null,
+                        'earned_exp' => (int) ($item->earned_exp ?? 0),
+                        'earned_gold' => (int) ($item->earned_gold ?? 0),
+                        'is_effective' => $effectiveSubmission
+                            && (int) $item->id === (int) $effectiveSubmission->id,
+                        'submitted_at' => $item->created_at?->toISOString(),
+                    ])
+                    ->values(),
+            ],
             'previewMode' => $previewMode,
             'previewSubmitUrl' => $previewMode ? route('quests.user-preview.submissions', $quest->uuid) : null,
             'backUrl' => $previewMode && $quest->studyGroup
@@ -549,25 +642,31 @@ class QuestController extends Controller
     public function savePlatformingProgress(Request $request, Quest $quest)
     {
         $userId = auth()->id();
-        $progressKey = "pf-game-state:{$userId}:" . ($quest->uuid ?: $quest->id);
-        
         $data = $request->validate([
             'index' => 'required|integer',
             'level' => 'required|integer',
             'answers' => 'required|array',
             'time_left' => 'required|integer',
             'wm_state' => 'nullable|array', // Tambahan untuk word_match
+            'attempt_number' => 'required|integer|min:1',
+            'state_version' => 'nullable|integer|min:1',
         ]);
 
+        $progressKey = "pf-game-state:{$userId}:"
+            . ($quest->uuid ?: $quest->id)
+            . ':' . (int) $data['attempt_number'];
         Cache::put($progressKey, $data, now()->addHours(2));
 
         return response()->json(['status' => 'success']);
     }
 
-    public function loadPlatformingProgress(Quest $quest)
+    public function loadPlatformingProgress(Request $request, Quest $quest)
     {
         $userId = auth()->id();
-        $progressKey = "pf-game-state:{$userId}:" . ($quest->uuid ?: $quest->id);
+        $attemptNumber = max(1, (int) $request->integer('attempt_number', 1));
+        $progressKey = "pf-game-state:{$userId}:"
+            . ($quest->uuid ?: $quest->id)
+            . ":{$attemptNumber}";
         return response()->json(Cache::get($progressKey));
     }
 
@@ -668,6 +767,131 @@ class QuestController extends Controller
         return back()->with('message', 'QUEST_REOPENED_USING_TIME_KEY');
     }
 
+    public function unlockRetake(Quest $quest)
+    {
+        $this->authorizeQuestAccessForCurrentUser($quest);
+
+        if ((bool) auth()->user()?->isStaffPlayMode()) {
+            throw ValidationException::withMessages([
+                'retake' => 'Staff play mode tidak bisa memakai Retake Ticket.',
+            ]);
+        }
+
+        $userId = (int) auth()->id();
+        $retakeTicket = ShopItem::query()
+            ->where('code', 'RETAKE_TICKET')
+            ->where('is_active', true)
+            ->first();
+
+        if (! $retakeTicket) {
+            throw ValidationException::withMessages([
+                'retake' => 'Retake Ticket belum tersedia di shop.',
+            ]);
+        }
+
+        DB::transaction(function () use ($quest, $userId, $retakeTicket) {
+            $latest = Submission::query()
+                ->where('quest_id', $quest->id)
+                ->where('user_id', $userId)
+                ->lockForUpdate()
+                ->latest('id')
+                ->first();
+            $historicalSubmissions = Submission::withTrashed()
+                ->where('quest_id', $quest->id)
+                ->where('user_id', $userId)
+                ->lockForUpdate()
+                ->get();
+            $attemptCount = Submission::query()
+                ->where('quest_id', $quest->id)
+                ->where('user_id', $userId)
+                ->count();
+            $unusedUnlock = UserQuestAttemptUnlock::query()
+                ->where('user_id', $userId)
+                ->where('quest_id', $quest->id)
+                ->whereNull('used_at')
+                ->lockForUpdate()
+                ->orderBy('attempt_number')
+                ->first();
+
+            if ($unusedUnlock) {
+                return;
+            }
+
+            $unlockMax = (int) UserQuestAttemptUnlock::query()
+                ->where('user_id', $userId)
+                ->where('quest_id', $quest->id)
+                ->lockForUpdate()
+                ->max('attempt_number');
+            $nextAttemptNumber = max(
+                (int) $historicalSubmissions->max('attempt_number'),
+                $unlockMax,
+            ) + 1;
+
+            if (! $latest || (string) $latest->status !== Submission::STATUS_APPROVED) {
+                throw ValidationException::withMessages([
+                    'retake' => 'Retake Ticket hanya dapat dipakai setelah quest berstatus Approved.',
+                ]);
+            }
+
+            if (! $this->isDeadlineActive($quest)) {
+                throw ValidationException::withMessages([
+                    'retake' => 'Deadline sudah berakhir. Retake Ticket tidak dapat digunakan.',
+                ]);
+            }
+
+            if ($quest->allowsAnotherAttempt($attemptCount, $latest)) {
+                throw ValidationException::withMessages([
+                    'retake' => 'Quest ini masih memiliki attempt normal. Retake Ticket belum diperlukan.',
+                ]);
+            }
+
+            $inventory = UserInventory::query()
+                ->where('user_id', $userId)
+                ->where('shop_item_id', $retakeTicket->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $inventory || (int) $inventory->quantity < 1) {
+                throw ValidationException::withMessages([
+                    'retake' => 'Kamu tidak punya Retake Ticket. Beli dulu di shop.',
+                ]);
+            }
+
+            $unlock = UserQuestAttemptUnlock::query()->create([
+                'user_id' => $userId,
+                'quest_id' => $quest->id,
+                'shop_item_id' => $retakeTicket->id,
+                'attempt_number' => $nextAttemptNumber,
+                'unlocked_at' => now(),
+            ]);
+            $quantityBefore = (int) $inventory->quantity;
+            $inventory->decrement('quantity');
+
+            UserInventoryLog::query()->create([
+                'user_id' => $userId,
+                'shop_item_id' => $retakeTicket->id,
+                'quantity_before' => $quantityBefore,
+                'quantity_after' => $quantityBefore - 1,
+                'quantity_change' => -1,
+                'type' => UserInventoryLog::TYPE_USE,
+                'reference_type' => UserQuestAttemptUnlock::class,
+                'reference_id' => (int) $unlock->id,
+                'note' => 'Use Retake Ticket for an extra quest attempt',
+                'meta' => [
+                    'quest_id' => $quest->id,
+                    'quest_uuid' => $quest->uuid,
+                    'quest_title' => $quest->title,
+                    'attempt_number' => $nextAttemptNumber,
+                ],
+            ]);
+        });
+
+        CacheVersion::bump('quests');
+        CacheVersion::bump('shop');
+
+        return back()->with('message', 'RETAKE_TICKET_ACTIVATED');
+    }
+
     private function isQuestLate(Quest $quest): bool
     {
         $deadlinePassed = $quest->deadline !== null && $quest->deadline->isPast();
@@ -675,6 +899,11 @@ class QuestController extends Controller
         $statusDone = $isScheduledOnce && in_array((string) $quest->status, ['Done', 'Completed'], true);
 
         return $deadlinePassed || $statusDone;
+    }
+
+    private function isDeadlineActive(Quest $quest): bool
+    {
+        return $quest->deadline === null || $quest->deadline->isFuture();
     }
 
     private function isMentorUser(): bool

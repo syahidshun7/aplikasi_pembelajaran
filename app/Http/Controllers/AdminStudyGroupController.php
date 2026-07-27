@@ -229,7 +229,7 @@ class AdminStudyGroupController extends Controller
             ->where('study_group_id', (int) $group->id)
             ->orderByRaw("CASE WHEN quest_type = 'main' THEN 0 ELSE 1 END")
             ->orderBy('title')
-            ->get(['id', 'uuid', 'title', 'quest_type', 'difficulty']);
+            ->get(['id', 'uuid', 'title', 'quest_type', 'difficulty', 'grading_attempt']);
 
         $questIds = $quests->pluck('id')->map(fn ($id) => (int) $id)->all();
         $submissions = empty($questIds)
@@ -238,23 +238,25 @@ class AdminStudyGroupController extends Controller
                 ->where('user_id', (int) $student->id)
                 ->whereIn('quest_id', $questIds)
                 ->orderByDesc('id')
-                ->get(['id', 'uuid', 'quest_id', 'grade', 'status', 'created_at'])
+                ->get(['id', 'uuid', 'quest_id', 'attempt_number', 'grade', 'status', 'created_at'])
                 ->groupBy('quest_id');
 
         $questHistory = $quests
             ->map(function ($quest) use ($submissions) {
                 $attempts = $submissions->get($quest->id, collect());
                 $latest = $attempts->first();
+                $effective = $this->effectiveAttempt($attempts, (string) ($quest->grading_attempt ?? \App\Models\Quest::GRADE_HIGHEST));
 
                 return [
                     'uuid' => (string) $quest->uuid,
                     'title' => (string) $quest->title,
                     'quest_type' => (string) $quest->quest_type,
                     'difficulty' => (string) ($quest->difficulty ?? ''),
-                    'grade' => $latest?->grade !== null ? (int) $latest->grade : null,
+                    'grade' => $effective?->grade !== null ? (int) $effective->grade : null,
                     'status' => $latest
                         ? (string) ($latest->status ?? 'Pending')
                         : 'Not_Started',
+                    'submission_uuid' => $effective?->uuid ? (string) $effective->uuid : null,
                     'attempts' => (int) $attempts->count(),
                     'submitted_at' => $latest?->created_at?->toISOString(),
                 ];
@@ -941,12 +943,11 @@ class AdminStudyGroupController extends Controller
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
-        $mainQuestIds = \App\Models\Quest::query()
+        $mainQuests = \App\Models\Quest::query()
             ->where('study_group_id', (int) $group->id)
             ->where('quest_type', 'main')
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
+            ->get(['id', 'grading_attempt']);
+        $mainQuestIds = $mainQuests->pluck('id')->map(fn ($id) => (int) $id)->all();
 
         $presentCountByUser = empty($eventIds)
             ? collect()
@@ -958,33 +959,39 @@ class AdminStudyGroupController extends Controller
                 ->groupBy('user_id')
                 ->pluck('total', 'user_id');
 
-        $latestGradeSumByUser = collect();
+        $gradeSumByUser = collect();
         if (! empty($mainQuestIds)) {
-            $latestGradeSumByUser = \App\Models\Submission::query()
-                ->joinSub(
-                    \App\Models\Submission::query()
-                        ->whereIn('user_id', $studentIds)
-                        ->whereIn('quest_id', $mainQuestIds)
-                        ->selectRaw('MAX(id) as id')
-                        ->groupBy('user_id', 'quest_id'),
-                    'latest_main_submissions',
-                    fn ($join) => $join->on('submissions.id', '=', 'latest_main_submissions.id')
-                )
-                ->selectRaw('submissions.user_id, SUM(COALESCE(submissions.grade, 0)) as grade_sum')
-                ->groupBy('submissions.user_id')
-                ->pluck('grade_sum', 'submissions.user_id');
+            $questStrategies = $mainQuests->keyBy('id');
+            $gradeSumByUser = \App\Models\Submission::query()
+                ->whereIn('user_id', $studentIds)
+                ->whereIn('quest_id', $mainQuestIds)
+                ->whereIn('status', [\App\Models\Submission::STATUS_APPROVED, \App\Models\Submission::STATUS_REJECTED])
+                ->get(['id', 'user_id', 'quest_id', 'attempt_number', 'grade', 'status'])
+                ->groupBy(fn ($submission) => "{$submission->user_id}:{$submission->quest_id}")
+                ->map(function ($attempts) use ($questStrategies) {
+                    $quest = $questStrategies->get((int) $attempts->first()->quest_id);
+                    return (float) ($this->effectiveAttempt(
+                        $attempts,
+                        (string) ($quest?->grading_attempt ?? \App\Models\Quest::GRADE_HIGHEST)
+                    )?->grade ?? 0);
+                })
+                ->reduce(function ($totals, $grade, $key) {
+                    $userId = (int) explode(':', $key, 2)[0];
+                    $totals[$userId] = (float) ($totals[$userId] ?? 0) + (float) $grade;
+                    return $totals;
+                }, collect());
         }
 
         $totalEvents = count($eventIds);
         $totalMainQuests = count($mainQuestIds);
 
         return $students
-            ->map(function (User $student) use ($presentCountByUser, $latestGradeSumByUser, $totalEvents, $totalMainQuests) {
+            ->map(function (User $student) use ($presentCountByUser, $gradeSumByUser, $totalEvents, $totalMainQuests) {
                 $attendanceRate = $totalEvents > 0
                     ? round(((int) ($presentCountByUser[$student->id] ?? 0) / $totalEvents) * 100, 1)
                     : 0.0;
                 $mainQuestAverage = $totalMainQuests > 0
-                    ? round(((float) ($latestGradeSumByUser[$student->id] ?? 0) / $totalMainQuests), 1)
+                    ? round(((float) ($gradeSumByUser[$student->id] ?? 0) / $totalMainQuests), 1)
                     : 0.0;
                 $performanceAverage = round(($attendanceRate + $mainQuestAverage) / 2, 1);
 
@@ -1002,6 +1009,12 @@ class AdminStudyGroupController extends Controller
             })
             ->values()
             ->all();
+    }
+
+    private function effectiveAttempt(\Illuminate\Support\Collection $attempts, string $strategy): ?\App\Models\Submission
+    {
+        return app(\App\Services\QuestEffectiveSubmissionService::class)
+            ->select($attempts, $strategy);
     }
 
    

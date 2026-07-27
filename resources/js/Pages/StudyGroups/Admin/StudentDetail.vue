@@ -1,6 +1,6 @@
 <script setup>
 import AdminNavbar from '@/Components/AdminNavbar.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -74,6 +74,14 @@ const formatDate = (value) => {
         dateStyle: 'medium',
         timeStyle: 'short',
     }).format(new Date(value));
+};
+
+const openQuestHistory = (quest) => {
+    if (!quest.submission_uuid) return;
+
+    router.visit(route('admin.submissions.inspect', {
+        submission: quest.submission_uuid,
+    }));
 };
 </script>
 
@@ -189,7 +197,18 @@ const formatDate = (value) => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="quest in filteredQuestHistory" :key="quest.uuid" class="table-row">
+                            <tr
+                                v-for="quest in filteredQuestHistory"
+                                :key="quest.uuid"
+                                class="table-row focus:outline-none"
+                                :class="quest.submission_uuid
+                                    ? 'cursor-pointer hover:bg-yellow-500/10 focus:bg-yellow-500/10'
+                                    : 'cursor-default opacity-70'"
+                                :tabindex="quest.submission_uuid ? 0 : -1"
+                                @click="openQuestHistory(quest)"
+                                @keydown.enter="openQuestHistory(quest)"
+                                @keydown.space.prevent="openQuestHistory(quest)"
+                            >
                                 <td class="p-3 font-sans text-[13px] font-semibold text-white">{{ quest.title }}</td>
                                 <td class="p-3 uppercase" :class="quest.quest_type === 'main' ? 'text-yellow-300' : 'text-purple-300'">{{ quest.quest_type }}</td>
                                 <td class="p-3 uppercase text-slate-300">{{ quest.difficulty || '-' }}</td>

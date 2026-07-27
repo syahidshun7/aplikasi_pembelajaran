@@ -87,7 +87,7 @@ const saveEdit = () => {
 const removeSubmission = (row) => {
     Swal.fire({
         title: 'ARCHIVE_SUBMISSION?',
-        text: 'Data submission akan dipindah ke trash.',
+        text: 'Data dipindah ke Trash. Nomor attempt tidak akan reset sampai submission dihapus permanen.',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'YES_ARCHIVE',
@@ -197,7 +197,7 @@ const goToPage = (url) => {
                         class="bg-black border-2 border-slate-700 p-2 text-cyan-400 uppercase outline-none"
                     >
                         <option value="0">ALL_ROWS</option>
-                        <option value="1">ONLY_DUPLICATES</option>
+                        <option value="1">MULTIPLE_ACTIVE_ATTEMPTS</option>
                     </select>
                 </div>
 
@@ -226,7 +226,7 @@ const goToPage = (url) => {
                                 <th class="py-3 px-2">Status</th>
                                 <th class="py-3 px-2">Grade</th>
                                 <th class="py-3 px-2">Reward</th>
-                                <th class="py-3 px-2">Dup</th>
+                                <th class="py-3 px-2">Active_Attempts</th>
                                 <th class="py-3 px-2">{{ isTrashView ? 'Deleted' : 'Date' }}</th>
                                 <th class="py-3 px-2 text-right">Action</th>
                             </tr>
@@ -255,7 +255,7 @@ const goToPage = (url) => {
                                 <td class="py-3 px-2">
                                     <span
                                         class="px-2 py-1 border text-[8px]"
-                                        :class="(row.duplicate_count || 0) > 1 ? 'text-red-400 border-red-800 bg-red-900/20' : 'text-slate-400 border-slate-700'"
+                                        :class="(row.duplicate_count || 0) > 1 ? 'text-cyan-300 border-cyan-800 bg-cyan-900/20' : 'text-slate-400 border-slate-700'"
                                     >
                                         {{ row.duplicate_count || 1 }}
                                     </span>
@@ -282,7 +282,7 @@ const goToPage = (url) => {
                                         @click="removeSubmission(row)"
                                         class="px-2 py-1 border border-red-700 text-red-400 hover:bg-red-600 hover:text-white uppercase text-[8px]"
                                     >
-                                        Delete
+                                        Archive
                                     </button>
                                     <button
                                         v-if="isTrashView"
