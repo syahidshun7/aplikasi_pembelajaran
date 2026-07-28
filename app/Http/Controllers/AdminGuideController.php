@@ -91,15 +91,21 @@ class AdminGuideController extends Controller
         'title' => 'required|string|max:255',
         'description' => 'nullable|string',
         'study_group_id' => 'nullable|exists:study_groups,id',
-        'content_source' => 'nullable|in:file,google_docs',
+        'content_source' => 'nullable|in:file,google_docs,video',
         'google_docs_url' => 'nullable|string|max:2048|url',
+        'video_url' => 'nullable|string|max:2048|url',
         'file' => 'nullable|file|mimes:pdf,jpg,png,zip|max:10240',
     ]);
 
     $this->assertMentorCanManageStudyGroupId((int) $request->input('study_group_id'));
 
     $contentSource = (string) $request->input('content_source', 'file');
-    $googleDocsEmbedUrl = $this->normalizeGoogleDocsEmbedUrl((string) $request->input('google_docs_url', ''));
+    $googleDocsEmbedUrl = $contentSource === 'google_docs'
+        ? $this->normalizeGoogleDocsEmbedUrl((string) $request->input('google_docs_url', ''))
+        : null;
+    $videoEmbedUrl = $contentSource === 'video'
+        ? $this->normalizeVideoEmbedUrl((string) $request->input('video_url', ''))
+        : null;
 
     if ($contentSource === 'google_docs' && empty($googleDocsEmbedUrl)) {
         throw ValidationException::withMessages([
@@ -107,10 +113,17 @@ class AdminGuideController extends Controller
         ]);
     }
 
+    if ($contentSource === 'video' && empty($videoEmbedUrl)) {
+        throw ValidationException::withMessages([
+            'video_url' => 'URL video YouTube atau Google Drive wajib diisi.',
+        ]);
+    }
+
     $useGoogleDocsSource = $contentSource === 'google_docs' && !empty($googleDocsEmbedUrl);
+    $useVideoSource = $contentSource === 'video' && !empty($videoEmbedUrl);
 
     $filePath = null;
-    if (! $useGoogleDocsSource && $request->hasFile('file')) {
+    if (! $useGoogleDocsSource && ! $useVideoSource && $request->hasFile('file')) {
         $filePath = $request->file('file')->store('guides', 'public');
     }
 
@@ -121,6 +134,7 @@ class AdminGuideController extends Controller
         'study_group_id' => $request->study_group_id,
         'file_path'   => $filePath,
         'google_docs_embed_url' => $useGoogleDocsSource ? $googleDocsEmbedUrl : null,
+        'video_embed_url' => $useVideoSource ? $videoEmbedUrl : null,
     ]);
 
     return back()->with('message', 'New Scroll has been inscribed in the library!');
@@ -139,15 +153,21 @@ class AdminGuideController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'study_group_id' => 'nullable|exists:study_groups,id',
-            'content_source' => 'nullable|in:file,google_docs',
+            'content_source' => 'nullable|in:file,google_docs,video',
             'google_docs_url' => 'nullable|string|max:2048|url',
+            'video_url' => 'nullable|string|max:2048|url',
             'file' => 'nullable|file|mimes:pdf,jpg,png,zip|max:10240',
         ]);
 
         $this->assertMentorCanManageStudyGroupId((int) $request->input('study_group_id'));
 
         $contentSource = (string) $request->input('content_source', 'file');
-        $googleDocsEmbedUrl = $this->normalizeGoogleDocsEmbedUrl((string) $request->input('google_docs_url', ''));
+        $googleDocsEmbedUrl = $contentSource === 'google_docs'
+            ? $this->normalizeGoogleDocsEmbedUrl((string) $request->input('google_docs_url', ''))
+            : null;
+        $videoEmbedUrl = $contentSource === 'video'
+            ? $this->normalizeVideoEmbedUrl((string) $request->input('video_url', ''))
+            : null;
 
         if ($contentSource === 'google_docs' && empty($googleDocsEmbedUrl)) {
             throw ValidationException::withMessages([
@@ -155,7 +175,14 @@ class AdminGuideController extends Controller
             ]);
         }
 
+        if ($contentSource === 'video' && empty($videoEmbedUrl)) {
+            throw ValidationException::withMessages([
+                'video_url' => 'URL video YouTube atau Google Drive wajib diisi.',
+            ]);
+        }
+
         $useGoogleDocsSource = $contentSource === 'google_docs' && !empty($googleDocsEmbedUrl);
+        $useVideoSource = $contentSource === 'video' && !empty($videoEmbedUrl);
 
         $data = [
             'title'       => $request->title,
@@ -169,8 +196,17 @@ class AdminGuideController extends Controller
             }
             $data['file_path'] = null;
             $data['google_docs_embed_url'] = $googleDocsEmbedUrl;
+            $data['video_embed_url'] = null;
+        } elseif ($useVideoSource) {
+            if ($guide->file_path) {
+                Storage::disk('public')->delete($guide->file_path);
+            }
+            $data['file_path'] = null;
+            $data['google_docs_embed_url'] = null;
+            $data['video_embed_url'] = $videoEmbedUrl;
         } else {
             $data['google_docs_embed_url'] = null;
+            $data['video_embed_url'] = null;
 
             if ($request->hasFile('file')) {
                 if ($guide->file_path) {
@@ -347,6 +383,56 @@ class AdminGuideController extends Controller
 
         throw ValidationException::withMessages([
             'google_docs_url' => 'Hanya URL Google Docs/Google Drive yang didukung untuk embed.',
+        ]);
+    }
+
+    private function normalizeVideoEmbedUrl(string $url): ?string
+    {
+        $trimmedUrl = trim($url);
+        if ($trimmedUrl === '') {
+            return null;
+        }
+
+        $parts = parse_url($trimmedUrl);
+        if (! is_array($parts)) {
+            throw ValidationException::withMessages([
+                'video_url' => 'Format URL video tidak valid.',
+            ]);
+        }
+
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $host = preg_replace('/^www\./', '', $host);
+        $path = (string) ($parts['path'] ?? '');
+        parse_str((string) ($parts['query'] ?? ''), $query);
+
+        $youtubeId = null;
+        if ($host === 'youtu.be') {
+            $youtubeId = trim($path, '/');
+        } elseif (in_array($host, ['youtube.com', 'm.youtube.com'], true)) {
+            if ($path === '/watch') {
+                $youtubeId = (string) ($query['v'] ?? '');
+            } elseif (preg_match('#^/(?:shorts|embed)/([^/]+)#', $path, $matches) === 1) {
+                $youtubeId = $matches[1];
+            }
+        }
+
+        if ($youtubeId !== null && preg_match('/^[A-Za-z0-9_-]{6,20}$/', $youtubeId) === 1) {
+            return "https://www.youtube-nocookie.com/embed/{$youtubeId}";
+        }
+
+        if ($host === 'drive.google.com') {
+            if (preg_match('#^/file/d/([^/]+)#', $path, $matches) === 1) {
+                return "https://drive.google.com/file/d/{$matches[1]}/preview";
+            }
+
+            $openId = (string) ($query['id'] ?? '');
+            if ($path === '/open' && $openId !== '') {
+                return "https://drive.google.com/file/d/{$openId}/preview";
+            }
+        }
+
+        throw ValidationException::withMessages([
+            'video_url' => 'Gunakan link video YouTube atau link file Google Drive yang valid.',
         ]);
     }
 }

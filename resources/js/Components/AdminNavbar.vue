@@ -104,9 +104,9 @@ const handleLogout = () => {
                 </button>
                 <div v-if="desktopMenuOpen" class="absolute right-0 mt-2 min-w-[220px] bg-[#0f101a] border-2 border-slate-700 shadow-xl p-2 z-[140]">
                     <Link :href="route('admin.profile.edit')" class="dropdown-item text-emerald-400" @click="closeAllMenus">PROFILE</Link>
-                    <Link href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
-                    <Link :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
-                    <Link :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
+                    <Link v-if="isTrueSuperAdmin" href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
+                    <Link v-if="isTrueSuperAdmin" :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
+                    <Link v-if="isTrueSuperAdmin" :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
                     <Link :href="route('admin.creations.queue')" class="dropdown-item" @click="closeAllMenus">CREATION REVIEW</Link>
                     <Link :href="route('admin.task-banks.index')" class="dropdown-item" @click="closeAllMenus">TASK BANK</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.daily-quest-definitions.index')" class="dropdown-item" @click="closeAllMenus">DAILY QUEST</Link>
@@ -114,7 +114,7 @@ const handleLogout = () => {
                     <Link v-if="isAdminAccess" :href="route('admin.jobs.index')" class="dropdown-item" @click="closeAllMenus">JOBS</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.shop-items.index')" class="dropdown-item" @click="closeAllMenus">SHOP ITEMS</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.profile-skins.index')" class="dropdown-item" @click="closeAllMenus">PROFILE SKINS</Link>
-                    <Link v-if="isAdminAccess" :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
+                    <Link v-if="isAdminAccess || isMentor" :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.users.index')" class="dropdown-item" @click="closeAllMenus">USERS</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.error-logs.index')" class="dropdown-item" @click="closeAllMenus">ERROR LOGS</Link>
@@ -140,9 +140,9 @@ const handleLogout = () => {
                     </span>
                 </Link>
                 <Link :href="route('admin.profile.edit')" class="dropdown-item text-emerald-400" @click="closeAllMenus">PROFILE</Link>
-                <Link href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
-                <Link :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
-                <Link :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
+                <Link v-if="isTrueSuperAdmin" href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
+                <Link v-if="isTrueSuperAdmin" :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
+                <Link v-if="isTrueSuperAdmin" :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
                 <Link :href="route('admin.creations.queue')" class="dropdown-item" @click="closeAllMenus">CREATION REVIEW</Link>
                 <Link :href="route('admin.task-banks.index')" class="dropdown-item" @click="closeAllMenus">TASK BANK</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.daily-quest-definitions.index')" class="dropdown-item" @click="closeAllMenus">DAILY QUEST</Link>
@@ -150,7 +150,7 @@ const handleLogout = () => {
                 <Link v-if="isAdminAccess" :href="route('admin.jobs.index')" class="dropdown-item" @click="closeAllMenus">JOBS</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.shop-items.index')" class="dropdown-item" @click="closeAllMenus">SHOP ITEMS</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.profile-skins.index')" class="dropdown-item" @click="closeAllMenus">PROFILE SKINS</Link>
-                <Link v-if="isAdminAccess" :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
+                <Link v-if="isAdminAccess || isMentor" :href="route('groups.manage')" class="dropdown-item" @click="closeAllMenus">STUDY_GROUP</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.submissions.manage.index')" class="dropdown-item" @click="closeAllMenus">SUBMISSIONS</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.users.index')" class="dropdown-item" @click="closeAllMenus">USERS</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.error-logs.index')" class="dropdown-item" @click="closeAllMenus">ERROR LOGS</Link>

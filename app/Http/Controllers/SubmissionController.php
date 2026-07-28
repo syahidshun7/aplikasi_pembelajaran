@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\UserQuestAttemptUnlock;
 use App\Services\LmsNotificationService;
 use App\Services\QuestAttemptNumberService;
+use App\Services\TaskBankExamSessionService;
 use App\Services\UserRewardSyncService;
 use App\Models\UserQuestUnlock;
 use App\Support\Cache\CacheVersion;
@@ -22,14 +23,62 @@ use Illuminate\Validation\ValidationException;
 
 class SubmissionController extends Controller
 {
+    public function saveExamDraft(
+        Request $request,
+        Quest $quest,
+        TaskBankExamSessionService $examSessions,
+    )
+    {
+        $quest->load(['taskBank.questions' => function ($query) {
+            $query->where('is_active', true)->orderBy('sort_order');
+        }]);
+        $this->authorizeQuestAccessForCurrentUser($quest);
+
+        abort_unless($examSessions->supports($quest), 404);
+
+        $validated = $request->validate([
+            'attempt_number' => ['required', 'integer', 'min:1'],
+            'task_answers' => ['nullable', 'array'],
+            'task_answers.*' => ['nullable', 'string', 'max:50000'],
+            'content' => ['nullable', 'string', 'max:200000'],
+        ]);
+
+        $session = \App\Models\UserQuestAttemptSession::query()
+            ->where('quest_id', $quest->id)
+            ->where('user_id', $request->user()->id)
+            ->where('attempt_number', (int) $validated['attempt_number'])
+            ->firstOrFail();
+
+        if ($session->submitted_at !== null) {
+            return response()->json(['saved' => false, 'submitted' => true], 409);
+        }
+
+        if ($examSessions->isExpired($session)) {
+            return response()->json(['saved' => false, 'expired' => true], 409);
+        }
+
+        $session->update([
+            'draft_answers' => $this->collectRawTaskAnswers((array) ($validated['task_answers'] ?? [])),
+            'draft_content' => (string) ($validated['content'] ?? ''),
+            'draft_saved_at' => now(),
+        ]);
+
+        return response()->json([
+            'saved' => true,
+            'saved_at' => $session->draft_saved_at?->toISOString(),
+        ]);
+    }
+
     public function store(
         Request $request,
         Quest $quest,
         LmsNotificationService $notifications,
         UserRewardSyncService $rewardSync,
         QuestAttemptNumberService $attemptNumbers,
+        TaskBankExamSessionService $examSessions,
     )
     {
+        $timedOut = $request->boolean('timed_out');
         $request->validate([
             'client_submission_token' => ['nullable', 'uuid'],
             'requested_attempt_number' => ['nullable', 'integer', 'min:1'],
@@ -52,7 +101,7 @@ class SubmissionController extends Controller
         }]);
         $this->authorizeQuestAccessForCurrentUser($quest);
 
-        if (! $quest->isCurrentlyVisible()) {
+        if (! $quest->isCurrentlyVisible() && ! $timedOut) {
             throw ValidationException::withMessages([
                 'content' => $this->questAvailabilityErrorMessage($quest),
             ]);
@@ -78,6 +127,33 @@ class SubmissionController extends Controller
                 'submission' => 'Attempt ini sudah berubah atau telah dikirim. Muat ulang halaman quest.',
             ]);
         }
+        $examSession = $examSessions->resolve(
+            $quest,
+            (int) auth()->id(),
+            $expectedAttemptNumber,
+        );
+        if ($examSessions->isExpired($examSession) && ! $timedOut) {
+            throw ValidationException::withMessages([
+                'submission' => 'Waktu ujian sudah habis. Draft akan diselesaikan otomatis.',
+            ]);
+        }
+        if ($timedOut && ! $examSessions->isExpired($examSession)) {
+            throw ValidationException::withMessages([
+                'submission' => 'Sesi ujian masih berjalan.',
+            ]);
+        }
+        if ($timedOut) {
+            $request->merge([
+                'task_answers' => $request->has('task_answers')
+                    ? $request->input('task_answers')
+                    : ($examSession?->draft_answers ?? []),
+                'content' => $request->has('content')
+                    ? $request->input('content')
+                    : (string) ($examSession?->draft_content ?? ''),
+                'client_submission_token' => (string) ($examSession?->submission_token ?: $clientSubmissionToken),
+            ]);
+            $clientSubmissionToken = (string) $request->input('client_submission_token');
+        }
         $attemptUnlock = UserQuestAttemptUnlock::query()
             ->where('user_id', auth()->id())
             ->where('quest_id', $quest->id)
@@ -90,7 +166,7 @@ class SubmissionController extends Controller
             ->where('quest_id', $quest->id)
             ->exists();
 
-        if (! $existingSubmission && $this->isQuestLate($quest) && ! $hasQuestUnlock) {
+        if (! $existingSubmission && $this->isQuestLate($quest) && ! $hasQuestUnlock && ! $timedOut) {
             throw ValidationException::withMessages([
                 'content' => 'Quest sudah lewat deadline. Gunakan Time Key untuk membuka ulang quest ini.',
             ]);
@@ -112,7 +188,7 @@ class SubmissionController extends Controller
                 ]);
             }
 
-            if (! $this->isDeadlineActive($quest)) {
+            if (! $this->isDeadlineActive($quest) && ! $timedOut) {
                 throw ValidationException::withMessages([
                     'submission' => 'Deadline sudah berakhir. Attempt baru tidak tersedia.',
                 ]);
@@ -151,6 +227,11 @@ class SubmissionController extends Controller
             $submission->client_submission_token = $clientSubmissionToken;
         }
         $isAutoChecked = $this->applyUserSubmissionPayload($request, $quest, $submission, $isUpdate);
+        $scoresDetail = is_array($submission->scores_detail) ? $submission->scores_detail : [];
+        $submission->scores_detail = array_merge($scoresDetail, [
+            'submission_mode' => $timedOut ? 'timeout' : 'manual',
+            'timed_out_at' => $timedOut ? now()->toISOString() : null,
+        ]);
         try {
             $submission->save();
         } catch (QueryException $exception) {
@@ -165,6 +246,7 @@ class SubmissionController extends Controller
         if (! $isUpdate && $attemptUnlock) {
             $attemptUnlock->update(['used_at' => now()]);
         }
+        $examSessions->markSubmitted($examSession);
 
         if ($wasEvaluated || $this->isSubmissionEvaluated($submission)) {
             $rewardSync->sync((int) $submission->user_id);
@@ -304,13 +386,20 @@ class SubmissionController extends Controller
             'task_answers.*' => ['nullable', 'string'],
             'content' => ['nullable', 'string'],
             'file' => ['nullable', 'file', 'min:1', 'mimes:jpg,jpeg,png,webp,pdf,docx,txt', 'max:10240'],
+            'confirm_incomplete' => ['nullable', 'boolean'],
         ]);
 
         $assessmentType = (string) ($quest->taskBank?->assessment_type ?? 'essay');
         $rawAnswers = $this->collectRawTaskAnswers((array) ($validated['task_answers'] ?? []));
         $rawContent = (string) ($validated['content'] ?? '');
 
-        if (trim($rawContent) === '' && $this->countFilledRawAnswers($rawAnswers) === 0 && ! $request->hasFile('file')) {
+        if (
+            ! $request->boolean('timed_out')
+            && ! $request->boolean('confirm_incomplete')
+            && trim($rawContent) === ''
+            && $this->countFilledRawAnswers($rawAnswers) === 0
+            && ! $request->hasFile('file')
+        ) {
             throw ValidationException::withMessages([
                 'content' => 'Submission harus berupa teks, jawaban, atau file.',
             ]);
@@ -350,6 +439,7 @@ class SubmissionController extends Controller
             'assessment_type' => $assessmentType,
             'total_questions' => $questions->count(),
             'answered_questions' => $this->countFilledRawAnswers($rawAnswers),
+            'unanswered_questions' => max(0, $questions->count() - $this->countFilledRawAnswers($rawAnswers)),
             'answers' => $rawAnswers,
         ];
 
@@ -436,8 +526,7 @@ class SubmissionController extends Controller
             $answer = (string) ($answers[$qUuid] ?? '');
             $questionType = (string) ($question->question_type ?? 'essay');
 
-            if ($answer === '') {
-                $errors["task_answers.{$qUuid}"] = 'Jawaban wajib diisi untuk setiap soal.';
+            if ($answer === '' && ! in_array($questionType, ['platforming', 'word_match'], true)) {
                 continue;
             }
 
@@ -628,6 +717,7 @@ class SubmissionController extends Controller
         $maxWeight = 0;
         $correctCount = 0;
         $totalQuestionsCount = 0;
+        $answeredQuestionsCount = 0;
         $seenPlatformingPayloads = [];
 
         foreach ($questions as $question) {
@@ -641,6 +731,9 @@ class SubmissionController extends Controller
 
                 $maxWeight += $weight;
                 $totalQuestionsCount++;
+                if ($selected !== '') {
+                    $answeredQuestionsCount++;
+                }
 
                 if ($selected !== '' && $answerKey !== '' && $selected === $answerKey) {
                     $correctWeight += $weight;
@@ -659,6 +752,7 @@ class SubmissionController extends Controller
                 $correctWeight += $questionCorrect;
                 $totalQuestionsCount += $questionTotal;
                 $correctCount += $questionCorrect;
+                $answeredQuestionsCount += $questionTotal;
 
                 continue;
             }
@@ -679,6 +773,7 @@ class SubmissionController extends Controller
                 $correctWeight += $questionCorrect;
                 $totalQuestionsCount += $questionTotal;
                 $correctCount += $questionCorrect;
+                $answeredQuestionsCount += $questionTotal;
             }
         }
 
@@ -712,6 +807,8 @@ class SubmissionController extends Controller
                 'source' => 'task_bank_auto_check',
                 'assessment_type' => $assessmentType,
                 'total_questions' => max(1, $totalQuestionsCount),
+                'answered_questions' => $answeredQuestionsCount,
+                'unanswered_questions' => max(0, $totalQuestionsCount - $answeredQuestionsCount),
                 'correct_questions' => $correctCount,
                 'max_weight' => $maxWeight,
                 'correct_weight' => $correctWeight,

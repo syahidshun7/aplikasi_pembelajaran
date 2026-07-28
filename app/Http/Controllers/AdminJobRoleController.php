@@ -41,6 +41,7 @@ class AdminJobRoleController extends Controller
 
         return Inertia::render('Jobs/Admin/Index', [
             'jobs' => $jobs,
+            'jobItems' => $jobs->getCollection()->values(),
             'filters' => [
                 'search' => $search,
             ],

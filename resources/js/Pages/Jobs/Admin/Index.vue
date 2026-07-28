@@ -6,6 +6,10 @@ import Swal from 'sweetalert2';
 
 const props = defineProps({
     jobs: Object,
+    jobItems: {
+        type: Array,
+        default: () => [],
+    },
     filters: Object,
 });
 
@@ -27,7 +31,11 @@ const filterForm = useForm({
     search: props.filters?.search || '',
 });
 
-const jobItems = computed(() => props.jobs?.data || []);
+const jobItems = computed(() => (
+    props.jobItems.length > 0
+        ? props.jobItems
+        : (Array.isArray(props.jobs?.data) ? props.jobs.data : [])
+));
 const paginationLinks = computed(() => props.jobs?.links || []);
 
 const startEdit = (job) => {
@@ -270,6 +278,12 @@ const statusClass = (status) => {
                         </div>
 
                         <div class="space-y-4 max-h-[560px] overflow-y-auto pr-2 custom-scroll">
+                            <div
+                                v-if="jobItems.length === 0"
+                                class="border border-slate-700 bg-slate-950/50 p-5 text-center text-[8px] uppercase text-slate-400"
+                            >
+                                {{ filterForm.search ? 'NO_JOBS_MATCH_SEARCH' : 'NO_JOBS_REGISTERED' }}
+                            </div>
                             <div
                                 v-for="job in jobItems"
                                 :key="job.id"

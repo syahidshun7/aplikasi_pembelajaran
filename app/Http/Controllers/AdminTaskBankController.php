@@ -65,12 +65,14 @@ class AdminTaskBankController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->normalizeTimeLimitInput($request);
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:task_banks,name'],
             'description' => ['nullable', 'string'],
             'job_role_id' => ['nullable', 'exists:job_roles,id'],
             'assessment_type' => ['required', Rule::in(['essay', 'multiple_choice', 'mixed', 'platforming', 'word_match'])],
-            'duration' => ['required', 'integer', 'min:5', 'max:3600'],
+            'duration' => ['required', 'integer', 'min:1', 'max:3600'],
+            'has_time_limit' => ['required', 'boolean'],
             'is_active' => ['required', 'boolean'],
         ]);
 
@@ -88,13 +90,15 @@ class AdminTaskBankController extends Controller
     public function update(Request $request, TaskBank $taskBank): RedirectResponse
     {
         $this->assertMentorCanAccessTaskBank($taskBank);
+        $this->normalizeTimeLimitInput($request);
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:task_banks,name,' . $taskBank->id],
             'description' => ['nullable', 'string'],
             'job_role_id' => ['nullable', 'exists:job_roles,id'],
             'assessment_type' => ['required', Rule::in(['essay', 'multiple_choice', 'mixed', 'platforming', 'word_match'])],
-            'duration' => ['required', 'integer', 'min:5', 'max:3600'],
+            'duration' => ['required', 'integer', 'min:1', 'max:3600'],
+            'has_time_limit' => ['required', 'boolean'],
             'is_active' => ['required', 'boolean'],
         ]);
 
@@ -107,6 +111,22 @@ class AdminTaskBankController extends Controller
         $taskBank->update($validated);
 
         return back()->with('message', 'TASK_BANK_UPDATED');
+    }
+
+    private function normalizeTimeLimitInput(Request $request): void
+    {
+        $isGame = in_array(
+            (string) $request->input('assessment_type'),
+            ['platforming', 'word_match'],
+            true,
+        );
+
+        $request->merge([
+            'has_time_limit' => $isGame
+                ? true
+                : $request->boolean('has_time_limit', false),
+            'duration' => max(1, (int) $request->input('duration', 60)),
+        ]);
     }
 
     public function destroy(TaskBank $taskBank): RedirectResponse

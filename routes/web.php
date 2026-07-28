@@ -246,6 +246,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/quests/{quest}/submissions', [SubmissionController::class, 'store'])
         ->middleware('verified')
         ->name('submissions.store');
+    Route::put('/quests/{quest}/exam-draft', [SubmissionController::class, 'saveExamDraft'])
+        ->middleware('verified')
+        ->name('quests.exam-draft.save');
     Route::get('/submissions/{submission}', [SubmissionController::class, 'showSubmission'])
         ->name('submissions.show');
     Route::put('/submissions/{uuid}', [SubmissionController::class, 'update'])

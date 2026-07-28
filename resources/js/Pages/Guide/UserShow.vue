@@ -21,8 +21,9 @@ const normalizedDescription = computed(() => {
 });
 
 const hasGoogleDocsEmbed = computed(() => !!props.guide?.google_docs_embed_url);
+const hasVideoEmbed = computed(() => !!props.guide?.video_embed_url);
 const hasAttachment = computed(() => !!props.guide?.file_path);
-const hasAnyResource = computed(() => hasGoogleDocsEmbed.value || hasAttachment.value);
+const hasAnyResource = computed(() => hasVideoEmbed.value || hasGoogleDocsEmbed.value || hasAttachment.value);
 
 const googleDocsEmbedUrl = computed(() => {
     if (!hasGoogleDocsEmbed.value) return null;
@@ -35,6 +36,7 @@ const attachmentUrl = computed(() => {
 });
 
 const primaryResourceUrl = computed(() => {
+    if (hasVideoEmbed.value) return props.guide.video_embed_url;
     if (hasGoogleDocsEmbed.value) return googleDocsEmbedUrl.value;
     return attachmentUrl.value;
 });
@@ -171,6 +173,17 @@ const backLabel = computed(() => props.previewMode ? '[Back_to_Admin_Guides]' : 
                         <h3 class="text-[9px] uppercase text-indigo-300">Attachment</h3>
 
                         <div v-if="hasAnyResource" class="space-y-4">
+                            <div v-if="hasVideoEmbed" class="overflow-hidden border border-slate-700 bg-black">
+                                <iframe
+                                    :src="guide.video_embed_url"
+                                    class="block aspect-video w-full"
+                                    title="Guide video player"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    referrerpolicy="strict-origin-when-cross-origin"
+                                    allowfullscreen
+                                />
+                            </div>
+
                             <div v-if="hasGoogleDocsEmbed" class="border border-slate-700 p-2 bg-[#0d1117]">
                                 <iframe
                                     :src="googleDocsEmbedUrl"
@@ -202,7 +215,7 @@ const backLabel = computed(() => props.previewMode ? '[Back_to_Admin_Guides]' : 
                                     target="_blank"
                                     class="inline-flex items-center justify-center px-3 py-2 border border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white uppercase text-[8px]"
                                 >
-                                    {{ hasGoogleDocsEmbed ? 'Open_Google_Docs' : 'Open_File' }}
+                                    {{ hasVideoEmbed ? 'Open_Video' : (hasGoogleDocsEmbed ? 'Open_Google_Docs' : 'Open_File') }}
                                 </a>
                             </div>
                         </div>

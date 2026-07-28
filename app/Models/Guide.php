@@ -10,7 +10,14 @@ class Guide extends Model
 {
     use HasUuids, SoftDeletes;
 
-    protected $fillable = ['title', 'description', 'study_group_id', 'file_path', 'google_docs_embed_url'];
+    protected $fillable = [
+        'title',
+        'description',
+        'study_group_id',
+        'file_path',
+        'google_docs_embed_url',
+        'video_embed_url',
+    ];
 
     // Menentukan kolom UUID sebagai pengenal di route (opsional tapi bagus)
    public function uniqueIds(): array

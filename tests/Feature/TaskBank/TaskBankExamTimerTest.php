@@ -1,0 +1,265 @@
+<?php
+
+use App\Models\Quest;
+use App\Models\TaskBank;
+use App\Models\User;
+use App\Models\UserQuestAttemptSession;
+use Inertia\Testing\AssertableInertia;
+
+function createTimedTaskBankQuest(string $assessmentType = 'multiple_choice', int $duration = 60): array
+{
+    $taskBank = TaskBank::query()->create([
+        'name' => "Timed Bank {$assessmentType} ".uniqid(),
+        'assessment_type' => $assessmentType,
+        'duration' => $duration,
+        'has_time_limit' => true,
+        'is_active' => true,
+    ]);
+
+    $questionType = match ($assessmentType) {
+        'platforming' => 'platforming',
+        'essay' => 'essay',
+        default => 'multiple_choice',
+    };
+    $question = $taskBank->questions()->create([
+        'question_text' => 'Timed question',
+        'question_type' => $questionType,
+        'options_json' => match ($questionType) {
+            'platforming' => ['stages' => [['prompt' => 'Question', 'correct_answer' => 'A', 'wrong_answers' => ['B']]]],
+            'multiple_choice' => ['A', 'B'],
+            default => null,
+        },
+        'answer_key' => $questionType === 'multiple_choice' ? 'A' : null,
+        'weight' => 1,
+        'sort_order' => 1,
+        'is_active' => true,
+    ]);
+
+    $quest = Quest::query()->create([
+        'title' => "Timed Quest {$assessmentType} ".uniqid(),
+        'description' => 'Quest with server exam timer',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 100,
+        'reward_exp' => 100,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+        'task_bank_id' => $taskBank->id,
+    ]);
+
+    return [$quest, $question];
+}
+
+it('starts one persistent exam session when a user opens a non game task bank quest', function () {
+    $user = User::factory()->create();
+    [$quest] = createTimedTaskBankQuest(duration: 60);
+
+    $this->actingAs($user)
+        ->get(route('quests.show', $quest))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('examTimer.attempt_number', 1)
+            ->where('examTimer.duration_minutes', 60)
+            ->where('examTimer.expired', false)
+        );
+
+    $session = UserQuestAttemptSession::query()->firstOrFail();
+    expect((int) $session->started_at->diffInMinutes($session->expires_at))->toBe(60);
+
+    $this->get(route('quests.show', $quest))->assertOk();
+    expect(UserQuestAttemptSession::query()->count())->toBe(1);
+});
+
+it('rejects a non game task bank submission after server exam time expires', function () {
+    $user = User::factory()->create();
+    [$quest, $question] = createTimedTaskBankQuest(duration: 60);
+
+    $this->actingAs($user)->get(route('quests.show', $quest))->assertOk();
+    $this->travel(61)->minutes();
+
+    $this->post(route('submissions.store', $quest), [
+        'task_answers' => [$question->uuid => 'A'],
+        'requested_attempt_number' => 1,
+    ])
+        ->assertSessionHasErrors('submission');
+
+    $this->assertDatabaseMissing('submissions', [
+        'quest_id' => $quest->id,
+        'user_id' => $user->id,
+    ]);
+});
+
+it('does not create an exam session for platforming task banks', function () {
+    $user = User::factory()->create();
+    [$quest] = createTimedTaskBankQuest('platforming', 60);
+
+    $this->actingAs($user)
+        ->get(route('quests.show', $quest))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('examTimer', null)
+        );
+
+    expect(UserQuestAttemptSession::query()->count())->toBe(0);
+});
+
+it('shows a simulation timer in staff preview without creating an exam session', function () {
+    $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+    [$quest] = createTimedTaskBankQuest(duration: 60);
+
+    $this->actingAs($admin)
+        ->get(route('quests.user-preview', $quest))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('previewMode', true)
+            ->where('examTimer.duration_minutes', 60)
+            ->where('examTimer.seconds_remaining', 3600)
+            ->where('examTimer.simulation', true)
+        );
+
+    expect(UserQuestAttemptSession::query()->count())->toBe(0);
+});
+
+it('autosaves answers on the server without creating a submission', function () {
+    $user = User::factory()->create();
+    [$quest, $question] = createTimedTaskBankQuest();
+
+    $this->actingAs($user)->get(route('quests.show', $quest))->assertOk();
+
+    $this->putJson(route('quests.exam-draft.save', $quest), [
+        'attempt_number' => 1,
+        'task_answers' => [$question->uuid => 'A'],
+        'content' => '',
+    ])->assertOk()->assertJsonPath('saved', true);
+
+    $session = UserQuestAttemptSession::query()->firstOrFail();
+    expect($session->draft_answers)->toBe([$question->uuid => 'A']);
+    $this->assertDatabaseCount('submissions', 0);
+});
+
+it('grades unanswered multiple choice questions as zero instead of rejecting a partial submission', function () {
+    $user = User::factory()->create();
+    [$quest, $question] = createTimedTaskBankQuest();
+    $quest->taskBank->questions()->create([
+        'question_text' => 'Unanswered question',
+        'question_type' => 'multiple_choice',
+        'options_json' => ['A', 'B'],
+        'answer_key' => 'A',
+        'weight' => 1,
+        'sort_order' => 2,
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($user)->get(route('quests.show', $quest))->assertOk();
+    $session = UserQuestAttemptSession::query()->firstOrFail();
+
+    $this->post(route('submissions.store', $quest), [
+        'task_answers' => [$question->uuid => 'A'],
+        'requested_attempt_number' => 1,
+        'client_submission_token' => $session->submission_token,
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('submissions', [
+        'quest_id' => $quest->id,
+        'user_id' => $user->id,
+        'grade' => 50,
+        'status' => 'Approved',
+    ]);
+});
+
+it('accepts a confirmed completely unanswered multiple choice submission with zero grade', function () {
+    $user = User::factory()->create();
+    [$quest] = createTimedTaskBankQuest();
+
+    $this->actingAs($user)->get(route('quests.show', $quest))->assertOk();
+    $session = UserQuestAttemptSession::query()->firstOrFail();
+
+    $this->post(route('submissions.store', $quest), [
+        'task_answers' => [],
+        'confirm_incomplete' => true,
+        'requested_attempt_number' => 1,
+        'client_submission_token' => $session->submission_token,
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('submissions', [
+        'quest_id' => $quest->id,
+        'user_id' => $user->id,
+        'grade' => 0,
+        'status' => 'Approved',
+    ]);
+});
+
+it('finalizes an expired multiple choice draft once when the browser is closed', function () {
+    $user = User::factory()->create();
+    [$quest, $question] = createTimedTaskBankQuest(duration: 1);
+
+    $this->actingAs($user)->get(route('quests.show', $quest))->assertOk();
+    $this->putJson(route('quests.exam-draft.save', $quest), [
+        'attempt_number' => 1,
+        'task_answers' => [$question->uuid => 'A'],
+    ])->assertOk();
+
+    $this->travel(2)->minutes();
+    $this->artisan('exams:finalize-expired')->assertSuccessful();
+    $this->artisan('exams:finalize-expired')->assertSuccessful();
+
+    $this->assertDatabaseCount('submissions', 1);
+    $submission = \App\Models\Submission::query()->firstOrFail();
+    expect($submission->grade)->toBe(100)
+        ->and($submission->scores_detail['submission_mode'])->toBe('timeout')
+        ->and($submission->scores_detail['timed_out_at'])->not->toBeNull();
+});
+
+it('creates a pending zero-score essay submission when time expires with no answer', function () {
+    $user = User::factory()->create();
+    [$quest] = createTimedTaskBankQuest('essay', 1);
+
+    $this->actingAs($user)->get(route('quests.show', $quest))->assertOk();
+    $this->travel(2)->minutes();
+    $this->artisan('exams:finalize-expired')->assertSuccessful();
+
+    $this->assertDatabaseHas('submissions', [
+        'quest_id' => $quest->id,
+        'user_id' => $user->id,
+        'grade' => 0,
+        'status' => 'Pending',
+    ]);
+});
+
+it('does not create an exam session when a non game task bank uses no time mode', function () {
+    $user = User::factory()->create();
+    [$quest] = createTimedTaskBankQuest(duration: 60);
+    $quest->taskBank()->update(['has_time_limit' => false]);
+
+    $this->actingAs($user)
+        ->get(route('quests.show', $quest))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('examTimer', null)
+            ->where('examDraft', null)
+        );
+
+    expect(UserQuestAttemptSession::query()->count())->toBe(0);
+});
+
+it('offers retake ticket after an expired single attempt has been finalized', function () {
+    $user = User::factory()->create();
+    [$quest, $question] = createTimedTaskBankQuest(duration: 1);
+
+    $this->actingAs($user)->get(route('quests.show', $quest))->assertOk();
+    $this->putJson(route('quests.exam-draft.save', $quest), [
+        'attempt_number' => 1,
+        'task_answers' => [$question->uuid => 'A'],
+    ])->assertOk();
+
+    $this->travel(2)->minutes();
+    $this->artisan('exams:finalize-expired')->assertSuccessful();
+
+    $this->actingAs($user)
+        ->get(route('quests.show', $quest))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('hasSubmitted', true)
+            ->where('attemptContext.can_start_new_attempt', false)
+            ->where('attemptContext.can_use_retake_ticket', true)
+        );
+});

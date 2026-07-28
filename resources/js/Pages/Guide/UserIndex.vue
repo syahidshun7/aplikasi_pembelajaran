@@ -39,12 +39,14 @@ const shortText = (text, max = 130) => {
 };
 
 const guideResourceUrl = (item) => {
+    if (item?.video_embed_url) return item.video_embed_url;
     if (item?.google_docs_embed_url) return item.google_docs_embed_url;
     if (item?.file_path) return `/storage/${item.file_path}`;
     return null;
 };
 
 const guideResourceLabel = (item) => {
+    if (item?.video_embed_url) return 'Play_Video';
     if (item?.google_docs_embed_url) return 'Open_Google_Docs';
     if (item?.file_path) return 'Open_File';
     return 'No_File';
