@@ -19,11 +19,13 @@ class TaskBank extends Model
         'rubric_id',
         'assessment_type',
         'duration',
+        'has_time_limit',
         'is_active',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'has_time_limit' => 'boolean',
     ];
 
     protected static function booted(): void

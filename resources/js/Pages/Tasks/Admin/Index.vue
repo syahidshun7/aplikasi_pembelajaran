@@ -28,6 +28,7 @@ const form = useForm({
     job_role_id: '',
     assessment_type: 'essay',
     duration: 60,
+    has_time_limit: false,
     is_active: true,
 });
 const mentorCannotSubmitTaskBank = computed(() => isMentor.value && !form.job_role_id);
@@ -49,6 +50,7 @@ const startEdit = (bank) => {
     form.job_role_id = bank.job_role_id || '';
     form.assessment_type = bank.assessment_type || 'essay';
     form.duration = bank.duration ?? 60;
+    form.has_time_limit = bank.has_time_limit !== false;
     form.is_active = !!bank.is_active;
     applyMentorDefaultJob();
     showFormModal.value = true;
@@ -60,6 +62,7 @@ const cancelEdit = () => {
     form.reset();
     form.assessment_type = 'essay';
     form.duration = 60;
+    form.has_time_limit = false;
     form.is_active = true;
     applyMentorDefaultJob();
     showFormModal.value = false;
@@ -212,6 +215,23 @@ watch([isMentor, firstJobId], () => {
                                 <input v-model.number="form.duration" type="number" min="5" max="3600" class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-300 uppercase outline-none focus:border-cyan-400" required>
                                 <p class="mt-2 text-[8px] text-slate-500 uppercase">Waktu menjawab per soal (Platforming) atau total sesi (Word Match).</p>
                                 <p v-if="form.errors.duration" class="mt-2 text-red-400 text-[8px]">{{ form.errors.duration }}</p>
+                            </div>
+
+                            <div v-else>
+                                <label class="mb-3 inline-flex items-center gap-2 text-[9px] uppercase text-slate-300">
+                                    <input v-model="form.has_time_limit" type="checkbox" class="accent-cyan-500">
+                                    USE_EXAM_TIMER
+                                </label>
+                                <div v-if="form.has_time_limit">
+                                    <label class="block mb-2 text-white uppercase">EXAM_DURATION (MINUTES):</label>
+                                    <input v-model.number="form.duration" type="number" min="1" max="1440" class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-300 uppercase outline-none focus:border-cyan-400" required>
+                                    <p class="mt-2 text-[8px] text-slate-500 uppercase">Timer dimulai ketika user membuka attempt. Gunakan 60 untuk ujian satu jam.</p>
+                                </div>
+                                <p v-else class="border border-slate-700 bg-black/30 px-3 py-2 text-[8px] uppercase text-emerald-300">
+                                    NO_TIME: quest dapat dikerjakan tanpa batas waktu ujian.
+                                </p>
+                                <p v-if="form.errors.duration" class="mt-2 text-red-400 text-[8px]">{{ form.errors.duration }}</p>
+                                <p v-if="form.errors.has_time_limit" class="mt-2 text-red-400 text-[8px]">{{ form.errors.has_time_limit }}</p>
                             </div>
 
                             <label class="inline-flex items-center gap-2 text-[9px] uppercase text-slate-300">

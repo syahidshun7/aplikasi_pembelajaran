@@ -142,7 +142,7 @@ const getRiskColor = (grade) => {
                     :href="job.detail_url"
                     class="block border border-slate-700 bg-slate-950/60 p-4 transition-colors hover:border-cyan-400 hover:bg-cyan-950/20"
                 >
-                    <div class="mb-3 flex items-start justify-between gap-3">
+                    <div class="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 sm:gap-3">
                         <div class="min-w-0">
                             <p class="break-words text-[10px] uppercase text-white">{{ job.name }}</p>
                             <p class="mt-2 text-[7px] uppercase text-cyan-300">{{ job.slug }}</p>
@@ -195,10 +195,10 @@ const getRiskColor = (grade) => {
                             <p class="mt-2 text-[7px] uppercase text-cyan-300">{{ group.job?.name || 'No Job' }}</p>
                         </div>
                         <Link
-                            :href="group.detail_url"
-                            class="shrink-0 border border-emerald-700 px-2 py-1 text-[7px] uppercase text-emerald-300 hover:bg-emerald-400 hover:text-black"
+                            :href="group.preview_url"
+                            class="shrink-0 whitespace-nowrap border border-cyan-600 px-1.5 py-1 text-[6px] uppercase text-cyan-300 hover:bg-cyan-400 hover:text-black sm:px-2 sm:text-[7px]"
                         >
-                            Open
+                            Preview_Group
                         </Link>
                     </div>
                     <div class="grid grid-cols-2 gap-2 text-[7px] uppercase text-slate-400">
@@ -207,12 +207,12 @@ const getRiskColor = (grade) => {
                         <span>Quest {{ group.quests_count }}</span>
                         <span>Event {{ group.events_count }}</span>
                     </div>
-                    <div class="mt-4 border-t border-slate-800 pt-3">
+                    <div class="mt-4 flex border-t border-slate-800 pt-3">
                         <Link
-                            :href="group.preview_url"
-                            class="inline-flex border border-cyan-600 bg-cyan-950/20 px-3 py-2 text-[7px] uppercase text-cyan-300 hover:bg-cyan-400 hover:text-black"
+                            :href="group.detail_url"
+                            class="inline-flex min-h-9 items-center justify-center border border-emerald-700 bg-emerald-950/20 px-3 py-2 text-[7px] uppercase text-emerald-300 hover:bg-emerald-400 hover:text-black"
                         >
-                            Preview_Group
+                            Open
                         </Link>
                     </div>
                 </article>

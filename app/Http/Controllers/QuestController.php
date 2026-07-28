@@ -17,6 +17,7 @@ use App\Models\UserQuestAttemptUnlock;
 use App\Models\UserQuestUnlock;
 use App\Services\StudyGroupStaffAccessService;
 use App\Services\QuestAttemptNumberService;
+use App\Services\TaskBankExamSessionService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
@@ -465,7 +466,7 @@ class QuestController extends Controller
         $userId = (int) auth()->id();
         $quest->load([
             'studyGroup:id,uuid,name',
-            'taskBank:id,uuid,name,assessment_type,duration',
+            'taskBank:id,uuid,name,assessment_type,duration,has_time_limit',
             'taskBank.questions' => function ($query) {
                 $query->where('is_active', true)
                     ->orderBy('sort_order')
@@ -543,6 +544,28 @@ class QuestController extends Controller
         $progressAttemptNumber = $displaySubmission
             ? (int) ($displaySubmission->attempt_number ?? 1)
             : $nextAttemptNumber;
+        $examSession = null;
+        $examSessionService = app(TaskBankExamSessionService::class);
+        if (! $previewMode && $canSubmit && $examSessionService->supports($quest)) {
+            $examSession = $examSessionService->resolve($quest, $userId, $progressAttemptNumber);
+            if ($examSessionService->isExpired($examSession)) {
+                $canSubmit = false;
+            }
+        }
+        $previewExamTimer = null;
+        if ($previewMode && $examSessionService->supports($quest)) {
+            $previewDuration = max(1, (int) ($quest->taskBank?->duration ?? 60));
+            $previewStartedAt = now();
+            $previewExamTimer = [
+                'attempt_number' => 1,
+                'duration_minutes' => $previewDuration,
+                'started_at' => $previewStartedAt->toISOString(),
+                'expires_at' => $previewStartedAt->copy()->addMinutes($previewDuration)->toISOString(),
+                'seconds_remaining' => $previewDuration * 60,
+                'expired' => false,
+                'simulation' => true,
+            ];
+        }
         $progressKey = "pf-game-state:{$userId}:" . ($quest->uuid ?: $quest->id) . ":{$progressAttemptNumber}";
         $initialProgress = ($previewMode || $isNewAttempt) ? null : Cache::get($progressKey);
         $gradedAttempts = $submissions
@@ -579,6 +602,21 @@ class QuestController extends Controller
             'timeKeyQty' => $timeKeyQty,
             'isStaffPlayMode' => $isStaffPlayMode,
             'initialPlatformingProgress' => $initialProgress,
+            'examTimer' => $examSession ? [
+                'attempt_number' => (int) $examSession->attempt_number,
+                'duration_minutes' => max(1, (int) ($quest->taskBank?->duration ?? 60)),
+                'started_at' => $examSession->started_at?->toISOString(),
+                'expires_at' => $examSession->expires_at?->toISOString(),
+                'seconds_remaining' => max(0, now()->diffInSeconds($examSession->expires_at, false)),
+                'expired' => $examSessionService->isExpired($examSession),
+                'simulation' => false,
+            ] : $previewExamTimer,
+            'examDraft' => $examSession ? [
+                'task_answers' => $examSession->draft_answers ?? [],
+                'content' => (string) ($examSession->draft_content ?? ''),
+                'saved_at' => $examSession->draft_saved_at?->toISOString(),
+                'submission_token' => (string) $examSession->submission_token,
+            ] : null,
             'attemptContext' => [
                 'attempt_count' => (int) $attemptCount,
                 'remaining_attempts' => $remainingAttempts,

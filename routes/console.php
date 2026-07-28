@@ -15,4 +15,7 @@ Schedule::command('notifications:send-assignment-reminders')->hourly();
 Schedule::command('notifications:send-dooplab-deadline-reminders')->hourly();
 Schedule::command('daily-quests:generate')->dailyAt('00:00');
 Schedule::command('daily-quests:expire')->everyThirtyMinutes();
+Schedule::command('exams:finalize-expired')
+    ->everyMinute()
+    ->withoutOverlapping(5);
 // Schedule::command('ai:optional-quests:generate-drafts --max-drafts=3')->weeklyOn(1, '01:30'); // dinonaktifkan - hasil tidak sesuai kebutuhan mentor/admin

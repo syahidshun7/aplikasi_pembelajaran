@@ -16,6 +16,14 @@ const props = defineProps({
     timeKeyQty: Number,
     isStaffPlayMode: Boolean,
     initialPlatformingProgress: Object,
+    examTimer: {
+        type: Object,
+        default: null,
+    },
+    examDraft: {
+        type: Object,
+        default: null,
+    },
     attemptContext: {
         type: Object,
         default: () => ({}),
@@ -62,6 +70,30 @@ const completionAttemptHistory = computed(() => (
     props.attemptContext?.history || []
 ).slice(0, 5));
 const { themeMode } = useUserTheme();
+const examSecondsRemaining = ref(Math.max(0, Number(props.examTimer?.seconds_remaining || 0)));
+const examDisplayExpired = computed(() => Boolean(props.examTimer) && examSecondsRemaining.value <= 0);
+const examExpired = computed(() => !props.previewMode && examDisplayExpired.value);
+const examTimeLabel = computed(() => {
+    const total = Math.max(0, examSecondsRemaining.value);
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const seconds = total % 60;
+    return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':');
+});
+let examTimerInterval = null;
+
+const syncExamTimer = () => {
+    if (!props.examTimer?.expires_at) return;
+    const expiresAt = new Date(props.examTimer.expires_at).getTime();
+    examSecondsRemaining.value = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+    if (examSecondsRemaining.value <= 0 && examTimerInterval) {
+        clearInterval(examTimerInterval);
+        examTimerInterval = null;
+    }
+    if (examSecondsRemaining.value <= 0 && !props.previewMode) {
+        submitTimedOutAttempt();
+    }
+};
 
 const taskAnswersFromSubmission = computed(() => {
     const answers = props.existingSubmission?.scores_detail?.answers;
@@ -85,12 +117,17 @@ const requestedAttemptNumber = Number(
 );
 
 const form = useForm({
-    content: props.existingSubmission?.content || '',
+    content: props.examDraft?.content || props.existingSubmission?.content || '',
     file: null,
-    task_answers: { ...(taskAnswersFromSubmission.value || {}) },
+    task_answers: {
+        ...(taskAnswersFromSubmission.value || {}),
+        ...(props.examDraft?.task_answers || {}),
+    },
     new_attempt: Boolean(props.attemptContext?.is_new_attempt),
-    client_submission_token: createSubmissionToken(),
+    client_submission_token: props.examDraft?.submission_token || createSubmissionToken(),
     requested_attempt_number: requestedAttemptNumber,
+    timed_out: false,
+    confirm_incomplete: false,
 });
 
 const unlockForm = useForm({});
@@ -106,6 +143,10 @@ const questDraftStorageKey = computed(() => {
 });
 
 let draftSaveTimer = null;
+let serverDraftSaveTimer = null;
+let timeoutSubmissionStarted = false;
+let timeoutSubmissionRetryTimer = null;
+const timeoutFinalizationFailed = ref(false);
 
 const clearDraft = () => {
     if (typeof window === 'undefined') return;
@@ -125,6 +166,28 @@ const persistDraft = () => {
             }));
         } catch (_) { }
     }, 150);
+
+    if (!props.examTimer || props.previewMode || props.hasSubmitted || examExpired.value) return;
+    if (serverDraftSaveTimer) clearTimeout(serverDraftSaveTimer);
+    serverDraftSaveTimer = window.setTimeout(() => {
+        saveServerDraft();
+    }, 800);
+};
+
+const saveServerDraft = async () => {
+    if (!props.examTimer || props.previewMode || props.hasSubmitted || examExpired.value) return;
+
+    try {
+        await axios.put(route('quests.exam-draft.save', props.quest.uuid), {
+            attempt_number: requestedAttemptNumber,
+            content: form.content || '',
+            task_answers: { ...(form.task_answers || {}) },
+        });
+    } catch (error) {
+        if (![409, 422].includes(Number(error?.response?.status || 0))) {
+            console.warn('Exam draft autosave failed.', error);
+        }
+    }
 };
 
 const loadDraftFromStorage = () => {
@@ -158,6 +221,31 @@ const unansweredCount = computed(() => {
         return !value || String(value).trim() === '';
     }).length;
 });
+
+const isQuestionAnswered = (question) => {
+    const value = form.task_answers?.[question.uuid];
+    return value !== null && value !== undefined && String(value).trim() !== '';
+};
+
+const clearQuestionAnswer = (question) => {
+    form.task_answers[question.uuid] = '';
+};
+
+const scrollToQuestion = (index) => {
+    if (typeof document === 'undefined') return;
+    document.getElementById(`quest-question-${index}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+    });
+};
+
+const scrollToSubmit = () => {
+    if (typeof document === 'undefined') return;
+    document.getElementById('quest-submit-action')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+    });
+};
 
 const questToneStyle = computed(() => {
     const toneKey = props.quest?.study_group_id ?? 'global';
@@ -490,18 +578,48 @@ const submitFinalGamePayload = (type, extra = {}) => {
     submitGameOnce();
 };
 
+const submitTimedOutAttempt = () => {
+    if (props.previewMode || timeoutSubmissionStarted || form.processing || !props.examTimer) return;
+
+    timeoutSubmissionStarted = true;
+    timeoutFinalizationFailed.value = false;
+    form.timed_out = true;
+    form.post(submitUrl.value, {
+        preserveScroll: true,
+        onSuccess: () => clearDraft(),
+        onError: () => {
+            timeoutSubmissionStarted = false;
+            timeoutFinalizationFailed.value = true;
+            if (timeoutSubmissionRetryTimer) clearTimeout(timeoutSubmissionRetryTimer);
+            timeoutSubmissionRetryTimer = window.setTimeout(submitTimedOutAttempt, 3000);
+        },
+    });
+};
+
 const submitReport = () => {
     if (form.processing) {
         return;
     }
 
-    if (isStructuredTaskBankQuest.value && unansweredCount.value > 0) {
+    if (examExpired.value) {
+        submitTimedOutAttempt();
+        return;
+    }
+
+    if (isStructuredTaskBankQuest.value && unansweredCount.value > 0 && !form.confirm_incomplete) {
         Swal.fire({
-            title: 'INCOMPLETE_REPORT',
-            text: `Masih ada ${unansweredCount.value} soal yang belum diisi.`,
+            title: 'Jawaban Belum Lengkap',
+            text: `${unansweredCount.value} soal belum dijawab. Tetap kirim tugas?`,
             icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Tetap Kirim',
+            cancelButtonText: 'Kembali Mengerjakan',
             background: '#161b22',
-            color: '#f59e0b',
+            color: '#f8fafc',
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+            form.confirm_incomplete = true;
+            submitReport();
         });
         return;
     }
@@ -517,6 +635,7 @@ const submitReport = () => {
         return;
     }
 
+    form.timed_out = false;
     form.post(submitUrl.value, {
         preserveScroll: true,
         onSuccess: () => {
@@ -544,6 +663,12 @@ onMounted(() => {
     syncViewportWidth();
     if (typeof window !== 'undefined') window.addEventListener('resize', syncViewportWidth);
     loadDraftFromStorage();
+    if (props.examTimer) {
+        syncExamTimer();
+        if (!examExpired.value) {
+            examTimerInterval = window.setInterval(syncExamTimer, 1000);
+        }
+    }
     if (isStructuredTaskBankQuest.value && !props.hasSubmitted) {
         loadGameState();
         if (taskBankType.value === 'platforming' && !pfFinished.value) pfShuffleOptions();
@@ -554,7 +679,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
     if (typeof window !== 'undefined') window.removeEventListener('resize', syncViewportWidth);
     if (draftSaveTimer) clearTimeout(draftSaveTimer);
+    if (serverDraftSaveTimer) clearTimeout(serverDraftSaveTimer);
+    if (timeoutSubmissionRetryTimer) clearTimeout(timeoutSubmissionRetryTimer);
     if (gameSubmissionTimer) clearTimeout(gameSubmissionTimer);
+    if (examTimerInterval) clearInterval(examTimerInterval);
     stopGameTimer();
 });
 
@@ -926,7 +1054,7 @@ const useRetakeTicket = () => {
                         <div class="quest-objective-card bg-black/30 p-4 border-l-4 border-slate-700 font-sans text-[14px] text-slate-300 whitespace-pre-wrap">{{ quest.description || 'NO DATA.' }}</div>
                     </div>
 
-                    <section v-if="!previewMode && attemptContext.attempt_count > 0" class="border border-slate-700 bg-black/20 p-4">
+                    <section v-if="!previewMode && !canSubmit && attemptContext.attempt_count > 0" class="border border-slate-700 bg-black/20 p-4">
                         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 pb-3">
                             <div>
                                 <p class="text-[10px] text-cyan-400 uppercase">Attempt_History</p>
@@ -977,14 +1105,64 @@ const useRetakeTicket = () => {
                         </div>
                     </section>
 
+                    <div v-if="examTimer && examExpired && !canSubmit" class="exam-timeout-panel mt-8 border-2 p-4 text-center text-[9px] uppercase">
+                        <p>Waktu habis. Menyimpan jawaban...</p>
+                        <button
+                            v-if="timeoutFinalizationFailed"
+                            type="button"
+                            class="exam-timeout-retry mt-3 border px-3 py-2"
+                            @click="submitTimedOutAttempt"
+                        >
+                            Coba Lagi
+                        </button>
+                    </div>
+
                     <div v-if="canSubmit" class="quest-submit-panel mt-8 p-4 border-2 border-dashed border-cyan-900 bg-black/20">
                         <h3 class="text-[12px] mb-6 uppercase tracking-widest text-white">
                             >> {{ attemptContext.is_new_attempt ? `SUBMIT_ATTEMPT_${attemptContext.next_attempt_number}` : (props.hasSubmitted ? 'EDIT_REPORT' : 'SUBMIT_REPORT') }}
                         </h3>
                         <form @submit.prevent="submitReport" class="space-y-6">
                             <div v-if="isStructuredTaskBankQuest" class="space-y-4">
-                                <div class="bg-slate-900/40 border border-cyan-900/50 p-3"><p class="text-[10px] text-cyan-300 uppercase">BANK: {{ quest.task_bank?.name }}</p></div>
-                                <div v-for="(q, idx) in taskQuestions" :key="q.uuid" class="quest-question-card bg-black/30 border border-slate-700 p-4 space-y-4">
+                                <div class="flex flex-col gap-3 border border-cyan-900/50 bg-slate-900/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <p class="text-[10px] text-cyan-300 uppercase">BANK: {{ quest.task_bank?.name }}</p>
+                                    <div
+                                        v-if="examTimer"
+                                        class="shrink-0 border px-3 py-2 text-center text-[10px] uppercase tabular-nums"
+                                        :class="examSecondsRemaining <= 300 ? 'border-red-500 text-red-300 bg-red-950/30' : 'border-yellow-600 text-yellow-300 bg-yellow-950/20'"
+                                    >
+                                        {{ examTimer.simulation ? 'Preview_Timer' : 'Time_Left' }}: {{ examTimeLabel }}
+                                    </div>
+                                </div>
+                                <nav class="quiz-navigation border border-slate-700 p-3" aria-label="Navigasi soal">
+                                    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                        <p class="text-[10px] uppercase text-cyan-300">Quiz_Navigation</p>
+                                        <p class="font-sans text-[11px] text-slate-400">
+                                            {{ taskQuestions.length - unansweredCount }}/{{ taskQuestions.length }} terisi
+                                        </p>
+                                    </div>
+                                    <div class="quiz-navigation-grid">
+                                        <button
+                                            v-for="(question, index) in taskQuestions"
+                                            :key="question.uuid"
+                                            type="button"
+                                            class="quiz-navigation-item"
+                                            :class="{ 'quiz-navigation-item--answered': isQuestionAnswered(question) }"
+                                            :aria-label="`Buka soal ${index + 1}, ${isQuestionAnswered(question) ? 'sudah diisi' : 'belum diisi'}`"
+                                            @click="scrollToQuestion(index)"
+                                        >
+                                            {{ index + 1 }}
+                                        </button>
+                                    </div>
+                                    <button type="button" class="quiz-navigation-finish mt-3 text-[9px] uppercase" @click="scrollToSubmit">
+                                        Selesai Mengerjakan
+                                    </button>
+                                </nav>
+                                <div
+                                    v-for="(q, idx) in taskQuestions"
+                                    :id="`quest-question-${idx}`"
+                                    :key="q.uuid"
+                                    class="quest-question-card scroll-mt-24 bg-black/30 border border-slate-700 p-4 space-y-4"
+                                >
                                     <div class="quest-question-meta flex flex-wrap items-center gap-2 uppercase">
                                         <span class="border border-cyan-700 bg-cyan-900/30 px-2 py-1 text-[9px] text-cyan-300">Question {{ idx + 1 }}</span>
                                         <span class="border border-slate-700 px-2 py-1 text-[8px] text-slate-400">{{ q.question_type }}</span>
@@ -1000,6 +1178,16 @@ const useRetakeTicket = () => {
                                             <input v-model="form.task_answers[q.uuid]" type="radio" :value="opt" class="quest-answer-radio accent-cyan-500">
                                             <span class="quest-answer-label font-sans text-[12px] font-semibold">{{ opt }}</span>
                                         </label>
+                                        <div v-if="isQuestionAnswered(q)" class="flex justify-end pt-1">
+                                            <button
+                                                type="button"
+                                                class="clear-answer-button border px-3 py-2 text-[8px] uppercase"
+                                                aria-label="Bersihkan jawaban"
+                                                @click="clearQuestionAnswer(q)"
+                                            >
+                                                × Clear Answer
+                                            </button>
+                                        </div>
                                     </div>
                                     <textarea v-else v-model="form.task_answers[q.uuid]" class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[13px] outline-none" rows="3" placeholder="Jawaban..."></textarea>
                                 </div>
@@ -1028,14 +1216,15 @@ const useRetakeTicket = () => {
                                 </div>
                             </div>
                             <button
+                                id="quest-submit-action"
                                 type="submit"
-                                :disabled="form.processing"
+                                :disabled="form.processing || examExpired"
                                 class="w-full py-4 border-2 font-bold uppercase text-[12px] transition-colors"
                                 :class="isEditSubmissionMode
                                     ? 'bg-yellow-900/40 border-yellow-400 text-yellow-400 hover:bg-yellow-500/20'
                                     : 'bg-cyan-900/40 border-cyan-400 text-cyan-400 hover:bg-cyan-500/20'"
                             >
-                                {{ form.processing ? (isEditSubmissionMode ? 'UPDATING...' : 'TRANSMITTING...') : (isEditSubmissionMode ? 'UPDATE' : 'SUBMIT') }}
+                                {{ examExpired ? 'TIME_EXPIRED' : (form.processing ? (isEditSubmissionMode ? 'UPDATING...' : 'TRANSMITTING...') : (isEditSubmissionMode ? 'UPDATE' : 'SUBMIT')) }}
                             </button>
                         </form>
                     </div>
@@ -1142,6 +1331,131 @@ const useRetakeTicket = () => {
 
 .quest-page--light .quest-answer-label {
     color: #202020 !important;
+}
+
+.quiz-navigation {
+    background: rgba(2, 6, 23, 0.45);
+}
+
+.quiz-navigation-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 42px);
+    gap: 8px;
+}
+
+.quiz-navigation-item {
+    width: 42px;
+    height: 42px;
+    border: 2px solid #475569;
+    background: #0f172a;
+    color: #cbd5e1;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.quiz-navigation-item:hover {
+    border-color: #22d3ee;
+    color: #ffffff;
+}
+
+.quiz-navigation-item--answered {
+    border-color: #10b981;
+    background: #064e3b;
+    color: #d1fae5;
+    box-shadow: inset 0 -4px 0 #10b981;
+}
+
+.quiz-navigation-finish {
+    color: #67e8f9;
+}
+
+.quiz-navigation-finish:hover {
+    color: #ffffff;
+    text-decoration: underline;
+}
+
+.quest-page--light .quiz-navigation {
+    border-color: #b8cccc !important;
+    background: #ffffff;
+}
+
+.quest-page--light .quiz-navigation-item {
+    border-color: #94a3b8;
+    background: #ffffff;
+    color: #202020;
+}
+
+.quest-page--light .quiz-navigation-item:hover {
+    border-color: #008f8f;
+    background: #eefafa;
+}
+
+.quest-page--light .quiz-navigation-item--answered {
+    border-color: #07815c;
+    background: #dcfce7;
+    color: #14532d;
+    box-shadow: inset 0 -4px 0 #10b981;
+}
+
+.quest-page--light .quiz-navigation-finish {
+    color: #007777;
+}
+
+.clear-answer-button {
+    border-color: #64748b;
+    color: #cbd5e1;
+}
+
+.clear-answer-button:hover {
+    border-color: #fb7185;
+    background: rgba(159, 18, 57, 0.22);
+    color: #fda4af;
+}
+
+.quest-page--light .clear-answer-button {
+    border-color: #94a3b8;
+    background: #ffffff;
+    color: #475569;
+}
+
+.quest-page--light .clear-answer-button:hover {
+    border-color: #be123c;
+    background: #fff1f2;
+    color: #9f1239;
+}
+
+.exam-timeout-panel {
+    border-color: #a16207;
+    background: rgba(66, 32, 6, 0.35);
+    color: #fde68a;
+}
+
+.exam-timeout-retry {
+    border-color: #eab308;
+    color: #fde047;
+}
+
+.exam-timeout-retry:hover {
+    background: #eab308;
+    color: #111827;
+}
+
+.quest-page--light .exam-timeout-panel {
+    border-color: #d29a20;
+    background: #fff9e8;
+    color: #6b4b08;
+}
+
+.quest-page--light .exam-timeout-retry {
+    border-color: #b7791f;
+    background: #ffffff;
+    color: #744f0b;
+}
+
+.quest-page--light .exam-timeout-retry:hover {
+    background: #f6e7b0;
+    color: #3f2c08;
 }
 
 .quest-answer-radio {

@@ -45,6 +45,7 @@ const form = useForm({
     study_group_id: null,
     content_source: 'file',
     google_docs_url: '',
+    video_url: '',
     file: null,
 });
 const mentorCannotSubmitGuide = computed(() => isMentor.value && !form.study_group_id);
@@ -75,7 +76,16 @@ const getOldGoogleDocsUrl = computed(() => {
     return null;
 });
 
+const getOldVideoUrl = computed(() => {
+    if (isEditing.value && editId.value) {
+        const currentItem = guideItems.value.find(item => item.uuid === editId.value);
+        return currentItem?.video_embed_url || null;
+    }
+    return null;
+});
+
 const isGoogleDocsSource = computed(() => form.content_source === 'google_docs');
+const isVideoSource = computed(() => form.content_source === 'video');
 
 const guideItems = computed(() => {
     if (Array.isArray(props.materi)) return props.materi;
@@ -125,12 +135,12 @@ const handleFileUpload = (e) => {
 };
 
 const handleContentSourceChange = () => {
-    if (isGoogleDocsSource.value) {
+    if (isGoogleDocsSource.value || isVideoSource.value) {
         form.file = null;
-        return;
     }
 
-    form.google_docs_url = '';
+    if (!isGoogleDocsSource.value) form.google_docs_url = '';
+    if (!isVideoSource.value) form.video_url = '';
 };
 
 const startEdit = (item) => {
@@ -139,8 +149,11 @@ const startEdit = (item) => {
     form.title = item.title;
     form.description = item.description || '';
     form.study_group_id = item.study_group_id ?? null;
-    form.content_source = item.google_docs_embed_url ? 'google_docs' : 'file';
+    form.content_source = item.video_embed_url
+        ? 'video'
+        : (item.google_docs_embed_url ? 'google_docs' : 'file');
     form.google_docs_url = item.google_docs_embed_url || '';
+    form.video_url = item.video_embed_url || '';
     form.file = null;
     showFormModal.value = true;
     
@@ -157,6 +170,7 @@ const cancelEdit = () => {
     form.study_group_id = isScopedGroup.value ? props.selectedStudyGroup.id : (isMentor.value ? firstStudyGroupId.value : null);
     form.content_source = 'file';
     form.google_docs_url = '';
+    form.video_url = '';
     form.file = null;
     showFormModal.value = false;
 };
@@ -387,9 +401,10 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                                 >
                                     <option value="file">-- FILE_UPLOAD --</option>
                                     <option value="google_docs">-- GOOGLE_DOCS_EMBED --</option>
+                                    <option value="video">-- VIDEO_LINK --</option>
                                 </select>
                                 <p class="mt-2 text-[7px] text-slate-500 uppercase">
-                                    Pilih upload file biasa atau tempel link Google Docs/Drive untuk preview iframe.
+                                    Upload file, embed Google Docs, atau putar video dari YouTube/Google Drive.
                                 </p>
                             </div>
 
@@ -405,6 +420,24 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                                     <p class="text-[7px] text-slate-500 uppercase tracking-tighter">
                                         Current_Embed_URL:
                                         <span class="text-yellow-500 italic break-all">{{ getOldGoogleDocsUrl }}</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div v-else-if="isVideoSource">
+                                <label class="block mb-2 text-red-300">VIDEO_URL:</label>
+                                <input
+                                    v-model="form.video_url"
+                                    type="url"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-red-400 outline-none text-red-200"
+                                    placeholder="https://www.youtube.com/watch?v=... atau https://drive.google.com/file/d/..."
+                                >
+                                <p class="mt-2 text-[7px] text-slate-500 uppercase leading-relaxed">
+                                    Video Google Drive harus dapat diakses oleh pengguna yang memiliki link.
+                                </p>
+                                <div v-if="isEditing && getOldVideoUrl" class="mt-3 border-t border-slate-800 pt-3">
+                                    <p class="break-all text-[7px] uppercase text-slate-500">
+                                        Current_Video: <span class="text-yellow-500">{{ getOldVideoUrl }}</span>
                                     </p>
                                 </div>
                             </div>
@@ -498,10 +531,10 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                                         </div>
                                     </div>
                                     <div
-                                        v-if="item.file_path || item.google_docs_embed_url"
+                                        v-if="item.file_path || item.google_docs_embed_url || item.video_embed_url"
                                         class="text-indigo-400 text-[7px] animate-pulse"
                                     >
-                                        {{ item.google_docs_embed_url ? '[GOOGLE_DOCS_EMBED]' : '[DOC_ATTACHED]' }}
+                                        {{ item.video_embed_url ? '[VIDEO_EMBED]' : (item.google_docs_embed_url ? '[GOOGLE_DOCS_EMBED]' : '[DOC_ATTACHED]') }}
                                     </div>
                                 </div>
 
