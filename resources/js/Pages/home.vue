@@ -565,7 +565,6 @@ onBeforeUnmount(() => {
 
                             <Transition name="dashboard-section" mode="out-in">
                                 <QuestSection
-                                <QuestSection
                                     v-if="activeMenu === 'quest'"
                                     :items="questPreview"
                                     :auth-user="isLoggedIn"
