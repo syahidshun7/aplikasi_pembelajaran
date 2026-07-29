@@ -14,6 +14,7 @@ use App\Models\StudyGroup;
 use App\Models\UserInventory;
 use App\Models\UserInventoryLog;
 use App\Models\UserQuestAttemptUnlock;
+use App\Models\UserQuestAttemptSession;
 use App\Models\UserQuestUnlock;
 use App\Services\StudyGroupStaffAccessService;
 use App\Services\QuestAttemptNumberService;
@@ -771,6 +772,12 @@ class QuestController extends Controller
                 'shop_item_id' => $timeKeyItem->id,
                 'unlocked_at' => now(),
             ]);
+
+            UserQuestAttemptSession::query()
+                ->where('user_id', $userId)
+                ->where('quest_id', $quest->id)
+                ->whereNull('submitted_at')
+                ->delete();
 
             $quantityBefore = (int) ($inventory->quantity ?? 0);
             $quantityAfter = max(0, $quantityBefore - 1);
