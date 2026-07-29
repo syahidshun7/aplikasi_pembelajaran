@@ -494,9 +494,7 @@ class QuestController extends Controller
             || ($quest->available_until && $now->gte($quest->available_until))
         );
 
-        $scheduleWindowEnded = $isScheduledOnce && $quest->available_until && $now->gte($quest->available_until);
-
-        if (($isInactive || $isScheduledHidden) && ! $isStaff && ! $submission && (! $isLate || $scheduleWindowEnded)) {
+        if (($isInactive || $isScheduledHidden) && ! $isStaff && ! $submission && ! $isLate) {
             return redirect()
                 ->route('quests.user.index')
                 ->withErrors(['quest' => $this->questAvailabilityErrorMessage($quest)]);
@@ -582,7 +580,6 @@ class QuestController extends Controller
             : 0;
         $canUseRetakeTicket = ! $previewMode
             && ! $isStaffPlayMode
-            && $deadlineActive
             && ! $normalAttemptAvailable
             && ! $attemptUnlock
             && (string) ($submission?->status ?? '') === Submission::STATUS_APPROVED;
@@ -871,13 +868,7 @@ class QuestController extends Controller
                 ]);
             }
 
-            if (! $this->isDeadlineActive($quest)) {
-                throw ValidationException::withMessages([
-                    'retake' => 'Deadline sudah berakhir. Retake Ticket tidak dapat digunakan.',
-                ]);
-            }
-
-            if ($quest->allowsAnotherAttempt($attemptCount, $latest)) {
+            if ($this->isDeadlineActive($quest) && $quest->allowsAnotherAttempt($attemptCount, $latest)) {
                 throw ValidationException::withMessages([
                     'retake' => 'Quest ini masih memiliki attempt normal. Retake Ticket belum diperlukan.',
                 ]);

@@ -1054,6 +1054,39 @@ const useRetakeTicket = () => {
                         <div class="quest-objective-card bg-black/30 p-4 border-l-4 border-slate-700 font-sans text-[14px] text-slate-300 whitespace-pre-wrap">{{ quest.description || 'NO DATA.' }}</div>
                     </div>
 
+                    <section
+                        v-if="!previewMode && isLate && !hasQuestUnlock && !hasSubmitted"
+                        class="time-key-panel border-2 p-4"
+                    >
+                        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p class="text-[10px] uppercase">Quest terlambat</p>
+                                <p class="mt-2 font-sans text-[12px]">Gunakan 1 Time Key untuk membuka pengumpulan.</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="time-key-count border px-3 py-2 text-[9px] uppercase">
+                                    {{ timeKeyQty || 0 }} Key
+                                </span>
+                                <button
+                                    v-if="(timeKeyQty || 0) > 0"
+                                    type="button"
+                                    :disabled="unlockForm.processing || isStaffPlayMode"
+                                    class="time-key-button border-2 px-3 py-2 text-[9px] uppercase disabled:opacity-50"
+                                    @click="unlockLateQuest"
+                                >
+                                    {{ unlockForm.processing ? 'Membuka...' : 'Gunakan Time Key' }}
+                                </button>
+                                <Link
+                                    v-else
+                                    :href="route('shop.index')"
+                                    class="time-key-button border-2 px-3 py-2 text-[9px] uppercase"
+                                >
+                                    Buka Shop
+                                </Link>
+                            </div>
+                        </div>
+                    </section>
+
                     <section v-if="!previewMode && !canSubmit && attemptContext.attempt_count > 0" class="border border-slate-700 bg-black/20 p-4">
                         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 pb-3">
                             <div>
@@ -1423,6 +1456,50 @@ const useRetakeTicket = () => {
     border-color: #be123c;
     background: #fff1f2;
     color: #9f1239;
+}
+
+.time-key-panel {
+    border-color: #ca8a04;
+    background: rgba(66, 32, 6, 0.28);
+    color: #fde68a;
+}
+
+.time-key-count {
+    border-color: #854d0e;
+    color: #facc15;
+}
+
+.time-key-button {
+    border-color: #eab308;
+    color: #fde047;
+}
+
+.time-key-button:hover {
+    background: #eab308;
+    color: #111827;
+}
+
+.quest-page--light .time-key-panel {
+    border-color: #d29a20;
+    background: #fff9e8;
+    color: #6b4b08;
+}
+
+.quest-page--light .time-key-count {
+    border-color: #d29a20;
+    background: #ffffff;
+    color: #744f0b;
+}
+
+.quest-page--light .time-key-button {
+    border-color: #b7791f;
+    background: #ffffff;
+    color: #744f0b;
+}
+
+.quest-page--light .time-key-button:hover {
+    background: #f6e7b0;
+    color: #3f2c08;
 }
 
 .exam-timeout-panel {

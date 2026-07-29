@@ -263,3 +263,121 @@ it('offers retake ticket after an expired single attempt has been finalized', fu
             ->where('attemptContext.can_use_retake_ticket', true)
         );
 });
+
+it('allows retake tickets for approved main and optional quests after their deadlines', function () {
+    $user = User::factory()->create();
+    $quests = collect(['main', 'optional'])->map(function (string $questType) use ($user) {
+        [$quest, $question] = createTimedTaskBankQuest();
+        $quest->update(['quest_type' => $questType]);
+
+        $this->actingAs($user)->get(route('quests.show', $quest))->assertOk();
+        $session = UserQuestAttemptSession::query()
+            ->where('quest_id', $quest->id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $this->post(route('submissions.store', $quest), [
+            'task_answers' => [$question->uuid => 'A'],
+            'requested_attempt_number' => 1,
+            'client_submission_token' => $session->submission_token,
+        ])->assertRedirect();
+
+        return $quest;
+    });
+
+    $ticket = \App\Models\ShopItem::query()->where('code', 'RETAKE_TICKET')->firstOrFail();
+    \App\Models\UserInventory::query()->create([
+        'user_id' => $user->id,
+        'shop_item_id' => $ticket->id,
+        'quantity' => 2,
+    ]);
+
+    $this->travel(2)->days();
+
+    foreach ($quests as $quest) {
+        $this->actingAs($user)
+            ->get(route('quests.show', $quest))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('quest.quest_type', $quest->quest_type)
+                ->where('attemptContext.can_use_retake_ticket', true)
+                ->where('attemptContext.retake_ticket_quantity', 2)
+            );
+    }
+
+    $optionalQuest = $quests->firstWhere('quest_type', 'optional');
+    $this->post(route('quests.unlock-retake', $optionalQuest))->assertRedirect();
+
+    $this->assertDatabaseHas('user_quest_attempt_unlocks', [
+        'user_id' => $user->id,
+        'quest_id' => $optionalQuest->id,
+        'attempt_number' => 2,
+        'used_at' => null,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('quests.show', $optionalQuest).'?attempt=new')
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('canSubmit', true)
+            ->where('attemptContext.is_new_attempt', true)
+            ->where('attemptContext.unlocked_by_ticket', true)
+        );
+});
+
+it('reopens and submits a late non game quest with a time key after its schedule ends', function () {
+    $user = User::factory()->create();
+    [$quest, $question] = createTimedTaskBankQuest();
+    $quest->taskBank()->update(['has_time_limit' => false]);
+    $quest->update([
+        'schedule_type' => Quest::SCHEDULE_ONCE,
+        'status' => Quest::STATUS_DONE,
+        'deadline' => now()->subHour(),
+        'available_from' => now()->subDays(2),
+        'available_until' => now()->subHour(),
+    ]);
+
+    $timeKey = \App\Models\ShopItem::query()->where('code', 'TIME_KEY')->firstOrFail();
+    \App\Models\UserInventory::query()->create([
+        'user_id' => $user->id,
+        'shop_item_id' => $timeKey->id,
+        'quantity' => 1,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('quests.show', $quest))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('isLate', true)
+            ->where('hasQuestUnlock', false)
+            ->where('canSubmit', false)
+            ->where('timeKeyQty', 1)
+        );
+
+    $this->post(route('quests.unlock-late', $quest))->assertRedirect();
+
+    $this->actingAs($user)
+        ->get(route('quests.show', $quest))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('hasQuestUnlock', true)
+            ->where('canSubmit', true)
+        );
+
+    $this->post(route('submissions.store', $quest), [
+        'task_answers' => [$question->uuid => 'A'],
+        'requested_attempt_number' => 1,
+    ])->assertRedirect();
+
+    $this->assertDatabaseHas('submissions', [
+        'quest_id' => $quest->id,
+        'user_id' => $user->id,
+        'grade' => 100,
+        'status' => 'Approved',
+    ]);
+    $this->assertDatabaseHas('user_inventories', [
+        'user_id' => $user->id,
+        'shop_item_id' => $timeKey->id,
+        'quantity' => 0,
+    ]);
+});
