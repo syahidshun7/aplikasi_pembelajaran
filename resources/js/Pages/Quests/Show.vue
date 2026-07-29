@@ -1253,9 +1253,11 @@ const useRetakeTicket = () => {
                                 type="submit"
                                 :disabled="form.processing || examExpired"
                                 class="w-full py-4 border-2 font-bold uppercase text-[12px] transition-colors"
-                                :class="isEditSubmissionMode
-                                    ? 'bg-yellow-900/40 border-yellow-400 text-yellow-400 hover:bg-yellow-500/20'
-                                    : 'bg-cyan-900/40 border-cyan-400 text-cyan-400 hover:bg-cyan-500/20'"
+                                :class="examExpired
+                                    ? 'bg-red-950/60 border-red-500 text-red-300 cursor-not-allowed'
+                                    : (isEditSubmissionMode
+                                        ? 'bg-yellow-900/40 border-yellow-400 text-yellow-400 hover:bg-yellow-500/20'
+                                        : 'bg-cyan-900/40 border-cyan-400 text-cyan-400 hover:bg-cyan-500/20')"
                             >
                                 {{ examExpired ? 'TIME_EXPIRED' : (form.processing ? (isEditSubmissionMode ? 'UPDATING...' : 'TRANSMITTING...') : (isEditSubmissionMode ? 'UPDATE' : 'SUBMIT')) }}
                             </button>

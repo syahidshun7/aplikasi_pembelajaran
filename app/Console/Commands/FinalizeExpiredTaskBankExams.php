@@ -54,6 +54,12 @@ class FinalizeExpiredTaskBankExams extends Command
     {
         $user = User::query()->findOrFail($session->user_id);
         $quest = Quest::query()->findOrFail($session->quest_id);
+        $examSessions = app(TaskBankExamSessionService::class);
+
+        if (! $examSessions->supports($quest)) {
+            $session->update(['submitted_at' => now()]);
+            return;
+        }
 
         Auth::onceUsingId((int) $user->id);
 
@@ -73,7 +79,7 @@ class FinalizeExpiredTaskBankExams extends Command
             app(LmsNotificationService::class),
             app(UserRewardSyncService::class),
             app(QuestAttemptNumberService::class),
-            app(TaskBankExamSessionService::class),
+            $examSessions,
         );
     }
 }

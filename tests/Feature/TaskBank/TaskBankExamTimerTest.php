@@ -354,7 +354,21 @@ it('reopens and submits a late non game quest with a time key after its schedule
             ->where('timeKeyQty', 1)
         );
 
+    UserQuestAttemptSession::query()->create([
+        'user_id' => $user->id,
+        'quest_id' => $quest->id,
+        'attempt_number' => 1,
+        'submission_token' => (string) \Illuminate\Support\Str::uuid(),
+        'started_at' => now()->subHours(2),
+        'expires_at' => now()->subHour(),
+    ]);
+
     $this->post(route('quests.unlock-late', $quest))->assertRedirect();
+    $this->assertDatabaseMissing('user_quest_attempt_sessions', [
+        'user_id' => $user->id,
+        'quest_id' => $quest->id,
+        'attempt_number' => 1,
+    ]);
 
     $this->actingAs($user)
         ->get(route('quests.show', $quest))
@@ -362,6 +376,7 @@ it('reopens and submits a late non game quest with a time key after its schedule
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('hasQuestUnlock', true)
             ->where('canSubmit', true)
+            ->where('examTimer', null)
         );
 
     $this->post(route('submissions.store', $quest), [
