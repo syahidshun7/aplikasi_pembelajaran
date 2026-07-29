@@ -101,12 +101,6 @@ class SubmissionController extends Controller
         }]);
         $this->authorizeQuestAccessForCurrentUser($quest);
 
-        if (! $quest->isCurrentlyVisible() && ! $timedOut) {
-            throw ValidationException::withMessages([
-                'content' => $this->questAvailabilityErrorMessage($quest),
-            ]);
-        }
-
         $existingSubmission = Submission::where('quest_id', $quest->id)
             ->where('user_id', auth()->id())
             ->latest('id')
@@ -166,6 +160,12 @@ class SubmissionController extends Controller
             ->where('quest_id', $quest->id)
             ->exists();
 
+        if (! $quest->isCurrentlyVisible() && ! $timedOut && ! $attemptUnlock && ! $hasQuestUnlock) {
+            throw ValidationException::withMessages([
+                'content' => $this->questAvailabilityErrorMessage($quest),
+            ]);
+        }
+
         if (! $existingSubmission && $this->isQuestLate($quest) && ! $hasQuestUnlock && ! $timedOut) {
             throw ValidationException::withMessages([
                 'content' => 'Quest sudah lewat deadline. Gunakan Time Key untuk membuka ulang quest ini.',
@@ -188,7 +188,7 @@ class SubmissionController extends Controller
                 ]);
             }
 
-            if (! $this->isDeadlineActive($quest) && ! $timedOut) {
+            if (! $this->isDeadlineActive($quest) && ! $timedOut && ! $attemptUnlock) {
                 throw ValidationException::withMessages([
                     'submission' => 'Deadline sudah berakhir. Attempt baru tidak tersedia.',
                 ]);
