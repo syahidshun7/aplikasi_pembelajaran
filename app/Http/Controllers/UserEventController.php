@@ -116,7 +116,8 @@ class UserEventController extends Controller
         $attendanceStatus = (string) ($attendance?->status ?? 'pending');
         $canSelfAttend = (bool) $event->self_attendance_enabled
             && ! in_array($attendanceStatus, ['present', 'absent', 'excused'], true);
-        $canCodeAttend = ! in_array($attendanceStatus, ['present', 'absent', 'excused'], true);
+        $canCodeAttend = ! $canSelfAttend
+            && ! in_array($attendanceStatus, ['present', 'absent', 'excused'], true);
         $activeCheckInCode = EventCheckInCode::query()
             ->where('event_id', (int) $event->id)
             ->where('is_active', true)

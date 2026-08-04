@@ -5,6 +5,7 @@ use App\Models\EventAttendance;
 use App\Models\EventCheckInCode;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Inertia\Testing\AssertableInertia;
 
 test('admin can generate event check in code and user can attend with the code', function () {
     $admin = User::factory()->create([
@@ -135,4 +136,27 @@ test('qr check in link records attendance instantly without manual pin entry', f
 
     expect((string) $attendance->status)->toBe('present');
     expect($attendance->checked_at)->not->toBeNull();
+});
+
+test('self attendance event does not offer pin form in user view', function () {
+    $user = User::factory()->create([
+        'role' => User::ROLE_USER,
+    ]);
+
+    $event = Event::query()->create([
+        'title' => 'Self Attendance',
+        'description' => 'Attendance without PIN',
+        'sequence_order' => 1,
+        'self_attendance_enabled' => true,
+    ]);
+
+    $this
+        ->actingAs($user)
+        ->get(route('events.show', $event->uuid))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Events/UserShow')
+            ->where('userAttendance.can_self_attend', true)
+            ->where('userAttendance.can_code_attend', false)
+        );
 });
