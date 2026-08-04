@@ -16,7 +16,7 @@ class CustomVerifyEmail extends VerifyEmail
     public function toMail($notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('AUTHENTICATION_REQUIRED: Verify Email')
+            ->subject('Verifikasi email akun '.config('app.name', 'P-QUEST'))
             ->view('emails.auth.verify-email', [
                 'appName' => config('app.name', 'P-QUEST'),
                 'userName' => $notifiable->name ?? 'Adventurer',
