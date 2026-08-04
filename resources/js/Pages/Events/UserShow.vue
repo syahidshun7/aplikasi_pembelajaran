@@ -93,6 +93,10 @@ const submitSelfAttendance = () => {
 
     attendanceForm.post(route('events.attendance.self', props.event.uuid), {
         preserveScroll: true,
+        onError: (errors) => {
+            const message = errors.event || Object.values(errors || {})[0] || 'Absensi mandiri gagal diproses.';
+            toast.error('ATTENDANCE_FAILED', message);
+        },
     });
 };
 
@@ -101,6 +105,10 @@ const submitCodeAttendance = () => {
 
     codeAttendanceForm.post(route('events.attendance.code', props.event.uuid), {
         preserveScroll: true,
+        onError: (errors) => {
+            const message = errors.code || errors.event || Object.values(errors || {})[0] || 'PIN check-in tidak bisa diproses.';
+            toast.error('CHECK_IN_FAILED', message);
+        },
     });
 };
 
@@ -229,6 +237,9 @@ const copyPublicLink = async () => {
                             >
                                 {{ codeAttendanceForm.token ? 'Confirm_QR_Check_In' : 'Check_In_With_PIN' }}
                             </button>
+                            <p v-if="codeAttendanceForm.errors.code" class="font-sans text-[11px] leading-relaxed text-rose-300 sm:basis-full">
+                                {{ codeAttendanceForm.errors.code }}
+                            </p>
                         </form>
                     </div>
                 </div>
