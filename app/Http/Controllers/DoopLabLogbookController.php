@@ -253,9 +253,17 @@ class DoopLabLogbookController extends Controller
         abort_unless((int) $entry->logbook_id === (int) $logbook->id, 404);
         abort_unless($this->isMentorOfLogbook($logbook, $user), 403, 'MENTOR_ONLY');
 
-        $entry->update(['status' => DoopLabLogbookEntry::STATUS_APPROVED]);
+        $validated = $request->validate([
+            'status' => ['nullable', 'in:' . DoopLabLogbookEntry::STATUS_PENDING . ',' . DoopLabLogbookEntry::STATUS_APPROVED],
+        ]);
 
-        return back()->with('message', 'DOOPLAB_LOGBOOK_ENTRY_APPROVED');
+        $status = (string) ($validated['status'] ?? DoopLabLogbookEntry::STATUS_APPROVED);
+
+        $entry->update(['status' => $status]);
+
+        return back()->with('message', $status === DoopLabLogbookEntry::STATUS_APPROVED
+            ? 'DOOPLAB_LOGBOOK_ENTRY_APPROVED'
+            : 'DOOPLAB_LOGBOOK_ENTRY_PENDING');
     }
 
     public function destroyEntry(Request $request, DoopLabLogbook $logbook, DoopLabLogbookEntry $entry): RedirectResponse

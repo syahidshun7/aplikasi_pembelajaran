@@ -482,30 +482,44 @@ const showNextDetailImage = () => {
     detailImageIndex.value = (detailImageIndex.value + 1) % detailImages.value.length;
 };
 
-const approveEntry = (entry) => {
+const saveEntryStatus = (entry, status) => {
     if (!selectedLogbook.value) return;
+    const normalizedStatus = ['pending', 'approved'].includes(String(status || ''))
+        ? String(status)
+        : 'pending';
+
     router.patch(
         route('dooplab.logbooks.entries.approve', { logbook: selectedLogbook.value.uuid, entry: entry.uuid }),
-        {},
+        { status: normalizedStatus },
         {
             preserveScroll: true,
             preserveState: true,
-            onSuccess: () => toast.success('ENTRI DIAPPROVE!', 'Status entri berhasil diperbarui.'),
-            onError: () => toast.error('GAGAL!', 'Gagal approve entri.'),
+            onSuccess: () => toast.success(
+                normalizedStatus === 'approved' ? 'ENTRI DIAPPROVE!' : 'ENTRI DIPENDING!',
+                'Status entri berhasil diperbarui.'
+            ),
+            onError: () => toast.error('GAGAL!', 'Gagal mengubah status entri.'),
         }
     );
 };
 
 const updateEntryStatus = (entry, status) => {
-    if (status !== 'approved' || entry.status === 'approved') return;
-    approveEntry(entry);
+    if (!['pending', 'approved'].includes(String(status || ''))) return;
+    if (String(entry.status || 'pending') === String(status)) return;
+    saveEntryStatus(entry, status);
 };
 
 const exportEntryCsv = () => {
     const lb = selectedLogbook.value;
     if (!lb?.entries?.length) return;
+    const approvedEntries = lb.entries.filter((entry) => String(entry?.status || 'pending') === 'approved');
+    if (!approvedEntries.length) {
+        toast.error('TIDAK ADA DATA', 'Belum ada entri approved untuk diexport.');
+        return;
+    }
+
     const headers = ['No', 'Tanggal', 'Waktu', 'Kegiatan', 'Tujuan', 'Hasil', 'Status'];
-    const rows = lb.entries.map((e, i) => [
+    const rows = approvedEntries.map((e, i) => [
         i + 1, e.activity_date || '', e.activity_time || '', e.activity || '', e.purpose || '', e.result || '', e.status || 'pending',
     ].map(v => `"${String(v).replace(/"/g, '""')}"`));
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');

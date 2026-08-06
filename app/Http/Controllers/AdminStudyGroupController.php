@@ -70,7 +70,7 @@ class AdminStudyGroupController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'max_members' => 'required|integer|min:1|max:50',
+            'max_members' => 'required|integer|min:1',
             'min_level' => 'required|integer|min:1|max:100',
             'job_id' => 'required|exists:job_roles,id',
         ]);
@@ -102,7 +102,7 @@ class AdminStudyGroupController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'max_members' => 'required|integer|min:1|max:50',
+            'max_members' => 'required|integer|min:1',
             'min_level' => 'required|integer|min:1|max:100',
             'job_id' => 'required|exists:job_roles,id',
         ]);
@@ -514,14 +514,6 @@ class AdminStudyGroupController extends Controller
             return back()->withErrors([
                 'group' => 'STAFF_MEMBERSHIP_DISABLED: Admin dan mentor harus menggunakan Staff Access, bukan join request.',
             ]);
-        }
-
-        $activePlayerCount = (int) $group->users()
-            ->whereNotIn('users.role', User::staffRoles())
-            ->count();
-
-        if ($activePlayerCount >= (int) $group->max_members) {
-            return back()->withErrors(['group' => 'PARTY_FULL: Kapasitas player sudah penuh.']);
         }
 
         $requiredLevel = (int) ($group->min_level ?? 1);

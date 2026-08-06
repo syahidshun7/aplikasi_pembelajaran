@@ -2,6 +2,7 @@
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
+import { toast } from '@/Utils/Alert';
 
 const props = defineProps({
     user: {
@@ -105,16 +106,24 @@ const directionClass = (direction) => {
     return 'text-slate-300';
 };
 
-const submitGoldAdjustment = () => {
+const submitGoldAdjustment = async () => {
     const amount = Number(adjustmentForm.amount || 0);
     const actionLabel = adjustmentForm.direction === 'add' ? 'menambahkan' : 'mengurangi';
+    const actionTitle = adjustmentForm.direction === 'add' ? 'TAMBAH GOLD?' : 'KURANGI GOLD?';
+    const confirmText = adjustmentForm.direction === 'add' ? 'YA, TAMBAHKAN' : 'YA, KURANGI';
 
     if (!Number.isFinite(amount) || amount < 1) {
         adjustmentForm.setError('amount', 'Amount minimal 1.');
         return;
     }
 
-    if (!window.confirm(`Yakin ${actionLabel} ${formatGold(amount)} gold untuk @${props.user.username || props.user.id}?`)) {
+    const result = await toast.confirm(
+        actionTitle,
+        `Yakin ${actionLabel} ${formatGold(amount)} gold untuk @${props.user.username || props.user.id}?`,
+        confirmText
+    );
+
+    if (!result.isConfirmed) {
         return;
     }
 

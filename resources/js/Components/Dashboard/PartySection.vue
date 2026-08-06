@@ -81,7 +81,7 @@ const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
                     </div>
                     <div class="shrink-0 flex flex-col items-end gap-1">
                         <span class="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[8px] text-yellow-300">
-                            {{ group.users_count || 0 }}/{{ group.max_members }}
+                            {{ group.users_count || 0 }} Members
                         </span>
                         <span
                             class="rounded-full border px-2 py-1 text-[8px] uppercase"

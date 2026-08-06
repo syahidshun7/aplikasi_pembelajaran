@@ -202,7 +202,7 @@ const getRiskColor = (grade) => {
                         </Link>
                     </div>
                     <div class="grid grid-cols-2 gap-2 text-[7px] uppercase text-slate-400">
-                        <span>Students {{ group.students_count }} / {{ group.max_members }}</span>
+                        <span>Students {{ group.students_count }}</span>
                         <span>Staff {{ group.staff_count }}</span>
                         <span>Quest {{ group.quests_count }}</span>
                         <span>Event {{ group.events_count }}</span>

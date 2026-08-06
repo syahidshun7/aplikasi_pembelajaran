@@ -807,9 +807,17 @@ const toggleTodo = (todo) => {
     });
 };
 
-const deleteTodo = (todo) => {
+const deleteTodo = async (todo) => {
     if (!todo?.can_delete) return;
-    if (!window.confirm('Hapus to-do ini?')) return;
+
+    const result = await toast.confirm(
+        'HAPUS TO-DO?',
+        `"${todo.title || 'Untitled To-Do'}" akan dihapus dari daftar DoopLab.`,
+        'YA, HAPUS'
+    );
+
+    if (!result.isConfirmed) return;
+
     if (String(selectedTodoUuid.value || '') === String(todo.uuid || '')) {
         clearSelectedTodo();
     }
@@ -817,6 +825,8 @@ const deleteTodo = (todo) => {
     router.delete(route('dooplab.todos.destroy', todo.uuid), {
         preserveScroll: true,
         preserveState: true,
+        onSuccess: () => toast.success('TO-DO DIHAPUS!', 'Item berhasil dihapus dari daftar.'),
+        onError: () => toast.error('GAGAL!', 'To-do gagal dihapus.'),
     });
 };
 
@@ -4496,6 +4506,17 @@ onUnmounted(() => {
     border-color: #8eaaaa !important;
     background: #fff !important;
     color: #202020 !important;
+}
+
+.todo-modal--light .todo-modal-form input[type='datetime-local'] {
+    color-scheme: light !important;
+    padding-right: 12px !important;
+}
+
+.todo-modal--light .todo-modal-form input[type='datetime-local']::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 1 !important;
+    filter: none !important;
 }
 
 .todo-modal--light .todo-modal-close,

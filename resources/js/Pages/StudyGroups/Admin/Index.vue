@@ -36,7 +36,7 @@ const groupIdToDelete = ref(null);
 const form = useForm({
     name: '',
     description: '',
-    max_members: 5,
+    max_members: 50,
     min_level: 1,
     job_id: '',
 });
@@ -252,9 +252,10 @@ const goToPage = (url) => {
                             </div>
 
                             <div>
-                                <label class="block mb-2 text-white uppercase">MEMBER_CAPACITY:</label>
+                                <label class="block mb-2 text-white uppercase">MEMBER_TARGET:</label>
                                 <input v-model="form.max_members" type="number"
                                     class="w-full bg-black border-2 border-slate-700 p-2 focus:border-emerald-400 outline-none text-yellow-500">
+                                <p class="mt-2 text-[8px] uppercase text-slate-500">Angka ini hanya target informasi, bukan batas join siswa.</p>
                             </div>
 
                             <div>
@@ -343,7 +344,7 @@ const goToPage = (url) => {
                                         <div class="text-white uppercase">{{ g.name }}</div>
                                     </div>
                                     <div class="shrink-0 text-right leading-tight space-y-1">
-                                        <div class="text-yellow-500 text-[8px] tracking-widest">{{ g.users_count || 0 }} / {{ g.max_members }} MEMBERS</div>
+                                        <div class="text-yellow-500 text-[8px] tracking-widest">{{ g.users_count || 0 }} MEMBERS</div>
                                         <div class="text-cyan-300 text-[8px] tracking-widest">MIN JOIN LVL {{ g.min_level || 1 }}</div>
                                     </div>
                                 </div>
