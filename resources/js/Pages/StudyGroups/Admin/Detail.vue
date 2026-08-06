@@ -551,7 +551,7 @@ const removeStaff = (staff) => {
 
                 <section class="rpg-panel border-cyan-500/50 lg:col-span-2">
                 <h2 class="text-cyan-400 mb-4 uppercase">
-                    Members [{{ members.length }} / {{ group.max_members }}]
+                    Members [{{ members.length }}]
                 </h2>
                 <p class="text-[8px] text-slate-400 uppercase mb-4">Min Join Level: {{ group.min_level || 1 }}</p>
 

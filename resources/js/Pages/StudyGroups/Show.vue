@@ -300,7 +300,7 @@ const initials = (name) => {
                         <div class="grid grid-cols-2 gap-3 text-center">
                             <div class="border border-slate-700 bg-black/30 p-3">
                                 <p class="text-[7px] uppercase text-slate-400">Members</p>
-                                <p class="mt-2 text-lg text-yellow-300">{{ group.members_count || 0 }}/{{ group.max_members || 0 }}</p>
+                                <p class="mt-2 text-lg text-yellow-300">{{ group.members_count || 0 }}</p>
                             </div>
                             <div class="border border-slate-700 bg-black/30 p-3">
                                 <p class="text-[7px] uppercase text-slate-400">Min_Level</p>

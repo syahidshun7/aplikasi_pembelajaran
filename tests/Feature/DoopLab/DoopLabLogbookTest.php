@@ -63,3 +63,30 @@ test('logbook entry rejects more than five documentation photos', function () {
         ->assertRedirect('/dooplab')
         ->assertSessionHasErrors('documentation');
 });
+
+test('mentor can change approved logbook entry back to pending', function () {
+    $mentor = User::factory()->create(['role' => User::ROLE_MENTOR]);
+    $logbook = DoopLabLogbook::query()->create([
+        'owner_user_id' => $mentor->id,
+        'title' => 'PKL Harian',
+    ]);
+    $entry = DoopLabLogbookEntry::query()->create([
+        'logbook_id' => $logbook->id,
+        'activity_date' => '2026-06-30',
+        'activity' => 'Review progress',
+        'status' => DoopLabLogbookEntry::STATUS_APPROVED,
+    ]);
+
+    $this->actingAs($mentor)
+        ->patch(route('dooplab.logbooks.entries.approve', [
+            'logbook' => $logbook->uuid,
+            'entry' => $entry->uuid,
+        ]), [
+            'status' => DoopLabLogbookEntry::STATUS_PENDING,
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('message', 'DOOPLAB_LOGBOOK_ENTRY_PENDING');
+
+    expect($entry->refresh()->status)->toBe(DoopLabLogbookEntry::STATUS_PENDING);
+});

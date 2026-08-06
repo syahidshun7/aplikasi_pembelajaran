@@ -174,3 +174,57 @@ test('duplicate pending join request does not redispatch event and does not rese
             ->count()
     )->toBe(1);
 });
+
+test('admin can approve join request even when active students exceed member target', function () {
+    $job = JobRole::query()->create([
+        'name' => 'Data Science',
+        'slug' => 'data-science',
+    ]);
+
+    $admin = User::factory()->create([
+        'role' => User::ROLE_ADMIN,
+        'job_id' => $job->id,
+    ]);
+
+    $existingMembers = User::factory()->count(2)->create([
+        'role' => User::ROLE_USER,
+        'job_id' => $job->id,
+    ]);
+
+    $requester = User::factory()->create([
+        'role' => User::ROLE_USER,
+        'job_id' => $job->id,
+    ]);
+
+    $group = StudyGroup::query()->create([
+        'name' => 'Data Guild',
+        'description' => 'Data learners',
+        'invite_code' => 'GRP-DATA01',
+        'max_members' => 1,
+        'job_id' => $job->id,
+    ]);
+
+    foreach ($existingMembers as $member) {
+        $group->users()->attach($member->id, ['role' => 'member']);
+    }
+
+    $joinRequest = StudyGroupJoinRequest::query()->create([
+        'study_group_id' => $group->id,
+        'user_id' => $requester->id,
+        'status' => 'pending',
+        'reason' => 'Saya ingin belajar data science bersama kelas ini.',
+    ]);
+
+    $response = $this
+        ->actingAs($admin)
+        ->post(route('groups.requests.approve', [
+            'uuid' => (string) $group->uuid,
+            'requestId' => $joinRequest->id,
+        ]));
+
+    $response->assertRedirect();
+    $response->assertSessionHas('message', 'REQUEST_APPROVED_MEMBER_ADDED');
+
+    expect($group->users()->where('users.id', $requester->id)->exists())->toBeTrue();
+    expect($joinRequest->fresh()->status)->toBe('approved');
+});

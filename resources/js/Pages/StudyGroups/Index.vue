@@ -222,7 +222,7 @@ const leaveGroup = (group) => {
                                     {{ memberBadgeText(group) }}
                                 </span>
                                 <span class="px-2 py-1 border text-[8px] uppercase border-slate-700 text-slate-300">
-                                    {{ group.users_count || 0 }}/{{ group.max_members || 0 }} Members
+                                    {{ group.users_count || 0 }} Members
                                 </span>
                                 <span class="px-2 py-1 border text-[8px] uppercase border-cyan-800 bg-cyan-900/20 text-cyan-200">
                                     Min LVL: {{ groupMinLevel(group) }}
@@ -307,7 +307,7 @@ const leaveGroup = (group) => {
                                         {{ shortText(group.description, 180) }}
                                     </td>
                                     <td class="py-3 px-2 text-yellow-300">
-                                        {{ group.users_count || 0 }}/{{ group.max_members || 0 }}
+                                        {{ group.users_count || 0 }}
                                         <p class="mt-1 text-[8px] text-cyan-200">Min LVL {{ groupMinLevel(group) }}</p>
                                         <p
                                             v-if="Number(viewerLevel || 1) < groupMinLevel(group) && canRequestAccess(group)"

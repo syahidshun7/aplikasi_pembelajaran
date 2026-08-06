@@ -116,7 +116,7 @@ const removeMember = async (member) => {
 
             <section class="rpg-panel border-cyan-500/50">
                 <div class="mb-5 border-b border-slate-700 pb-4">
-                    <h2 class="text-[11px] uppercase text-cyan-300">Active_Members [{{ members.length }} / {{ group.max_members }}]</h2>
+                    <h2 class="text-[11px] uppercase text-cyan-300">Active_Members [{{ members.length }}]</h2>
                     <p class="mt-2 text-[7px] uppercase text-slate-500">Minimum Join Level: {{ group.min_level || 1 }}</p>
                 </div>
 
