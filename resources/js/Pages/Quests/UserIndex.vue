@@ -73,10 +73,26 @@ const userQuestStatusClass = (item) => {
     const status = resolveUserQuestStatus(item);
 
     if (status === 'Approved') return 'text-emerald-300 border-emerald-900 bg-emerald-900/20';
-    if (status === 'Rejected') return 'text-rose-300 border-rose-900 bg-rose-900/20';
+    if (status === 'Rejected') return 'text-red-300 border-red-900 bg-red-900/20';
     if (status === 'Pending') return 'text-yellow-300 border-yellow-900 bg-yellow-900/20';
     if (status === 'Late') return 'text-red-300 border-red-900 bg-red-900/20';
     return 'text-slate-300 border-slate-700 bg-slate-900/30';
+};
+
+const questActionClass = (item) => {
+    if (String(item?.user_submission_status || '').trim() === 'Rejected') {
+        return 'border-red-900 text-red-200 bg-red-900/30 hover:bg-red-700 hover:text-white';
+    }
+
+    return 'border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white';
+};
+
+const questActionLabel = (item) => {
+    if (String(item?.user_submission_status || '').trim() === 'Rejected') {
+        return 'Rejected';
+    }
+
+    return item?.user_has_submitted ? 'View / Edit Report' : 'Open Quest';
 };
 
 const questTypeClass = (questType) => {
@@ -215,8 +231,9 @@ const classLabelForQuest = (item) => {
                                 <Link
                                     v-if="item.user_has_submitted || String(item.status || '') !== 'In-Progress'"
                                     :href="route('quests.show', item.uuid)"
-                                    class="inline-block px-3 py-1 border border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white uppercase text-[8px]">
-                                    {{ item.user_has_submitted ? 'View / Edit Report' : 'Open Quest' }}
+                                    class="inline-block px-3 py-1 border uppercase text-[8px]"
+                                    :class="questActionClass(item)">
+                                    {{ questActionLabel(item) }}
                                 </Link>
                                 <p v-else class="text-[7px] text-slate-500 uppercase italic">
                                     Quest_Inactive
@@ -265,8 +282,9 @@ const classLabelForQuest = (item) => {
                                         <Link
                                             v-if="item.user_has_submitted || String(item.status || '') !== 'In-Progress'"
                                             :href="route('quests.show', item.uuid)"
-                                            class="inline-block px-3 py-1 border border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white uppercase text-[8px]">
-                                            {{ item.user_has_submitted ? 'View / Edit Report' : 'Open Quest' }}
+                                            class="inline-block px-3 py-1 border uppercase text-[8px]"
+                                            :class="questActionClass(item)">
+                                            {{ questActionLabel(item) }}
                                         </Link>
                                         <span v-else class="text-[7px] text-slate-500 uppercase italic">
                                             Quest_Inactive

@@ -264,11 +264,15 @@ it('offers retake ticket after an expired single attempt has been finalized', fu
         );
 });
 
-it('allows retake tickets for approved main and optional quests after their deadlines', function () {
+it('allows retake tickets for approved or rejected quests after their deadlines', function () {
     $user = User::factory()->create();
-    $quests = collect(['main', 'optional'])->map(function (string $questType) use ($user) {
+    $quests = collect([
+        ['quest_type' => 'main', 'submission_status' => 'Approved'],
+        ['quest_type' => 'optional', 'submission_status' => 'Approved'],
+        ['quest_type' => 'main', 'submission_status' => 'Rejected'],
+    ])->map(function (array $scenario) use ($user) {
         [$quest, $question] = createTimedTaskBankQuest();
-        $quest->update(['quest_type' => $questType]);
+        $quest->update(['quest_type' => $scenario['quest_type']]);
 
         $this->actingAs($user)->get(route('quests.show', $quest))->assertOk();
         $session = UserQuestAttemptSession::query()
@@ -282,6 +286,13 @@ it('allows retake tickets for approved main and optional quests after their dead
             'client_submission_token' => $session->submission_token,
         ])->assertRedirect();
 
+        \App\Models\Submission::query()
+            ->where('quest_id', $quest->id)
+            ->where('user_id', $user->id)
+            ->latest('id')
+            ->firstOrFail()
+            ->update(['status' => $scenario['submission_status']]);
+
         return $quest;
     });
 
@@ -289,7 +300,7 @@ it('allows retake tickets for approved main and optional quests after their dead
     \App\Models\UserInventory::query()->create([
         'user_id' => $user->id,
         'shop_item_id' => $ticket->id,
-        'quantity' => 2,
+        'quantity' => 3,
     ]);
 
     $this->travel(2)->days();
@@ -301,22 +312,22 @@ it('allows retake tickets for approved main and optional quests after their dead
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('quest.quest_type', $quest->quest_type)
                 ->where('attemptContext.can_use_retake_ticket', true)
-                ->where('attemptContext.retake_ticket_quantity', 2)
+                ->where('attemptContext.retake_ticket_quantity', 3)
             );
     }
 
-    $optionalQuest = $quests->firstWhere('quest_type', 'optional');
-    $this->post(route('quests.unlock-retake', $optionalQuest))->assertRedirect();
+    $rejectedQuest = $quests->first(fn (Quest $quest) => $quest->submissions()->latest('id')->first()?->status === 'Rejected');
+    $this->post(route('quests.unlock-retake', $rejectedQuest))->assertRedirect();
 
     $this->assertDatabaseHas('user_quest_attempt_unlocks', [
         'user_id' => $user->id,
-        'quest_id' => $optionalQuest->id,
+        'quest_id' => $rejectedQuest->id,
         'attempt_number' => 2,
         'used_at' => null,
     ]);
 
     $this->actingAs($user)
-        ->get(route('quests.show', $optionalQuest).'?attempt=new')
+        ->get(route('quests.show', $rejectedQuest).'?attempt=new')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('canSubmit', true)

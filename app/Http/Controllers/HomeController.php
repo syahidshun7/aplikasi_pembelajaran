@@ -503,9 +503,12 @@ private function questFeedSortTuple(array $quest): array
     $priority = match ($status) {
         'approved' => 4,
         'pending' => 3,
+        'rejected' => 2,
         default => $this->isLateQuestForFeed($quest)
             ? 2
-            : ($this->hasQuestTimebox($quest) ? 0 : 1),
+            : (($quest['user_has_submitted'] ?? false)
+                ? 3
+                : ($this->hasQuestTimebox($quest) ? 0 : 1)),
     };
 
     return [

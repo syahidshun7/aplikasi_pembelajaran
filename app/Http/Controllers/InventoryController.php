@@ -60,7 +60,7 @@ class InventoryController extends Controller
                             ? 'Cosmetic skin untuk profil publik. Equip langsung dari Inventory.'
                             : match ($code) {
                                 'TIME_KEY' => 'Gunakan dari halaman quest yang sudah melewati deadline.',
-                                'RETAKE_TICKET' => 'Gunakan dari halaman quest Approved setelah attempt normal habis.',
+                                'RETAKE_TICKET' => 'Gunakan dari halaman quest Approved atau Rejected setelah attempt normal habis.',
                                 default => 'Item ini belum punya aksi langsung.',
                             },
                     ],

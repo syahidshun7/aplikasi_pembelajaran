@@ -224,6 +224,7 @@ const partyLabelForQuest = (quest) => {
                 :class="[
                     (quest.user_submission_status === 'Approved') ? 'border-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.35)] bg-emerald-950/20' :
                     (quest.user_submission_status === 'Pending') ? 'border-yellow-500 shadow-[0_0_12px_rgba(234,179,8,0.35)] bg-yellow-950/20' :
+                    (quest.user_submission_status === 'Rejected') ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.24)] bg-red-950/15' :
                     (quest.user_has_unlock && !quest.user_has_submitted) ? 'border-cyan-500 shadow-[0_0_12px_rgba(34,211,238,0.3)] bg-cyan-950/20' :
                     (isLateUnsubmitted(quest)) ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.2)]' :
                     (quest.status === 'In-Progress') ? 'border-slate-500 bg-slate-900/50' :
@@ -304,6 +305,9 @@ const partyLabelForQuest = (quest) => {
                     <p v-if="quest.user_submission_status === 'Pending'" class="text-[6px] uppercase italic tracking-widest text-yellow-400">
                         Waiting_For_Review...
                     </p>
+                    <p v-if="quest.user_submission_status === 'Rejected'" class="text-[6px] uppercase italic tracking-widest text-red-400">
+                        Rejected
+                    </p>
                     <p v-if="quest.user_submission_status === 'Approved'" class="text-[6px] uppercase italic tracking-widest text-emerald-400">
                         Approved!
                     </p>
@@ -325,6 +329,7 @@ const partyLabelForQuest = (quest) => {
                                 'btn-pixel self-start whitespace-nowrap px-3 py-2 text-[8px] font-bold uppercase transition-colors sm:self-auto',
                                 (quest.user_submission_status === 'Approved') ? 'border-emerald-800 bg-emerald-600 text-black hover:bg-emerald-400' :
                                 (quest.user_submission_status === 'Pending') ? 'border-yellow-800 bg-yellow-600 text-black hover:bg-yellow-400' :
+                                (quest.user_submission_status === 'Rejected') ? 'border-red-950 bg-red-700 text-white hover:bg-red-600' :
                                 (quest.user_has_unlock && !quest.user_has_submitted) ? 'border-cyan-800 bg-cyan-600 text-black hover:bg-cyan-400' :
                                 (isLateUnsubmitted(quest)) ? 'border-red-950 bg-red-700 text-white hover:bg-red-600' :
                                 quest.user_has_submitted ? 'border-slate-900 bg-slate-700 text-white hover:bg-slate-600' :
@@ -333,6 +338,7 @@ const partyLabelForQuest = (quest) => {
                         >
                             <template v-if="quest.user_submission_status === 'Approved'">View</template>
                             <template v-else-if="quest.user_submission_status === 'Pending'">Preview</template>
+                            <template v-else-if="quest.user_submission_status === 'Rejected'">Rejected</template>
                             <template v-else-if="quest.user_has_unlock && !quest.user_has_submitted">Continue</template>
                             <template v-else-if="isLateUnsubmitted(quest)">Late</template>
                             <template v-else>{{ quest.user_has_submitted ? 'View' : 'Take_Quest' }}</template>

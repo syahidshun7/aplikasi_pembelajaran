@@ -174,9 +174,12 @@ class QuestController extends Controller
         $priority = match (strtolower(trim((string) $status))) {
             'approved' => 4,
             'pending' => 3,
+            'rejected' => 2,
             default => $this->isLateQuestForFeed($quest)
                 ? 2
-                : ($this->hasQuestTimebox($quest) ? 0 : 1),
+                : ($this->questValue($quest, 'user_has_submitted')
+                    ? 3
+                    : ($this->hasQuestTimebox($quest) ? 0 : 1)),
         };
 
         return [
@@ -644,7 +647,7 @@ class QuestController extends Controller
             && ! $isStaffPlayMode
             && ! $normalAttemptAvailable
             && ! $attemptUnlock
-            && (string) ($submission?->status ?? '') === Submission::STATUS_APPROVED;
+            && in_array((string) ($submission?->status ?? ''), [Submission::STATUS_APPROVED, Submission::STATUS_REJECTED], true);
         $effectiveSubmission = match ((string) ($quest->grading_attempt ?? Quest::GRADE_HIGHEST)) {
             Quest::GRADE_FIRST => $gradedAttempts->sortBy('attempt_number')->first(),
             Quest::GRADE_LATEST => $gradedAttempts->sortByDesc('attempt_number')->first(),
@@ -930,9 +933,9 @@ class QuestController extends Controller
                 $unlockMax,
             ) + 1;
 
-            if (! $latest || (string) $latest->status !== Submission::STATUS_APPROVED) {
+            if (! $latest || ! in_array((string) $latest->status, [Submission::STATUS_APPROVED, Submission::STATUS_REJECTED], true)) {
                 throw ValidationException::withMessages([
-                    'retake' => 'Retake Ticket hanya dapat dipakai setelah quest berstatus Approved.',
+                    'retake' => 'Retake Ticket hanya dapat dipakai setelah quest berstatus Approved atau Rejected.',
                 ]);
             }
 
