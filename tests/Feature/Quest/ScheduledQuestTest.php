@@ -131,6 +131,15 @@ test('student quest list prioritizes urgent unfinished work before reviewed ques
         'created_at' => now()->addMinutes(4),
     ]);
 
+    $rejectedQuest = Quest::query()->create([
+        'title' => 'Rejected Quest',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => Quest::STATUS_AVAILABLE,
+        'created_at' => now()->addMinutes(6),
+    ]);
+
     $lateQuest = Quest::query()->create([
         'title' => 'Late Quest',
         'difficulty' => 'C-Rank',
@@ -182,6 +191,14 @@ test('student quest list prioritizes urgent unfinished work before reviewed ques
         'grade' => 0,
     ]);
 
+    Submission::query()->create([
+        'quest_id' => $rejectedQuest->id,
+        'user_id' => $student->id,
+        'content' => 'needs revision',
+        'status' => 'Rejected',
+        'grade' => 0,
+    ]);
+
     $response = $this
         ->actingAs($student)
         ->get(route('quests.user.index'));
@@ -192,6 +209,7 @@ test('student quest list prioritizes urgent unfinished work before reviewed ques
         $scheduledQuest->title,
         $freshQuest->title,
         $lateQuest->title,
+        $rejectedQuest->title,
         $pendingQuest->title,
         $approvedQuest->title,
     ]);

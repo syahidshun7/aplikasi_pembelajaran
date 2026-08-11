@@ -397,13 +397,13 @@ class AdminSubmissionController extends Controller
             ];
         } else {
             $validated = $request->validate([
-                'final_score' => ['required', 'numeric', 'min:1', 'max:100'],
+                'final_score' => ['required', 'numeric', 'min:0', 'max:100'],
                 'feedback' => ['nullable', 'string'],
                 'status' => ['required', 'in:Approved,Rejected'],
             ]);
 
             $newScore = (int) $validated['final_score'];
-            $newScore = max(1, min(100, $newScore));
+            $newScore = max(0, min(100, $newScore));
 
             $verdictDetail = [
                 'source' => 'manual_score',

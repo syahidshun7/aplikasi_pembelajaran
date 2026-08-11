@@ -697,7 +697,7 @@
                             <span v-if="taskBankType" class="text-slate-500">({{ taskBankType }})</span>
                         </span>
                         <span v-else class="text-[8px] text-slate-400 uppercase italic">
-                            MANUAL_SCORE: <span class="text-cyan-300 font-bold">1–100</span>
+                            MANUAL_SCORE: <span class="text-cyan-300 font-bold">0–100</span>
                         </span>
                     </div>
                 </div>
@@ -902,7 +902,7 @@
                                         <div class="space-y-4">
                                             <p class="text-[8px] text-yellow-400 uppercase tracking-widest">>> MANUAL_SCORE_MODE</p>
                                             <p class="text-[7px] text-slate-500 uppercase italic mt-1">
-                                                Range: 1–100 (fallback tanpa rubric)
+                                                Range: 0–100 (fallback tanpa rubric)
                                             </p>
                                             <div class="space-y-3">
                                                 <label for="manual-score-range" class="block text-[7px] text-slate-500 uppercase italic">
@@ -912,14 +912,14 @@
                                                     id="manual-score-range"
                                                     type="range"
                                                     v-model.number="manualFinalScore"
-                                                    min="1"
+                                                    min="0"
                                                     max="100"
                                                     step="1"
                                                     @input="validateManualScore"
                                                     class="manual-score-range"
                                                 />
                                                 <div class="flex items-center justify-between text-[7px] uppercase text-slate-500">
-                                                    <span>1</span>
+                                                    <span>0</span>
                                                     <span>25</span>
                                                     <span>50</span>
                                                     <span>75</span>
@@ -944,7 +944,7 @@
                                                     id="manual-score-input"
                                                     type="number"
                                                     v-model.number="manualFinalScore"
-                                                    min="1"
+                                                    min="0"
                                                     max="100"
                                                     step="1"
                                                     inputmode="numeric"
@@ -1276,7 +1276,7 @@ const isPreparingAiPreview = ref(false);
 const showAiPreviewModal = ref(false);
 const aiPreviewPayload = ref(null);
 const aiAdvisorNote = ref('');
-const manualFinalScore = ref(Math.max(1, Math.min(100, Number(props.submission.grade || 1))));
+const manualFinalScore = ref(Math.max(0, Math.min(100, Number(props.submission.grade ?? 0))));
 const selectedLevels = ref({});
 const essayPoints = ref({});
 const taskAnswers = computed(() => {
@@ -1763,7 +1763,7 @@ const taskBankTotalScore = computed(() => {
 const totalScore = computed(() => {
     if (isTaskBankSubmission.value) return taskBankTotalScore.value;
     if (hasRubric.value) return rubricTotalScore.value;
-    return Math.max(1, Math.min(100, Number(manualFinalScore.value || 1)));
+    return Math.max(0, Math.min(100, Number(manualFinalScore.value ?? 0)));
 });
 
 const calculatedGold = computed(() => {
@@ -1785,21 +1785,21 @@ const maxExpReward = computed(() => {
 
 // 3. METHODS
 const validateManualScore = () => {
-    const raw = Number(manualFinalScore.value || 1);
+    const raw = Number(manualFinalScore.value ?? 0);
     if (isNaN(raw)) {
-        manualFinalScore.value = 1;
+        manualFinalScore.value = 0;
         return;
     }
-    manualFinalScore.value = Math.max(1, Math.min(100, Math.round(raw)));
+    manualFinalScore.value = Math.max(0, Math.min(100, Math.round(raw)));
 };
 
 const setManualScore = (value) => {
-    manualFinalScore.value = Number(value || 1);
+    manualFinalScore.value = Number(value ?? 0);
     validateManualScore();
 };
 
 const adjustManualScore = (delta) => {
-    setManualScore(Number(manualFinalScore.value || 1) + Number(delta || 0));
+    setManualScore(Number(manualFinalScore.value ?? 0) + Number(delta || 0));
 };
 
 const validateEssayPoints = (question) => {
@@ -2639,8 +2639,8 @@ const confirmAiScanFromPreview = async () => {
         const evidenceQualityScore = Number(data?.evidence_quality_score ?? 0);
         const qualityWarnings = Array.isArray(data?.evidence_quality_warnings) ? data.evidence_quality_warnings : [];
 
-        if (!hasRubric.value && !isTaskBankSubmission.value && !isNaN(suggested) && suggested > 0) {
-            manualFinalScore.value = Math.max(1, Math.min(100, suggested));
+        if (!hasRubric.value && !isTaskBankSubmission.value && !isNaN(suggested) && suggested >= 0) {
+            manualFinalScore.value = Math.max(0, Math.min(100, suggested));
         }
 
         let appliedRubricCount = 0;
