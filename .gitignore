@@ -37,6 +37,8 @@ Thumbs.db
 .phpunit.result.cache
 /.phpunit.cache
 .phpactor.json
+__pycache__/
+*.pyc
 
 # Auth
 /auth.json
