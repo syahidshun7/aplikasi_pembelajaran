@@ -44,7 +44,7 @@ return [
 
     'ai' => [
         'primary' => (string) env('AI_PRIMARY', 'gemini'),
-        'fallback' => (string) env('AI_FALLBACK', 'ollama'),
+        'fallback' => (string) env('AI_FALLBACK', 'none'),
         'timeout_ms' => (int) env('AI_TIMEOUT_MS', 15000),
         'retry_count' => (int) env('AI_RETRY_COUNT', 1),
         'masking_enabled' => (bool) env('AI_MASKING_ENABLED', true),
@@ -65,6 +65,7 @@ return [
             'ocr_timeout_seconds' => (int) env('AI_EXTRACTION_OCR_TIMEOUT_SECONDS', 60),
             'tesseract_binary' => (string) env('AI_EXTRACTION_TESSERACT_BINARY', 'tesseract'),
             'pdftoppm_binary' => (string) env('AI_EXTRACTION_PDFTOPPM_BINARY', 'pdftoppm'),
+            'tesseract_lang' => (string) env('AI_EXTRACTION_TESSERACT_LANG', 'ind+eng'),
         ],
         'cleaning' => [
             'python_binary' => (string) env('AI_CLEANING_PYTHON_BINARY', env('AI_EXTRACTION_PYTHON_BINARY', 'python')),

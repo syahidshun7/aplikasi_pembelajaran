@@ -423,8 +423,11 @@ const generateThemePreview = async () => {
         themePreview.value = response?.data || null;
         Toast.fire({ icon: 'success', title: 'THEME_QUEST_PREVIEW_READY' });
     } catch (error) {
-        const message = String(error?.response?.data?.message || 'FAILED_TO_GENERATE_THEME_PREVIEW');
-        Swal.fire('UPLINK_ERROR', message, 'error');
+        const status = Number(error?.response?.status || 0);
+        const message = status === 429
+            ? String(error?.response?.data?.message || 'Gemini sedang rate limited. Coba lagi beberapa menit lagi atau kurangi jumlah soal.')
+            : String(error?.response?.data?.message || 'FAILED_TO_GENERATE_THEME_PREVIEW');
+        Swal.fire(status === 429 ? 'AI_RATE_LIMITED' : 'UPLINK_ERROR', message, status === 429 ? 'warning' : 'error');
     } finally {
         isGeneratingThemePreview.value = false;
     }

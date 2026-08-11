@@ -308,10 +308,11 @@ def read_image(file_path: Path, payload: dict[str, Any]) -> dict[str, Any]:
 
 def run_ocr_for_image(file_path: Path, payload: dict[str, Any]) -> dict[str, Any]:
     tesseract_binary = str(payload.get("tesseract_binary") or "tesseract")
+    tesseract_lang = str(payload.get("tesseract_lang") or "ind+eng")
     timeout_seconds = max(10, int(payload.get("ocr_timeout_seconds") or 60))
     try:
         process = subprocess.run(
-            [tesseract_binary, str(file_path), "stdout", "-l", "ind+eng", "--psm", "6", "tsv"],
+            [tesseract_binary, str(file_path), "stdout", "-l", tesseract_lang, "--psm", "6", "tsv"],
             check=True,
             capture_output=True,
             text=True,

@@ -56,10 +56,10 @@ class QuestController extends Controller
         $perPage = 15;
 
         $cached = Cache::remember(
-            "quests.page.v{$questsCacheVersion}.groups.{$groupKey}.type.{$questType}.search.{$searchKey}.page.{$page}",
+            "quests.list.v{$questsCacheVersion}.groups.{$groupKey}.type.{$questType}.search.{$searchKey}",
             now()->addMinutes(5),
-            function () use ($userGroupIds, $search, $questType, $page, $perPage) {
-                $paginator = Quest::query()
+            function () use ($userGroupIds, $search, $questType) {
+                return Quest::query()
                     ->where(function ($query) use ($userGroupIds) {
                         $query->whereNull('study_group_id')
                             ->orWhereIn('study_group_id', $userGroupIds);
@@ -81,40 +81,28 @@ class QuestController extends Controller
                     })
                     ->with('studyGroup:id,uuid,name')
                     ->latest()
-                    ->paginate($perPage, ['*'], 'page', $page);
-
-                return [
-                    'total' => (int) $paginator->total(),
-                    'per_page' => (int) $paginator->perPage(),
-                    'items' => $paginator->getCollection()->map(fn ($quest) => $quest->toArray())->values()->all(),
-                ];
+                    ->get()
+                    ->map(fn ($quest) => $quest->toArray())
+                    ->values()
+                    ->all();
             }
         );
 
-        $quests = new LengthAwarePaginator(
-            $cached['items'] ?? [],
-            (int) ($cached['total'] ?? 0),
-            (int) ($cached['per_page'] ?? $perPage),
-            $page,
-            [
-                'path' => LengthAwarePaginator::resolveCurrentPath(),
-                'query' => $request->query(),
-            ]
-        );
+        $questCollection = collect($cached ?? []);
 
-        $pageQuestIds = $quests->getCollection()
+        $questIds = $questCollection
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
 
         $submissionStatusesByQuest = [];
         $submittedQuestIdSet = [];
-        if (! empty($pageQuestIds)) {
+        if (! empty($questIds)) {
             $latestSubmissions = Submission::query()
                 ->joinSub(
                     Submission::query()
                         ->where('user_id', $userId)
-                        ->whereIn('quest_id', $pageQuestIds)
+                        ->whereIn('quest_id', $questIds)
                         ->selectRaw('MAX(id) as id')
                         ->groupBy('quest_id'),
                     'latest',
@@ -131,18 +119,18 @@ class QuestController extends Controller
         }
 
         $unlockedQuestIdSet = [];
-        if (! empty($pageQuestIds)) {
+        if (! empty($questIds)) {
             $unlockedQuestIds = UserQuestUnlock::query()
                 ->where('user_id', $userId)
-                ->whereIn('quest_id', $pageQuestIds)
+                ->whereIn('quest_id', $questIds)
                 ->pluck('quest_id')
                 ->map(fn ($id) => (int) $id)
                 ->all();
             $unlockedQuestIdSet = array_fill_keys($unlockedQuestIds, true);
         }
 
-        $quests->setCollection(
-            $quests->getCollection()->map(function ($quest) use ($submittedQuestIdSet, $submissionStatusesByQuest, $unlockedQuestIdSet) {
+        $sortedQuests = $questCollection
+            ->map(function ($quest) use ($submittedQuestIdSet, $submissionStatusesByQuest, $unlockedQuestIdSet) {
                 $questId = (int) (is_array($quest) ? ($quest['id'] ?? 0) : ($quest->id ?? 0));
 
                 if (is_array($quest)) {
@@ -157,6 +145,18 @@ class QuestController extends Controller
                 $quest->user_has_unlock = isset($unlockedQuestIdSet[$questId]);
                 return $quest;
             })
+            ->sortBy(fn ($quest) => $this->questFeedSortTuple($quest))
+            ->values();
+
+        $quests = new LengthAwarePaginator(
+            $sortedQuests->forPage($page, $perPage)->values()->all(),
+            $sortedQuests->count(),
+            $perPage,
+            $page,
+            [
+                'path' => LengthAwarePaginator::resolveCurrentPath(),
+                'query' => $request->query(),
+            ]
         );
 
         return Inertia::render('Quests/UserIndex', [
@@ -166,6 +166,67 @@ class QuestController extends Controller
                 'quest_type' => $questType,
             ],
         ]);
+    }
+
+    private function questFeedSortTuple(array|object $quest): array
+    {
+        $status = $this->questValue($quest, 'user_submission_status');
+        $priority = match (strtolower(trim((string) $status))) {
+            'approved' => 4,
+            'pending' => 3,
+            default => $this->isLateQuestForFeed($quest)
+                ? 2
+                : ($this->hasQuestTimebox($quest) ? 0 : 1),
+        };
+
+        return [
+            $priority,
+            -$this->questTimestamp($quest, 'deadline'),
+            -$this->questTimestamp($quest, 'available_until'),
+            -$this->questTimestamp($quest, 'created_at'),
+            -((int) $this->questValue($quest, 'id')),
+        ];
+    }
+
+    private function isLateQuestForFeed(array|object $quest): bool
+    {
+        if ($this->questValue($quest, 'user_has_submitted') || $this->questValue($quest, 'user_has_unlock')) {
+            return false;
+        }
+
+        if (trim((string) $this->questValue($quest, 'user_submission_status')) !== '') {
+            return false;
+        }
+
+        $deadline = $this->questTimestamp($quest, 'deadline');
+        if ($deadline > 0 && $deadline <= now()->getTimestamp()) {
+            return true;
+        }
+
+        return in_array(strtolower(trim((string) $this->questValue($quest, 'status'))), ['done', 'completed'], true);
+    }
+
+    private function hasQuestTimebox(array|object $quest): bool
+    {
+        return (string) $this->questValue($quest, 'schedule_type') === Quest::SCHEDULE_ONCE
+            || $this->questTimestamp($quest, 'deadline') > 0;
+    }
+
+    private function questTimestamp(array|object $quest, string $key): int
+    {
+        $value = $this->questValue($quest, $key);
+
+        if (! $value) {
+            return 0;
+        }
+
+        $timestamp = strtotime((string) $value);
+        return $timestamp === false ? 0 : $timestamp;
+    }
+
+    private function questValue(array|object $quest, string $key): mixed
+    {
+        return is_array($quest) ? ($quest[$key] ?? null) : ($quest->{$key} ?? null);
     }
 
     public function index(Request $request, ?string $groupUuid = null)

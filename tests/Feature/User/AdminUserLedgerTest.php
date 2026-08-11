@@ -8,6 +8,8 @@ use App\Models\ShopTransaction;
 use App\Models\Submission;
 use App\Models\User;
 use App\Models\UserGoldAdjustment;
+use App\Notifications\UserGoldAdjustedNotification;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Testing\AssertableInertia;
 
 it('admin can view unified user gold ledger with income and expense summary', function () {
@@ -171,6 +173,37 @@ it('admin update logs gold adjustment audit entry', function () {
     expect((int) $adjustment->gold_after)->toBe(350);
     expect((int) $adjustment->gold_change)->toBe(150);
     expect((int) $adjustment->admin_user_id)->toBe((int) $admin->id);
+});
+
+it('admin gold adjustment notifies the target user', function () {
+    Notification::fake();
+
+    $admin = User::factory()->create([
+        'role' => User::ROLE_ADMIN,
+    ]);
+
+    $target = User::factory()->create([
+        'role' => User::ROLE_USER,
+        'gold' => 200,
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('admin.users.gold-adjustment', $target->id), [
+            'direction' => 'add',
+            'amount' => 125,
+            'reason' => 'Bonus event kelas',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('message', 'USER_GOLD_ADJUSTED');
+
+    Notification::assertSentTo($target, UserGoldAdjustedNotification::class, function (UserGoldAdjustedNotification $notification) use ($target) {
+        $payload = $notification->toArray($target);
+
+        return (string) ($payload['event'] ?? '') === 'gold_added'
+            && (int) data_get($payload, 'meta.gold_change') === 125
+            && (int) data_get($payload, 'meta.gold_after') === 325
+            && (string) data_get($payload, 'meta.reason') === 'Bonus event kelas';
+    });
 });
 
 it('submission ledger records only increases to the best quest reward', function () {

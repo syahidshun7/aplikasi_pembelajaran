@@ -70,3 +70,30 @@ test('admin can generate optional quest preview using ai provider', function () 
     $response->assertJsonPath('draft.title', 'Optional Quest: Input Validation Hardening');
 });
 
+test('optional quest theme preview returns friendly rate limit response when gemini is limited', function () {
+    config()->set('services.ai.primary', 'gemini');
+    config()->set('services.ai.fallback', 'gemini');
+    config()->set('services.ai.gemini.api_key', 'test-key');
+    config()->set('services.ai.gemini.base_url', 'https://gemini.test/v1');
+
+    Http::fake([
+        'https://gemini.test/*' => Http::response(['error' => 'rate limit'], 429),
+    ]);
+
+    $admin = User::factory()->create([
+        'role' => User::ROLE_ADMIN,
+        'email_verified_at' => now(),
+    ]);
+
+    $response = $this->actingAs($admin)
+        ->postJson(route('admin.quests.optional.theme-preview'), [
+            'theme' => 'Laravel validation',
+            'question_type' => 'multiple_choice',
+            'question_count' => 5,
+            'difficulty' => 'C-Rank',
+        ]);
+
+    $response->assertStatus(429);
+    $response->assertJsonPath('status', 'error');
+    $response->assertJsonPath('code', 'AI_PROVIDER_RATE_LIMITED');
+});

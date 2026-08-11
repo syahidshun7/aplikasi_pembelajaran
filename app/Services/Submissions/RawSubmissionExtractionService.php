@@ -66,6 +66,7 @@ class RawSubmissionExtractionService
             'ocr_timeout_seconds' => max(10, (int) config('services.ai.extraction.ocr_timeout_seconds', 60)),
             'tesseract_binary' => (string) config('services.ai.extraction.tesseract_binary', 'tesseract'),
             'pdftoppm_binary' => (string) config('services.ai.extraction.pdftoppm_binary', 'pdftoppm'),
+            'tesseract_lang' => (string) config('services.ai.extraction.tesseract_lang', 'ind+eng'),
         ];
     }
 
