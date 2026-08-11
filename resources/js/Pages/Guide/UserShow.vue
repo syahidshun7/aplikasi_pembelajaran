@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 
 const props = defineProps({
@@ -24,6 +24,8 @@ const hasGoogleDocsEmbed = computed(() => !!props.guide?.google_docs_embed_url);
 const hasVideoEmbed = computed(() => !!props.guide?.video_embed_url);
 const hasAttachment = computed(() => !!props.guide?.file_path);
 const hasAnyResource = computed(() => hasVideoEmbed.value || hasGoogleDocsEmbed.value || hasAttachment.value);
+const isGoogleDriveVideoEmbed = computed(() => /drive\.google\.com/i.test(String(props.guide?.video_embed_url || '')));
+const isVideoModalOpen = ref(false);
 
 const googleDocsEmbedUrl = computed(() => {
     if (!hasGoogleDocsEmbed.value) return null;
@@ -173,15 +175,28 @@ const backLabel = computed(() => props.previewMode ? '[Back_to_Admin_Guides]' : 
                         <h3 class="text-[9px] uppercase text-indigo-300">Attachment</h3>
 
                         <div v-if="hasAnyResource" class="space-y-4">
-                            <div v-if="hasVideoEmbed" class="overflow-hidden border border-slate-700 bg-black">
+                            <div
+                                v-if="hasVideoEmbed"
+                                class="guide-video-frame overflow-hidden border border-slate-700 bg-black"
+                                :class="{ 'guide-video-frame--drive': isGoogleDriveVideoEmbed }"
+                            >
                                 <iframe
                                     :src="guide.video_embed_url"
-                                    class="block aspect-video w-full"
+                                    class="guide-video-frame__iframe"
                                     title="Guide video player"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                     referrerpolicy="strict-origin-when-cross-origin"
                                     allowfullscreen
                                 />
+                                <button
+                                    v-if="isGoogleDriveVideoEmbed"
+                                    type="button"
+                                    class="guide-video-fullscreen"
+                                    aria-label="Lihat penuh"
+                                    @click="isVideoModalOpen = true"
+                                >
+                                    Watch
+                                </button>
                             </div>
 
                             <div v-if="hasGoogleDocsEmbed" class="border border-slate-700 p-2 bg-[#0d1117]">
@@ -225,6 +240,36 @@ const backLabel = computed(() => props.previewMode ? '[Back_to_Admin_Guides]' : 
                 </div>
             </div>
         </div>
+
+        <Teleport to="body">
+            <div
+                v-if="isGoogleDriveVideoEmbed && isVideoModalOpen"
+                class="guide-video-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Video player"
+            >
+                <div class="guide-video-modal__bar">
+                    <span class="truncate">{{ guide.title }}</span>
+                    <button
+                        type="button"
+                        class="guide-video-modal__close"
+                        aria-label="Tutup video"
+                        @click="isVideoModalOpen = false"
+                    >
+                        Close
+                    </button>
+                </div>
+                <iframe
+                    :src="guide.video_embed_url"
+                    class="guide-video-modal__iframe"
+                    title="Guide video player fullscreen"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerpolicy="strict-origin-when-cross-origin"
+                    allowfullscreen
+                />
+            </div>
+        </Teleport>
     </AuthenticatedLayout>
 </template>
 
@@ -243,5 +288,84 @@ const backLabel = computed(() => props.previewMode ? '[Back_to_Admin_Guides]' : 
     background: color-mix(in srgb, var(--guide-tone-bg) 72%, transparent 28%);
     color: color-mix(in srgb, var(--guide-tone-accent) 90%, #f8fafc 10%);
     padding: 0.15rem 0.45rem;
+}
+
+.guide-video-frame {
+    aspect-ratio: 16 / 9;
+    position: relative;
+    width: 100%;
+}
+
+.guide-video-frame__iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.guide-video-fullscreen {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    border: 1px solid #67e8f9;
+    background: rgba(2, 6, 23, 0.92);
+    color: #a5f3fc;
+    font-size: 8px;
+    line-height: 1;
+    padding: 0.45rem 0.5rem;
+    text-transform: uppercase;
+}
+
+.guide-video-fullscreen:hover,
+.guide-video-fullscreen:focus {
+    background: #0891b2;
+    color: #ffffff;
+}
+
+@media (max-width: 640px) {
+    .guide-video-frame--drive {
+        aspect-ratio: 16 / 9;
+    }
+}
+
+.guide-video-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    display: flex;
+    flex-direction: column;
+    background: #020617;
+}
+
+.guide-video-modal__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-bottom: 1px solid #164e63;
+    background: rgba(15, 23, 42, 0.96);
+    color: #a5f3fc;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    padding: 0.75rem;
+    text-transform: uppercase;
+}
+
+.guide-video-modal__close {
+    flex: 0 0 auto;
+    border: 1px solid #67e8f9;
+    background: #083344;
+    color: #ecfeff;
+    padding: 0.5rem 0.65rem;
+    text-transform: uppercase;
+}
+
+.guide-video-modal__iframe {
+    display: block;
+    width: 100%;
+    flex: 1 1 auto;
+    border: 0;
+    background: #000000;
 }
 </style>
