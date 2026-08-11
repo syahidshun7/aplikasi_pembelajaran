@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai;
 
+use App\Exceptions\AiProviderRateLimitedException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -52,6 +53,10 @@ abstract class AbstractOpenAiCompatibleClient implements AiClientInterface
                 $latencyMs = (int) round((microtime(true) - $startedAt) * 1000);
 
                 if ($response->failed()) {
+                    if ((int) $response->status() === 429) {
+                        throw new AiProviderRateLimitedException(strtoupper($this->provider).' request rate limited with status 429');
+                    }
+
                     if ($allowResponseFormatFallback && $useJsonFormat && in_array($response->status(), [400, 404, 415, 422], true)) {
                         $useJsonFormat = false;
                         continue;
@@ -76,6 +81,10 @@ abstract class AbstractOpenAiCompatibleClient implements AiClientInterface
                     'latency_ms' => $latencyMs,
                 ];
             } catch (Throwable $exception) {
+                if ($exception instanceof AiProviderRateLimitedException) {
+                    throw $exception;
+                }
+
                 $lastError = $exception;
                 if ($attempt >= $attempts) {
                     break;

@@ -10,6 +10,7 @@ use App\Models\DailyQuest;
 use App\Models\ShopTransaction;
 use App\Models\UserGoldAdjustment;
 use App\Models\UserGoldTransfer;
+use App\Notifications\UserGoldAdjustedNotification;
 use App\Services\LevelingService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Http\RedirectResponse;
@@ -351,7 +352,7 @@ class AdminUserController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($request, $user, $validated) {
+        $adjustment = DB::transaction(function () use ($request, $user, $validated) {
             $lockedUser = User::query()
                 ->whereKey($user->id)
                 ->lockForUpdate()
@@ -373,7 +374,7 @@ class AdminUserController extends Controller
                 'gold' => $afterGold,
             ])->save();
 
-            UserGoldAdjustment::query()->create([
+            return UserGoldAdjustment::query()->create([
                 'user_id' => (int) $lockedUser->id,
                 'admin_user_id' => (int) $request->user()->id,
                 'gold_before' => $beforeGold,
@@ -388,6 +389,8 @@ class AdminUserController extends Controller
                 ],
             ]);
         });
+
+        $user->notify(new UserGoldAdjustedNotification($adjustment));
 
         return back()->with('message', 'USER_GOLD_ADJUSTED');
     }

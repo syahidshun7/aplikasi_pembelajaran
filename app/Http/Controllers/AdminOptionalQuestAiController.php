@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\AiProviderRateLimitedException;
 use App\Models\StudyGroup;
 use App\Services\Ai\OptionalQuestGeneratorService;
 use App\Support\Cache\CacheVersion;
@@ -23,7 +24,11 @@ class AdminOptionalQuestAiController extends Controller
 
         $this->assertMentorCanAccessScope($validated);
 
-        $preview = $generator->generatePreview($validated);
+        try {
+            $preview = $generator->generatePreview($validated);
+        } catch (AiProviderRateLimitedException $exception) {
+            return $this->rateLimitedResponse($exception);
+        }
 
         return response()->json([
             'status' => 'success',
@@ -108,7 +113,11 @@ class AdminOptionalQuestAiController extends Controller
 
         $this->assertMentorCanAccessScope($validated);
 
-        $preview = $generator->generateFromTheme($validated);
+        try {
+            $preview = $generator->generateFromTheme($validated);
+        } catch (AiProviderRateLimitedException $exception) {
+            return $this->rateLimitedResponse($exception);
+        }
 
         return response()->json([
             'status' => 'success',
@@ -191,5 +200,15 @@ class AdminOptionalQuestAiController extends Controller
                 'study_group_id' => 'Study group tidak sesuai jurusan mentor.',
             ]);
         }
+    }
+
+    private function rateLimitedResponse(AiProviderRateLimitedException $exception): JsonResponse
+    {
+        return response()->json([
+            'status' => 'error',
+            'code' => 'AI_PROVIDER_RATE_LIMITED',
+            'message' => 'Gemini sedang membatasi request atau kuota sementara habis. Coba lagi beberapa menit lagi atau kurangi jumlah soal.',
+            'detail' => $exception->getMessage(),
+        ], 429);
     }
 }

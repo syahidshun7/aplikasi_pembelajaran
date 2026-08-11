@@ -247,11 +247,11 @@ const eventItems = computed(() => {
             };
         })
         .sort((left, right) => {
-            if (right.__starts_at_ts !== left.__starts_at_ts) {
-                return right.__starts_at_ts - left.__starts_at_ts;
+            if (right.__created_at_ts !== left.__created_at_ts) {
+                return right.__created_at_ts - left.__created_at_ts;
             }
 
-            return right.__created_at_ts - left.__created_at_ts;
+            return right.__starts_at_ts - left.__starts_at_ts;
         });
 });
 
@@ -351,7 +351,7 @@ const activeCarouselItem = computed(() => {
 const latestModuleMeta = computed(() => {
     const moduleMap = {
         quest: {
-            helper: `Showing latest ${questPreview.value.length} quests.`,
+            helper: `Showing prioritized ${questPreview.value.length} quests.`,
         },
         library: {
             helper: `Showing latest ${guidePreview.value.length} materials.`,

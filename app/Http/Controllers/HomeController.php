@@ -129,7 +129,7 @@ class HomeController extends Controller
             ->with('studyGroup:id,name')
             ->listedForUsers()
             ->latest()
-            ->take(10)
+            ->take(50)
             ->get()
             ->map(fn ($quest) => $quest->toArray())
     );
@@ -176,7 +176,10 @@ class HomeController extends Controller
         $quest['user_submission_status'] = $submissionStatusesByQuest[$questId] ?? null;
         $quest['user_has_unlock'] = isset($unlockedQuestIdSet[$questId]);
         return $quest;
-    });
+    })
+        ->sortBy(fn ($quest) => $this->questFeedSortTuple($quest))
+        ->take(10)
+        ->values();
 
     // 2. Ambil Data Materi / Guide (Global + sesuai study group user)
     $materi = Cache::remember(
@@ -261,9 +264,10 @@ class HomeController extends Controller
                 })
                     ->orWhereIn('study_group_id', $userGroupIds);
             })
+            ->orderByDesc('created_at')
             ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
-            ->orderBy('starts_at')
-            ->orderBy('sequence_order')
+            ->orderByDesc('starts_at')
+            ->orderByDesc('sequence_order')
             ->take(10)
             ->get()
             ->map(fn ($event) => $event->toArray())
@@ -491,6 +495,62 @@ private function resolveLeaderboardData(
         'globalPlayers' => $globalPlayers,
         'classPlayers' => $classPlayers,
     ];
+}
+
+private function questFeedSortTuple(array $quest): array
+{
+    $status = strtolower(trim((string) ($quest['user_submission_status'] ?? '')));
+    $priority = match ($status) {
+        'approved' => 4,
+        'pending' => 3,
+        default => $this->isLateQuestForFeed($quest)
+            ? 2
+            : ($this->hasQuestTimebox($quest) ? 0 : 1),
+    };
+
+    return [
+        $priority,
+        -$this->questTimestamp($quest, 'deadline'),
+        -$this->questTimestamp($quest, 'available_until'),
+        -$this->questTimestamp($quest, 'created_at'),
+        -((int) ($quest['id'] ?? 0)),
+    ];
+}
+
+private function isLateQuestForFeed(array $quest): bool
+{
+    if (($quest['user_has_submitted'] ?? false) || ($quest['user_has_unlock'] ?? false)) {
+        return false;
+    }
+
+    if (trim((string) ($quest['user_submission_status'] ?? '')) !== '') {
+        return false;
+    }
+
+    $deadline = $this->questTimestamp($quest, 'deadline');
+    if ($deadline > 0 && $deadline <= now()->getTimestamp()) {
+        return true;
+    }
+
+    return in_array(strtolower(trim((string) ($quest['status'] ?? ''))), ['done', 'completed'], true);
+}
+
+private function hasQuestTimebox(array $quest): bool
+{
+    return (string) ($quest['schedule_type'] ?? '') === Quest::SCHEDULE_ONCE
+        || $this->questTimestamp($quest, 'deadline') > 0;
+}
+
+private function questTimestamp(array $quest, string $key): int
+{
+    $value = $quest[$key] ?? null;
+
+    if (! $value) {
+        return 0;
+    }
+
+    $timestamp = strtotime((string) $value);
+    return $timestamp === false ? 0 : $timestamp;
 }
 
 public function landing()
