@@ -7,6 +7,7 @@ use App\Models\TaskBank;
 use App\Models\TaskQuestion;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -198,6 +199,10 @@ class AdminTaskBankController extends Controller
             'question_type' => ['required', Rule::in(['essay', 'multiple_choice', 'game_stage', 'platforming', 'word_match'])],
             'options' => ['nullable', 'array'],
             'answer_key' => ['nullable', 'string', 'max:255'],
+            'question_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'remove_question_image' => ['nullable', 'boolean'],
+            'option_images' => ['nullable', 'array'],
+            'option_images.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'weight' => ['required', 'integer', 'min:1', 'max:100'],
             'sort_order' => ['nullable', 'integer', 'min:1'],
             'is_active' => ['required', 'boolean'],
@@ -234,6 +239,7 @@ class AdminTaskBankController extends Controller
             $taskBank->questions()->create($payload);
         } else {
             $payload = $this->normalizeQuestionPayload($validated);
+            $payload = $this->applyQuestionMediaPayload($request, $payload);
             $taskBank->questions()->create($payload);
         }
 
@@ -380,6 +386,10 @@ class AdminTaskBankController extends Controller
             'question_type' => ['required', Rule::in(['essay', 'multiple_choice', 'game_stage', 'platforming', 'word_match'])],
             'options' => ['nullable', 'array'],
             'answer_key' => ['nullable', 'string', 'max:255'],
+            'question_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'remove_question_image' => ['nullable', 'boolean'],
+            'option_images' => ['nullable', 'array'],
+            'option_images.*' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'weight' => ['required', 'integer', 'min:1', 'max:100'],
             'sort_order' => ['nullable', 'integer', 'min:1'],
             'is_active' => ['required', 'boolean'],
@@ -388,6 +398,7 @@ class AdminTaskBankController extends Controller
         $this->assertQuestionTypeAllowedForTaskBank($validated['question_type'], $taskBank, 'question_type');
 
         $payload = $this->normalizeQuestionPayload($validated);
+        $payload = $this->applyQuestionMediaPayload($request, $payload, $question);
 
         $question->update($payload);
 
@@ -476,6 +487,7 @@ class AdminTaskBankController extends Controller
             abort(404);
         }
 
+        $this->deleteQuestionMedia($question);
         $question->delete();
 
         return back()->with('message', 'TASK_DELETED');
@@ -488,6 +500,12 @@ class AdminTaskBankController extends Controller
         $options = $validated['options'] ?? [];
 
         if ($questionType === 'multiple_choice') {
+            $options = collect($options)
+                ->map(fn ($option, $index) => $this->taskOptionValue($option, (int) $index))
+                ->filter(fn ($option) => $option !== '')
+                ->values()
+                ->all();
+
             if (count($options) < 2) {
                 throw ValidationException::withMessages([
                     'options' => 'Pilihan ganda harus memiliki minimal 2 opsi.',
@@ -618,6 +636,152 @@ class AdminTaskBankController extends Controller
             'sort_order' => (int) ($validated['sort_order'] ?? 1),
             'is_active' => (bool) $validated['is_active'],
         ];
+    }
+
+    private function applyQuestionMediaPayload(Request $request, array $payload, ?TaskQuestion $question = null): array
+    {
+        $currentQuestionImage = (string) ($question?->question_image_path ?? '');
+
+        if ($request->boolean('remove_question_image') && $currentQuestionImage !== '') {
+            Storage::disk('public')->delete($currentQuestionImage);
+            $payload['question_image_path'] = null;
+        } elseif ($currentQuestionImage !== '') {
+            $payload['question_image_path'] = $currentQuestionImage;
+        }
+
+        if ($request->hasFile('question_image')) {
+            if ($currentQuestionImage !== '') {
+                Storage::disk('public')->delete($currentQuestionImage);
+            }
+            $payload['question_image_path'] = $request->file('question_image')->store('task-questions', 'public');
+        }
+
+        if (($payload['question_type'] ?? '') !== 'multiple_choice') {
+            if ($question && (string) ($question->question_type ?? '') === 'multiple_choice') {
+                $this->deleteOptionImages($question->options_json ?? []);
+            }
+            return $payload;
+        }
+
+        $rawOptions = $request->input('options', []);
+        $uploadedImages = $request->file('option_images', []);
+        $storedOptions = [];
+        $hasOptionImage = false;
+        $previousOptionImages = $this->collectOptionImagePaths($question?->options_json ?? []);
+        $keptOptionImages = [];
+
+        foreach ((array) $rawOptions as $index => $rawOption) {
+            $text = $this->taskOptionText($rawOption);
+            $key = $this->taskOptionKey($rawOption, (int) $index);
+
+            $existingImage = $this->safeTaskQuestionImagePath(
+                is_array($rawOption) ? (string) ($rawOption['existing_image_path'] ?? $rawOption['image_path'] ?? '') : ''
+            );
+            $removeImage = filter_var(
+                is_array($rawOption) ? ($rawOption['remove_image'] ?? false) : false,
+                FILTER_VALIDATE_BOOLEAN
+            );
+            $imagePath = $removeImage ? '' : $existingImage;
+
+            if (isset($uploadedImages[$index])) {
+                if ($imagePath !== '') {
+                    Storage::disk('public')->delete($imagePath);
+                }
+                $imagePath = $uploadedImages[$index]->store('task-questions/options', 'public');
+            }
+
+            if ($text === '' && $imagePath === '') {
+                continue;
+            }
+
+            if ($imagePath !== '') {
+                $hasOptionImage = true;
+                $keptOptionImages[] = $imagePath;
+                $storedOptions[] = ['key' => $text !== '' ? $text : $key, 'text' => $text, 'image_path' => $imagePath];
+                continue;
+            }
+
+            $storedOptions[] = $text;
+        }
+
+        foreach (array_diff($previousOptionImages, $keptOptionImages) as $unusedPath) {
+            Storage::disk('public')->delete($unusedPath);
+        }
+
+        if ($hasOptionImage) {
+            $payload['options_json'] = collect($storedOptions)
+                ->map(fn ($option, $index) => is_array($option) ? $option : ['key' => (string) $option, 'text' => (string) $option])
+                ->values()
+                ->all();
+        } else {
+            $payload['options_json'] = collect($storedOptions)
+                ->map(fn ($option) => $this->taskOptionText($option))
+                ->filter(fn ($option) => $option !== '')
+                ->values()
+                ->all();
+        }
+
+        return $payload;
+    }
+
+    private function taskOptionText(mixed $option): string
+    {
+        if (is_array($option)) {
+            return trim((string) ($option['text'] ?? $option['label'] ?? $option['value'] ?? ''));
+        }
+
+        return trim((string) $option);
+    }
+
+    private function taskOptionKey(mixed $option, int $index = 0): string
+    {
+        if (is_array($option)) {
+            $key = trim((string) ($option['key'] ?? $option['value'] ?? ''));
+            if ($key !== '') {
+                return $key;
+            }
+        }
+
+        return 'opt_' . ($index + 1);
+    }
+
+    private function taskOptionValue(mixed $option, int $index = 0): string
+    {
+        return $this->taskOptionText($option) ?: $this->taskOptionKey($option, $index);
+    }
+
+    private function safeTaskQuestionImagePath(string $path): string
+    {
+        $path = ltrim(trim($path), '/');
+        $path = preg_replace('#^storage/#', '', $path) ?? $path;
+
+        return str_starts_with($path, 'task-questions/') ? $path : '';
+    }
+
+    private function collectOptionImagePaths(mixed $options): array
+    {
+        return collect(is_array($options) ? $options : [])
+            ->map(fn ($option) => is_array($option) ? $this->safeTaskQuestionImagePath((string) ($option['image_path'] ?? '')) : '')
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function deleteOptionImages(mixed $options): void
+    {
+        foreach ($this->collectOptionImagePaths($options) as $path) {
+            Storage::disk('public')->delete($path);
+        }
+    }
+
+    private function deleteQuestionMedia(TaskQuestion $question): void
+    {
+        $questionImage = $this->safeTaskQuestionImagePath((string) ($question->question_image_path ?? ''));
+        if ($questionImage !== '') {
+            Storage::disk('public')->delete($questionImage);
+        }
+
+        $this->deleteOptionImages($question->options_json ?? []);
     }
 
     private function extractImportRows(mixed $decoded): array

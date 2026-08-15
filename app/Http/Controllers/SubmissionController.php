@@ -532,7 +532,7 @@ class SubmissionController extends Controller
 
             if ($questionType === 'multiple_choice') {
                 $options = collect($question->options_json ?? [])
-                    ->map(fn ($option) => trim((string) $option))
+                    ->map(fn ($option, $index) => $this->taskOptionValue($option, (int) $index))
                     ->filter(fn ($option) => $option !== '')
                     ->values()
                     ->all();
@@ -563,6 +563,32 @@ class SubmissionController extends Controller
         if (! empty($errors)) {
             throw ValidationException::withMessages($errors);
         }
+    }
+
+    private function taskOptionText(mixed $option): string
+    {
+        if (is_array($option)) {
+            return trim((string) ($option['text'] ?? $option['label'] ?? $option['value'] ?? ''));
+        }
+
+        return trim((string) $option);
+    }
+
+    private function taskOptionValue(mixed $option, int $index = 0): string
+    {
+        $text = $this->taskOptionText($option);
+        if ($text !== '') {
+            return $text;
+        }
+
+        if (is_array($option)) {
+            $key = trim((string) ($option['key'] ?? $option['value'] ?? ''));
+            if ($key !== '') {
+                return $key;
+            }
+        }
+
+        return 'opt_' . ($index + 1);
     }
 
     private function storeUploadedFile(Request $request, Submission $submission): ?string

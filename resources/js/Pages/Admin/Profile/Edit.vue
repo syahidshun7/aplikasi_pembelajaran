@@ -153,7 +153,15 @@ onBeforeUnmount(() => {
 
                         <label class="block">
                             <span class="text-[8px] uppercase text-slate-400">Username</span>
-                            <input v-model="profileForm.username" type="text" required class="admin-input mt-2">
+                            <input
+                                v-model="profileForm.username"
+                                type="text"
+                                required
+                                minlength="3"
+                                maxlength="32"
+                                pattern="[a-z0-9._-]{3,32}"
+                                class="admin-input mt-2"
+                            >
                             <span v-if="profileForm.errors.username" class="mt-2 block font-sans text-[11px] text-rose-400">{{ profileForm.errors.username }}</span>
                         </label>
 

@@ -15,6 +15,7 @@ class TaskQuestion extends Model
         'uuid',
         'task_bank_id',
         'question_text',
+        'question_image_path',
         'question_type',
         'options_json',
         'answer_key',

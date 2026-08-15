@@ -261,6 +261,9 @@ onBeforeUnmount(() => {
                     v-model="form.username"
                     required
                     autocomplete="username"
+                    minlength="3"
+                    maxlength="32"
+                    pattern="[a-z0-9._-]{3,32}"
                     placeholder="e.g. shadow_hunter"
                 />
                 <InputError class="mt-2" :message="form.errors.username" />

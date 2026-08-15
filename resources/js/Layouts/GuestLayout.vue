@@ -96,7 +96,7 @@ const handleLogout = () => {
                     </Link>
 
                     <Link :href="route('profile.dashboard')"
-                        class="text-[8px] bg-[var(--panel-border)]/80 text-[var(--text)] px-3 py-2 btn-pixel border-[var(--panel)] uppercase font-bold hover:brightness-125 transition-colors">
+                        class="auth-nav-profile text-[8px] bg-[var(--panel-border)]/80 text-[var(--text)] px-3 py-2 btn-pixel border-[var(--panel)] uppercase font-bold hover:brightness-125 transition-colors">
                         Profile
                     </Link>
 
@@ -132,7 +132,7 @@ const handleLogout = () => {
         </main>
 
         <footer class="auth-page-footer p-8 text-center bg-[var(--panel)]/50 backdrop-blur-md border-t-2 border-[var(--text)]/10 mt-auto">
-            <p class="text-[8px] text-[var(--text)]/50 uppercase tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
+            <p class="text-[8px] text-[var(--text)]/50 uppercase tracking-[0.3em]">Build_Ver_1.2.0 // P-Quest Engine</p>
         </footer>
 
         <Teleport to="body">

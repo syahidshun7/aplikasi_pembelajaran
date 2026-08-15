@@ -4,11 +4,21 @@ namespace App\Http\Requests;
 
 use App\Models\JobRole;
 use App\Models\User;
+use App\Rules\UsernameRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class ProfileUpdateRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('username')) {
+            $this->merge([
+                'username' => strtolower(trim((string) $this->input('username'))),
+            ]);
+        }
+    }
+
     /**
      * Get the validation rules that apply to the request.
      *
@@ -18,7 +28,13 @@ class ProfileUpdateRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'username' => ['required', 'string', 'lowercase', 'max:255', 'unique:users,username,' . $this->user()->id],
+            'username' => [
+                'required',
+                'string',
+                'lowercase',
+                new UsernameRule(),
+                'unique:users,username,' . $this->user()->id,
+            ],
             'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
             'job_id' => ['nullable', Rule::exists('job_roles', 'id')->where('status', JobRole::STATUS_ACTIVE)],
             'bio' => ['nullable', 'string', 'max:2000'],

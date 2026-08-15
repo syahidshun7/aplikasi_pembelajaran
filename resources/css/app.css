@@ -986,6 +986,71 @@
     color: #555555 !important;
 }
 
+[data-app-surface='user'][data-theme='light'] .auth-verify-title {
+    border-bottom-color: #8eaaaa !important;
+    color: #b37a00 !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .auth-verify-alert {
+    border-color: #d2a21d !important;
+    background: #fff7d6 !important;
+    color: #5f4500 !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .auth-verify-email {
+    color: #202020 !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .auth-verify-steps {
+    color: #405467 !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .auth-verify-steps p:first-child {
+    color: #007f7f !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .auth-verify-success {
+    border-color: #1a8f5a !important;
+    background: #ddf7e9 !important;
+    color: #0f5132 !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .auth-verify-logout {
+    color: #374151 !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .auth-verify-logout:hover {
+    color: #007f7f !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .auth-nav-profile {
+    border-color: #006666 !important;
+    background: #009999 !important;
+    color: #ffffff !important;
+    text-shadow: none !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .email-verification-banner {
+    border-color: #c58f00 !important;
+    background: #fff4c2 !important;
+    box-shadow: 4px 4px 0 rgba(95, 69, 0, 0.14);
+}
+
+[data-app-surface='user'][data-theme='light'] .email-verification-banner__text {
+    color: #4f3900 !important;
+    text-shadow: none !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .email-verification-banner__button {
+    border-color: #7a5600 !important;
+    background: #d99a00 !important;
+    color: #202020 !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .email-verification-banner__button:hover {
+    background: #f0b31a !important;
+}
+
 [data-app-surface='user'][data-theme='light'] .auth-login-form input:-webkit-autofill,
 [data-app-surface='user'][data-theme='light'] .auth-login-form input:-webkit-autofill:hover,
 [data-app-surface='user'][data-theme='light'] .auth-login-form input:-webkit-autofill:focus {
