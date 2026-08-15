@@ -43,6 +43,11 @@ const props = defineProps({
 });
 
 const existingStatus = computed(() => props.existingSubmission?.status || null);
+const questObjectiveText = computed(() => String(props.quest?.description || '').trim());
+const hasQuestObjective = computed(() => {
+    const normalized = questObjectiveText.value.toLowerCase();
+    return normalized !== '' && normalized !== 'no data' && normalized !== 'no data.';
+});
 const canResubmitPending = computed(() => props.hasSubmitted && props.canSubmit && existingStatus.value === 'Pending');
 const canResubmitRejected = computed(() => props.hasSubmitted && props.canSubmit && existingStatus.value === 'Rejected');
 const questBackUrl = computed(() => props.backUrl || route('lobby'));
@@ -213,6 +218,25 @@ const taskQuestions = computed(() => props.quest?.task_bank?.questions || []);
 const isStructuredTaskBankQuest = computed(() => !!props.quest?.task_bank && ['multiple_choice', 'mixed', 'essay', 'platforming', 'word_match'].includes(taskBankType.value));
 const isAutoCheckedTaskBankQuest = computed(() => (taskBankType.value === 'multiple_choice' || taskBankType.value === 'platforming' || taskBankType.value === 'word_match'));
 const isEditSubmissionMode = computed(() => Boolean(props.hasSubmitted));
+const questionDisplayMode = computed(() => props.quest?.task_bank?.question_display_mode || 'all');
+const isSingleQuestionMode = computed(() => (
+    questionDisplayMode.value === 'single'
+    && ['essay', 'multiple_choice', 'mixed'].includes(taskBankType.value)
+    && taskQuestions.value.length > 0
+));
+const currentQuestionIndex = ref(0);
+const visibleQuestionEntries = computed(() => {
+    if (!isSingleQuestionMode.value) {
+        return taskQuestions.value.map((question, index) => ({ question, index }));
+    }
+
+    const question = taskQuestions.value[currentQuestionIndex.value];
+    return question ? [{ question, index: currentQuestionIndex.value }] : [];
+});
+
+watch(() => taskQuestions.value.length, (questionCount) => {
+    currentQuestionIndex.value = Math.min(currentQuestionIndex.value, Math.max(0, questionCount - 1));
+});
 
 const unansweredCount = computed(() => {
     if (!isStructuredTaskBankQuest.value) return 0;
@@ -232,11 +256,24 @@ const clearQuestionAnswer = (question) => {
 };
 
 const scrollToQuestion = (index) => {
+    if (isSingleQuestionMode.value) {
+        currentQuestionIndex.value = Math.max(0, Math.min(index, taskQuestions.value.length - 1));
+        return;
+    }
+
     if (typeof document === 'undefined') return;
     document.getElementById(`quest-question-${index}`)?.scrollIntoView({
         behavior: 'smooth',
         block: 'start',
     });
+};
+
+const goToPreviousQuestion = () => {
+    currentQuestionIndex.value = Math.max(0, currentQuestionIndex.value - 1);
+};
+
+const goToNextQuestion = () => {
+    currentQuestionIndex.value = Math.min(taskQuestions.value.length - 1, currentQuestionIndex.value + 1);
 };
 
 const scrollToSubmit = () => {
@@ -1049,9 +1086,9 @@ const useRetakeTicket = () => {
                         <div><p class="text-slate-500 mb-2 uppercase">Danger_Level:</p><p class="text-red-500 font-bold uppercase">{{ quest.difficulty }}</p></div>
                         <div class="grid grid-cols-2 gap-2"><p class="text-slate-500 mb-2 uppercase">Gold:</p><p class="text-yellow-400 font-bold">{{ quest.reward_gold }}G</p><p class="text-slate-500 mb-2 uppercase">Exp:</p><p class="text-cyan-400 font-bold">{{ quest.reward_exp || quest.reward_gold }}XP</p></div>
                     </div>
-                    <div class="space-y-4">
+                    <div v-if="hasQuestObjective" class="space-y-4">
                         <h3 class="text-[12px] text-cyan-400 uppercase tracking-widest underline italic">Quest_Objectives:</h3>
-                        <div class="quest-objective-card bg-black/30 p-4 border-l-4 border-slate-700 font-sans text-[14px] text-slate-300 whitespace-pre-wrap">{{ quest.description || 'NO DATA.' }}</div>
+                        <div class="quest-objective-card bg-black/30 p-4 border-l-4 border-slate-700 font-sans text-[14px] text-slate-300 whitespace-pre-wrap">{{ questObjectiveText }}</div>
                     </div>
 
                     <section
@@ -1179,50 +1216,74 @@ const useRetakeTicket = () => {
                                             :key="question.uuid"
                                             type="button"
                                             class="quiz-navigation-item"
-                                            :class="{ 'quiz-navigation-item--answered': isQuestionAnswered(question) }"
+                                            :class="{
+                                                'quiz-navigation-item--answered': isQuestionAnswered(question),
+                                                'quiz-navigation-item--current': isSingleQuestionMode && currentQuestionIndex === index
+                                            }"
                                             :aria-label="`Buka soal ${index + 1}, ${isQuestionAnswered(question) ? 'sudah diisi' : 'belum diisi'}`"
                                             @click="scrollToQuestion(index)"
                                         >
                                             {{ index + 1 }}
                                         </button>
                                     </div>
-                                    <button type="button" class="quiz-navigation-finish mt-3 text-[9px] uppercase" @click="scrollToSubmit">
+                                    <div v-if="isSingleQuestionMode" class="mt-4 flex flex-wrap items-center justify-between gap-2">
+                                        <button
+                                            type="button"
+                                            class="quiz-step-button"
+                                            :disabled="currentQuestionIndex <= 0"
+                                            @click="goToPreviousQuestion"
+                                        >
+                                            Previous
+                                        </button>
+                                        <p class="font-sans text-[11px] text-slate-400">
+                                            Soal {{ currentQuestionIndex + 1 }} dari {{ taskQuestions.length }}
+                                        </p>
+                                        <button
+                                            type="button"
+                                            class="quiz-step-button"
+                                            :disabled="currentQuestionIndex >= taskQuestions.length - 1"
+                                            @click="goToNextQuestion"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                    <button v-if="!isSingleQuestionMode" type="button" class="quiz-navigation-finish mt-3 text-[9px] uppercase" @click="scrollToSubmit">
                                         Selesai Mengerjakan
                                     </button>
                                 </nav>
                                 <div
-                                    v-for="(q, idx) in taskQuestions"
-                                    :id="`quest-question-${idx}`"
-                                    :key="q.uuid"
+                                    v-for="entry in visibleQuestionEntries"
+                                    :id="`quest-question-${entry.index}`"
+                                    :key="entry.question.uuid"
                                     class="quest-question-card scroll-mt-24 bg-black/30 border border-slate-700 p-4 space-y-4"
                                 >
                                     <div class="quest-question-meta flex flex-wrap items-center gap-2 uppercase">
-                                        <span class="border border-cyan-700 bg-cyan-900/30 px-2 py-1 text-[9px] text-cyan-300">Question {{ idx + 1 }}</span>
-                                        <span class="border border-slate-700 px-2 py-1 text-[8px] text-slate-400">{{ q.question_type }}</span>
+                                        <span class="border border-cyan-700 bg-cyan-900/30 px-2 py-1 text-[9px] text-cyan-300">Question {{ entry.index + 1 }}</span>
+                                        <span class="border border-slate-700 px-2 py-1 text-[8px] text-slate-400">{{ entry.question.question_type }}</span>
                                     </div>
-                                    <p class="quest-question-text border-l-4 border-cyan-500 pl-4 font-sans text-[15px] font-semibold leading-7 text-slate-200 md:text-[16px]">{{ q.question_text }}</p>
-                                    <div v-if="q.question_type === 'multiple_choice'" class="grid grid-cols-1 gap-2">
+                                    <p class="quest-question-text border-l-4 border-cyan-500 pl-4 font-sans text-[15px] font-semibold leading-7 text-slate-200 md:text-[16px]">{{ entry.question.question_text }}</p>
+                                    <div v-if="entry.question.question_type === 'multiple_choice'" class="grid grid-cols-1 gap-2">
                                         <label
-                                            v-for="(opt, oi) in (q.options_json || [])"
+                                            v-for="(opt, oi) in (entry.question.options_json || [])"
                                             :key="oi"
                                             class="quest-answer-option flex items-center gap-2 border border-slate-700 px-3 py-2 cursor-pointer hover:border-cyan-500 transition-colors"
-                                            :class="{ 'quest-answer-option--selected': form.task_answers[q.uuid] === opt }"
+                                            :class="{ 'quest-answer-option--selected': form.task_answers[entry.question.uuid] === opt }"
                                         >
-                                            <input v-model="form.task_answers[q.uuid]" type="radio" :value="opt" class="quest-answer-radio accent-cyan-500">
+                                            <input v-model="form.task_answers[entry.question.uuid]" type="radio" :value="opt" class="quest-answer-radio accent-cyan-500">
                                             <span class="quest-answer-label font-sans text-[12px] font-semibold">{{ opt }}</span>
                                         </label>
-                                        <div v-if="isQuestionAnswered(q)" class="flex justify-end pt-1">
+                                        <div v-if="isQuestionAnswered(entry.question)" class="flex justify-end pt-1">
                                             <button
                                                 type="button"
                                                 class="clear-answer-button border px-3 py-2 text-[8px] uppercase"
                                                 aria-label="Bersihkan jawaban"
-                                                @click="clearQuestionAnswer(q)"
+                                                @click="clearQuestionAnswer(entry.question)"
                                             >
                                                 × Clear Answer
                                             </button>
                                         </div>
                                     </div>
-                                    <textarea v-else v-model="form.task_answers[q.uuid]" class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[13px] outline-none" rows="3" placeholder="Jawaban..."></textarea>
+                                    <textarea v-else v-model="form.task_answers[entry.question.uuid]" class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[13px] outline-none" rows="3" placeholder="Jawaban..."></textarea>
                                 </div>
                             </div>
                             <div v-else class="space-y-4">
@@ -1401,6 +1462,31 @@ const useRetakeTicket = () => {
     box-shadow: inset 0 -4px 0 #10b981;
 }
 
+.quiz-navigation-item--current {
+    border-color: #22d3ee;
+    color: #ffffff;
+    box-shadow: inset 0 0 0 2px rgba(34, 211, 238, 0.35);
+}
+
+.quiz-step-button {
+    border: 2px solid #475569;
+    padding: 0.5rem 0.75rem;
+    color: #67e8f9;
+    text-transform: uppercase;
+    font-size: 9px;
+}
+
+.quiz-step-button:hover:not(:disabled) {
+    border-color: #22d3ee;
+    background: rgba(14, 116, 144, 0.24);
+    color: #ffffff;
+}
+
+.quiz-step-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+}
+
 .quiz-navigation-finish {
     color: #67e8f9;
 }
@@ -1431,6 +1517,23 @@ const useRetakeTicket = () => {
     background: #dcfce7;
     color: #14532d;
     box-shadow: inset 0 -4px 0 #10b981;
+}
+
+.quest-page--light .quiz-navigation-item--current {
+    border-color: #008f8f;
+    box-shadow: inset 0 0 0 2px rgba(0, 143, 143, 0.25);
+}
+
+.quest-page--light .quiz-step-button {
+    border-color: #94a3b8;
+    background: #ffffff;
+    color: #007777;
+}
+
+.quest-page--light .quiz-step-button:hover:not(:disabled) {
+    border-color: #008f8f;
+    background: #eefafa;
+    color: #004f4f;
 }
 
 .quest-page--light .quiz-navigation-finish {

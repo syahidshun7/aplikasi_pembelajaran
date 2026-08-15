@@ -30,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => \App\Http\Middleware\IsAdmin::class,
             'role' => \App\Http\Middleware\EnsureRole::class,
+            'student_area' => \App\Http\Middleware\RedirectStaffFromStudentArea::class,
             'study_group_staff' => \App\Http\Middleware\EnsureStudyGroupStaffAccess::class,
         ]);
         //

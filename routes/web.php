@@ -224,65 +224,67 @@ Route::middleware('auth')->group(function () {
     Route::patch('/dooplab/logbooks/{logbook}/entries/{entry}/approve', [DoopLabLogbookController::class, 'approveEntry'])->name('dooplab.logbooks.entries.approve');
     Route::delete('/dooplab/logbooks/{logbook}/entries/{entry}', [DoopLabLogbookController::class, 'destroyEntry'])->name('dooplab.logbooks.entries.destroy');
 
-    Route::get('/my-creations', [CreationPageController::class, 'index'])->name('creations.index');
-    Route::redirect('/my-creation', '/profile/creations', 301);
-    Route::get('/profile/creations', [CreationPageController::class, 'profileCreations'])->name('profile.creations');
-    Route::get('/profile/creations/create', [CreationPageController::class, 'create'])->name('profile.creations.create');
-    Route::get('/profile/creations/{creation:slug}/edit', [CreationPageController::class, 'edit'])->name('profile.creations.edit');
+    Route::middleware('student_area')->group(function () {
+        Route::get('/my-creations', [CreationPageController::class, 'index'])->name('creations.index');
+        Route::redirect('/my-creation', '/profile/creations', 301);
+        Route::get('/profile/creations', [CreationPageController::class, 'profileCreations'])->name('profile.creations');
+        Route::get('/profile/creations/create', [CreationPageController::class, 'create'])->name('profile.creations.create');
+        Route::get('/profile/creations/{creation:slug}/edit', [CreationPageController::class, 'edit'])->name('profile.creations.edit');
 
-    Route::get('/profile', [ProfileController::class, 'dashboard'])->name('profile.dashboard');
-    Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+        Route::get('/profile', [ProfileController::class, 'dashboard'])->name('profile.dashboard');
+        Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+        Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+        Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    Route::post('/profile/skins/{skin}/activate', [ProfileSkinController::class, 'activate'])->name('profile.skins.activate');
-    Route::delete('/profile/skins/active', [ProfileSkinController::class, 'deactivate'])->name('profile.skins.deactivate');
+        Route::post('/profile/skins/{skin}/activate', [ProfileSkinController::class, 'activate'])->name('profile.skins.activate');
+        Route::delete('/profile/skins/active', [ProfileSkinController::class, 'deactivate'])->name('profile.skins.deactivate');
 
-    Route::get('/quests/{quest}', [QuestController::class, 'show'])->name('quests.show');
-    Route::post('/quests/{quest}/platforming-progress', [QuestController::class, 'savePlatformingProgress'])->name('quests.platforming-progress.save');
-    Route::get('/quests/{quest}/platforming-progress', [QuestController::class, 'loadPlatformingProgress'])->name('quests.platforming-progress.load');
-    Route::post('/quests/{quest}/unlock-late', [QuestController::class, 'unlockLate'])->name('quests.unlock-late');
-    Route::post('/quests/{quest}/unlock-retake', [QuestController::class, 'unlockRetake'])->name('quests.unlock-retake');
-    Route::post('/quests/{quest}/submissions', [SubmissionController::class, 'store'])
-        ->middleware('verified')
-        ->name('submissions.store');
-    Route::put('/quests/{quest}/exam-draft', [SubmissionController::class, 'saveExamDraft'])
-        ->middleware('verified')
-        ->name('quests.exam-draft.save');
-    Route::get('/submissions/{submission}', [SubmissionController::class, 'showSubmission'])
-        ->name('submissions.show');
-    Route::put('/submissions/{uuid}', [SubmissionController::class, 'update'])
-        ->middleware('verified')
-        ->name('submissions.update');
-    Route::get('/quests-user', [QuestController::class, 'userIndex'])->name('quests.user.index');
+        Route::get('/quests/{quest}', [QuestController::class, 'show'])->name('quests.show');
+        Route::post('/quests/{quest}/platforming-progress', [QuestController::class, 'savePlatformingProgress'])->name('quests.platforming-progress.save');
+        Route::get('/quests/{quest}/platforming-progress', [QuestController::class, 'loadPlatformingProgress'])->name('quests.platforming-progress.load');
+        Route::post('/quests/{quest}/unlock-late', [QuestController::class, 'unlockLate'])->name('quests.unlock-late');
+        Route::post('/quests/{quest}/unlock-retake', [QuestController::class, 'unlockRetake'])->name('quests.unlock-retake');
+        Route::post('/quests/{quest}/submissions', [SubmissionController::class, 'store'])
+            ->middleware('verified')
+            ->name('submissions.store');
+        Route::put('/quests/{quest}/exam-draft', [SubmissionController::class, 'saveExamDraft'])
+            ->middleware('verified')
+            ->name('quests.exam-draft.save');
+        Route::get('/submissions/{submission}', [SubmissionController::class, 'showSubmission'])
+            ->name('submissions.show');
+        Route::put('/submissions/{uuid}', [SubmissionController::class, 'update'])
+            ->middleware('verified')
+            ->name('submissions.update');
+        Route::get('/quests-user', [QuestController::class, 'userIndex'])->name('quests.user.index');
 
-    // --- USER AREA ---
-    Route::get('/study-groups', [StudyGroupController::class, 'index'])->name('groups.index');
-    Route::get('/study-groups/{uuid}', [StudyGroupController::class, 'show'])->name('groups.show');
-    Route::post('/study-groups/join', [StudyGroupController::class, 'join'])->name('groups.join');
-    Route::post('/study-groups/{uuid}/leave', [StudyGroupController::class, 'leave'])->name('groups.leave');
-    Route::get('/guides', [GuideController::class, 'userIndex'])->name('guides.user.index');
-    Route::get('/guides/{guide}', [GuideController::class, 'userShow'])->name('guides.user.show');
-    Route::get('/events', [UserEventController::class, 'index'])->name('events.user.index');
-    Route::get('/events/{event:uuid}', [UserEventController::class, 'show'])->name('events.show');
-    Route::get('/events/{event:uuid}/attendance/qr/{token}', [UserEventController::class, 'qrAttend'])->name('events.attendance.qr');
-    Route::post('/events/{event:uuid}/attendance/self', [UserEventController::class, 'selfAttend'])->name('events.attendance.self');
-    Route::post('/events/{event:uuid}/attendance/code', [UserEventController::class, 'codeAttend'])->name('events.attendance.code');
-    Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
-    Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
-    Route::post('/shop/items/{item}/purchase', [ShopController::class, 'purchase'])
-        ->middleware('verified')
-        ->name('shop.purchase');
-    Route::post('/shop/gold-transfer', [ShopController::class, 'transfer'])
-        ->middleware('verified')
-        ->name('shop.gold-transfer');
-    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
-    Route::get('/notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
-    Route::post('/notifications/{notificationId}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
-    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
-    Route::post('/notifications/chat', [NotificationDispatchController::class, 'chat'])->name('notifications.chat');
-    Route::post('/chat/images', [ChatImageUploadController::class, 'store'])->name('chat.images.store');
-    Route::post('/daily-quests/{dailyQuest}/claim', [DailyQuestController::class, 'claim'])->name('daily-quests.claim');
+        // --- USER AREA ---
+        Route::get('/study-groups', [StudyGroupController::class, 'index'])->name('groups.index');
+        Route::get('/study-groups/{uuid}', [StudyGroupController::class, 'show'])->name('groups.show');
+        Route::post('/study-groups/join', [StudyGroupController::class, 'join'])->name('groups.join');
+        Route::post('/study-groups/{uuid}/leave', [StudyGroupController::class, 'leave'])->name('groups.leave');
+        Route::get('/guides', [GuideController::class, 'userIndex'])->name('guides.user.index');
+        Route::get('/guides/{guide}', [GuideController::class, 'userShow'])->name('guides.user.show');
+        Route::get('/events', [UserEventController::class, 'index'])->name('events.user.index');
+        Route::get('/events/{event:uuid}', [UserEventController::class, 'show'])->name('events.show');
+        Route::get('/events/{event:uuid}/attendance/qr/{token}', [UserEventController::class, 'qrAttend'])->name('events.attendance.qr');
+        Route::post('/events/{event:uuid}/attendance/self', [UserEventController::class, 'selfAttend'])->name('events.attendance.self');
+        Route::post('/events/{event:uuid}/attendance/code', [UserEventController::class, 'codeAttend'])->name('events.attendance.code');
+        Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
+        Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
+        Route::post('/shop/items/{item}/purchase', [ShopController::class, 'purchase'])
+            ->middleware('verified')
+            ->name('shop.purchase');
+        Route::post('/shop/gold-transfer', [ShopController::class, 'transfer'])
+            ->middleware('verified')
+            ->name('shop.gold-transfer');
+        Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::get('/notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
+        Route::post('/notifications/{notificationId}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+        Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+        Route::post('/notifications/chat', [NotificationDispatchController::class, 'chat'])->name('notifications.chat');
+        Route::post('/chat/images', [ChatImageUploadController::class, 'store'])->name('chat.images.store');
+        Route::post('/daily-quests/{dailyQuest}/claim', [DailyQuestController::class, 'claim'])->name('daily-quests.claim');
+    });
 });
 
 Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () {
@@ -348,6 +350,8 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
         Route::get('/{taskBank:uuid}/tasks', [AdminTaskBankController::class, 'show'])->name('show');
         Route::post('/{taskBank:uuid}/tasks', [AdminTaskBankController::class, 'storeQuestion'])->name('tasks.store');
         Route::post('/{taskBank:uuid}/tasks/import-json', [AdminTaskBankController::class, 'importQuestionsJson'])->name('tasks.import-json');
+        Route::put('/{taskBank:uuid}/tasks/reorder', [AdminTaskBankController::class, 'reorderQuestions'])->name('tasks.reorder');
+        Route::put('/{taskBank:uuid}/tasks/{question:uuid}/sequence', [AdminTaskBankController::class, 'moveQuestionSequence'])->name('tasks.sequence');
         Route::put('/{taskBank:uuid}/tasks/{question:uuid}', [AdminTaskBankController::class, 'updateQuestion'])->name('tasks.update');
         Route::delete('/{taskBank:uuid}/tasks/{question:uuid}', [AdminTaskBankController::class, 'destroyQuestion'])->name('tasks.destroy');
     });

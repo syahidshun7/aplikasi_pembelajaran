@@ -531,7 +531,7 @@ class QuestController extends Controller
         $userId = (int) auth()->id();
         $quest->load([
             'studyGroup:id,uuid,name',
-            'taskBank:id,uuid,name,assessment_type,duration,has_time_limit',
+            'taskBank:id,uuid,name,assessment_type,duration,has_time_limit,question_display_mode',
             'taskBank.questions' => function ($query) {
                 $query->where('is_active', true)
                     ->orderBy('sort_order')

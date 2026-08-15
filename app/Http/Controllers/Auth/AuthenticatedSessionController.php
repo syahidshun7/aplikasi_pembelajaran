@@ -81,9 +81,11 @@ class AuthenticatedSessionController extends Controller
             ]);
         }
 
-        $defaultRoute = $user?->isStaff() ? 'dashboard' : 'lobby';
+        if ($user?->isStaff()) {
+            return redirect()->route('dashboard');
+        }
 
-        return redirect()->intended(route($defaultRoute, absolute: false));
+        return redirect()->intended(route('lobby', absolute: false));
     }
 
     private function verifyTurnstile(string $token, string $ip): void

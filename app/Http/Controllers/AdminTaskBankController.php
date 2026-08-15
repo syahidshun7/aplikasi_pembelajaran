@@ -6,6 +6,7 @@ use App\Models\JobRole;
 use App\Models\TaskBank;
 use App\Models\TaskQuestion;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -73,6 +74,7 @@ class AdminTaskBankController extends Controller
             'assessment_type' => ['required', Rule::in(['essay', 'multiple_choice', 'mixed', 'platforming', 'word_match'])],
             'duration' => ['required', 'integer', 'min:1', 'max:3600'],
             'has_time_limit' => ['required', 'boolean'],
+            'question_display_mode' => ['required', Rule::in(['all', 'single'])],
             'is_active' => ['required', 'boolean'],
         ]);
 
@@ -99,6 +101,7 @@ class AdminTaskBankController extends Controller
             'assessment_type' => ['required', Rule::in(['essay', 'multiple_choice', 'mixed', 'platforming', 'word_match'])],
             'duration' => ['required', 'integer', 'min:1', 'max:3600'],
             'has_time_limit' => ['required', 'boolean'],
+            'question_display_mode' => ['required', Rule::in(['all', 'single'])],
             'is_active' => ['required', 'boolean'],
         ]);
 
@@ -126,6 +129,9 @@ class AdminTaskBankController extends Controller
                 ? true
                 : $request->boolean('has_time_limit', false),
             'duration' => max(1, (int) $request->input('duration', 60)),
+            'question_display_mode' => $isGame
+                ? 'all'
+                : (string) $request->input('question_display_mode', 'all'),
         ]);
     }
 
@@ -386,6 +392,80 @@ class AdminTaskBankController extends Controller
         $question->update($payload);
 
         return back()->with('message', 'TASK_UPDATED');
+    }
+
+    public function reorderQuestions(Request $request, TaskBank $taskBank): RedirectResponse
+    {
+        $this->assertMentorCanAccessTaskBank($taskBank);
+
+        $validated = $request->validate([
+            'questions' => ['required', 'array', 'min:1'],
+            'questions.*.uuid' => ['required', 'string'],
+            'questions.*.sort_order' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $items = collect($validated['questions'])
+            ->map(fn (array $item) => [
+                'uuid' => (string) $item['uuid'],
+                'sort_order' => (int) $item['sort_order'],
+            ])
+            ->values();
+
+        $knownCount = TaskQuestion::query()
+            ->where('task_bank_id', $taskBank->id)
+            ->whereIn('uuid', $items->pluck('uuid')->all())
+            ->count();
+
+        if ($knownCount !== $items->count()) {
+            abort(404);
+        }
+
+        DB::transaction(function () use ($items) {
+            foreach ($items as $item) {
+                TaskQuestion::query()
+                    ->where('uuid', $item['uuid'])
+                    ->update(['sort_order' => $item['sort_order']]);
+            }
+        });
+
+        return back()->with('message', 'TASK_ORDER_UPDATED');
+    }
+
+    public function moveQuestionSequence(Request $request, TaskBank $taskBank, TaskQuestion $question): RedirectResponse
+    {
+        $this->assertMentorCanAccessTaskBank($taskBank);
+
+        if ((int) $question->task_bank_id !== (int) $taskBank->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'sort_order' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $targetPosition = (int) $validated['sort_order'];
+
+        DB::transaction(function () use ($taskBank, $question, $targetPosition) {
+            $questions = $taskBank->questions()
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get(['id', 'uuid']);
+
+            $targetIndex = max(0, min($targetPosition - 1, $questions->count() - 1));
+            $orderedQuestions = $questions
+                ->reject(fn (TaskQuestion $item) => (int) $item->id === (int) $question->id)
+                ->values();
+
+            $orderedQuestions->splice($targetIndex, 0, [$question]);
+
+            foreach ($orderedQuestions->values() as $index => $item) {
+                TaskQuestion::query()
+                    ->whereKey($item->id)
+                    ->update(['sort_order' => $index + 1]);
+            }
+        });
+
+        return back()->with('message', 'TASK_SEQUENCE_UPDATED');
     }
 
     public function destroyQuestion(TaskBank $taskBank, TaskQuestion $question): RedirectResponse
