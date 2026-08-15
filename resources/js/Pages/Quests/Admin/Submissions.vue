@@ -64,6 +64,7 @@
                         <tr>
                             <th class="p-4 border-b-2 border-slate-700">Adventurer</th>
                             <th class="p-4 border-b-2 border-slate-700">Status</th>
+                            <th class="p-4 border-b-2 border-slate-700">Nilai</th>
                             <th class="p-4 border-b-2 border-slate-700">Date_Logged</th>
                             <th class="p-4 border-b-2 border-slate-700">Action</th>
                         </tr>
@@ -84,6 +85,16 @@
                                     {{ sub.status || 'Pending' }}
                                 </span>
                             </td>
+                            <td class="p-4">
+                                <span
+                                    v-if="hasGrade(sub)"
+                                    :class="getGradeClass(sub.grade)"
+                                    class="inline-flex min-w-16 justify-center border px-2 py-1 text-[8px] font-bold uppercase"
+                                >
+                                    {{ Number(sub.grade).toFixed(0) }}%
+                                </span>
+                                <span v-else class="text-[8px] uppercase text-slate-600">Belum Ada</span>
+                            </td>
                             <td class="p-4 text-slate-400">
                                 {{ new Date(sub.created_at).toLocaleString() }}
                             </td>
@@ -95,7 +106,7 @@
                             </td>
                         </tr>
                         <tr v-if="rows.length === 0">
-                            <td colspan="4" class="p-12 text-center text-slate-600 italic">
+                            <td colspan="5" class="p-12 text-center text-slate-600 italic">
                                 NO ADVENTURERS HAVE SUBMITTED THIS MISSION YET...
                             </td>
                         </tr>
@@ -178,5 +189,14 @@ const getStatusClass = (status) => {
         case 'Rejected': return 'text-red-500 border-red-900 bg-red-900/10';
         default: return 'text-yellow-500 border-yellow-900 bg-yellow-900/10';
     }
+};
+
+const hasGrade = (submission) => submission?.grade !== null && submission?.grade !== undefined;
+
+const getGradeClass = (grade) => {
+    const value = Number(grade || 0);
+    if (value >= 75) return 'border-emerald-700 bg-emerald-900/20 text-emerald-300';
+    if (value >= 50) return 'border-yellow-700 bg-yellow-900/20 text-yellow-300';
+    return 'border-red-700 bg-red-900/20 text-red-300';
 };
 </script>
