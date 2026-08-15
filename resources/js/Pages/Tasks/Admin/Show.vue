@@ -76,11 +76,13 @@ watch(
 
 const rows = computed(() => localRows.value);
 const paginationLinks = computed(() => props.questions?.links || []);
-const canDragSort = computed(() => !filterForm.search && (props.questions?.total || 0) > 1);
+const bankType = computed(() => props.taskBank?.assessment_type || 'mixed');
+const canManualSort = computed(() => bankType.value !== 'platforming');
+const canDragSort = computed(() => canManualSort.value && !filterForm.search && (props.questions?.total || 0) > 1);
 const importErrors = computed(() => Array.isArray(props.importResult?.errors) ? props.importResult.errors : []);
 const importTemplateJson = computed(() => JSON.stringify(props.importTemplate?.sample || [], null, 2));
 const importJsonInputPlaceholder = computed(() => {
-    const type = props.taskBank?.assessment_type || 'mixed';
+    const type = bankType.value;
     if (type === 'platforming') {
         return 'Paste JSON di sini. 1 item = 1 soal.\n[{"pertanyaan":"Ibu kota Indonesia?","tipe_soal":"platforming","stages":[{"prompt":"Ibu kota Indonesia?","correct_answer":"Jakarta","wrong_answers":["Bandung","Surabaya"]}]},{"pertanyaan":"Planet terbesar?","tipe_soal":"platforming","stages":[{"prompt":"Planet terbesar?","correct_answer":"Jupiter","wrong_answers":["Mars","Venus"]}]}]';
     }
@@ -428,6 +430,8 @@ const finishDrag = () => {
 };
 
 const saveTaskSequence = (task) => {
+    if (!canManualSort.value) return;
+
     const requestedOrder = Number(sequenceInputs.value[task.uuid]);
     if (!Number.isInteger(requestedOrder) || requestedOrder < 1) {
         sequenceInputs.value[task.uuid] = task.sort_order || 1;
@@ -823,7 +827,11 @@ const submitImport = () => {
                             <button @click="resetFilters" class="px-3 py-2 border-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white uppercase">RESET</button>
                         </div>
                         <p class="mb-3 text-[8px] uppercase" :class="canDragSort ? 'text-slate-400' : 'text-slate-600'">
-                            {{ canDragSort ? 'DRAG [MOVE] UNTUK MENGATUR URUTAN SOAL.' : 'DRAG_SORT aktif saat list tidak difilter.' }}
+                            {{
+                                !canManualSort
+                                    ? 'PLATFORMING memakai urutan stage gameplay, manual sort disembunyikan.'
+                                    : (canDragSort ? 'DRAG [MOVE] UNTUK MENGATUR URUTAN SOAL.' : 'DRAG_SORT aktif saat list tidak difilter.')
+                            }}
                             <span v-if="isSavingOrder" class="text-yellow-300"> SAVING_ORDER...</span>
                         </p>
 
@@ -844,7 +852,7 @@ const submitImport = () => {
                                 @dragend="finishDrag"
                             >
                                 <div class="flex items-start justify-between gap-3">
-                                    <div class="mt-1 shrink-0 w-16 space-y-2">
+                                    <div v-if="canManualSort" class="mt-1 shrink-0 w-16 space-y-2">
                                         <button
                                             type="button"
                                             class="block text-[8px] uppercase"
@@ -870,6 +878,9 @@ const submitImport = () => {
                                             :title="`Pindahkan ke urutan 1 sampai ${questions.total || 1}`"
                                         >
                                         <p v-if="savingSequenceUuid === task.uuid" class="text-[7px] text-yellow-300 uppercase">SAVE</p>
+                                    </div>
+                                    <div v-else class="mt-1 shrink-0 w-16">
+                                        <span class="block text-[7px] text-slate-600 uppercase leading-relaxed">STAGE_LOCK</span>
                                     </div>
                                     <div class="min-w-0 flex-1">
                                         <p class="text-[8px] text-slate-500 uppercase">ID: {{ task.uuid.substring(0, 8) }}</p>
