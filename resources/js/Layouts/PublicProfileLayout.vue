@@ -41,7 +41,7 @@ const { themeMode } = useUserTheme();
         </main>
 
         <footer v-if="!hideFooter" class="user-theme-footer mt-auto border-t-2 p-6 text-center backdrop-blur-md md:p-8">
-            <p class="user-theme-muted break-words text-[7px] uppercase tracking-[0.18em] sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
+            <p class="user-theme-muted break-words text-[7px] uppercase tracking-[0.18em] sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.2.0 // P-Quest Engine</p>
         </footer>
     </div>
 </template>

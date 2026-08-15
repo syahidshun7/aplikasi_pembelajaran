@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Quest;
 use App\Models\Submission;
 use App\Models\User;
+use App\Rules\UsernameRule;
 use App\Models\JobRole;
 use App\Models\DailyQuest;
 use App\Models\ShopTransaction;
@@ -431,12 +432,17 @@ class AdminUserController extends Controller
     public function update(Request $request, User $user): RedirectResponse
     {
         $previousJobId = $user->job_id;
+        $usernameInput = strtolower(trim((string) $request->input('username')));
+        $request->merge([
+            'username' => $usernameInput !== '' ? $usernameInput : null,
+        ]);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'username' => [
                 'nullable',
                 'string',
-                'max:255',
+                new UsernameRule(),
                 Rule::unique('users', 'username')->ignore($user->id),
             ],
             'email' => [

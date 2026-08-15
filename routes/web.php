@@ -283,7 +283,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
         Route::post('/notifications/chat', [NotificationDispatchController::class, 'chat'])->name('notifications.chat');
         Route::post('/chat/images', [ChatImageUploadController::class, 'store'])->name('chat.images.store');
-        Route::post('/daily-quests/{dailyQuest}/claim', [DailyQuestController::class, 'claim'])->name('daily-quests.claim');
+        Route::post('/daily-quests/{dailyQuest}/claim', [DailyQuestController::class, 'claim'])
+            ->middleware('verified')
+            ->name('daily-quests.claim');
     });
 });
 

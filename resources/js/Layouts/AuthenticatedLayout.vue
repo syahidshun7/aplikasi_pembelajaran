@@ -17,7 +17,6 @@ const auth = computed(() => page.props.auth);
 const showFloatingChat = computed(() => Boolean(auth.value?.user) && !isDoopLabPage.value && !layoutProps.immersive);
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
-const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
 const isDoopLabPage = computed(() => String(page.url || '').startsWith('/dooplab'));
 const isProfilePage = computed(() => {
     const currentRoute = route().current();
@@ -111,16 +110,16 @@ const inlineWorkspaceBackgroundStyle = {
         <UserNavbar v-if="!immersive && !isAdminUserPreviewPage" class="relative z-20" />
 
         <div v-if="!immersive && isEmailUnverified" class="relative z-20 px-4 md:px-8 pt-4">
-            <div class="border-2 border-amber-400/60 bg-amber-500/10 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div class="text-[9px] leading-relaxed text-amber-100 uppercase tracking-wide">
-                    Email belum terverifikasi. Buka profile untuk kirim ulang verifikasi, lalu cek inbox/spam.
+            <div class="email-verification-banner border-2 border-amber-400/60 bg-amber-500/10 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div class="email-verification-banner__text text-[9px] leading-relaxed text-amber-100 uppercase tracking-wide">
+                    Email belum terverifikasi. Kamu tetap bisa eksplor game, tapi submit quest, shop, transfer gold, dan klaim reward terkunci sampai verifikasi selesai.
                 </div>
-                <Link
-                    :href="profileVerificationHref"
-                    class="text-[8px] bg-amber-300 text-black px-3 py-2 btn-pixel border-amber-700 uppercase font-bold hover:bg-amber-200 transition-colors text-center"
+                <a
+                    href="/verify-email"
+                    class="email-verification-banner__button relative z-30 text-[8px] bg-amber-300 text-black px-3 py-2 btn-pixel border-amber-700 uppercase font-bold hover:bg-amber-200 transition-colors text-center"
                 >
-                    Buka Profile
-                </Link>
+                    Verifikasi Email
+                </a>
             </div>
         </div>
         <div v-else-if="!immersive && isEmailVerifiedSuccess" class="relative z-20 px-4 md:px-8 pt-4">
@@ -146,7 +145,7 @@ const inlineWorkspaceBackgroundStyle = {
             <slot />
         </main>
         <footer v-if="!immersive && !isDoopLabPage" class="user-theme-footer relative z-10 mt-auto border-t-2 p-6 text-center backdrop-blur-md md:p-8">
-            <p class="user-theme-muted break-words text-[7px] uppercase tracking-[0.18em] sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.1.0 // P-Quest Engine</p>
+            <p class="user-theme-muted break-words text-[7px] uppercase tracking-[0.18em] sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.2.0 // P-Quest Engine</p>
         </footer>
 
         <FloatingChat v-if="showFloatingChat" />

@@ -215,6 +215,35 @@ watch(() => form.task_answers, persistDraft, { deep: true });
 const taskBankType = computed(() => props.quest?.task_bank?.assessment_type || null);
 const isImmersiveGame = computed(() => ['platforming', 'word_match'].includes(taskBankType.value));
 const taskQuestions = computed(() => props.quest?.task_bank?.questions || []);
+const optionText = (option) => {
+    if (option && typeof option === 'object') {
+        return String(option.text ?? option.label ?? option.value ?? '').trim();
+    }
+
+    return String(option ?? '').trim();
+};
+const optionKey = (option, index = 0) => {
+    if (option && typeof option === 'object') {
+        return String(option.key ?? option.value ?? option.text ?? `opt_${index + 1}`).trim();
+    }
+
+    return String(option ?? `opt_${index + 1}`).trim();
+};
+const optionValue = (option, index = 0) => optionText(option) || optionKey(option, index);
+const optionLetter = (index) => String.fromCharCode(65 + index);
+const optionImagePath = (option) => {
+    if (option && typeof option === 'object') {
+        return String(option.image_path ?? option.existing_image_path ?? '').trim();
+    }
+
+    return '';
+};
+const storageUrl = (path) => {
+    const value = String(path || '').trim();
+    if (!value) return '';
+    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/storage/')) return value;
+    return `/storage/${value.replace(/^storage\//, '')}`;
+};
 const isStructuredTaskBankQuest = computed(() => !!props.quest?.task_bank && ['multiple_choice', 'mixed', 'essay', 'platforming', 'word_match'].includes(taskBankType.value));
 const isAutoCheckedTaskBankQuest = computed(() => (taskBankType.value === 'multiple_choice' || taskBankType.value === 'platforming' || taskBankType.value === 'word_match'));
 const isEditSubmissionMode = computed(() => Boolean(props.hasSubmitted));
@@ -1261,16 +1290,34 @@ const useRetakeTicket = () => {
                                         <span class="border border-cyan-700 bg-cyan-900/30 px-2 py-1 text-[9px] text-cyan-300">Question {{ entry.index + 1 }}</span>
                                         <span class="border border-slate-700 px-2 py-1 text-[8px] text-slate-400">{{ entry.question.question_type }}</span>
                                     </div>
+                                    <img
+                                        v-if="entry.question.question_image_path"
+                                        :src="storageUrl(entry.question.question_image_path)"
+                                        alt=""
+                                        class="max-h-80 w-full object-contain border border-slate-700 bg-black/40"
+                                    >
                                     <p class="quest-question-text border-l-4 border-cyan-500 pl-4 font-sans text-[15px] font-semibold leading-7 text-slate-200 md:text-[16px]">{{ entry.question.question_text }}</p>
                                     <div v-if="entry.question.question_type === 'multiple_choice'" class="grid grid-cols-1 gap-2">
                                         <label
                                             v-for="(opt, oi) in (entry.question.options_json || [])"
                                             :key="oi"
-                                            class="quest-answer-option flex items-center gap-2 border border-slate-700 px-3 py-2 cursor-pointer hover:border-cyan-500 transition-colors"
-                                            :class="{ 'quest-answer-option--selected': form.task_answers[entry.question.uuid] === opt }"
+                                            class="quest-answer-option flex items-start gap-3 border border-slate-700 px-3 py-2 cursor-pointer hover:border-cyan-500 transition-colors"
+                                            :class="{ 'quest-answer-option--selected': form.task_answers[entry.question.uuid] === optionValue(opt, oi) }"
                                         >
-                                            <input v-model="form.task_answers[entry.question.uuid]" type="radio" :value="opt" class="quest-answer-radio accent-cyan-500">
-                                            <span class="quest-answer-label font-sans text-[12px] font-semibold">{{ opt }}</span>
+                                            <input v-model="form.task_answers[entry.question.uuid]" type="radio" :value="optionValue(opt, oi)" class="quest-answer-radio mt-1 accent-cyan-500">
+                                            <span class="quest-answer-letter mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center border border-cyan-700 bg-cyan-900/30 font-sans text-[13px] font-black text-cyan-200">
+                                                {{ optionLetter(oi) }}
+                                            </span>
+                                            <span class="min-w-0 flex-1 space-y-2">
+                                                <img
+                                                    v-if="optionImagePath(opt)"
+                                                    :src="storageUrl(optionImagePath(opt))"
+                                                    alt=""
+                                                    class="max-h-56 w-full object-contain border border-slate-700 bg-black/30"
+                                                >
+                                                <span v-if="optionText(opt)" class="quest-answer-label block font-sans text-[12px] font-semibold">{{ optionText(opt) }}</span>
+                                                <span v-else class="sr-only">Option {{ oi + 1 }}</span>
+                                            </span>
                                         </label>
                                         <div v-if="isQuestionAnswered(entry.question)" class="flex justify-end pt-1">
                                             <button

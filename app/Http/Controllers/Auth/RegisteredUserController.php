@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\JobRole;
 use App\Models\User;
+use App\Rules\UsernameRule;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -47,9 +48,13 @@ class RegisteredUserController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $turnstileEnabled = (bool) config('services.turnstile.enabled');
+        $request->merge([
+            'username' => strtolower(trim((string) $request->input('username'))),
+        ]);
 
         $rules = [
             'name' => 'required|string|max:255',
+            'username' => ['required', 'string', 'lowercase', new UsernameRule(), Rule::unique('users', 'username')],
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'job_id' => ['required', Rule::exists('job_roles', 'id')->where('status', JobRole::STATUS_ACTIVE)],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
@@ -67,6 +72,7 @@ class RegisteredUserController extends Controller
 
         $user = User::create([
             'name' => $request->name,
+            'username' => $request->username,
             'email' => $request->email,
             'job_id' => $request->integer('job_id'),
             'password' => Hash::make($request->password),

@@ -568,6 +568,9 @@ const formatDate = (date) => {
                             v-model="editForm.username"
                             type="text"
                             placeholder="USERNAME"
+                            minlength="3"
+                            maxlength="32"
+                            pattern="[a-z0-9._-]{3,32}"
                             class="admin-input"
                         />
                         <p v-if="editForm.errors.username" class="text-red-500 text-[8px]">{{ editForm.errors.username }}</p>

@@ -19,6 +19,7 @@ const props = defineProps({
 
 const form = useForm({
     name: '',
+    username: '',
     email: '',
     job_id: '',
     password: '',
@@ -133,6 +134,24 @@ onMounted(async () => {
                     form.errors.name ? 'border-red-500 focus:border-red-500' : 'border-[var(--panel-border)] focus:border-[var(--accent)]'
                 ]" required />
                 <div v-if="form.errors.name" class="mt-2 text-red-500 text-[8px] italic">{{ form.errors.name }}</div>
+            </div>
+
+            <div class="mt-3">
+                <label class="block text-[var(--accent)] text-[8px] uppercase mb-1">Username</label>
+                <input
+                    type="text"
+                    v-model="form.username"
+                    minlength="3"
+                    maxlength="32"
+                    pattern="[a-z0-9._-]{3,32}"
+                    autocomplete="username"
+                    :class="[
+                        'w-full bg-[var(--bg)] border-2 text-[var(--text)] p-2 focus:ring-0 text-[10px] font-pixel placeholder:text-[var(--text-muted)]',
+                        form.errors.username ? 'border-red-500 focus:border-red-500' : 'border-[var(--panel-border)] focus:border-[var(--accent)]'
+                    ]"
+                    required
+                />
+                <div v-if="form.errors.username" class="mt-2 text-red-500 text-[8px] italic">{{ form.errors.username }}</div>
             </div>
 
             <div class="mt-3">

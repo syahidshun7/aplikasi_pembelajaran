@@ -535,7 +535,7 @@ class QuestController extends Controller
             'taskBank.questions' => function ($query) {
                 $query->where('is_active', true)
                     ->orderBy('sort_order')
-                    ->select(['id', 'uuid', 'task_bank_id', 'question_text', 'question_type', 'options_json', 'weight', 'sort_order']);
+                    ->select(['id', 'uuid', 'task_bank_id', 'question_text', 'question_image_path', 'question_type', 'options_json', 'weight', 'sort_order']);
             },
         ]);
 

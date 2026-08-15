@@ -150,7 +150,6 @@ const lobbyBackgroundImage = computed(() => (
 ));
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
-const profileVerificationHref = computed(() => `${route('profile.edit')}#email-verification`);
 const isLoggedIn = computed(() => Boolean(auth.value?.user));
 const currentTimestamp = ref(Date.now());
 let questClockInterval = null;
@@ -513,16 +512,16 @@ onBeforeUnmount(() => {
             <UserNavbar :show-guest-actions="true" />
 
             <div v-if="isEmailUnverified" class="px-4 pt-4 md:px-8">
-                <div class="flex flex-col gap-3 border-2 border-amber-400/60 bg-amber-500/15 p-3 md:flex-row md:items-center md:justify-between">
-                    <div class="text-[9px] uppercase leading-relaxed tracking-wide text-amber-100">
-                        Email belum terverifikasi. Kamu tetap bisa eksplor Home, tapi beberapa fitur akan dikunci sampai verifikasi selesai.
+                <div class="email-verification-banner flex flex-col gap-3 border-2 border-amber-400/60 bg-amber-500/15 p-3 md:flex-row md:items-center md:justify-between">
+                    <div class="email-verification-banner__text text-[9px] uppercase leading-relaxed tracking-wide text-amber-100">
+                        Email belum terverifikasi. Kamu tetap bisa eksplor game, tapi submit quest, shop, transfer gold, dan klaim reward terkunci sampai verifikasi selesai.
                     </div>
-                    <Link
-                        :href="profileVerificationHref"
-                        class="btn-pixel border-amber-700 bg-amber-300 px-3 py-2 text-center text-[8px] font-bold uppercase text-black transition-colors hover:bg-amber-200"
+                    <a
+                        href="/verify-email"
+                        class="email-verification-banner__button btn-pixel relative z-30 border-amber-700 bg-amber-300 px-3 py-2 text-center text-[8px] font-bold uppercase text-black transition-colors hover:bg-amber-200"
                     >
-                        Verifikasi di Profile
-                    </Link>
+                        Verifikasi Email
+                    </a>
                 </div>
             </div>
 
@@ -614,7 +613,7 @@ onBeforeUnmount(() => {
 
             <footer class="user-theme-footer mt-auto border-t-2 p-6 text-center md:backdrop-blur-md md:p-8">
                 <p class="user-theme-muted break-words text-[7px] uppercase tracking-[0.18em] sm:text-[8px] sm:tracking-[0.3em]">
-                    Build_Ver_1.1.0 // P-Quest Engine
+                    Build_Ver_1.2.0 // P-Quest Engine
                 </p>
             </footer>
         </div>

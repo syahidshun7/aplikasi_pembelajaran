@@ -28,8 +28,11 @@ const filterForm = useForm({
 
 const form = useForm({
     question_text: '',
+    question_image: null,
+    existing_question_image_path: '',
+    remove_question_image: false,
     question_type: 'essay',
-    options: ['', ''],
+    options: [],
     correct_option_index: null,
     // Word match fields
     word_match_blanks: [''],
@@ -56,6 +59,19 @@ watch(
         );
     },
     { immediate: true },
+);
+
+watch(
+    () => form.question_type,
+    (nextType, previousType) => {
+        if (nextType === previousType) return;
+        if (nextType === 'multiple_choice' && (!Array.isArray(form.options) || typeof form.options[0] !== 'object')) {
+            form.options = [blankOption(), blankOption()];
+        }
+        if (nextType === 'game_stage') {
+            form.options = [''];
+        }
+    },
 );
 
 const rows = computed(() => localRows.value);
@@ -104,19 +120,72 @@ const questionTypeOptions = [
     { value: 'word_match', label: 'WORD_MATCH' },
 ];
 
+const blankOption = () => ({
+    key: `opt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    text: '',
+    image: null,
+    existing_image_path: '',
+    remove_image: false,
+});
+
+const optionText = (option) => {
+    if (option && typeof option === 'object') {
+        return String(option.text ?? option.label ?? option.value ?? '').trim();
+    }
+
+    return String(option ?? '').trim();
+};
+
+const optionKey = (option, index = 0) => {
+    if (option && typeof option === 'object') {
+        return String(option.key ?? option.value ?? option.text ?? `opt_${index + 1}`).trim();
+    }
+
+    return String(option ?? `opt_${index + 1}`).trim();
+};
+
+const optionValue = (option, index = 0) => optionText(option) || optionKey(option, index);
+const optionLetter = (index) => String.fromCharCode(65 + index);
+
+const optionImagePath = (option) => {
+    if (option && typeof option === 'object') {
+        return String(option.image_path ?? option.existing_image_path ?? '').trim();
+    }
+
+    return '';
+};
+
+const storageUrl = (path) => {
+    const value = String(path || '').trim();
+    if (!value) return '';
+    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/storage/')) return value;
+    return `/storage/${value.replace(/^storage\//, '')}`;
+};
+
+const normalizeOptionForForm = (option) => ({
+    key: optionKey(option),
+    text: optionText(option),
+    image: null,
+    existing_image_path: optionImagePath(option),
+    remove_image: false,
+});
+
 const startEdit = (row) => {
     isEditing.value = true;
     editUuid.value = row.uuid;
     form.question_text = row.question_text || '';
+    form.question_image = null;
+    form.existing_question_image_path = row.question_image_path || '';
+    form.remove_question_image = false;
     form.question_type = row.question_type || 'essay';
     if (!availableQuestionTypes.value.includes(form.question_type)) {
         form.question_type = availableQuestionTypes.value[0] || 'essay';
     }
     form.options = Array.isArray(row.options_json) && row.options_json.length > 0
-        ? row.options_json
-        : ['', ''];
+        ? row.options_json.map((option) => normalizeOptionForForm(option))
+        : [blankOption(), blankOption()];
     form.correct_option_index = Array.isArray(row.options_json)
-        ? row.options_json.findIndex((option) => option === row.answer_key)
+        ? row.options_json.findIndex((option, index) => optionValue(option, index) === row.answer_key)
         : null;
     if (form.correct_option_index < 0) {
         form.correct_option_index = null;
@@ -144,7 +213,10 @@ const cancelEdit = () => {
     editUuid.value = null;
     form.reset();
     form.question_type = 'essay';
-    form.options = ['', ''];
+    form.question_image = null;
+    form.existing_question_image_path = '';
+    form.remove_question_image = false;
+    form.options = [blankOption(), blankOption()];
     form.correct_option_index = null;
     form.word_match_blanks = [''];
     form.word_match_distractors = [''];
@@ -164,7 +236,7 @@ const openCreateModal = () => {
 };
 
 const addOption = () => {
-    form.options.push('');
+    form.options.push(blankOption());
 };
 
 const removeOption = (index) => {
@@ -178,8 +250,16 @@ const removeOption = (index) => {
 };
 
 const submit = () => {
-    const normalizedOptions = (form.options || []).map((v) => String(v || '').trim());
-    const cleanedOptions = normalizedOptions.filter((v) => v !== '');
+    const normalizedOptions = (form.options || []).map((option, index) => optionValue(option, index));
+    const cleanedOptions = (form.options || [])
+        .filter((option) => optionText(option) !== '' || option.image || (option.existing_image_path && !option.remove_image))
+        .map((option, index) => ({
+            key: option.key || `opt_${index + 1}`,
+            text: optionText(option),
+            existing_image_path: option.existing_image_path || '',
+            remove_image: Boolean(option.remove_image),
+            has_upload: Boolean(option.image),
+        }));
 
     const answerKey = isMcq.value
         ? (typeof form.correct_option_index === 'number' ? (normalizedOptions[form.correct_option_index] || '') : '')
@@ -220,8 +300,11 @@ const submit = () => {
 
     const payload = {
         question_text: form.question_text,
+        question_image: form.question_image,
+        remove_question_image: form.remove_question_image,
         question_type: form.question_type,
         options: payloadOptions,
+        option_images: isMcq.value ? form.options.map((option) => option.image || null) : [],
         answer_key: answerKey,
         weight: form.weight,
         sort_order: form.sort_order,
@@ -229,8 +312,12 @@ const submit = () => {
     };
 
     if (isEditing.value) {
-        router.put(route('admin.task-banks.tasks.update', { taskBank: props.taskBank.uuid, question: editUuid.value }), payload, {
+        router.post(route('admin.task-banks.tasks.update', { taskBank: props.taskBank.uuid, question: editUuid.value }), {
+            ...payload,
+            _method: 'put',
+        }, {
             preserveScroll: true,
+            forceFormData: true,
             onSuccess: () => cancelEdit(),
         });
         return;
@@ -238,10 +325,26 @@ const submit = () => {
 
     router.post(route('admin.task-banks.tasks.store', props.taskBank.uuid), payload, {
         preserveScroll: true,
+        forceFormData: true,
         onSuccess: () => {
             cancelEdit();
         },
     });
+};
+
+const handleQuestionImageChange = (event) => {
+    form.question_image = event.target.files?.[0] || null;
+    if (form.question_image) {
+        form.remove_question_image = false;
+    }
+};
+
+const handleOptionImageChange = (event, index) => {
+    if (!form.options[index]) return;
+    form.options[index].image = event.target.files?.[0] || null;
+    if (form.options[index].image) {
+        form.options[index].remove_image = false;
+    }
 };
 
 const destroyTask = (uuid) => {
@@ -523,6 +626,26 @@ const submitImport = () => {
                                         <p v-if="form.errors.question_text" class="mt-2 text-red-400 text-[8px]">{{ form.errors.question_text }}</p>
                                     </div>
 
+                                    <div v-if="!isWordMatch && !isGameStage" class="mt-3 border border-slate-700 bg-black/20 p-3">
+                                        <label class="block mb-2 text-white uppercase">QUESTION_IMAGE:</label>
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp"
+                                            class="w-full bg-black border-2 border-slate-700 p-2 text-[10px] text-slate-300 file:mr-3 file:border-0 file:bg-teal-900/40 file:px-3 file:py-2 file:text-[8px] file:uppercase file:text-teal-200"
+                                            @change="handleQuestionImageChange"
+                                        >
+                                        <div v-if="form.existing_question_image_path && !form.remove_question_image" class="mt-3 flex items-start gap-3">
+                                            <img :src="storageUrl(form.existing_question_image_path)" alt="" class="h-24 w-36 object-cover border border-slate-700 bg-black">
+                                            <button type="button" class="px-3 py-2 border border-red-700 text-red-400 text-[8px] uppercase hover:bg-red-700 hover:text-white" @click="form.remove_question_image = true">
+                                                Remove_Image
+                                            </button>
+                                        </div>
+                                        <button v-if="form.existing_question_image_path && form.remove_question_image" type="button" class="mt-2 text-[8px] uppercase text-cyan-300 hover:text-white" @click="form.remove_question_image = false">
+                                            Undo_Remove_Image
+                                        </button>
+                                        <p v-if="form.errors.question_image" class="mt-2 text-red-400 text-[8px]">{{ form.errors.question_image }}</p>
+                                    </div>
+
                                     <div v-if="availableQuestionTypes.length > 1" class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
                                             <label class="block mb-2 text-white uppercase">QUESTION_TYPE:</label>
@@ -578,21 +701,43 @@ const submitImport = () => {
                                         </button>
                                     </div>
                                     <div class="space-y-2">
-                                        <div v-for="(option, index) in form.options" :key="`opt-${index}`" class="flex items-center gap-2">
-                                            <input
-                                                type="radio"
-                                                :name="`correct-answer-${taskBank.uuid}`"
-                                                :value="index"
-                                                v-model="form.correct_option_index"
-                                                class="accent-yellow-400"
-                                                :title="`Set opsi ${index + 1} sebagai jawaban benar`"
-                                            />
-                                            <input
-                                                v-model="form.options[index]"
-                                                type="text"
-                                                class="flex-1 bg-black border-2 border-slate-700 p-2 text-[12px] font-sans text-slate-200 focus:border-yellow-400 outline-none"
-                                                :placeholder="`Option ${index + 1}`"
-                                            />
+                                        <div v-for="(option, index) in form.options" :key="`opt-${index}`" class="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 items-start border border-slate-800 bg-black/20 p-2">
+                                            <label class="flex flex-col items-center gap-2 text-yellow-300">
+                                                <span class="inline-flex h-7 w-7 items-center justify-center border border-yellow-600 bg-yellow-900/20 text-[10px] font-bold">
+                                                    {{ optionLetter(index) }}
+                                                </span>
+                                                <input
+                                                    type="radio"
+                                                    :name="`correct-answer-${taskBank.uuid}`"
+                                                    :value="index"
+                                                    v-model="form.correct_option_index"
+                                                    class="accent-yellow-400"
+                                                    :title="`Set opsi ${optionLetter(index)} sebagai jawaban benar`"
+                                                />
+                                            </label>
+                                            <div class="min-w-0 space-y-2">
+                                                <input
+                                                    v-model="form.options[index].text"
+                                                    type="text"
+                                                    class="w-full bg-black border-2 border-slate-700 p-2 text-[12px] font-sans text-slate-200 focus:border-yellow-400 outline-none"
+                                                    :placeholder="`Option ${index + 1}`"
+                                                />
+                                                <input
+                                                    type="file"
+                                                    accept="image/jpeg,image/png,image/webp"
+                                                    class="w-full bg-black border border-slate-700 p-2 text-[10px] text-slate-300 file:mr-2 file:border-0 file:bg-yellow-900/40 file:px-2 file:py-1 file:text-[8px] file:uppercase file:text-yellow-200"
+                                                    @change="handleOptionImageChange($event, index)"
+                                                >
+                                                <div v-if="option.existing_image_path && !option.remove_image" class="flex items-start gap-2">
+                                                    <img :src="storageUrl(option.existing_image_path)" alt="" class="h-20 w-28 object-cover border border-slate-700 bg-black">
+                                                    <button type="button" class="px-2 py-1 border border-red-700 text-red-400 text-[8px] uppercase hover:bg-red-700 hover:text-white" @click="option.remove_image = true">
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                                <button v-if="option.existing_image_path && option.remove_image" type="button" class="text-[8px] uppercase text-cyan-300 hover:text-white" @click="option.remove_image = false">
+                                                    Undo_Remove
+                                                </button>
+                                            </div>
                                             <button
                                                 type="button"
                                                 @click="removeOption(index)"
@@ -729,14 +874,29 @@ const submitImport = () => {
                                     <div class="min-w-0 flex-1">
                                         <p class="text-[8px] text-slate-500 uppercase">ID: {{ task.uuid.substring(0, 8) }}</p>
                                         <p class="text-[12px] font-sans text-slate-200 mt-2 break-words">{{ task.question_text }}</p>
+                                        <img v-if="task.question_image_path" :src="storageUrl(task.question_image_path)" alt="" class="mt-2 h-20 w-32 object-cover border border-slate-700 bg-black">
                                         <div class="mt-2 flex flex-wrap gap-2 items-center">
                                             <span class="px-2 py-1 border text-[8px] uppercase" :class="typeClass(task.question_type)">{{ task.question_type }}</span>
                                             <span v-if="task.question_type !== 'platforming' && task.question_type !== 'word_match'" class="text-[8px] text-yellow-400">W: {{ task.weight }}</span>
                                             <span v-if="task.question_type !== 'platforming' && task.question_type !== 'word_match'" class="text-[8px] text-teal-300">SORT: {{ task.sort_order }}</span>
                                             <span :class="task.is_active ? 'text-emerald-400' : 'text-red-400'" class="text-[8px]">{{ task.is_active ? 'ACTIVE' : 'INACTIVE' }}</span>
                                         </div>
-                                        <div v-if="task.question_type === 'multiple_choice' && Array.isArray(task.options_json)" class="mt-2 text-[8px] text-slate-400 font-sans">
-                                            OPTIONS: {{ task.options_json.join(' | ') }}
+                                        <div v-if="task.question_type === 'multiple_choice' && Array.isArray(task.options_json)" class="mt-2 text-[8px] text-slate-400 font-sans space-y-1">
+                                            <p>OPTIONS: {{ task.options_json.map((option, index) => `${optionLetter(index)}. ${optionText(option) || `IMAGE_OPTION_${index + 1}`}`).join(' | ') }}</p>
+                                            <div v-if="task.options_json.some((option) => optionImagePath(option))" class="flex flex-wrap gap-2">
+                                                <div
+                                                    v-for="(option, optIndex) in task.options_json.filter((option) => optionImagePath(option))"
+                                                    :key="`${task.uuid}-option-image-${optIndex}`"
+                                                    class="space-y-1"
+                                                >
+                                                    <span class="block text-[7px] text-yellow-300 uppercase">{{ optionLetter(task.options_json.findIndex((item) => item === option)) }}</span>
+                                                    <img
+                                                        :src="storageUrl(optionImagePath(option))"
+                                                        alt=""
+                                                        class="h-14 w-20 object-cover border border-slate-700 bg-black"
+                                                    >
+                                                </div>
+                                            </div>
                                         </div>
                                         <div v-if="task.question_type === 'multiple_choice'" class="text-[8px] text-cyan-400 font-sans mt-1">ANSWER: {{ task.answer_key || '-' }}</div>
                                     </div>
