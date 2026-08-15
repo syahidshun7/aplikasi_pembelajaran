@@ -29,6 +29,7 @@ const form = useForm({
     assessment_type: 'essay',
     duration: 60,
     has_time_limit: false,
+    question_display_mode: 'all',
     is_active: true,
 });
 const mentorCannotSubmitTaskBank = computed(() => isMentor.value && !form.job_role_id);
@@ -51,6 +52,7 @@ const startEdit = (bank) => {
     form.assessment_type = bank.assessment_type || 'essay';
     form.duration = bank.duration ?? 60;
     form.has_time_limit = bank.has_time_limit !== false;
+    form.question_display_mode = bank.question_display_mode || 'all';
     form.is_active = !!bank.is_active;
     applyMentorDefaultJob();
     showFormModal.value = true;
@@ -63,6 +65,7 @@ const cancelEdit = () => {
     form.assessment_type = 'essay';
     form.duration = 60;
     form.has_time_limit = false;
+    form.question_display_mode = 'all';
     form.is_active = true;
     applyMentorDefaultJob();
     showFormModal.value = false;
@@ -234,6 +237,16 @@ watch([isMentor, firstJobId], () => {
                                 <p v-if="form.errors.has_time_limit" class="mt-2 text-red-400 text-[8px]">{{ form.errors.has_time_limit }}</p>
                             </div>
 
+                            <div v-if="['essay', 'multiple_choice', 'mixed'].includes(form.assessment_type)">
+                                <label class="block mb-2 text-white uppercase">QUESTION_DISPLAY:</label>
+                                <select v-model="form.question_display_mode" class="w-full bg-black border-2 border-slate-700 p-2 text-cyan-300 uppercase outline-none focus:border-cyan-400">
+                                    <option value="all">ALL_QUESTIONS</option>
+                                    <option value="single">ONE_BY_ONE</option>
+                                </select>
+                                <p class="mt-2 text-[8px] text-slate-500 uppercase">ONE_BY_ONE menampilkan satu soal per layar dengan tombol previous/next.</p>
+                                <p v-if="form.errors.question_display_mode" class="mt-2 text-red-400 text-[8px]">{{ form.errors.question_display_mode }}</p>
+                            </div>
+
                             <label class="inline-flex items-center gap-2 text-[9px] uppercase text-slate-300">
                                 <input v-model="form.is_active" type="checkbox" class="accent-teal-500">
                                 BANK_ACTIVE
@@ -269,7 +282,12 @@ watch([isMentor, firstJobId], () => {
                                         <div class="text-[8px] text-slate-500 mb-1 uppercase tracking-tighter">ID: {{ bank.uuid.substring(0, 8) }}</div>
                                         <div class="text-white uppercase text-[9px]">{{ bank.name }}</div>
                                         <div class="text-[7px] mt-2 uppercase text-teal-300">JOB: {{ bank.job_role?.name || 'NO_JOB_SCOPE' }}</div>
-                                        <div class="mt-2 inline-flex px-2 py-1 border text-[8px] uppercase" :class="typeClass(bank.assessment_type)">{{ bank.assessment_type }}</div>
+                                        <div class="mt-2 flex flex-wrap gap-2">
+                                            <span class="inline-flex px-2 py-1 border text-[8px] uppercase" :class="typeClass(bank.assessment_type)">{{ bank.assessment_type }}</span>
+                                            <span v-if="['essay', 'multiple_choice', 'mixed'].includes(bank.assessment_type)" class="inline-flex px-2 py-1 border border-cyan-800 bg-cyan-900/20 text-cyan-300 text-[8px] uppercase">
+                                                {{ (bank.question_display_mode || 'all') === 'single' ? 'ONE_BY_ONE' : 'ALL_QUESTIONS' }}
+                                            </span>
+                                        </div>
                                         <div v-if="bank.description" class="text-[7px] text-slate-500 italic mt-3 leading-loose">> {{ bank.description }}</div>
                                     </div>
                                     <div class="text-right text-[8px] shrink-0">

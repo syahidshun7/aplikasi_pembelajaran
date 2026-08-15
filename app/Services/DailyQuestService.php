@@ -24,7 +24,7 @@ class DailyQuestService
         }
 
         $resolvedNow = $this->resolveNow($now);
-        $todayQuests = $this->ensureDailyQuestsForUser($user, $resolvedNow);
+        $todayQuests = $this->recordLoginPresence($user, $resolvedNow);
 
         $lifetimeClaimedTotals = DailyQuest::query()
             ->where('user_id', (int) $user->id)
@@ -182,7 +182,7 @@ class DailyQuestService
         }
 
         $resolvedNow = $this->resolveNow($now);
-        $todayQuests = $this->ensureDailyQuestsForUser($user, $resolvedNow);
+        $todayQuests = $this->recordLoginPresence($user, $resolvedNow);
 
         return [
             'available' => true,
@@ -292,6 +292,36 @@ class DailyQuestService
         }
 
         return $feedback;
+    }
+
+    public function recordLoginPresence(User $user, ?CarbonInterface $now = null): Collection
+    {
+        if (! $this->supportsUser($user)) {
+            return collect();
+        }
+
+        $resolvedNow = $this->resolveNow($now);
+        $todayQuests = $this->ensureDailyQuestsForUser($user, $resolvedNow);
+
+        $hasPendingLoginQuest = $todayQuests->contains(function (DailyQuest $dailyQuest) {
+            return (string) $dailyQuest->activity_type === DailyQuestDefinition::ACTIVITY_LOGIN
+                && (string) $dailyQuest->status === DailyQuest::STATUS_PENDING;
+        });
+
+        if (! $hasPendingLoginQuest) {
+            return $todayQuests;
+        }
+
+        $this->recordActivity($user, DailyQuestDefinition::ACTIVITY_LOGIN, 1, [
+            'source' => 'active_session_presence',
+        ], $resolvedNow);
+
+        return DailyQuest::query()
+            ->where('user_id', (int) $user->id)
+            ->whereDate('quest_date', $resolvedNow->toDateString())
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
     }
 
     public function claim(DailyQuest $dailyQuest, User $user, ?CarbonInterface $now = null): DailyQuest

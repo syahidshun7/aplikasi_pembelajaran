@@ -20,6 +20,7 @@ class TaskBank extends Model
         'assessment_type',
         'duration',
         'has_time_limit',
+        'question_display_mode',
         'is_active',
     ];
 

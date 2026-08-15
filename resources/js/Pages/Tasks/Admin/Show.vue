@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 
 const props = defineProps({
@@ -15,6 +15,12 @@ const isEditing = ref(false);
 const editUuid = ref(null);
 const showFormModal = ref(false);
 const importFileInputRef = ref(null);
+const localRows = ref([...(props.questions?.data || [])]);
+const draggingUuid = ref(null);
+const dragOverUuid = ref(null);
+const isSavingOrder = ref(false);
+const sequenceInputs = ref({});
+const savingSequenceUuid = ref(null);
 
 const filterForm = useForm({
     search: props.filters?.search || '',
@@ -41,8 +47,20 @@ const importForm = useForm({
     skip_invalid: true,
 });
 
-const rows = computed(() => props.questions?.data || []);
+watch(
+    () => props.questions?.data,
+    (nextRows) => {
+        localRows.value = [...(nextRows || [])];
+        sequenceInputs.value = Object.fromEntries(
+            (nextRows || []).map((task) => [task.uuid, task.sort_order || 1]),
+        );
+    },
+    { immediate: true },
+);
+
+const rows = computed(() => localRows.value);
 const paginationLinks = computed(() => props.questions?.links || []);
+const canDragSort = computed(() => !filterForm.search && (props.questions?.total || 0) > 1);
 const importErrors = computed(() => Array.isArray(props.importResult?.errors) ? props.importResult.errors : []);
 const importTemplateJson = computed(() => JSON.stringify(props.importTemplate?.sample || [], null, 2));
 const importJsonInputPlaceholder = computed(() => {
@@ -249,6 +267,80 @@ const goToPage = (url) => {
     router.get(url, {}, {
         preserveState: true,
         preserveScroll: true,
+    });
+};
+
+const saveTaskOrder = () => {
+    if (!canDragSort.value || rows.value.length < 2) return;
+
+    const pageStart = Number(props.questions?.from || 1);
+    const payload = rows.value.map((task, index) => ({
+        uuid: task.uuid,
+        sort_order: pageStart + index,
+    }));
+
+    isSavingOrder.value = true;
+    router.put(route('admin.task-banks.tasks.reorder', props.taskBank.uuid), { questions: payload }, {
+        preserveScroll: true,
+        onFinish: () => {
+            isSavingOrder.value = false;
+            draggingUuid.value = null;
+            dragOverUuid.value = null;
+        },
+    });
+};
+
+const startDrag = (task, event) => {
+    if (!canDragSort.value || isSavingOrder.value) return;
+
+    draggingUuid.value = task.uuid;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', task.uuid);
+};
+
+const moveDraggedTask = (targetUuid) => {
+    if (!draggingUuid.value || draggingUuid.value === targetUuid) return;
+
+    const fromIndex = localRows.value.findIndex((task) => task.uuid === draggingUuid.value);
+    const toIndex = localRows.value.findIndex((task) => task.uuid === targetUuid);
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const nextRows = [...localRows.value];
+    const [movedTask] = nextRows.splice(fromIndex, 1);
+    nextRows.splice(toIndex, 0, movedTask);
+    localRows.value = nextRows;
+};
+
+const handleDragOver = (task, event) => {
+    if (!canDragSort.value || !draggingUuid.value) return;
+
+    event.preventDefault();
+    dragOverUuid.value = task.uuid;
+    moveDraggedTask(task.uuid);
+};
+
+const finishDrag = () => {
+    if (!draggingUuid.value) return;
+    saveTaskOrder();
+};
+
+const saveTaskSequence = (task) => {
+    const requestedOrder = Number(sequenceInputs.value[task.uuid]);
+    if (!Number.isInteger(requestedOrder) || requestedOrder < 1) {
+        sequenceInputs.value[task.uuid] = task.sort_order || 1;
+        return;
+    }
+
+    if (requestedOrder === Number(task.sort_order || 1)) return;
+
+    savingSequenceUuid.value = task.uuid;
+    router.put(route('admin.task-banks.tasks.sequence', { taskBank: props.taskBank.uuid, question: task.uuid }), {
+        sort_order: requestedOrder,
+    }, {
+        preserveScroll: true,
+        onFinish: () => {
+            savingSequenceUuid.value = null;
+        },
     });
 };
 
@@ -585,10 +677,55 @@ const submitImport = () => {
                             <button @click="applyFilters" class="px-3 py-2 border-2 border-teal-400 text-teal-300 hover:bg-teal-400 hover:text-black uppercase">APPLY</button>
                             <button @click="resetFilters" class="px-3 py-2 border-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white uppercase">RESET</button>
                         </div>
+                        <p class="mb-3 text-[8px] uppercase" :class="canDragSort ? 'text-slate-400' : 'text-slate-600'">
+                            {{ canDragSort ? 'DRAG [MOVE] UNTUK MENGATUR URUTAN SOAL.' : 'DRAG_SORT aktif saat list tidak difilter.' }}
+                            <span v-if="isSavingOrder" class="text-yellow-300"> SAVING_ORDER...</span>
+                        </p>
 
                         <div class="space-y-3 max-h-[560px] overflow-y-auto pr-2 custom-scroll">
-                            <div v-for="task in rows" :key="task.uuid" class="p-3 bg-slate-900/50 border-l-4 border-teal-500">
+                            <div
+                                v-for="task in rows"
+                                :key="task.uuid"
+                                class="p-3 bg-slate-900/50 border-l-4 border-teal-500 transition-all"
+                                :class="[
+                                    draggingUuid === task.uuid ? 'opacity-60 border-yellow-400 bg-yellow-950/20' : '',
+                                    dragOverUuid === task.uuid && draggingUuid !== task.uuid ? 'ring-1 ring-teal-400/60' : '',
+                                    canDragSort ? 'cursor-move' : ''
+                                ]"
+                                :draggable="canDragSort && !isSavingOrder"
+                                @dragstart="startDrag(task, $event)"
+                                @dragover="handleDragOver(task, $event)"
+                                @drop.prevent
+                                @dragend="finishDrag"
+                            >
                                 <div class="flex items-start justify-between gap-3">
+                                    <div class="mt-1 shrink-0 w-16 space-y-2">
+                                        <button
+                                            type="button"
+                                            class="block text-[8px] uppercase"
+                                            :class="canDragSort ? 'text-teal-300 hover:text-white cursor-grab active:cursor-grabbing' : 'text-slate-600 cursor-not-allowed'"
+                                            :disabled="!canDragSort || isSavingOrder"
+                                            @click.prevent
+                                            title="Drag untuk mengatur urutan"
+                                        >
+                                            [Move]
+                                        </button>
+                                        <label class="block text-[7px] text-slate-500 uppercase">SEQ</label>
+                                        <input
+                                            v-model.number="sequenceInputs[task.uuid]"
+                                            type="number"
+                                            min="1"
+                                            :max="questions.total || 1"
+                                            class="w-full bg-black border border-slate-700 px-1 py-1 text-[9px] text-teal-300 outline-none focus:border-teal-400 disabled:opacity-50"
+                                            :disabled="savingSequenceUuid === task.uuid || isSavingOrder"
+                                            @click.stop
+                                            @mousedown.stop
+                                            @keydown.enter.prevent="saveTaskSequence(task)"
+                                            @blur="saveTaskSequence(task)"
+                                            :title="`Pindahkan ke urutan 1 sampai ${questions.total || 1}`"
+                                        >
+                                        <p v-if="savingSequenceUuid === task.uuid" class="text-[7px] text-yellow-300 uppercase">SAVE</p>
+                                    </div>
                                     <div class="min-w-0 flex-1">
                                         <p class="text-[8px] text-slate-500 uppercase">ID: {{ task.uuid.substring(0, 8) }}</p>
                                         <p class="text-[12px] font-sans text-slate-200 mt-2 break-words">{{ task.question_text }}</p>

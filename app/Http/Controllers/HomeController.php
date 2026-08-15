@@ -30,6 +30,10 @@ class HomeController extends Controller
         return $this->renderLanding();
     }
 
+    if (Auth::user()?->isStaff()) {
+        return redirect()->route('dashboard');
+    }
+
     $userId = Auth::id();
     $user = Auth::user();
     $userJobId = $user?->job_id;
