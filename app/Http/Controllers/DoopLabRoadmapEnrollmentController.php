@@ -19,6 +19,88 @@ use Inertia\Response;
 
 class DoopLabRoadmapEnrollmentController extends Controller
 {
+    public function management(Request $request): Response
+    {
+        $user = $request->user();
+        abort_unless($user && $user->hasRole(User::ROLE_SUPER_ADMIN), 403, 'ROADMAP_MANAGEMENT_SUPER_ADMIN_ONLY');
+
+        $roadmaps = DoopLabRoadmap::query()
+            ->orderBy('title')
+            ->get(['id', 'uuid', 'title', 'is_published'])
+            ->map(fn (DoopLabRoadmap $roadmap) => [
+                'uuid' => (string) $roadmap->uuid,
+                'title' => (string) $roadmap->title,
+                'is_published' => (bool) $roadmap->is_published,
+            ])
+            ->values()
+            ->all();
+
+        $members = User::query()
+            ->whereIn('role', [User::ROLE_STUDENT, User::ROLE_USER])
+            ->whereHas('inventories', fn ($query) => $query
+                ->where('quantity', '>=', 1)
+                ->whereHas('item', fn ($itemQuery) => $itemQuery->where('code', 'dooplab_key')))
+            ->orderBy('name')
+            ->get(['id', 'name', 'username', 'email', 'role'])
+            ->map(fn (User $member) => [
+                'id' => (int) $member->id,
+                'name' => (string) ($member->name ?? ''),
+                'username' => (string) ($member->username ?? ''),
+                'email' => (string) ($member->email ?? ''),
+                'role' => (string) ($member->role ?? ''),
+            ])
+            ->values()
+            ->all();
+
+        $mentors = User::query()
+            ->whereIn('role', [User::ROLE_MENTOR, User::ROLE_ADMIN, User::ROLE_SUPER_ADMIN])
+            ->orderBy('name')
+            ->get(['id', 'name', 'username', 'role'])
+            ->map(fn (User $mentor) => [
+                'id' => (int) $mentor->id,
+                'name' => (string) ($mentor->name ?? ''),
+                'username' => (string) ($mentor->username ?? ''),
+                'role' => (string) ($mentor->role ?? ''),
+            ])
+            ->values()
+            ->all();
+
+        $enrollments = DoopLabRoadmapEnrollment::query()
+            ->with([
+                'roadmap:id,uuid,title,is_published',
+                'user:id,name,username,email,role',
+                'mentor:id,name,username,role',
+            ])
+            ->latest('updated_at')
+            ->get()
+            ->map(fn (DoopLabRoadmapEnrollment $enrollment) => [
+                'uuid' => (string) $enrollment->uuid,
+                'status' => (string) $enrollment->status,
+                'review_mode' => (string) ($enrollment->review_mode ?? DoopLabRoadmapEnrollment::REVIEW_MODE_MANUAL),
+                'updated_at' => $enrollment->updated_at?->toIso8601String(),
+                'roadmap' => [
+                    'uuid' => (string) ($enrollment->roadmap?->uuid ?? ''),
+                    'title' => (string) ($enrollment->roadmap?->title ?? ''),
+                    'is_published' => (bool) ($enrollment->roadmap?->is_published ?? false),
+                ],
+                'member' => [
+                    'id' => (int) ($enrollment->user?->id ?? 0),
+                    'name' => (string) ($enrollment->user?->name ?? ''),
+                    'username' => (string) ($enrollment->user?->username ?? ''),
+                    'email' => (string) ($enrollment->user?->email ?? ''),
+                ],
+                'mentor' => [
+                    'id' => (int) ($enrollment->mentor?->id ?? 0),
+                    'name' => (string) ($enrollment->mentor?->name ?? ''),
+                    'username' => (string) ($enrollment->mentor?->username ?? ''),
+                ],
+            ])
+            ->values()
+            ->all();
+
+        return Inertia::render('DoopLab/Roadmaps/Management', compact('roadmaps', 'members', 'mentors', 'enrollments'));
+    }
+
     public function index(Request $request): Response
     {
         $user = $request->user();
@@ -205,7 +287,118 @@ class DoopLabRoadmapEnrollmentController extends Controller
 
         $enrollment->delete();
 
-        return redirect()->route('dooplab.roadmaps.index');
+        return back()->with('message', 'ROADMAP_MEMBER_REMOVED');
+    }
+
+    public function updateAssignment(Request $request, DoopLabRoadmapEnrollment $enrollment): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user && $user->hasRole(User::ROLE_SUPER_ADMIN), 403, 'ROADMAP_MANAGEMENT_SUPER_ADMIN_ONLY');
+
+        $validated = $request->validate([
+            'roadmap_uuid' => ['required', 'string', 'exists:dooplab_roadmaps,uuid'],
+            'student_user_id' => ['required', 'integer', 'exists:users,id'],
+            'mentor_user_id' => ['required', 'integer', 'exists:users,id'],
+            'status' => ['required', 'string', 'in:active,ended'],
+            'review_mode' => ['required', 'string', 'in:manual,auto'],
+        ]);
+
+        $roadmap = DoopLabRoadmap::query()
+            ->where('uuid', (string) $validated['roadmap_uuid'])
+            ->firstOrFail();
+
+        $student = User::query()
+            ->whereKey((int) $validated['student_user_id'])
+            ->whereIn('role', [User::ROLE_STUDENT, User::ROLE_USER])
+            ->firstOrFail();
+
+        $mentor = User::query()
+            ->whereKey((int) $validated['mentor_user_id'])
+            ->whereIn('role', [User::ROLE_MENTOR, User::ROLE_ADMIN, User::ROLE_SUPER_ADMIN])
+            ->firstOrFail();
+
+        $duplicateExists = DoopLabRoadmapEnrollment::query()
+            ->where('roadmap_id', (int) $roadmap->id)
+            ->where('user_id', (int) $student->id)
+            ->whereKeyNot((int) $enrollment->id)
+            ->exists();
+
+        if ($duplicateExists) {
+            return back()->withErrors([
+                'student_user_id' => 'Student ini sudah punya enrollment untuk roadmap tersebut.',
+            ]);
+        }
+
+        $roadmapChanged = (int) $enrollment->roadmap_id !== (int) $roadmap->id;
+
+        DB::transaction(function () use ($enrollment, $roadmap, $student, $mentor, $validated, $roadmapChanged): void {
+            $enrollment->update([
+                'roadmap_id' => (int) $roadmap->id,
+                'user_id' => (int) $student->id,
+                'mentor_user_id' => (int) $mentor->id,
+                'status' => (string) $validated['status'],
+                'review_mode' => (string) $validated['review_mode'],
+            ]);
+
+            if ($roadmapChanged) {
+                $enrollment->nodeProgress()->delete();
+            }
+        });
+
+        $this->ensureProgressRows($enrollment->fresh(['roadmap.nodes']));
+
+        return back()->with('message', 'ROADMAP_ASSIGNMENT_UPDATED');
+    }
+
+    public function storeAssignments(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user && $user->hasRole(User::ROLE_SUPER_ADMIN), 403, 'ROADMAP_MANAGEMENT_SUPER_ADMIN_ONLY');
+
+        $validated = $request->validate([
+            'roadmap_uuid' => ['required', 'string', 'exists:dooplab_roadmaps,uuid'],
+            'user_ids' => ['required', 'array', 'min:1'],
+            'user_ids.*' => ['integer', 'exists:users,id'],
+            'mentor_user_id' => ['required', 'integer', 'exists:users,id'],
+            'review_mode' => ['required', 'string', 'in:manual,auto'],
+        ]);
+
+        $roadmap = DoopLabRoadmap::query()->where('uuid', (string) $validated['roadmap_uuid'])->firstOrFail();
+        $mentor = User::query()
+            ->whereKey((int) $validated['mentor_user_id'])
+            ->whereIn('role', [User::ROLE_MENTOR, User::ROLE_ADMIN, User::ROLE_SUPER_ADMIN])
+            ->firstOrFail();
+        $students = User::query()
+            ->whereIn('id', collect($validated['user_ids'])->map(fn ($id) => (int) $id)->unique())
+            ->whereIn('role', [User::ROLE_STUDENT, User::ROLE_USER])
+            ->whereHas('inventories', fn ($query) => $query
+                ->where('quantity', '>=', 1)
+                ->whereHas('item', fn ($itemQuery) => $itemQuery->where('code', 'dooplab_key')))
+            ->get();
+
+        if ($students->count() !== collect($validated['user_ids'])->map(fn ($id) => (int) $id)->unique()->count()) {
+            return back()->withErrors([
+                'user_ids' => 'Semua member yang dipilih wajib memiliki DoopLab ID Card.',
+            ]);
+        }
+
+        DB::transaction(function () use ($students, $roadmap, $mentor, $validated): void {
+            foreach ($students as $student) {
+                $enrollment = DoopLabRoadmapEnrollment::query()->firstOrNew([
+                    'roadmap_id' => (int) $roadmap->id,
+                    'user_id' => (int) $student->id,
+                ]);
+
+                $enrollment->mentor_user_id = (int) $mentor->id;
+                $enrollment->status = DoopLabRoadmapEnrollment::STATUS_ACTIVE;
+                $enrollment->review_mode = (string) $validated['review_mode'];
+                $enrollment->save();
+
+                $this->ensureProgressRows($enrollment->fresh(['roadmap.nodes']));
+            }
+        });
+
+        return back()->with('message', 'ROADMAP_MEMBERS_ADDED');
     }
 
     public function submit(Request $request, DoopLabRoadmapEnrollment $enrollment, string $nodeUuid): RedirectResponse

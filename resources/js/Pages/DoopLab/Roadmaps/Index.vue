@@ -12,6 +12,7 @@ const props = defineProps({
     assignableUsers: { type: Array, default: () => [] },
     enrolledUsers: { type: Array, default: () => [] },
     studentsOverview: { type: Array, default: () => [] },
+    roadmapManagement: { type: Object, default: () => ({}) },
 });
 
 const page = usePage();
@@ -38,6 +39,27 @@ const isWorkspaceMode = computed(() => {
 
 const activeRoadmap = computed(() => props.activeRoadmap || null);
 const hasActiveRoadmap = computed(() => Boolean(activeRoadmap.value?.uuid));
+const roadmapManagement = computed(() => props.roadmapManagement && typeof props.roadmapManagement === 'object' ? props.roadmapManagement : {});
+const canSuperManageRoadmaps = computed(() => Boolean(roadmapManagement.value?.can_manage));
+const managedMembers = computed(() => Array.isArray(roadmapManagement.value?.members) ? roadmapManagement.value.members : []);
+const managedMentors = computed(() => Array.isArray(roadmapManagement.value?.mentors) ? roadmapManagement.value.mentors : []);
+const managedEnrollments = computed(() => Array.isArray(roadmapManagement.value?.enrollments) ? roadmapManagement.value.enrollments : []);
+const activeRoadmapManagedEnrollments = computed(() => {
+    if (!hasActiveRoadmap.value) return managedEnrollments.value;
+    return managedEnrollments.value.filter((item) => String(item.roadmap?.uuid || '') === String(activeRoadmap.value.uuid || ''));
+});
+const activeRoadmapManagedMemberIds = computed(() => new Set(activeRoadmapManagedEnrollments.value.map((item) => Number(item.member?.id || 0))));
+const superAssignRoadmapMemberIds = computed(() => {
+    const roadmapUuid = String(superAssignForm.roadmap_uuid || activeRoadmap.value?.uuid || '');
+    if (!roadmapUuid) return new Set();
+
+    return new Set(
+        managedEnrollments.value
+            .filter((item) => String(item.roadmap?.uuid || '') === roadmapUuid)
+            .map((item) => Number(item.member?.id || 0))
+    );
+});
+const availableManagedMembers = computed(() => managedMembers.value.filter((member) => !superAssignRoadmapMemberIds.value.has(Number(member.id || 0))));
 
 const draftSections = ref([]);
 const draftNodes = ref([]);
@@ -337,14 +359,30 @@ const enrollForm = useForm({
     user_ids: [],
     review_mode: 'manual',
 });
+const superAssignForm = useForm({
+    roadmap_uuid: '',
+    user_ids: [],
+    mentor_user_id: '',
+    review_mode: 'manual',
+});
+const superAssignmentForm = useForm({
+    roadmap_uuid: '',
+    student_user_id: '',
+    mentor_user_id: '',
+    status: 'active',
+    review_mode: 'manual',
+});
 const studentAssignForm = useForm({
     user_id: '',
     roadmap_uuids: [],
     review_mode: 'manual',
 });
 const showAssignModal = ref(false);
+const showSuperAssignModal = ref(false);
+const editingSuperEnrollmentUuid = ref('');
 const showManageModal = ref(false);
 const manageTargetUserId = ref('');
+const roadmapDeleteTarget = ref(null);
 
 const sectionForm = useForm({
     title: '',
@@ -542,6 +580,66 @@ const closeAssignModal = () => {
     studentAssignForm.review_mode = 'manual';
 };
 
+const openSuperAssignModal = () => {
+    if (!canSuperManageRoadmaps.value) return;
+    superAssignForm.reset();
+    superAssignForm.clearErrors();
+    superAssignForm.roadmap_uuid = String(activeRoadmap.value?.uuid || '');
+    superAssignForm.review_mode = 'manual';
+    showSuperAssignModal.value = true;
+};
+
+const closeSuperAssignModal = () => {
+    showSuperAssignModal.value = false;
+    superAssignForm.reset();
+    superAssignForm.clearErrors();
+};
+
+const submitSuperAssign = () => {
+    if (!canSuperManageRoadmaps.value || !superAssignForm.roadmap_uuid || !superAssignForm.user_ids.length || !superAssignForm.mentor_user_id) return;
+
+    superAssignForm.post(route('dooplab.roadmap-management.assignments.store'), {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            closeSuperAssignModal();
+            router.reload({ preserveScroll: true, only: ['roadmapManagement', 'studentsOverview', 'enrolledUsers'] });
+        },
+    });
+};
+
+const startSuperEditEnrollment = (enrollment) => {
+    if (!canSuperManageRoadmaps.value || !enrollment?.uuid) return;
+
+    editingSuperEnrollmentUuid.value = String(enrollment.uuid || '');
+    superAssignmentForm.clearErrors();
+    superAssignmentForm.roadmap_uuid = String(enrollment.roadmap?.uuid || '');
+    superAssignmentForm.student_user_id = Number(enrollment.member?.id || 0) || '';
+    superAssignmentForm.mentor_user_id = Number(enrollment.mentor?.id || 0) || '';
+    superAssignmentForm.status = ['active', 'ended'].includes(String(enrollment.status || '')) ? String(enrollment.status) : 'active';
+    superAssignmentForm.review_mode = ['manual', 'auto'].includes(String(enrollment.review_mode || '')) ? String(enrollment.review_mode) : 'manual';
+};
+
+const cancelSuperEditEnrollment = () => {
+    editingSuperEnrollmentUuid.value = '';
+    superAssignmentForm.reset();
+    superAssignmentForm.clearErrors();
+};
+
+const submitSuperEnrollment = () => {
+    const uuid = String(editingSuperEnrollmentUuid.value || '');
+    if (!canSuperManageRoadmaps.value || !uuid) return;
+
+    superAssignmentForm.patch(route('dooplab.roadmaps.enrollments.assignment.update', uuid), {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            cancelSuperEditEnrollment();
+            router.reload({ preserveScroll: true, only: ['roadmapManagement', 'studentsOverview', 'enrolledUsers'] });
+        },
+    });
+};
+
 const openManageModal = (userId) => {
     manageTargetUserId.value = String(userId || '');
     showManageModal.value = true;
@@ -570,9 +668,23 @@ const submitStudentAssign = () => {
     });
 };
 
-const deleteRoadmap = (roadmapUuid) => {
-    if (!window.confirm('Hapus roadmap ini?')) return;
-    router.delete(route('dooplab.roadmaps.destroy', roadmapUuid));
+const openDeleteRoadmapModal = (roadmap) => {
+    if (!roadmap?.uuid) return;
+    roadmapDeleteTarget.value = roadmap;
+};
+
+const closeDeleteRoadmapModal = () => {
+    roadmapDeleteTarget.value = null;
+};
+
+const confirmDeleteRoadmap = () => {
+    const roadmapUuid = String(roadmapDeleteTarget.value?.uuid || '');
+    if (!roadmapUuid) return;
+
+    router.delete(route('dooplab.roadmaps.destroy', roadmapUuid), {
+        preserveScroll: true,
+        onFinish: () => closeDeleteRoadmapModal(),
+    });
 };
 
 const startEditSection = (section) => {
@@ -1802,7 +1914,7 @@ onUnmounted(() => {
                                         <div class="table-actions">
                                             <button class="btn-secondary" type="button" @click="pickRoadmap(item.uuid, true)">Open</button>
                                             <button class="btn-secondary" type="button" @click="pickRoadmap(item.uuid, false); openRoadmapModal('edit')">Edit</button>
-                                            <button class="btn-danger" type="button" @click="deleteRoadmap(item.uuid)">Del</button>
+                                            <button class="btn-danger" type="button" @click="openDeleteRoadmapModal(item)">Del</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -1843,6 +1955,79 @@ onUnmounted(() => {
                             </table>
                         </div>
                     </div>
+                </div>
+
+                <div v-if="canSuperManageRoadmaps" class="panel space-y-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h2 class="title">Super Admin Roadmap Management</h2>
+                            <p class="text-[8px] text-slate-400 uppercase">
+                                {{ hasActiveRoadmap ? activeRoadmap.title : 'Semua roadmap' }}
+                            </p>
+                        </div>
+                        <button class="btn-primary" type="button" @click="openSuperAssignModal">+ Tambah Member</button>
+                    </div>
+
+                    <div v-if="activeRoadmapManagedEnrollments.length" class="table-wrap">
+                        <table class="mini-table">
+                            <thead>
+                                <tr>
+                                    <th>Member</th>
+                                    <th>Roadmap</th>
+                                    <th>Mentor</th>
+                                    <th>Status</th>
+                                    <th>Review</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template v-for="item in activeRoadmapManagedEnrollments" :key="`mgmt-${item.uuid}`">
+                                    <tr>
+                                        <td class="cell-title">{{ item.member?.name || '-' }} (@{{ item.member?.username || '-' }})</td>
+                                        <td>{{ item.roadmap?.title || '-' }}</td>
+                                        <td>{{ item.mentor?.name || '-' }} (@{{ item.mentor?.username || '-' }})</td>
+                                        <td>{{ String(item.status || 'active').toUpperCase() }}</td>
+                                        <td>{{ String(item.review_mode || 'manual').toUpperCase() }}</td>
+                                        <td>
+                                            <div class="table-actions">
+                                                <button class="btn-secondary" type="button" @click="startSuperEditEnrollment(item)">Edit</button>
+                                                <button class="btn-danger" type="button" @click="unassignUser(item.uuid)">Unassign</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="editingSuperEnrollmentUuid === item.uuid" class="management-edit-row">
+                                        <td colspan="6">
+                                            <form class="management-edit-form" @submit.prevent="submitSuperEnrollment">
+                                                <select v-model="superAssignmentForm.roadmap_uuid" class="field">
+                                                    <option v-for="rm in roadmaps" :key="`edit-rm-${rm.uuid}`" :value="rm.uuid">{{ rm.title }}</option>
+                                                </select>
+                                                <select v-model="superAssignmentForm.mentor_user_id" class="field">
+                                                    <option value="" disabled>Pilih mentor</option>
+                                                    <option v-for="mentor in managedMentors" :key="`edit-mentor-${mentor.id}`" :value="mentor.id">
+                                                        {{ mentor.name }} (@{{ mentor.username || '-' }})
+                                                    </option>
+                                                </select>
+                                                <select v-model="superAssignmentForm.status" class="field">
+                                                    <option value="active">Active</option>
+                                                    <option value="ended">Ended</option>
+                                                </select>
+                                                <select v-model="superAssignmentForm.review_mode" class="field">
+                                                    <option value="manual">Manual</option>
+                                                    <option value="auto">Auto</option>
+                                                </select>
+                                                <button class="btn-secondary" type="button" @click="cancelSuperEditEnrollment">Batal</button>
+                                                <button class="btn-primary" type="submit" :disabled="superAssignmentForm.processing">Simpan</button>
+                                            </form>
+                                            <p v-if="superAssignmentForm.errors.student_user_id" class="text-[8px] text-rose-300 uppercase mt-2">
+                                                {{ superAssignmentForm.errors.student_user_id }}
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p v-else class="text-[8px] text-slate-400 uppercase">Belum ada member pada scope roadmap ini.</p>
                 </div>
             </div>
             <div v-else class="space-y-4">
@@ -2280,6 +2465,97 @@ onUnmounted(() => {
                 <div class="flex justify-end gap-2 pt-2">
                     <button class="btn-secondary" type="button" @click="closeRoadmapModal">Batal</button>
                     <button class="btn-primary" :disabled="roadmapForm.processing" type="button" @click="submitRoadmap">{{ roadmapEditUuid ? 'Update' : 'Create' }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="roadmapDeleteTarget" class="modal-backdrop" @click.self="closeDeleteRoadmapModal">
+        <div class="modal-card">
+            <div class="modal-head">
+                <h3>Hapus Roadmap</h3>
+                <button type="button" class="btn-secondary" @click="closeDeleteRoadmapModal">x</button>
+            </div>
+            <div class="modal-body space-y-3">
+                <p class="text-[10px] text-slate-200 leading-relaxed">
+                    Roadmap <strong>{{ roadmapDeleteTarget.title || 'Untitled Roadmap' }}</strong> akan dihapus dari sistem.
+                </p>
+                <p class="text-[8px] text-rose-300 uppercase leading-relaxed">
+                    Aksi ini juga berisiko menghapus struktur roadmap dan data assignment yang terkait.
+                </p>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button class="btn-secondary" type="button" @click="closeDeleteRoadmapModal">Batal</button>
+                    <button class="btn-danger" type="button" @click="confirmDeleteRoadmap">Hapus</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="showSuperAssignModal" class="modal-backdrop" @click.self="closeSuperAssignModal">
+        <div class="modal-card modal-card--wide">
+            <div class="modal-head">
+                <h3>Tambah Member Roadmap</h3>
+                <button type="button" class="btn-secondary" @click="closeSuperAssignModal">x</button>
+            </div>
+            <div class="modal-body space-y-3">
+                <label class="modal-label">Roadmap</label>
+                <select v-model="superAssignForm.roadmap_uuid" class="field">
+                    <option value="" disabled>Pilih roadmap</option>
+                    <option v-for="rm in roadmaps" :key="`super-rm-${rm.uuid}`" :value="rm.uuid">
+                        {{ rm.title }}
+                    </option>
+                </select>
+
+                <label class="modal-label">Mentor / Staff</label>
+                <select v-model="superAssignForm.mentor_user_id" class="field">
+                    <option value="" disabled>Pilih mentor</option>
+                    <option v-for="mentor in managedMentors" :key="`super-mentor-${mentor.id}`" :value="mentor.id">
+                        {{ mentor.name }} (@{{ mentor.username || '-' }}) - {{ String(mentor.role || '').toUpperCase() }}
+                    </option>
+                </select>
+
+                <label class="modal-label">Review Mode</label>
+                <select v-model="superAssignForm.review_mode" class="field">
+                    <option value="manual">Manual</option>
+                    <option value="auto">Auto</option>
+                </select>
+
+                <div class="modal-label">Member DoopLab ID Card</div>
+                <div class="table-wrap modal-member-table">
+                    <table class="mini-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Nama</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="member in availableManagedMembers" :key="`super-member-${member.id}`">
+                                <td>
+                                    <input v-model="superAssignForm.user_ids" type="checkbox" :value="member.id">
+                                </td>
+                                <td class="cell-title">{{ member.name }}</td>
+                                <td>@{{ member.username || '-' }}</td>
+                                <td>{{ member.email }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p v-if="superAssignForm.errors.user_ids" class="text-[8px] text-rose-300 uppercase">{{ superAssignForm.errors.user_ids }}</p>
+                <p v-if="!availableManagedMembers.length" class="text-[8px] text-slate-400 uppercase">Semua member DoopLab ID Card sudah masuk ke roadmap aktif.</p>
+
+                <div class="flex justify-end gap-2 pt-2">
+                    <button class="btn-secondary" type="button" @click="closeSuperAssignModal">Batal</button>
+                    <button
+                        class="btn-primary"
+                        type="button"
+                        :disabled="superAssignForm.processing || !superAssignForm.roadmap_uuid || !superAssignForm.user_ids.length || !superAssignForm.mentor_user_id"
+                        @click="submitSuperAssign"
+                    >
+                        Assign
+                    </button>
                 </div>
             </div>
         </div>
@@ -2723,6 +2999,26 @@ onUnmounted(() => {
     border-radius: 8px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     overflow: hidden;
+}
+
+.modal-card--wide {
+    width: min(820px, 100%);
+}
+
+.modal-member-table {
+    max-height: 280px;
+    overflow: auto;
+}
+
+.management-edit-row td {
+    background: rgba(15, 23, 42, 0.96) !important;
+}
+
+.management-edit-form {
+    display: grid;
+    grid-template-columns: minmax(160px, 1.3fr) minmax(160px, 1.2fr) minmax(110px, 0.7fr) minmax(110px, 0.7fr) auto auto;
+    gap: 8px;
+    align-items: center;
 }
 
 .modal-head {
@@ -3574,6 +3870,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
+    .management-edit-form {
+        grid-template-columns: 1fr;
+    }
+
     .modal-card { padding: 14px !important; width: min(100%, 96vw) !important; }
     .modal-card h3 { font-size: 12px !important; }
     .modal-label { font-size: 11px !important; }

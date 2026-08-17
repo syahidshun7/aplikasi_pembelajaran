@@ -139,7 +139,77 @@ class DoopLabRoadmapController extends Controller
                 })
                 ->values()
                 ->all(),
+            'roadmapManagement' => $user->hasRole(User::ROLE_SUPER_ADMIN)
+                ? $this->serializeRoadmapManagementPayload()
+                : ['can_manage' => false, 'members' => [], 'mentors' => [], 'enrollments' => []],
         ]);
+    }
+
+    private function serializeRoadmapManagementPayload(): array
+    {
+        return [
+            'can_manage' => true,
+            'members' => User::query()
+                ->whereIn('role', [User::ROLE_STUDENT, User::ROLE_USER])
+                ->whereHas('inventories', fn ($query) => $query
+                    ->where('quantity', '>=', 1)
+                    ->whereHas('item', fn ($itemQuery) => $itemQuery->where('code', 'dooplab_key')))
+                ->orderBy('name')
+                ->get(['id', 'name', 'username', 'email', 'role'])
+                ->map(fn (User $member) => [
+                    'id' => (int) $member->id,
+                    'name' => (string) ($member->name ?? ''),
+                    'username' => (string) ($member->username ?? ''),
+                    'email' => (string) ($member->email ?? ''),
+                    'role' => (string) ($member->role ?? ''),
+                ])
+                ->values()
+                ->all(),
+            'mentors' => User::query()
+                ->whereIn('role', [User::ROLE_MENTOR, User::ROLE_ADMIN, User::ROLE_SUPER_ADMIN])
+                ->orderBy('name')
+                ->get(['id', 'name', 'username', 'role'])
+                ->map(fn (User $mentor) => [
+                    'id' => (int) $mentor->id,
+                    'name' => (string) ($mentor->name ?? ''),
+                    'username' => (string) ($mentor->username ?? ''),
+                    'role' => (string) ($mentor->role ?? ''),
+                ])
+                ->values()
+                ->all(),
+            'enrollments' => DoopLabRoadmapEnrollment::query()
+                ->with([
+                    'roadmap:id,uuid,title,is_published',
+                    'user:id,name,username,email,role',
+                    'mentor:id,name,username,role',
+                ])
+                ->latest('updated_at')
+                ->get()
+                ->map(fn (DoopLabRoadmapEnrollment $enrollment) => [
+                    'uuid' => (string) $enrollment->uuid,
+                    'status' => (string) $enrollment->status,
+                    'review_mode' => (string) ($enrollment->review_mode ?? DoopLabRoadmapEnrollment::REVIEW_MODE_MANUAL),
+                    'updated_at' => $enrollment->updated_at?->toIso8601String(),
+                    'roadmap' => [
+                        'uuid' => (string) ($enrollment->roadmap?->uuid ?? ''),
+                        'title' => (string) ($enrollment->roadmap?->title ?? ''),
+                        'is_published' => (bool) ($enrollment->roadmap?->is_published ?? false),
+                    ],
+                    'member' => [
+                        'id' => (int) ($enrollment->user?->id ?? 0),
+                        'name' => (string) ($enrollment->user?->name ?? ''),
+                        'username' => (string) ($enrollment->user?->username ?? ''),
+                        'email' => (string) ($enrollment->user?->email ?? ''),
+                    ],
+                    'mentor' => [
+                        'id' => (int) ($enrollment->mentor?->id ?? 0),
+                        'name' => (string) ($enrollment->mentor?->name ?? ''),
+                        'username' => (string) ($enrollment->mentor?->username ?? ''),
+                    ],
+                ])
+                ->values()
+                ->all(),
+        ];
     }
 
     public function storeRoadmap(Request $request): RedirectResponse

@@ -128,7 +128,7 @@ const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
                         v-if="!group.is_member && group.join_request_status !== 'pending'"
                         type="button"
                         :disabled="joinProcessing || !canManagePartyMembership || !canJoinByLevel(group)"
-                        class="border border-emerald-700 bg-emerald-900/50 px-3 py-1 text-[8px] uppercase text-emerald-400 transition-all hover:bg-emerald-500 hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
+                        class="party-action-btn party-action-btn--join px-3 py-1 text-[8px] uppercase transition-all disabled:cursor-not-allowed disabled:opacity-60"
                         @click="onJoin?.(group)"
                     >
                         {{
@@ -220,6 +220,17 @@ const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
     color: #fff;
 }
 
+.party-action-btn--join {
+    border-color: #047857;
+    background: rgba(6, 78, 59, 0.5);
+    color: #34d399;
+}
+
+.party-action-btn--join:hover:not(:disabled) {
+    background: #10b981;
+    color: #020617;
+}
+
 .party-section--light .party-action-btn--detail {
     border-color: #006f6f;
     background: #009999;
@@ -243,6 +254,19 @@ const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
 .party-section--light .party-action-btn--leave:hover:not(:disabled) {
     border-color: #b91c1c;
     background: #dc2626;
+    color: #fff;
+}
+
+.party-section--light .party-action-btn--join {
+    border-color: #047857;
+    background: #10b981;
+    color: #052e1b;
+    box-shadow: none;
+}
+
+.party-section--light .party-action-btn--join:hover:not(:disabled) {
+    border-color: #065f46;
+    background: #059669;
     color: #fff;
 }
 

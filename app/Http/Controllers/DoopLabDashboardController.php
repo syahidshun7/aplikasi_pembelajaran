@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Creation;
 use App\Models\CreationCollaborator;
 use App\Models\CreationCollaborationRequest;
+use App\Models\DoopLabRoadmap;
 use App\Models\DoopLabRoadmapEnrollment;
 use App\Models\DoopLabTodo;
 use App\Models\DoopLabLogbook;
