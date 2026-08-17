@@ -92,6 +92,11 @@ const handleLogout = () => {
                 HALL_OF_CREATIONS
             </Link>
 
+            <Link :href="route('admin.doopnews.index')"
+                  class="nav-item hover:text-amber-300 transition-colors text-amber-400">
+                DOOPNEWS
+            </Link>
+
             <NotificationBell variant="admin" />
 
             <div class="relative z-[130]">
@@ -107,6 +112,7 @@ const handleLogout = () => {
                     <Link v-if="isTrueSuperAdmin" href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
                     <Link v-if="isTrueSuperAdmin" :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
                     <Link v-if="isTrueSuperAdmin" :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
+                    <Link :href="route('admin.doopnews.index')" class="dropdown-item text-amber-300" @click="closeAllMenus">DOOPNEWS</Link>
                     <Link :href="route('admin.creations.queue')" class="dropdown-item" @click="closeAllMenus">CREATION REVIEW</Link>
                     <Link :href="route('admin.task-banks.index')" class="dropdown-item" @click="closeAllMenus">TASK BANK</Link>
                     <Link v-if="isAdminAccess" :href="route('admin.daily-quest-definitions.index')" class="dropdown-item" @click="closeAllMenus">DAILY QUEST</Link>
@@ -143,6 +149,7 @@ const handleLogout = () => {
                 <Link v-if="isTrueSuperAdmin" href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
                 <Link v-if="isTrueSuperAdmin" :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
                 <Link v-if="isTrueSuperAdmin" :href="route('admin.events.index')" class="dropdown-item" @click="closeAllMenus">EVENTS</Link>
+                <Link :href="route('admin.doopnews.index')" class="dropdown-item text-amber-300" @click="closeAllMenus">DOOPNEWS</Link>
                 <Link :href="route('admin.creations.queue')" class="dropdown-item" @click="closeAllMenus">CREATION REVIEW</Link>
                 <Link :href="route('admin.task-banks.index')" class="dropdown-item" @click="closeAllMenus">TASK BANK</Link>
                 <Link v-if="isAdminAccess" :href="route('admin.daily-quest-definitions.index')" class="dropdown-item" @click="closeAllMenus">DAILY QUEST</Link>

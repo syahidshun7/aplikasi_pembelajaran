@@ -1,7 +1,8 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
-defineProps({
+const props = defineProps({
     items: {
         type: Array,
         default: () => [],
@@ -10,6 +11,17 @@ defineProps({
         type: Boolean,
         default: false,
     },
+    newCount: {
+        type: Number,
+        default: 0,
+    },
+});
+
+const visibleNewItemCount = computed(() => {
+    return (props.items || []).filter((item) => Boolean(item?.is_new_for_user)).length;
+});
+const hiddenNewItemCount = computed(() => {
+    return Math.max(0, Number(props.newCount || 0) - visibleNewItemCount.value);
 });
 
 const hashGroupKey = (value) => {
@@ -74,6 +86,7 @@ const toneStyleForGuide = (item) => {
             >
                 <i class="fi fi-rr-book-alt text-[18px] leading-none"></i>
                 <span>View All Materials</span>
+                <span v-if="hiddenNewItemCount > 0" class="view-all-new-badge">{{ hiddenNewItemCount }} NEW</span>
             </Link>
         </div>
 
@@ -85,7 +98,10 @@ const toneStyleForGuide = (item) => {
                 :style="toneStyleForGuide(item)"
             >
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                    <span class="library-item-label text-[7px] uppercase">Study_Material</span>
+                    <div class="flex items-center gap-2">
+                        <span class="library-item-label text-[7px] uppercase">Study_Material</span>
+                        <span v-if="item.is_new_for_user" class="library-new-badge">NEW</span>
+                    </div>
                     <span class="text-[7px] uppercase text-slate-600">Ref.{{ item.uuid.substring(0, 5) }}</span>
                 </div>
                 <h3 class="mt-3 break-words text-[10px] uppercase text-white">{{ item.title }}</h3>
@@ -132,6 +148,10 @@ const toneStyleForGuide = (item) => {
     @apply inline-flex items-center gap-2 border-b-4 border-r-4 p-2 text-[8px] uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,0.5)] transition-colors;
 }
 
+.view-all-new-badge {
+    @apply inline-flex min-w-[30px] items-center justify-center rounded-full border border-red-200 bg-red-500 px-1.5 py-0.5 text-[7px] font-bold leading-none text-white shadow-[0_0_10px_rgba(239,68,68,0.45)];
+}
+
 .dashboard-empty-state {
     @apply flex min-h-[260px] flex-col items-center justify-center border-2 border-dashed border-slate-800 p-6 text-center;
 }
@@ -160,6 +180,21 @@ const toneStyleForGuide = (item) => {
 
 .library-item-label {
     color: color-mix(in srgb, var(--guide-tone-accent) 86%, #cbd5e1 14%);
+}
+
+.library-new-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #fecaca;
+    background: #ef4444;
+    color: #fff;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.62);
+    padding: 0.22rem 0.4rem;
+    font-size: 7px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.14em;
 }
 
 .library-item-group {

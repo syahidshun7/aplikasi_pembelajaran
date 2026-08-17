@@ -12,6 +12,7 @@ use App\Models\Quest;
 use App\Models\StudyGroup;
 use App\Models\StudyGroupJoinRequest;
 use App\Models\User;
+use App\Models\UserContentRead;
 use App\Services\LevelingService;
 use App\Services\StudyGroupAccessService;
 use App\Services\StudyGroupStaffAccessService;
@@ -75,14 +76,27 @@ class StudyGroupController extends Controller
             ->withQueryString();
 
         $viewerHasLevelGatePass = $this->groupAccessService->hasPaidLevelGatePass($user);
+        $groupIds = collect($groups->items())
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
-        $groups->getCollection()->transform(function (StudyGroup $group) use ($userGroupIds, $groupRequestStatuses, $user, $viewerHasLevelGatePass) {
+        foreach ($groupIds as $groupId) {
+            UserContentRead::markSeen($userId, UserContentRead::TYPE_STUDY_GROUP, $groupId);
+        }
+
+        $seenGroupIdSet = UserContentRead::seenContentIds($userId, UserContentRead::TYPE_STUDY_GROUP, $groupIds)
+            ->mapWithKeys(fn ($id) => [(int) $id => true])
+            ->all();
+
+        $groups->getCollection()->transform(function (StudyGroup $group) use ($userGroupIds, $groupRequestStatuses, $user, $viewerHasLevelGatePass, $seenGroupIdSet) {
             $payload = $group->toArray();
             $groupId = (int) $group->id;
             $payload['is_member'] = in_array($groupId, $userGroupIds, true);
             $payload['join_request_status'] = $groupRequestStatuses[$groupId] ?? null;
             $payload['min_level'] = (int) ($group->min_level ?? 1);
             $payload['has_level_gate_pass'] = $viewerHasLevelGatePass || $this->groupAccessService->hasPaidLevelGatePass($user, $group);
+            $payload['is_new_for_user'] = $this->isStudyGroupNewForUser($group, $seenGroupIdSet);
             return $payload;
         });
 
@@ -112,7 +126,22 @@ class StudyGroupController extends Controller
 
         abort_unless($isMember, 403, 'GROUP_DETAIL_FOR_MEMBERS_ONLY');
 
+        if (! $user?->isStaff()) {
+            UserContentRead::markSeen((int) $user->id, UserContentRead::TYPE_STUDY_GROUP, (int) $group->id);
+        }
+
         return Inertia::render('StudyGroups/Show', $this->buildStudyGroupDetailPayload($group));
+    }
+
+    private function isStudyGroupNewForUser(StudyGroup $group, array $seenGroupIdSet): bool
+    {
+        $groupId = (int) $group->id;
+        if ($groupId <= 0 || isset($seenGroupIdSet[$groupId])) {
+            return false;
+        }
+
+        return $group->created_at
+            && $group->created_at->greaterThanOrEqualTo(now()->subDays(30));
     }
 
     public function staffPreview(Request $request, string $uuid)

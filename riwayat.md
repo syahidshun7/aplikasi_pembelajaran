@@ -946,3 +946,70 @@
 - Konten yang dirender: identitas user, avatar, level, job emblem, profile notes, skill satellites, class telemetry, creation cards, statistik profil, link Hall of Creations, dan lobby.
 - Verifikasi berhasil: validasi `skin.json` dengan `ConvertFrom-Json`, `node --check` untuk `js/skin.js`, dan cek semua asset berisi tag `<svg>`.
 - Follow-up desain: CSS Cosmic Orbit dirombak agar tidak terasa seperti Toy Flight; navigasi menjadi command rail kiri, hero menjadi mission console, visual utama menjadi orbital view, telemetry tampil sebagai strip data, dan panel bawah menjadi command deck.
+
+### Rencana: DoopNews
+
+#### Tujuan
+- Menambahkan halaman berita/beranda info bernama `DoopNews`.
+- DoopNews menjadi pusat broadcast untuk:
+  - event baru;
+  - item shop baru;
+  - kelas/roadmap baru;
+  - quest baru;
+  - pengumuman umum;
+  - update aplikasi, patch notes, dan changelog.
+
+#### Konsep UI
+- DoopNews tampil sebagai feed berita untuk user yang sudah login.
+- Di lobby/dashboard user dapat ditambahkan section ringkas `Latest DoopNews` berisi beberapa posting terbaru.
+- Halaman detail berita menampilkan judul, kategori, tanggal publish, penulis, isi lengkap, dan tombol aksi jika berita terkait resource tertentu.
+- Untuk kategori update aplikasi, tampilannya bisa memuat versi aplikasi, ringkasan perubahan, dan daftar perubahan penting.
+
+#### Kategori Awal
+- `announcement`
+- `event`
+- `shop_item`
+- `class`
+- `quest`
+- `app_update`
+- `community`
+
+#### Hak Akses
+- Super admin/admin:
+  - dapat membuat, mengedit, publish, unpublish, dan menghapus semua posting DoopNews;
+  - dapat membuat posting kategori `app_update`.
+- Mentor/staff:
+  - dapat membuat dan publish posting sesuai scope kelas/event/quest yang mereka kelola;
+  - aturan scope detail perlu dicek saat implementasi.
+- User biasa:
+  - dapat mengirim posting sebagai draft/submission;
+  - posting user tidak langsung tampil publik;
+  - harus melalui moderation terlebih dahulu.
+
+#### Moderation User Post
+- Status posting:
+  - `draft`;
+  - `pending`;
+  - `approved`;
+  - `rejected`;
+  - `published`;
+  - `archived`.
+- User biasa menggunakan tombol `Kirim Kabar`.
+- Admin/mentor melihat daftar posting pending di halaman moderation.
+- Setelah approved/published, posting user tampil dengan label `Community Post`.
+
+#### Route yang Diusulkan
+- User feed: `/doopnews`
+- Detail berita: `/doopnews/{slug}`
+- Submit user: `/doopnews/submit`
+- Admin/moderation: `/admin/doopnews`
+
+#### Integrasi
+- Footer/version aplikasi bisa diarahkan ke DoopNews kategori `app_update`.
+- Notifikasi dapat dikirim saat posting penting dipublish.
+- Posting dapat memiliki optional action link ke event, item shop, kelas, quest, atau halaman eksternal.
+
+#### Catatan Keputusan
+- Nama final fitur: `DoopNews`.
+- DoopNews sebaiknya tetap terasa sebagai kanal resmi aplikasi, bukan sosial media bebas.
+- User biasa boleh berkontribusi, tetapi melalui approval agar feed tetap rapi dan tidak membingungkan.

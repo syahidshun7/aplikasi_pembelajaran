@@ -15,6 +15,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    newCount: {
+        type: Number,
+        default: 0,
+    },
 });
 
 const claimProcessingUuid = ref(null);
@@ -36,6 +40,12 @@ const dailyQuestItems = computed(() => {
 });
 const claimableDailyQuestCount = computed(() => {
     return dailyQuestItems.value.filter((quest) => Boolean(quest?.is_claimable)).length;
+});
+const visibleNewItemCount = computed(() => {
+    return (props.items || []).filter((quest) => Boolean(quest?.is_new_for_user)).length;
+});
+const hiddenNewItemCount = computed(() => {
+    return Math.max(0, Number(props.newCount || 0) - visibleNewItemCount.value);
 });
 
 const claimDailyQuest = (quest) => {
@@ -150,6 +160,7 @@ const partyLabelForQuest = (quest) => {
             >
                 <i class="fi fi-rr-target text-[18px] leading-none"></i>
                 <span>View All Quests</span>
+                <span v-if="hiddenNewItemCount > 0" class="view-all-new-badge">{{ hiddenNewItemCount }} NEW</span>
             </Link>
         </div>
 
@@ -232,9 +243,17 @@ const partyLabelForQuest = (quest) => {
                 ]"
             >
                 <div class="mb-3 flex items-start justify-between gap-2">
-                    <span class="border border-slate-600 bg-slate-800 px-2 py-1 text-[7px] uppercase text-slate-400">
-                        ID:{{ quest.id }}
-                    </span>
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <span class="border border-slate-600 bg-slate-800 px-2 py-1 text-[7px] uppercase text-slate-400">
+                            ID:{{ quest.id }}
+                        </span>
+                        <span
+                            v-if="quest.is_new_for_user"
+                            class="quest-new-badge"
+                        >
+                            NEW
+                        </span>
+                    </div>
                     <div class="flex flex-wrap items-center justify-end gap-1.5">
                         <span
                             :class="{
@@ -379,6 +398,10 @@ const partyLabelForQuest = (quest) => {
     @apply inline-flex items-center gap-2 border-b-4 border-r-4 p-2 text-[8px] uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,0.5)] transition-colors;
 }
 
+.view-all-new-badge {
+    @apply inline-flex min-w-[30px] items-center justify-center rounded-full border border-red-200 bg-red-500 px-1.5 py-0.5 text-[7px] font-bold leading-none text-white shadow-[0_0_10px_rgba(239,68,68,0.45)];
+}
+
 .dashboard-empty-state {
     @apply flex min-h-[320px] flex-col items-center justify-center border-2 border-dashed border-slate-800 p-6 text-center;
 }
@@ -432,6 +455,10 @@ const partyLabelForQuest = (quest) => {
     border-color: color-mix(in srgb, var(--quest-tone-border) 58%, transparent 42%);
     background: color-mix(in srgb, var(--quest-tone-bg) 76%, transparent 24%);
     color: color-mix(in srgb, var(--quest-tone-accent) 90%, #f8fafc 10%);
+}
+
+.quest-new-badge {
+    @apply inline-flex items-center justify-center border border-red-300 bg-red-500 px-2 py-1 text-[7px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_0_12px_rgba(239,68,68,0.62)];
 }
 
 .daily-claim-card__empty-copy {

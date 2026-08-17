@@ -213,7 +213,10 @@ const classLabelForQuest = (item) => {
                             class="quest-item-card p-3 border"
                             :style="toneStyleForQuest(item)"
                         >
-                            <p class="text-white uppercase text-[11px]">{{ item.title }}</p>
+                            <div class="flex items-start justify-between gap-2">
+                                <p class="text-white uppercase text-[11px]">{{ item.title }}</p>
+                                <span v-if="item.is_new_for_user" class="quest-new-badge">NEW</span>
+                            </div>
                             <div class="mt-2 flex flex-wrap gap-1">
                                 <span class="quest-item-badge px-2 py-1 border text-[8px] uppercase">
                                     {{ classLabelForQuest(item) }}
@@ -261,7 +264,12 @@ const classLabelForQuest = (item) => {
                                     class="quest-row border-b border-slate-800 hover:bg-slate-900/40"
                                     :style="toneStyleForQuest(item)"
                                 >
-                                    <td class="py-3 px-2 text-white uppercase">{{ item.title }}</td>
+                                    <td class="py-3 px-2 text-white uppercase">
+                                        <div class="flex items-center gap-2">
+                                            <span>{{ item.title }}</span>
+                                            <span v-if="item.is_new_for_user" class="quest-new-badge">NEW</span>
+                                        </div>
+                                    </td>
                                     <td class="py-3 px-2">
                                         <span class="quest-item-badge px-2 py-1 border text-[8px] uppercase">
                                             {{ classLabelForQuest(item) }}
@@ -335,6 +343,21 @@ const classLabelForQuest = (item) => {
     border-width: 4px;
     padding: 1rem;
     box-shadow: 8px 8px 0 0 rgba(0, 0, 0, 0.5);
+}
+
+.quest-new-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #fecaca;
+    background: #ef4444;
+    color: #fff;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.62);
+    padding: 0.25rem 0.45rem;
+    font-size: 7px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.14em;
 }
 
 .quest-item-card {

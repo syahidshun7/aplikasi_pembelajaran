@@ -8,6 +8,7 @@ use App\Models\Event;
 use App\Models\EventAttendance;
 use App\Models\EventCheckInCode;
 use App\Models\StudyGroup;
+use App\Models\UserContentRead;
 use App\Services\StudyGroupStaffAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -73,11 +74,25 @@ class UserEventController extends Controller
             })
             ->with(['studyGroup:id,name', 'job:id,name'])
             ->withCount(['guides', 'quests'])
+            ->orderByDesc('created_at')
             ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
-            ->orderBy('starts_at')
-            ->orderBy('sequence_order')
+            ->orderByDesc('starts_at')
+            ->orderByDesc('sequence_order')
             ->paginate(12)
             ->withQueryString();
+
+        $eventIds = collect($events->items())
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        $seenEventIdSet = UserContentRead::seenContentIds((int) ($user?->id ?? 0), UserContentRead::TYPE_EVENT, $eventIds)
+            ->mapWithKeys(fn ($id) => [(int) $id => true])
+            ->all();
+
+        $events->getCollection()->transform(function (Event $event) use ($seenEventIdSet) {
+            $event->is_new_for_user = $this->isEventNewForUser($event, $seenEventIdSet);
+            return $event;
+        });
 
         return Inertia::render('Events/UserIndex', [
             'events' => $events,
@@ -93,6 +108,9 @@ class UserEventController extends Controller
     {
         $user = Auth::user();
         $this->ensureUserCanAccessEvent($event, $user);
+        if (! $user?->isStaff()) {
+            UserContentRead::markSeen((int) ($user?->id ?? 0), UserContentRead::TYPE_EVENT, (int) $event->id);
+        }
 
         $event->load([
             'studyGroup:id,name',
@@ -384,5 +402,15 @@ class UserEventController extends Controller
         return back()->withErrors([
             'event' => 'Staff play mode tidak bisa mencatat attendance pemain.',
         ]);
+    }
+
+    private function isEventNewForUser(Event $event, array $seenEventIdSet): bool
+    {
+        $eventId = (int) $event->id;
+        if ($eventId <= 0 || isset($seenEventIdSet[$eventId])) {
+            return false;
+        }
+
+        return $event->created_at !== null && $event->created_at->gte(now()->subDays(30));
     }
 }

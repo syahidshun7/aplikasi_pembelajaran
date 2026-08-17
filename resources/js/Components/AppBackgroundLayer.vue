@@ -4,7 +4,7 @@ import { computed } from 'vue';
 const props = defineProps({
     image: {
         type: String,
-        default: '/images/bg-loby.png',
+        default: '/images/bg-loby.webp',
     },
     overlayClass: {
         type: [String, Array, Object],
@@ -18,10 +18,15 @@ const props = defineProps({
         type: Boolean,
         default: true,
     },
+    imagePosition: {
+        type: String,
+        default: 'center',
+    },
 });
 
 const backgroundStyle = computed(() => ({
     backgroundImage: `url('${props.image}')`,
+    backgroundPosition: props.imagePosition,
 }));
 </script>
 

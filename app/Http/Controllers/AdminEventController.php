@@ -13,6 +13,7 @@ use App\Models\StudyGroup;
 use App\Models\User;
 use App\Services\LmsNotificationService;
 use App\Services\StudyGroupStaffAccessService;
+use App\Support\Cache\CacheVersion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -114,6 +115,7 @@ class AdminEventController extends Controller
         $this->assertImageLimit($event, collect(), count($uploadedImages));
         $this->attachImages($event, $uploadedImages);
         $notifications->notifyEventPublished($event);
+        $this->bumpEventCaches();
 
         return back()->with('message', 'EVENT_CREATED');
     }
@@ -160,6 +162,7 @@ class AdminEventController extends Controller
         }
 
         $this->attachImages($event, $uploadedImages);
+        $this->bumpEventCaches();
 
         return back()->with('message', 'EVENT_UPDATED');
     }
@@ -168,6 +171,7 @@ class AdminEventController extends Controller
     {
         $this->assertMentorCanAccessEvent($event);
         $event->delete();
+        $this->bumpEventCaches();
 
         return back()->with('message', 'EVENT_DELETED');
     }
@@ -180,6 +184,7 @@ class AdminEventController extends Controller
         $this->assertMentorCanAccessEvent($event);
 
         $event->restore();
+        $this->bumpEventCaches();
 
         return back()->with('message', 'EVENT_RESTORED');
     }
@@ -192,6 +197,7 @@ class AdminEventController extends Controller
         $this->assertMentorCanAccessEvent($event);
 
         $event->forceDelete();
+        $this->bumpEventCaches();
 
         return back()->with('message', 'EVENT_PERMANENTLY_DELETED');
     }
@@ -284,7 +290,9 @@ class AdminEventController extends Controller
                         ->whereNull('gu.deleted_at');
                 });
             }, function ($query) use ($event) {
-                $query->where('users.job_id', (int) $event->job_id);
+                if ((int) ($event->job_id ?? 0) > 0) {
+                    $query->where('users.job_id', (int) $event->job_id);
+                }
             })
             ->orderBy('users.name')
             ->get()
@@ -498,7 +506,9 @@ class AdminEventController extends Controller
                         ->whereNull('gu.deleted_at');
                 });
             }, function ($query) use ($event) {
-                $query->where('users.job_id', (int) $event->job_id);
+                if ((int) ($event->job_id ?? 0) > 0) {
+                    $query->where('users.job_id', (int) $event->job_id);
+                }
             })
             ->pluck('users.id');
 
@@ -613,9 +623,7 @@ class AdminEventController extends Controller
         }
 
         if ($jobId <= 0) {
-            throw ValidationException::withMessages([
-                'job_id' => 'Pilih target job untuk event publik.',
-            ]);
+            $validated['job_id'] = null;
         }
 
         return $validated;
@@ -724,5 +732,10 @@ class AdminEventController extends Controller
                 'sort_order' => $nextSortOrder,
             ]);
         }
+    }
+
+    private function bumpEventCaches(): void
+    {
+        CacheVersion::bump('home');
     }
 }

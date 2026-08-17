@@ -32,7 +32,7 @@ const verificationLinkSent = computed(
     () => props.status === 'verification-link-sent',
 );
 const userEmail = computed(() => page.props.auth?.user?.email ?? '-');
-const backgroundImage = computed(() => themeMode.value === 'light' ? '/images/bg-loby5.png' : '/images/bg-loby.png');
+const backgroundImage = computed(() => themeMode.value === 'light' ? '/images/bg-loby5.webp' : '/images/bg-loby.webp');
 const backgroundOverlay = computed(() => themeMode.value === 'light' ? 'bg-[#f7f7f7]/88' : 'bg-black/65');
 </script>
 

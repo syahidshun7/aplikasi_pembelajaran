@@ -27,6 +27,10 @@ const isProfilePage = computed(() => {
 const isInventoryPage = computed(() => route().current() === 'inventory.index');
 const isShopPage = computed(() => route().current() === 'shop.index');
 const isHallPage = computed(() => String(route().current() || '').startsWith('hall.creations.'));
+const isDoopNewsPage = computed(() => {
+    const path = String(page.url || '').split('?')[0];
+    return path === '/doopnews' || path.startsWith('/doopnews/');
+});
 const isSubmissionPage = computed(() => String(page.url || '').split('?')[0].startsWith('/submissions/'));
 const isAdminUserPreviewPage = computed(() => {
     const path = String(page.url || '').split('?')[0];
@@ -49,13 +53,14 @@ const isLobbyDetailPage = computed(() => {
         || path.startsWith('/guides/')
         || path === '/events'
         || path.startsWith('/events/')
+        || isDoopNewsPage.value
         || path === '/notifications'
         || path === '/study-groups'
         || path.startsWith('/study-groups/');
 });
 const { themeMode } = useUserTheme();
 const userBackgroundImage = computed(() => (
-    themeMode.value === 'light' && isLobbyDetailPage.value ? '/images/bg-loby5.png' : '/images/bg-loby.png'
+    themeMode.value === 'light' && isLobbyDetailPage.value ? '/images/bg-loby5.webp' : '/images/bg-loby.webp'
 ));
 const userBackgroundOverlayClass = computed(() => (
     themeMode.value === 'light' && isLobbyDetailPage.value ? 'bg-[#f7f7f7]/92' : 'bg-black/65'
@@ -71,11 +76,16 @@ const usesInlineWorkspaceBackground = computed(() => (
         || isInventoryPage.value
         || isShopPage.value
         || isHallPage.value
+        || isDoopNewsPage.value
         || isSubmissionPage.value
     )
 ));
 const inlineWorkspaceBackgroundStyle = {
-    backgroundImage: "linear-gradient(rgba(247,247,247,0.18), rgba(247,247,247,0.18)), url('/images/bg-loby5.png')",
+    backgroundImage: "linear-gradient(rgba(247,247,247,0.18), rgba(247,247,247,0.18)), url('/images/bg-loby5.webp')",
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: 'cover',
+    backgroundAttachment: 'fixed',
 };
 </script>
 
@@ -92,6 +102,7 @@ const inlineWorkspaceBackgroundStyle = {
             'user-theme-root--dooplab': isDoopLabPage,
             'user-theme-root--lobby-detail': isLobbyDetailPage,
         }"
+        :style="usesInlineWorkspaceBackground && !immersive ? inlineWorkspaceBackgroundStyle : null"
     >
         <div
             v-if="usesInlineWorkspaceBackground && !immersive"

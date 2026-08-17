@@ -14,6 +14,7 @@ use App\Http\Controllers\AdminSubmissionManagementController;
 use App\Http\Controllers\AdminTaskBankController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminDailyQuestDefinitionController;
+use App\Http\Controllers\AdminDoopNewsController;
 use App\Http\Controllers\AdminCreationReviewController;
 use App\Http\Controllers\AdminOptionalQuestAiController;
 use App\Http\Controllers\DoopLabLogbookController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\DoopLabDashboardController;
 use App\Http\Controllers\DoopLabRoadmapController;
 use App\Http\Controllers\DoopLabRoadmapEnrollmentController;
 use App\Http\Controllers\DoopLabTodoController;
+use App\Http\Controllers\DoopNewsController;
 use App\Http\Controllers\ChatImageUploadController;
 use App\Models\User;
 use App\Http\Controllers\CreationApiController;
@@ -231,6 +233,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/{notificationId}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::post('/notifications/chat', [NotificationDispatchController::class, 'chat'])->name('notifications.chat');
+    Route::get('/doopnews', [DoopNewsController::class, 'index'])->name('doopnews.index');
+    Route::get('/doopnews/submit', [DoopNewsController::class, 'create'])->name('doopnews.create');
+    Route::get('/doopnews/my-posts', [DoopNewsController::class, 'mine'])->name('doopnews.mine');
+    Route::post('/doopnews', [DoopNewsController::class, 'store'])->name('doopnews.store');
+    Route::post('/doopnews/{post}/update', [DoopNewsController::class, 'update'])->name('doopnews.update');
+    Route::delete('/doopnews/{post}', [DoopNewsController::class, 'destroy'])->name('doopnews.destroy');
+    Route::get('/doopnews/{post}', [DoopNewsController::class, 'show'])->name('doopnews.show');
 
     Route::middleware('student_area')->group(function () {
         Route::get('/my-creations', [CreationPageController::class, 'index'])->name('creations.index');
@@ -403,6 +412,15 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
 
     Route::post('/admin/notifications/announcement', [NotificationDispatchController::class, 'announcement'])
         ->name('admin.notifications.announcement');
+
+    Route::prefix('admin/doopnews')->name('admin.doopnews.')->group(function () {
+        Route::get('/', [AdminDoopNewsController::class, 'index'])->name('index');
+        Route::post('/', [AdminDoopNewsController::class, 'store'])->name('store');
+        Route::put('/{post}', [AdminDoopNewsController::class, 'update'])->name('update');
+        Route::patch('/{post}/publish', [AdminDoopNewsController::class, 'publish'])->name('publish');
+        Route::patch('/{post}/reject', [AdminDoopNewsController::class, 'reject'])->name('reject');
+        Route::delete('/{post}', [AdminDoopNewsController::class, 'destroy'])->name('destroy');
+    });
 
     Route::prefix('admin/creations')->name('admin.creations.')->group(function () {
         Route::get('/review-queue', [AdminCreationReviewController::class, 'index'])->name('queue');

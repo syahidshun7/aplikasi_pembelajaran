@@ -388,7 +388,7 @@ onBeforeUnmount(() => {
                                     </option>
                                 </select>
                                 <p class="mt-2 text-[7px] uppercase text-slate-500">
-                                    {{ form.study_group_id ? 'Auto mengikuti job dari study group.' : 'Wajib dipilih jika event bersifat public.' }}
+                                    {{ form.study_group_id ? 'Auto mengikuti job dari study group.' : 'Kosongkan untuk event global semua user, atau pilih job untuk public per jurusan.' }}
                                 </p>
                             </div>
 

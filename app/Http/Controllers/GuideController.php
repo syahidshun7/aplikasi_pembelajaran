@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Guide;
 use App\Models\StudyGroup;
+use App\Models\UserContentRead;
 use App\Services\StudyGroupStaffAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -61,6 +62,19 @@ class GuideController extends Controller
             ->paginate(15)
             ->withQueryString();
 
+        $guideIds = collect($guides->items())
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        $seenGuideIdSet = UserContentRead::seenContentIds((int) ($user?->id ?? 0), UserContentRead::TYPE_GUIDE, $guideIds)
+            ->mapWithKeys(fn ($id) => [(int) $id => true])
+            ->all();
+
+        $guides->getCollection()->transform(function (Guide $guide) use ($seenGuideIdSet) {
+            $guide->is_new_for_user = $this->isGuideNewForUser($guide, $seenGuideIdSet);
+            return $guide;
+        });
+
         return Inertia::render('Guide/UserIndex', [
             'guides' => $guides,
             'filters' => [
@@ -74,6 +88,10 @@ class GuideController extends Controller
     public function userShow(Guide $guide): Response
     {
         $this->authorizeGuideAccessForCurrentUser($guide);
+        if (! Auth::user()?->isStaff()) {
+            UserContentRead::markSeen((int) Auth::id(), UserContentRead::TYPE_GUIDE, (int) $guide->id);
+        }
+
         $guide->load('studyGroup:id,name');
 
         return Inertia::render('Guide/UserShow', [
@@ -138,5 +156,15 @@ class GuideController extends Controller
             403,
             'GUIDE_PREVIEW_ACCESS_DENIED'
         );
+    }
+
+    private function isGuideNewForUser(Guide $guide, array $seenGuideIdSet): bool
+    {
+        $guideId = (int) $guide->id;
+        if ($guideId <= 0 || isset($seenGuideIdSet[$guideId])) {
+            return false;
+        }
+
+        return $guide->created_at !== null && $guide->created_at->gte(now()->subDays(30));
     }
 }
