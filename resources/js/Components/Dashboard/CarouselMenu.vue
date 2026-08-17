@@ -23,6 +23,10 @@ let syncTimer = null;
 let isReadyForScrollSync = false;
 let isSyncing = false;
 let isUpdatingFromScroll = false;
+let isMouseDragging = false;
+let didMouseDrag = false;
+let dragStartX = 0;
+let dragStartScrollLeft = 0;
 
 const setCardRef = (key) => (element) => {
     if (element) {
@@ -56,11 +60,11 @@ const centerCard = (key, behavior = 'smooth') => {
     });
 };
 
-const updateActiveFromScroll = () => {
+const getNearestKeyFromScroll = () => {
     const container = containerRef.value;
 
-    if (!container || !isReadyForScrollSync || isSyncing) {
-        return;
+    if (!container) {
+        return props.modelValue;
     }
 
     const containerRect = container.getBoundingClientRect();
@@ -84,6 +88,29 @@ const updateActiveFromScroll = () => {
             nearestKey = item.key;
         }
     });
+
+    return nearestKey;
+};
+
+const getDirectionalKey = (deltaX) => {
+    const currentIndex = props.items.findIndex((item) => item.key === props.modelValue);
+
+    if (currentIndex < 0 || Math.abs(deltaX) < 32) {
+        return getNearestKeyFromScroll();
+    }
+
+    const direction = deltaX < 0 ? 1 : -1;
+    const nextIndex = Math.min(Math.max(currentIndex + direction, 0), props.items.length - 1);
+
+    return props.items[nextIndex]?.key ?? props.modelValue;
+};
+
+const updateActiveFromScroll = () => {
+    if (!containerRef.value || !isReadyForScrollSync || isSyncing || isMouseDragging) {
+        return;
+    }
+
+    const nearestKey = getNearestKeyFromScroll();
 
     if (nearestKey && nearestKey !== props.modelValue) {
         isUpdatingFromScroll = true;
@@ -109,8 +136,74 @@ const handleScroll = () => {
 };
 
 const selectItem = (key) => {
+    if (didMouseDrag) {
+        return;
+    }
+
     emit('update:modelValue', key);
     nextTick(() => centerCard(key));
+};
+
+const handlePointerDown = (event) => {
+    const container = containerRef.value;
+
+    if (event.pointerType !== 'mouse' || !container || event.button !== 0) {
+        return;
+    }
+
+    isMouseDragging = true;
+    didMouseDrag = false;
+    dragStartX = event.clientX;
+    dragStartScrollLeft = container.scrollLeft;
+    container.classList.add('is-dragging');
+    container.setPointerCapture?.(event.pointerId);
+    window.clearTimeout(scrollEndTimer);
+};
+
+const handlePointerMove = (event) => {
+    const container = containerRef.value;
+
+    if (!isMouseDragging || !container) {
+        return;
+    }
+
+    const deltaX = event.clientX - dragStartX;
+
+    if (Math.abs(deltaX) > 4) {
+        didMouseDrag = true;
+    }
+
+    container.scrollLeft = dragStartScrollLeft - (deltaX * 0.32);
+};
+
+const handlePointerUp = (event) => {
+    const container = containerRef.value;
+
+    if (!isMouseDragging || !container) {
+        return;
+    }
+
+    isMouseDragging = false;
+    container.classList.remove('is-dragging');
+    container.releasePointerCapture?.(event.pointerId);
+
+    if (isReadyForScrollSync && didMouseDrag) {
+        const targetKey = getDirectionalKey(event.clientX - dragStartX);
+
+        if (targetKey && targetKey !== props.modelValue) {
+            emit('update:modelValue', targetKey);
+        }
+
+        nextTick(() => centerCard(targetKey || props.modelValue, 'smooth'));
+    } else if (isReadyForScrollSync) {
+        centerCard(props.modelValue, 'smooth');
+    }
+
+    if (didMouseDrag) {
+        window.setTimeout(() => {
+            didMouseDrag = false;
+        }, 0);
+    }
 };
 
 const getNodeClass = (key) => {
@@ -196,6 +289,11 @@ onBeforeUnmount(() => {
             class="carousel-track"
             aria-label="Dashboard navigation carousel"
             role="tablist"
+            @pointerdown="handlePointerDown"
+            @pointermove="handlePointerMove"
+            @pointerup="handlePointerUp"
+            @pointercancel="handlePointerUp"
+            @pointerleave="handlePointerUp"
         >
             <div class="carousel-track__spacer" aria-hidden="true"></div>
 
@@ -250,6 +348,13 @@ onBeforeUnmount(() => {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
     touch-action: pan-x;
+    cursor: grab;
+    user-select: none;
+}
+
+.carousel-track.is-dragging {
+    cursor: grabbing;
+    scroll-behavior: auto;
 }
 
 .carousel-track::-webkit-scrollbar {
@@ -264,6 +369,7 @@ onBeforeUnmount(() => {
     @apply snap-center border-none bg-transparent p-0 text-left outline-none transition-all duration-500 ease-in-out;
     flex: 0 0 min(72vw, 292px);
     scroll-snap-align: center;
+    user-select: none;
 }
 
 .carousel-card__frame {

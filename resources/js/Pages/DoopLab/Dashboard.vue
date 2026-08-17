@@ -1545,6 +1545,184 @@ onUnmounted(() => {
                             </section>
                         </template>
 
+                        <template v-else-if="false">
+                            <section class="learning-path-list custom-scroll">
+                                <div class="todo-nav-header dooplab-light-section-label">
+                                    <span>Roadmaps</span>
+                                    <span>{{ managedRoadmaps.length }}</span>
+                                </div>
+
+                                <p v-if="!managedRoadmaps.length" class="source-empty">
+                                    Belum ada roadmap di sistem.
+                                </p>
+
+                                <button
+                                    v-for="roadmap in managedRoadmaps"
+                                    :key="roadmap.uuid"
+                                    type="button"
+                                    class="learning-path-card"
+                                    :class="{ 'is-active': selectedManagedRoadmapUuid === roadmap.uuid }"
+                                    @click="selectManagedRoadmap(roadmap)"
+                                >
+                                    <div class="learning-path-body">
+                                        <div class="learning-path-topline">
+                                            <span>{{ roadmap.is_published ? 'Published' : 'Draft' }}</span>
+                                            <strong>{{ managedRoadmapEnrollments.filter((item) => item.roadmap?.uuid === roadmap.uuid).length }} MEMBER</strong>
+                                        </div>
+                                        <h3>{{ roadmap.title || 'Untitled Roadmap' }}</h3>
+                                    </div>
+                                    <span class="learning-path-cta"><i class="fi fi-rr-angle-small-right"></i></span>
+                                </button>
+
+                                <template v-if="selectedManagedRoadmap">
+                                    <div class="todo-nav-header dooplab-light-section-label mt-4">
+                                        <span>Members · {{ selectedManagedRoadmap.title }}</span>
+                                        <span>{{ selectedRoadmapEnrollments.length }}</span>
+                                    </div>
+
+                                    <div class="todo-modal-actions">
+                                        <button v-if="roadmapPanelMode !== 'list'" type="button" class="nb-btn nb-btn--ghost" @click="showRoadmapListPanel">
+                                            <i class="fi fi-rr-angle-small-left"></i> Kembali
+                                        </button>
+                                        <button v-if="roadmapPanelMode === 'list'" type="button" class="nb-btn nb-btn--solid" @click="showRoadmapAddPanel">
+                                            <i class="fi fi-rr-user-add"></i> Tambah Member
+                                        </button>
+                                    </div>
+
+                                    <p v-if="roadmapPanelMode === 'list' && !selectedRoadmapEnrollments.length" class="source-empty">
+                                        Belum ada member yang terhubung ke roadmap ini.
+                                    </p>
+
+                                    <article v-for="item in selectedRoadmapEnrollments" v-if="roadmapPanelMode === 'list'" :key="item.uuid" class="learning-path-card">
+                                        <div class="learning-path-body">
+                                            <div class="learning-path-topline">
+                                                <span>{{ String(item.status || 'active').toUpperCase() }}</span>
+                                                <strong>{{ String(item.review_mode || 'manual').toUpperCase() }}</strong>
+                                            </div>
+                                            <h3>{{ item.student?.name || '-' }} (@{{ item.student?.username || '-' }})</h3>
+                                            <div class="learning-path-meta">
+                                                <span>Mentor: {{ item.mentor?.name || '-' }} (@{{ item.mentor?.username || '-' }})</span>
+                                            </div>
+                                            <small class="todo-field-note">Updated: {{ formatDateTime(item.updated_at) }}</small>
+                                        </div>
+                                        <div class="todo-modal-actions">
+                                            <button type="button" class="nb-btn nb-btn--ghost" @click="startEditRoadmapEnrollment(item)">
+                                                <i class="fi fi-rr-pencil"></i> Edit
+                                            </button>
+                                            <button type="button" class="nb-btn nb-btn--ghost" @click="removeRoadmapEnrollment(item)">
+                                                <i class="fi fi-rr-trash"></i> Hapus
+                                            </button>
+                                        </div>
+                                    </article>
+
+                                    <form v-else-if="roadmapPanelMode === 'add'" class="todo-panel-form mt-4" @submit.prevent="submitRoadmapMembers">
+                                        <div class="todo-nav-header dooplab-light-section-label">
+                                            <span>Tambah Member</span>
+                                            <span>{{ addRoadmapMembersForm.user_ids.length }} dipilih</span>
+                                        </div>
+
+                                        <div class="todo-field">
+                                            <span>Member</span>
+                                            <div v-if="availableManagedStudents.length" class="custom-scroll" style="max-height: 220px; overflow-y: auto;">
+                                                <label v-for="student in availableManagedStudents" :key="student.id" class="todo-field-note" style="display: flex; gap: 10px; align-items: center; padding: 8px 0;">
+                                                    <input v-model="addRoadmapMembersForm.user_ids" type="checkbox" :value="student.id">
+                                                    <span>{{ student.name }} (@{{ student.username || '-' }})</span>
+                                                </label>
+                                            </div>
+                                            <small v-else class="todo-field-note">Semua member sudah terhubung ke roadmap ini.</small>
+                                            <small v-if="addRoadmapMembersForm.errors.user_ids" class="todo-error">{{ addRoadmapMembersForm.errors.user_ids }}</small>
+                                        </div>
+
+                                        <label class="todo-field">
+                                            <span>Mentor / Staff</span>
+                                            <select v-model="addRoadmapMembersForm.mentor_user_id" required>
+                                                <option :value="null">Pilih mentor</option>
+                                                <option v-for="mentor in managedMentors" :key="mentor.id" :value="mentor.id">
+                                                    {{ mentor.name }} (@{{ mentor.username || '-' }}) - {{ String(mentor.role || '').toUpperCase() }}
+                                                </option>
+                                            </select>
+                                        </label>
+
+                                        <label class="todo-field">
+                                            <span>Review Mode</span>
+                                            <select v-model="addRoadmapMembersForm.review_mode">
+                                                <option value="manual">Manual</option>
+                                                <option value="auto">Auto</option>
+                                            </select>
+                                        </label>
+
+                                        <div class="todo-modal-actions">
+                                            <button type="submit" class="nb-btn nb-btn--solid" :disabled="addRoadmapMembersForm.processing || !addRoadmapMembersForm.user_ids.length || !addRoadmapMembersForm.mentor_user_id">
+                                                {{ addRoadmapMembersForm.processing ? 'Menambahkan...' : 'Tambahkan Member' }}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </template>
+
+                                <form
+                                    v-if="roadmapPanelMode === 'edit' && editingRoadmapEnrollmentUuid"
+                                    class="todo-panel-form mt-4"
+                                    @submit.prevent="submitRoadmapEnrollment"
+                                >
+                                    <div class="todo-nav-header dooplab-light-section-label">
+                                        <span>Edit Assignment</span>
+                                        <span>{{ editingRoadmapEnrollmentUuid.slice(0, 8) }}</span>
+                                    </div>
+
+                                    <p class="todo-field-note">Member: {{ editingRoadmapEnrollment?.student?.name || '-' }}</p>
+
+                                    <label class="todo-field">
+                                        <span>Roadmap Tujuan</span>
+                                        <select v-model="roadmapManagementForm.roadmap_uuid" required>
+                                            <option v-for="roadmap in managedRoadmaps" :key="roadmap.uuid" :value="roadmap.uuid">
+                                                {{ roadmap.title }} - {{ roadmap.is_published ? 'Published' : 'Draft' }}
+                                            </option>
+                                        </select>
+                                        <small class="todo-field-note">Ubah pilihan ini untuk memindahkan member ke roadmap lain.</small>
+                                        <small v-if="roadmapManagementForm.errors.roadmap_uuid" class="todo-error">{{ roadmapManagementForm.errors.roadmap_uuid }}</small>
+                                    </label>
+
+                                    <label class="todo-field">
+                                        <span>Mentor / Staff</span>
+                                        <select v-model="roadmapManagementForm.mentor_user_id" required>
+                                            <option :value="null">Pilih mentor</option>
+                                            <option v-for="mentor in managedMentors" :key="mentor.id" :value="mentor.id">
+                                                {{ mentor.name }} (@{{ mentor.username || '-' }}) - {{ String(mentor.role || '').toUpperCase() }}
+                                            </option>
+                                        </select>
+                                        <small v-if="roadmapManagementForm.errors.mentor_user_id" class="todo-error">{{ roadmapManagementForm.errors.mentor_user_id }}</small>
+                                    </label>
+
+                                    <div class="todo-date-grid">
+                                        <label class="todo-field todo-field--date">
+                                            <span>Status</span>
+                                            <select v-model="roadmapManagementForm.status">
+                                                <option value="active">Active</option>
+                                                <option value="ended">Ended</option>
+                                            </select>
+                                            <small v-if="roadmapManagementForm.errors.status" class="todo-error">{{ roadmapManagementForm.errors.status }}</small>
+                                        </label>
+
+                                        <label class="todo-field todo-field--date">
+                                            <span>Review Mode</span>
+                                            <select v-model="roadmapManagementForm.review_mode">
+                                                <option value="manual">Manual</option>
+                                                <option value="auto">Auto</option>
+                                            </select>
+                                            <small v-if="roadmapManagementForm.errors.review_mode" class="todo-error">{{ roadmapManagementForm.errors.review_mode }}</small>
+                                        </label>
+                                    </div>
+
+                                    <div class="todo-modal-actions">
+                                        <button type="button" class="nb-btn nb-btn--ghost" @click="cancelEditRoadmapEnrollment">Batal</button>
+                                        <button type="submit" class="nb-btn nb-btn--solid" :disabled="roadmapManagementForm.processing">
+                                            {{ roadmapManagementForm.processing ? 'Menyimpan...' : 'Simpan Assignment' }}
+                                        </button>
+                                    </div>
+                                </form>
+                            </section>
+                        </template>
+
                         <template v-else-if="panelMode === 'hire_mentor'">
                             <section class="hire-mentor-workspace">
                                 <div class="mentor-user-list">

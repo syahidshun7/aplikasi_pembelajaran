@@ -256,7 +256,9 @@ class AdminStudyGroupController extends Controller
                     'status' => $latest
                         ? (string) ($latest->status ?? 'Pending')
                         : 'Not_Started',
-                    'submission_uuid' => $effective?->uuid ? (string) $effective->uuid : null,
+                    'submission_uuid' => ($effective?->uuid ?: $latest?->uuid)
+                        ? (string) ($effective?->uuid ?: $latest?->uuid)
+                        : null,
                     'attempts' => (int) $attempts->count(),
                     'submitted_at' => $latest?->created_at?->toISOString(),
                 ];

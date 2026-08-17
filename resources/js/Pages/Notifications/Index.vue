@@ -122,6 +122,16 @@ const markAsRead = async (id) => {
     router.reload({ only: ['notifications', 'notificationCenter'] });
 };
 
+const openNotification = async (notification) => {
+    if (!notification) return;
+
+    if (notification.id && !notification.read_at) {
+        await window.axios.post(route('notifications.read', notification.id));
+    }
+
+    router.visit(resolvedActionUrl(notification));
+};
+
 const markAllAsRead = async () => {
     if (!canMarkAllRead.value) return;
 
@@ -167,8 +177,13 @@ const goToPage = (url) => {
                 <article
                     v-for="notification in notificationItems"
                     :key="notification.id"
-                    class="notification-item-card border p-3 transition-colors hover:bg-white/[0.03]"
+                    class="notification-item-card cursor-pointer border p-3 transition-colors hover:bg-white/[0.03]"
                     :class="panelAccentClass(notification.accent)"
+                    role="button"
+                    tabindex="0"
+                    @click="openNotification(notification)"
+                    @keydown.enter.prevent="openNotification(notification)"
+                    @keydown.space.prevent="openNotification(notification)"
                 >
                     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div class="min-w-0 flex-1">
@@ -193,13 +208,14 @@ const goToPage = (url) => {
                                 v-if="!notification.read_at"
                                 type="button"
                                 class="border border-amber-700 px-2.5 py-1.5 text-[7px] uppercase text-amber-300 transition-colors hover:bg-amber-500 hover:text-black"
-                                @click="markAsRead(notification.id)"
+                                @click.stop="markAsRead(notification.id)"
                             >
                                 Mark Read
                             </button>
                             <Link
                                 :href="resolvedActionUrl(notification)"
                                 class="border border-cyan-700 px-2.5 py-1.5 text-[7px] uppercase text-cyan-300 transition-colors hover:bg-cyan-400 hover:text-black"
+                                @click.stop
                             >
                                 {{ notification.action_label || 'Buka' }}
                             </Link>
@@ -335,8 +351,13 @@ const goToPage = (url) => {
                             <article
                                 v-for="notification in notificationItems"
                                 :key="notification.id"
-                                class="border-l-4 bg-slate-900/50 p-4 transition-all hover:bg-slate-800/80"
+                                class="cursor-pointer border-l-4 bg-slate-900/50 p-4 transition-all hover:bg-slate-800/80"
                                 :class="adminRowAccentClass(notification.accent)"
+                                role="button"
+                                tabindex="0"
+                                @click="openNotification(notification)"
+                                @keydown.enter.prevent="openNotification(notification)"
+                                @keydown.space.prevent="openNotification(notification)"
                             >
                                 <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                                     <div class="min-w-0 flex-1">
@@ -366,7 +387,7 @@ const goToPage = (url) => {
                                             v-if="!notification.read_at"
                                             type="button"
                                             class="border px-3 py-2 text-[8px] uppercase transition-all border-amber-700 text-amber-300 hover:bg-amber-500 hover:text-black"
-                                            @click="markAsRead(notification.id)"
+                                            @click.stop="markAsRead(notification.id)"
                                         >
                                             [MARK_READ]
                                         </button>
@@ -374,6 +395,7 @@ const goToPage = (url) => {
                                             :href="resolvedActionUrl(notification)"
                                             class="border px-3 py-2 text-[8px] uppercase transition-all"
                                             :class="actionToneClass(notification.accent)"
+                                            @click.stop
                                         >
                                             [{{ notification.action_label || 'Buka' }}]
                                         </Link>

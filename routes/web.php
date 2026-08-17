@@ -203,6 +203,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/dooplab/enrollments/{enrollment}', [DoopLabRoadmapEnrollmentController::class, 'show'])->name('dooplab.roadmaps.enrollments.show');
     Route::post('/dooplab/enrollments', [DoopLabRoadmapEnrollmentController::class, 'store'])->name('dooplab.roadmaps.enrollments.store');
     Route::delete('/dooplab/enrollments/{enrollment}', [DoopLabRoadmapEnrollmentController::class, 'destroy'])->name('dooplab.roadmaps.enrollments.destroy');
+    Route::patch('/dooplab/enrollments/{enrollment}/assignment', [DoopLabRoadmapEnrollmentController::class, 'updateAssignment'])->name('dooplab.roadmaps.enrollments.assignment.update');
+    Route::post('/dooplab/roadmap-management/assignments', [DoopLabRoadmapEnrollmentController::class, 'storeAssignments'])->name('dooplab.roadmap-management.assignments.store');
     Route::post('/dooplab/enrollments/{enrollment}/nodes/{nodeUuid}/submit', [DoopLabRoadmapEnrollmentController::class, 'submit'])->name('dooplab.roadmaps.enrollments.submit');
     Route::post('/dooplab/enrollments/{enrollment}/nodes/{nodeUuid}/review', [DoopLabRoadmapEnrollmentController::class, 'review'])->name('dooplab.roadmaps.enrollments.review');
     Route::post('/dooplab/enrollments/{enrollment}/nodes/{nodeUuid}/unlock', [DoopLabRoadmapEnrollmentController::class, 'unlock'])->name('dooplab.roadmaps.enrollments.unlock');
@@ -223,6 +225,12 @@ Route::middleware('auth')->group(function () {
     Route::patch('/dooplab/logbooks/{logbook}/entries/{entry}', [DoopLabLogbookController::class, 'updateEntry'])->name('dooplab.logbooks.entries.update');
     Route::patch('/dooplab/logbooks/{logbook}/entries/{entry}/approve', [DoopLabLogbookController::class, 'approveEntry'])->name('dooplab.logbooks.entries.approve');
     Route::delete('/dooplab/logbooks/{logbook}/entries/{entry}', [DoopLabLogbookController::class, 'destroyEntry'])->name('dooplab.logbooks.entries.destroy');
+
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
+    Route::post('/notifications/{notificationId}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::post('/notifications/chat', [NotificationDispatchController::class, 'chat'])->name('notifications.chat');
 
     Route::middleware('student_area')->group(function () {
         Route::get('/my-creations', [CreationPageController::class, 'index'])->name('creations.index');
@@ -277,11 +285,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/shop/gold-transfer', [ShopController::class, 'transfer'])
             ->middleware('verified')
             ->name('shop.gold-transfer');
-        Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
-        Route::get('/notifications/feed', [NotificationController::class, 'feed'])->name('notifications.feed');
-        Route::post('/notifications/{notificationId}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
-        Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
-        Route::post('/notifications/chat', [NotificationDispatchController::class, 'chat'])->name('notifications.chat');
         Route::post('/chat/images', [ChatImageUploadController::class, 'store'])->name('chat.images.store');
         Route::post('/daily-quests/{dailyQuest}/claim', [DailyQuestController::class, 'claim'])
             ->middleware('verified')
