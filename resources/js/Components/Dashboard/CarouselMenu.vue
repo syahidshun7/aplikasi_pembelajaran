@@ -23,10 +23,6 @@ let syncTimer = null;
 let isReadyForScrollSync = false;
 let isSyncing = false;
 let isUpdatingFromScroll = false;
-let isMouseDragging = false;
-let didMouseDrag = false;
-let dragStartX = 0;
-let dragStartScrollLeft = 0;
 
 const setCardRef = (key) => (element) => {
     if (element) {
@@ -92,21 +88,8 @@ const getNearestKeyFromScroll = () => {
     return nearestKey;
 };
 
-const getDirectionalKey = (deltaX) => {
-    const currentIndex = props.items.findIndex((item) => item.key === props.modelValue);
-
-    if (currentIndex < 0 || Math.abs(deltaX) < 32) {
-        return getNearestKeyFromScroll();
-    }
-
-    const direction = deltaX < 0 ? 1 : -1;
-    const nextIndex = Math.min(Math.max(currentIndex + direction, 0), props.items.length - 1);
-
-    return props.items[nextIndex]?.key ?? props.modelValue;
-};
-
 const updateActiveFromScroll = () => {
-    if (!containerRef.value || !isReadyForScrollSync || isSyncing || isMouseDragging) {
+    if (!containerRef.value || !isReadyForScrollSync || isSyncing) {
         return;
     }
 
@@ -136,74 +119,8 @@ const handleScroll = () => {
 };
 
 const selectItem = (key) => {
-    if (didMouseDrag) {
-        return;
-    }
-
     emit('update:modelValue', key);
     nextTick(() => centerCard(key));
-};
-
-const handlePointerDown = (event) => {
-    const container = containerRef.value;
-
-    if (event.pointerType !== 'mouse' || !container || event.button !== 0) {
-        return;
-    }
-
-    isMouseDragging = true;
-    didMouseDrag = false;
-    dragStartX = event.clientX;
-    dragStartScrollLeft = container.scrollLeft;
-    container.classList.add('is-dragging');
-    container.setPointerCapture?.(event.pointerId);
-    window.clearTimeout(scrollEndTimer);
-};
-
-const handlePointerMove = (event) => {
-    const container = containerRef.value;
-
-    if (!isMouseDragging || !container) {
-        return;
-    }
-
-    const deltaX = event.clientX - dragStartX;
-
-    if (Math.abs(deltaX) > 4) {
-        didMouseDrag = true;
-    }
-
-    container.scrollLeft = dragStartScrollLeft - (deltaX * 0.32);
-};
-
-const handlePointerUp = (event) => {
-    const container = containerRef.value;
-
-    if (!isMouseDragging || !container) {
-        return;
-    }
-
-    isMouseDragging = false;
-    container.classList.remove('is-dragging');
-    container.releasePointerCapture?.(event.pointerId);
-
-    if (isReadyForScrollSync && didMouseDrag) {
-        const targetKey = getDirectionalKey(event.clientX - dragStartX);
-
-        if (targetKey && targetKey !== props.modelValue) {
-            emit('update:modelValue', targetKey);
-        }
-
-        nextTick(() => centerCard(targetKey || props.modelValue, 'smooth'));
-    } else if (isReadyForScrollSync) {
-        centerCard(props.modelValue, 'smooth');
-    }
-
-    if (didMouseDrag) {
-        window.setTimeout(() => {
-            didMouseDrag = false;
-        }, 0);
-    }
 };
 
 const getNodeClass = (key) => {
@@ -211,6 +128,7 @@ const getNodeClass = (key) => {
         quest: 'mission',
         library: 'archive',
         townhall: 'event',
+        doopnews: 'broadcast',
         party: 'guild',
         leaderboard: 'rank',
     };
@@ -223,11 +141,22 @@ const getNodeType = (key) => {
         quest: 'Mission Board',
         library: 'Archive Node',
         townhall: 'Live Events',
+        doopnews: 'Broadcast Board',
         party: 'Guild Party',
         leaderboard: 'Rank Board',
     };
 
     return labels[key] ?? 'System Node';
+};
+
+const badgeCountLabel = (value) => {
+    const count = Number(value || 0);
+
+    if (count <= 0) {
+        return '';
+    }
+
+    return count > 99 ? '99+' : String(count);
 };
 
 const handleResize = () => {
@@ -289,11 +218,6 @@ onBeforeUnmount(() => {
             class="carousel-track"
             aria-label="Dashboard navigation carousel"
             role="tablist"
-            @pointerdown="handlePointerDown"
-            @pointermove="handlePointerMove"
-            @pointerup="handlePointerUp"
-            @pointercancel="handlePointerUp"
-            @pointerleave="handlePointerUp"
         >
             <div class="carousel-track__spacer" aria-hidden="true"></div>
 
@@ -308,6 +232,13 @@ onBeforeUnmount(() => {
                 @click="selectItem(item.key)"
             >
                 <div class="carousel-card__frame" :class="[item.accent, `carousel-card__frame--${getNodeClass(item.key)}`]">
+                    <span
+                        v-if="Number(item.badge_count || 0) > 0"
+                        class="carousel-card__new-dot"
+                        :aria-label="`${badgeCountLabel(item.badge_count)} new item`"
+                    >
+                        {{ badgeCountLabel(item.badge_count) }}
+                    </span>
                     <div class="carousel-card__header">
                         <div class="carousel-card__icon">
                             <i :class="item.icon"></i>
@@ -348,13 +279,6 @@ onBeforeUnmount(() => {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
     touch-action: pan-x;
-    cursor: grab;
-    user-select: none;
-}
-
-.carousel-track.is-dragging {
-    cursor: grabbing;
-    scroll-behavior: auto;
 }
 
 .carousel-track::-webkit-scrollbar {
@@ -374,6 +298,10 @@ onBeforeUnmount(() => {
 
 .carousel-card__frame {
     @apply relative flex min-h-[188px] flex-col justify-between overflow-hidden border-2 border-[#31445f] bg-[#111827]/95 p-4 shadow-[0_18px_34px_rgba(3,8,18,0.48)];
+}
+
+.carousel-card__new-dot {
+    @apply absolute right-3 top-3 z-20 flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full border border-red-200 bg-red-500 px-1.5 text-[7px] font-bold leading-none text-white shadow-[0_0_14px_rgba(239,68,68,0.78)];
 }
 
 .carousel-card__frame::before {
@@ -460,6 +388,12 @@ onBeforeUnmount(() => {
         linear-gradient(160deg, rgba(15, 29, 46, 0.98), rgba(17, 24, 39, 0.98));
 }
 
+.from-rose-node {
+    background:
+        linear-gradient(180deg, rgba(244, 63, 94, 0.16), rgba(255,255,255,0) 22%),
+        linear-gradient(160deg, rgba(48, 18, 32, 0.98), rgba(17, 24, 39, 0.98));
+}
+
 .from-emerald-node {
     background:
         linear-gradient(180deg, rgba(16, 185, 129, 0.16), rgba(255,255,255,0) 22%),
@@ -482,6 +416,10 @@ onBeforeUnmount(() => {
 
 .carousel-card__frame--event {
     box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.14);
+}
+
+.carousel-card__frame--broadcast {
+    box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.12);
 }
 
 .carousel-card__frame--guild {
@@ -537,6 +475,7 @@ onBeforeUnmount(() => {
 [data-theme='light'] .from-amber-node,
 [data-theme='light'] .from-indigo-node,
 [data-theme='light'] .from-blue-node,
+[data-theme='light'] .from-rose-node,
 [data-theme='light'] .from-emerald-node,
 [data-theme='light'] .from-cyan-node {
     background:

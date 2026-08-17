@@ -4,7 +4,7 @@
         @php
             $defaultTitle = config('app.name', 'DOOPTECH');
             $defaultDescription = 'DOOPTECH adalah aplikasi pembelajaran berbasis game yang menghubungkan pemula dan profesional dalam satu ekosistem belajar.';
-            $defaultImage = url('/images/bg-loby2.png');
+            $defaultImage = url('/images/bg-loby2.webp');
         @endphp
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -50,7 +50,7 @@
         @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
         @inertiaHead
 
-    <link rel="preload" as="image" href="/images/bg-loby.png">
+    <link rel="preload" as="image" href="/images/bg-loby.webp">
     <link rel="preload" as="image" href="/images/logo.png">
     </head>
     <body class="font-sans antialiased">

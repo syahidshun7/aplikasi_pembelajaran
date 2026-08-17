@@ -153,7 +153,10 @@ const toneStyleForGuide = (item) => {
                             class="guide-item-card p-3 border"
                             :style="toneStyleForGuide(item)"
                         >
-                            <p class="text-white uppercase text-[11px]">{{ item.title }}</p>
+                            <div class="flex items-start justify-between gap-2">
+                                <p class="text-white uppercase text-[11px]">{{ item.title }}</p>
+                                <span v-if="item.is_new_for_user" class="guide-new-badge">NEW</span>
+                            </div>
                             <p class="guide-item-type mt-1 text-[8px] uppercase">
                                 {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
                             </p>
@@ -196,7 +199,12 @@ const toneStyleForGuide = (item) => {
                                 class="guide-row border-b border-slate-800 hover:bg-slate-900/40"
                                 :style="toneStyleForGuide(item)"
                             >
-                                <td class="py-3 px-2 text-white uppercase">{{ item.title }}</td>
+                                <td class="py-3 px-2 text-white uppercase">
+                                    <div class="flex items-center gap-2">
+                                        <span>{{ item.title }}</span>
+                                        <span v-if="item.is_new_for_user" class="guide-new-badge">NEW</span>
+                                    </div>
+                                </td>
                                 <td class="py-3 px-2">
                                     <span
                                         class="guide-item-badge px-2 py-1 border text-[8px] uppercase"
@@ -275,6 +283,21 @@ const toneStyleForGuide = (item) => {
 
 .guide-item-type {
     color: color-mix(in srgb, var(--guide-tone-accent) 88%, #f8fafc 12%);
+}
+
+.guide-new-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #fecaca;
+    background: #ef4444;
+    color: #fff;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.62);
+    padding: 0.25rem 0.45rem;
+    font-size: 7px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.14em;
 }
 
 .guide-row {

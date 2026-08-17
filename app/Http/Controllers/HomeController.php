@@ -11,6 +11,8 @@ use App\Models\User;
 use App\Models\Guide; // Ganti dengan nama model materimu jika berbeda
 use App\Models\JobRole;
 use App\Models\Event;
+use App\Models\DoopNewsPost;
+use App\Models\UserContentRead;
 use App\Models\UserQuestUnlock;
 use App\Services\LevelingService;
 use App\Support\Cache\CacheVersion;
@@ -123,7 +125,19 @@ class HomeController extends Controller
         ]);
     }
 
-    $quests = Cache::remember(
+    $partialKeys = collect();
+    $shouldLoadAll = true;
+    $shouldLoadQuests = true;
+    $shouldLoadGuides = true;
+    $shouldLoadLeaderboard = true;
+    $shouldLoadStudyGroups = true;
+    $shouldLoadEvents = true;
+    $shouldLoadDoopNews = true;
+    $shouldLoadDailyQuestBoard = true;
+    $shouldLoadNewContentCounts = true;
+
+    if ($shouldLoadQuests) {
+        $quests = Cache::remember(
         "home.quests.v{$homeCacheVersion}.with_group_v2.job.{$jobKey}.groups.{$groupKey}",
         now()->addMinutes(5),
         fn () => Quest::where(function ($query) use ($userGroupIds) {
@@ -136,57 +150,64 @@ class HomeController extends Controller
             ->take(50)
             ->get()
             ->map(fn ($quest) => $quest->toArray())
-    );
+        );
 
-    $questIds = $quests->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $questIds = $quests->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-    $submissionStatusesByQuest = [];
-    $submittedQuestIdSet = [];
-    if (! empty($questIds)) {
-        $latestSubmissions = Submission::query()
-            ->joinSub(
-                Submission::query()
-                    ->where('user_id', $userId)
-                    ->whereIn('quest_id', $questIds)
-                    ->selectRaw('MAX(id) as id')
-                    ->groupBy('quest_id'),
-                'latest',
-                fn ($join) => $join->on('submissions.id', '=', 'latest.id')
-            )
-            ->get(['submissions.quest_id', 'submissions.status']);
+        $submissionStatusesByQuest = [];
+        $submittedQuestIdSet = [];
+        if (! empty($questIds)) {
+            $latestSubmissions = Submission::query()
+                ->joinSub(
+                    Submission::query()
+                        ->where('user_id', $userId)
+                        ->whereIn('quest_id', $questIds)
+                        ->selectRaw('MAX(id) as id')
+                        ->groupBy('quest_id'),
+                    'latest',
+                    fn ($join) => $join->on('submissions.id', '=', 'latest.id')
+                )
+                ->get(['submissions.quest_id', 'submissions.status']);
 
-        $submissionStatusesByQuest = $latestSubmissions
-            ->pluck('status', 'quest_id')
-            ->mapWithKeys(fn ($status, $questId) => [(int) $questId => $status])
-            ->all();
+            $submissionStatusesByQuest = $latestSubmissions
+                ->pluck('status', 'quest_id')
+                ->mapWithKeys(fn ($status, $questId) => [(int) $questId => $status])
+                ->all();
 
-        $submittedQuestIdSet = array_fill_keys(array_keys($submissionStatusesByQuest), true);
+            $submittedQuestIdSet = array_fill_keys(array_keys($submissionStatusesByQuest), true);
+        }
+
+        $unlockedQuestIdSet = [];
+        if (! empty($questIds)) {
+            $unlockedQuestIds = UserQuestUnlock::query()
+                ->where('user_id', $userId)
+                ->whereIn('quest_id', $questIds)
+                ->pluck('quest_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $unlockedQuestIdSet = array_fill_keys($unlockedQuestIds, true);
+        }
+
+        $seenQuestIdSet = $this->seenQuestIdSet($userId, $questIds);
+
+        $questFeed = $quests->map(function ($quest) use ($submittedQuestIdSet, $submissionStatusesByQuest, $unlockedQuestIdSet, $seenQuestIdSet) {
+            $questId = (int) ($quest['id'] ?? 0);
+            $quest['user_has_submitted'] = isset($submittedQuestIdSet[$questId]);
+            $quest['user_submission_status'] = $submissionStatusesByQuest[$questId] ?? null;
+            $quest['user_has_unlock'] = isset($unlockedQuestIdSet[$questId]);
+            $quest['is_new_for_user'] = $this->isQuestNewForUser($quest, $seenQuestIdSet);
+            return $quest;
+        });
+
+        $quests = $questFeed
+            ->sortBy(fn ($quest) => $this->questFeedSortTuple($quest))
+            ->take(10)
+            ->values();
     }
-
-    $unlockedQuestIdSet = [];
-    if (! empty($questIds)) {
-        $unlockedQuestIds = UserQuestUnlock::query()
-            ->where('user_id', $userId)
-            ->whereIn('quest_id', $questIds)
-            ->pluck('quest_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-        $unlockedQuestIdSet = array_fill_keys($unlockedQuestIds, true);
-    }
-
-    $quests = $quests->map(function ($quest) use ($submittedQuestIdSet, $submissionStatusesByQuest, $unlockedQuestIdSet) {
-        $questId = (int) ($quest['id'] ?? 0);
-        $quest['user_has_submitted'] = isset($submittedQuestIdSet[$questId]);
-        $quest['user_submission_status'] = $submissionStatusesByQuest[$questId] ?? null;
-        $quest['user_has_unlock'] = isset($unlockedQuestIdSet[$questId]);
-        return $quest;
-    })
-        ->sortBy(fn ($quest) => $this->questFeedSortTuple($quest))
-        ->take(10)
-        ->values();
 
     // 2. Ambil Data Materi / Guide (Global + sesuai study group user)
-    $materi = Cache::remember(
+    if ($shouldLoadGuides) {
+        $materi = Cache::remember(
         "home.guides.v{$homeCacheVersion}.job.{$jobKey}.groups.{$groupKey}",
         now()->addMinutes(5),
         fn () => Guide::where(function ($query) use ($userGroupIds) {
@@ -198,22 +219,32 @@ class HomeController extends Controller
             ->take(10)
             ->get()
             ->map(fn ($guide) => $guide->toArray())
-    );
+        );
+        $guideIds = $materi->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $seenGuideIdSet = $this->seenGuideIdSet($userId, $guideIds);
+        $materi = $materi->map(function ($guide) use ($seenGuideIdSet) {
+            $guide['is_new_for_user'] = $this->isGuideNewForUser($guide, $seenGuideIdSet);
+            return $guide;
+        });
+    }
 
     // 3. Ambil Data Leaderboard (Global berdasarkan job user + Kelas aktif user)
-    $leaderboardData = $this->resolveLeaderboardData(
-        $homeCacheVersion,
-        $jobKey,
-        $classGroupKey,
-        $userJobId,
-        $activeClassGroupId
-    );
-    $globalPlayers = $leaderboardData['globalPlayers'];
-    $classPlayers = $leaderboardData['classPlayers'];
+    if ($shouldLoadLeaderboard) {
+        $leaderboardData = $this->resolveLeaderboardData(
+            $homeCacheVersion,
+            $jobKey,
+            $classGroupKey,
+            $userJobId,
+            $activeClassGroupId
+        );
+        $globalPlayers = $leaderboardData['globalPlayers'];
+        $classPlayers = $leaderboardData['classPlayers'];
+    }
 
     // 4. Ambil Data Kelompok Belajar (Study Groups)
     $studyGroupCacheVersion = CacheVersion::get('study_groups');
-    $studyGroups = Cache::remember(
+    if ($shouldLoadStudyGroups) {
+        $studyGroups = Cache::remember(
         "study_groups.list.v{$studyGroupCacheVersion}.job.{$jobKey}",
         now()->addMinutes(5),
         fn () => \App\Models\StudyGroup::query()
@@ -226,6 +257,7 @@ class HomeController extends Controller
                 'max_members',
                 'min_level',
                 'job_id',
+                'created_at',
             ])
             
             ->withCount([
@@ -236,20 +268,33 @@ class HomeController extends Controller
             ->take(10)
             ->get()
             ->map(fn ($group) => $group->toArray())
-    );
+        );
 
-    $groupRequestStatuses = $userId && $canManageMembership
-        ? StudyGroupJoinRequest::where('user_id', $userId)->pluck('status', 'study_group_id')->toArray()
-        : [];
+        $groupRequestStatuses = $userId && $canManageMembership
+            ? StudyGroupJoinRequest::where('user_id', $userId)->pluck('status', 'study_group_id')->toArray()
+            : [];
 
-    $studyGroups = $studyGroups->map(function ($group) use ($userGroupIds, $groupRequestStatuses) {
-        $groupId = (int) ($group['id'] ?? 0);
-        $group['is_member'] = in_array($groupId, $userGroupIds, true);
-        $group['join_request_status'] = $groupRequestStatuses[$groupId] ?? null;
-        return $group;
-    });
+        $studyGroupIds = $studyGroups->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-    $events = Cache::remember(
+        if (! $shouldLoadAll && $partialKeys->contains('studyGroups')) {
+            foreach ($studyGroupIds as $studyGroupId) {
+                UserContentRead::markSeen($userId, UserContentRead::TYPE_STUDY_GROUP, $studyGroupId);
+            }
+        }
+
+        $seenStudyGroupIdSet = $this->seenStudyGroupIdSet($userId, $studyGroupIds);
+
+        $studyGroups = $studyGroups->map(function ($group) use ($userGroupIds, $groupRequestStatuses, $seenStudyGroupIdSet) {
+            $groupId = (int) ($group['id'] ?? 0);
+            $group['is_member'] = in_array($groupId, $userGroupIds, true);
+            $group['join_request_status'] = $groupRequestStatuses[$groupId] ?? null;
+            $group['is_new_for_user'] = $this->isStudyGroupNewForUser($group, $seenStudyGroupIdSet);
+            return $group;
+        });
+    }
+
+    if ($shouldLoadEvents) {
+        $events = Cache::remember(
         "home.events.v{$homeCacheVersion}.job.{$jobKey}.groups.{$groupKey}",
         now()->addMinutes(5),
         fn () => Event::query()
@@ -275,12 +320,59 @@ class HomeController extends Controller
             ->take(10)
             ->get()
             ->map(fn ($event) => $event->toArray())
-    );
+        );
+        $eventIds = $events->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $seenEventIdSet = $this->seenEventIdSet($userId, $eventIds);
+        $events = $events->map(function ($event) use ($seenEventIdSet) {
+            $event['is_new_for_user'] = $this->isEventNewForUser($event, $seenEventIdSet);
+            return $event;
+        });
+    }
+
+    if ($shouldLoadDoopNews) {
+        $doopNewsPosts = Cache::remember(
+            "home.doopnews.v{$homeCacheVersion}",
+            now()->addMinutes(5),
+            fn () => DoopNewsPost::query()
+                ->published()
+                ->with('author:id,name,username,role,profile_photo')
+                ->orderByDesc('published_at')
+                ->orderByDesc('id')
+                ->take(5)
+                ->get()
+                ->map(fn ($post) => $post->toArray())
+        );
+
+        $doopNewsIds = $doopNewsPosts->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $seenDoopNewsIdSet = $this->seenDoopNewsIdSet($userId, $doopNewsIds);
+        $doopNewsPosts = $doopNewsPosts->map(function ($post) use ($seenDoopNewsIdSet) {
+            $post['is_new_for_user'] = $this->isDoopNewsNewForUser($post, $seenDoopNewsIdSet);
+            return $post;
+        });
+
+        if (! $shouldLoadAll && $partialKeys->contains('doopNewsPosts')) {
+            foreach ($doopNewsIds as $doopNewsId) {
+                UserContentRead::markSeen($userId, UserContentRead::TYPE_DOOP_NEWS, $doopNewsId);
+            }
+        }
+    }
+
+    if ($shouldLoadDailyQuestBoard) {
+        $dailyQuestBoard = $dailyQuestService->buildBoardForUser($user);
+    }
+
+    if ($shouldLoadNewContentCounts) {
+        $newQuestCount = $this->countNewVisibleQuests($userId, $userGroupIds);
+        $newGuideCount = $this->countNewVisibleGuides($userId, $userGroupIds);
+        $newEventCount = $this->countNewVisibleEvents($userId, $userGroupIds, $userJobId);
+        $newStudyGroupCount = $this->countNewVisibleStudyGroups($userId, $userJobId);
+        $newDoopNewsCount = $this->countNewVisibleDoopNews($userId);
+    }
 
     return Inertia::render('home', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
-        'dailyQuestBoard' => $dailyQuestService->buildBoardForUser($user),
+        'dailyQuestBoard' => $dailyQuestBoard,
         'quests' => $quests,
         'materi' => $materi,
         'players' => $globalPlayers,
@@ -295,38 +387,282 @@ class HomeController extends Controller
         'leaderboardMeta' => $leaderboardMeta,
         'studyGroups' => $studyGroups,
         'events' => $events,
+        'doopNewsPosts' => $doopNewsPosts,
+        'newContentCounts' => [
+            'quest' => $newQuestCount,
+            'guide' => $newGuideCount,
+            'event' => $newEventCount,
+            'study_group' => $newStudyGroupCount,
+            'doop_news' => $newDoopNewsCount,
+        ],
         'laravelVersion' => \Illuminate\Foundation\Application::VERSION,
         'phpVersion' => PHP_VERSION,
     ]);
 }
 
+private function seenQuestIdSet(int $userId, array $questIds): array
+{
+    return UserContentRead::seenContentIds($userId, UserContentRead::TYPE_QUEST, $questIds)
+        ->mapWithKeys(fn ($id) => [(int) $id => true])
+        ->all();
+}
+
+private function seenGuideIdSet(int $userId, array $guideIds): array
+{
+    return UserContentRead::seenContentIds($userId, UserContentRead::TYPE_GUIDE, $guideIds)
+        ->mapWithKeys(fn ($id) => [(int) $id => true])
+        ->all();
+}
+
+private function seenEventIdSet(int $userId, array $eventIds): array
+{
+    return UserContentRead::seenContentIds($userId, UserContentRead::TYPE_EVENT, $eventIds)
+        ->mapWithKeys(fn ($id) => [(int) $id => true])
+        ->all();
+}
+
+private function seenStudyGroupIdSet(int $userId, array $studyGroupIds): array
+{
+    return UserContentRead::seenContentIds($userId, UserContentRead::TYPE_STUDY_GROUP, $studyGroupIds)
+        ->mapWithKeys(fn ($id) => [(int) $id => true])
+        ->all();
+}
+
+private function seenDoopNewsIdSet(int $userId, array $postIds): array
+{
+    return UserContentRead::seenContentIds($userId, UserContentRead::TYPE_DOOP_NEWS, $postIds)
+        ->mapWithKeys(fn ($id) => [(int) $id => true])
+        ->all();
+}
+
+private function isQuestNewForUser(array $quest, array $seenQuestIdSet): bool
+{
+    $questId = (int) ($quest['id'] ?? 0);
+    if ($questId <= 0 || isset($seenQuestIdSet[$questId])) {
+        return false;
+    }
+
+    if (($quest['user_has_submitted'] ?? false)
+        || trim((string) ($quest['user_submission_status'] ?? '')) !== '') {
+        return false;
+    }
+
+    $createdAt = $this->questTimestamp($quest, 'created_at');
+
+    return $createdAt > 0 && $createdAt >= now()->subDays(30)->getTimestamp();
+}
+
+private function isGuideNewForUser(array $guide, array $seenGuideIdSet): bool
+{
+    $guideId = (int) ($guide['id'] ?? 0);
+    if ($guideId <= 0 || isset($seenGuideIdSet[$guideId])) {
+        return false;
+    }
+
+    $createdAt = $this->questTimestamp($guide, 'created_at');
+
+    return $createdAt > 0 && $createdAt >= now()->subDays(30)->getTimestamp();
+}
+
+private function isEventNewForUser(array $event, array $seenEventIdSet): bool
+{
+    $eventId = (int) ($event['id'] ?? 0);
+    if ($eventId <= 0 || isset($seenEventIdSet[$eventId])) {
+        return false;
+    }
+
+    $createdAt = $this->questTimestamp($event, 'created_at');
+
+    return $createdAt > 0 && $createdAt >= now()->subDays(30)->getTimestamp();
+}
+
+private function isStudyGroupNewForUser(array $studyGroup, array $seenStudyGroupIdSet): bool
+{
+    $studyGroupId = (int) ($studyGroup['id'] ?? 0);
+    if ($studyGroupId <= 0 || isset($seenStudyGroupIdSet[$studyGroupId])) {
+        return false;
+    }
+
+    $createdAt = $this->questTimestamp($studyGroup, 'created_at');
+
+    return $createdAt > 0 && $createdAt >= now()->subDays(30)->getTimestamp();
+}
+
+private function isDoopNewsNewForUser(array $post, array $seenDoopNewsIdSet): bool
+{
+    $postId = (int) ($post['id'] ?? 0);
+    if ($postId <= 0 || isset($seenDoopNewsIdSet[$postId])) {
+        return false;
+    }
+
+    $publishedAt = $this->questTimestamp($post, 'published_at');
+
+    return $publishedAt > 0 && $publishedAt >= now()->subDays(30)->getTimestamp();
+}
+
+private function countNewVisibleQuests(int $userId, array $userGroupIds): int
+{
+    if ($userId <= 0) {
+        return 0;
+    }
+
+    return Quest::query()
+        ->where(function ($query) use ($userGroupIds) {
+            $query->whereNull('study_group_id')
+                ->orWhereIn('study_group_id', $userGroupIds);
+        })
+        ->listedForUsers()
+        ->where('created_at', '>=', now()->subDays(30))
+        ->whereNotExists(function ($query) use ($userId) {
+            $query->selectRaw('1')
+                ->from('submissions')
+                ->whereColumn('submissions.quest_id', 'quests.id')
+                ->where('submissions.user_id', $userId);
+        })
+        ->whereNotExists(function ($query) use ($userId) {
+            $query->selectRaw('1')
+                ->from('user_content_reads')
+                ->whereColumn('user_content_reads.content_id', 'quests.id')
+                ->where('user_content_reads.user_id', $userId)
+                ->where('user_content_reads.content_type', UserContentRead::TYPE_QUEST)
+                ->whereNotNull('user_content_reads.seen_at');
+        })
+        ->count();
+}
+
+private function countNewVisibleGuides(int $userId, array $userGroupIds): int
+{
+    if ($userId <= 0) {
+        return 0;
+    }
+
+    return Guide::query()
+        ->where(function ($query) use ($userGroupIds) {
+            $query->whereNull('study_group_id')
+                ->orWhereIn('study_group_id', $userGroupIds);
+        })
+        ->where('created_at', '>=', now()->subDays(30))
+        ->whereNotExists(function ($query) use ($userId) {
+            $query->selectRaw('1')
+                ->from('user_content_reads')
+                ->whereColumn('user_content_reads.content_id', 'guides.id')
+                ->where('user_content_reads.user_id', $userId)
+                ->where('user_content_reads.content_type', UserContentRead::TYPE_GUIDE)
+                ->whereNotNull('user_content_reads.seen_at');
+        })
+        ->count();
+}
+
+private function countNewVisibleEvents(int $userId, array $userGroupIds, ?int $userJobId): int
+{
+    if ($userId <= 0) {
+        return 0;
+    }
+
+    return Event::query()
+        ->where(function ($query) use ($userGroupIds, $userJobId) {
+            $query->where(function ($publicQuery) use ($userJobId) {
+                $publicQuery->whereNull('study_group_id')
+                    ->where(function ($audienceQuery) use ($userJobId) {
+                        $audienceQuery->whereNull('job_id');
+
+                        if (! is_null($userJobId)) {
+                            $audienceQuery->orWhere('job_id', $userJobId);
+                        }
+                    });
+            })
+                ->orWhereIn('study_group_id', $userGroupIds);
+        })
+        ->where('created_at', '>=', now()->subDays(30))
+        ->whereNotExists(function ($query) use ($userId) {
+            $query->selectRaw('1')
+                ->from('user_content_reads')
+                ->whereColumn('user_content_reads.content_id', 'events.id')
+                ->where('user_content_reads.user_id', $userId)
+                ->where('user_content_reads.content_type', UserContentRead::TYPE_EVENT)
+                ->whereNotNull('user_content_reads.seen_at');
+        })
+        ->count();
+}
+
+private function countNewVisibleStudyGroups(int $userId, ?int $userJobId): int
+{
+    if ($userId <= 0) {
+        return 0;
+    }
+
+    $query = \App\Models\StudyGroup::query();
+
+    if (is_null($userJobId)) {
+        $query->whereNull('job_id');
+    } else {
+        $query->where('job_id', $userJobId);
+    }
+
+    return $query
+        ->where('created_at', '>=', now()->subDays(30))
+        ->whereNotExists(function ($query) use ($userId) {
+            $query->selectRaw('1')
+                ->from('user_content_reads')
+                ->whereColumn('user_content_reads.content_id', 'study_groups.id')
+                ->where('user_content_reads.user_id', $userId)
+                ->where('user_content_reads.content_type', UserContentRead::TYPE_STUDY_GROUP)
+                ->whereNotNull('user_content_reads.seen_at');
+        })
+        ->count();
+}
+
+private function countNewVisibleDoopNews(int $userId): int
+{
+    if ($userId <= 0) {
+        return 0;
+    }
+
+    return DoopNewsPost::query()
+        ->published()
+        ->where('published_at', '>=', now()->subDays(30))
+        ->whereNotExists(function ($query) use ($userId) {
+            $query->selectRaw('1')
+                ->from('user_content_reads')
+                ->whereColumn('user_content_reads.content_id', 'doop_news_posts.id')
+                ->where('user_content_reads.user_id', $userId)
+                ->where('user_content_reads.content_type', UserContentRead::TYPE_DOOP_NEWS)
+                ->whereNotNull('user_content_reads.seen_at');
+        })
+        ->count();
+}
+
 private function isLeaderboardOnlyPartialRequest(Request $request): bool
 {
-    $isInertiaRequest = (string) $request->header('X-Inertia', '') !== '';
-    if (! $isInertiaRequest) {
-        return false;
-    }
-
-    $partialComponent = strtolower(trim((string) $request->header('X-Inertia-Partial-Component', '')));
-    if ($partialComponent !== 'home') {
-        return false;
-    }
-
-    $partialDataRaw = trim((string) $request->header('X-Inertia-Partial-Data', ''));
-    if ($partialDataRaw === '') {
-        return false;
-    }
-
-    $partialKeys = collect(explode(',', $partialDataRaw))
-        ->map(fn ($key) => trim((string) $key))
-        ->filter()
-        ->values();
-
+    $partialKeys = $this->partialDataKeys($request);
     if ($partialKeys->isEmpty()) {
         return false;
     }
 
     return $partialKeys->every(fn ($key) => in_array($key, ['leaderboards', 'leaderboardMeta'], true));
+}
+
+private function partialDataKeys(Request $request): \Illuminate\Support\Collection
+{
+    $isInertiaRequest = (string) $request->header('X-Inertia', '') !== '';
+    if (! $isInertiaRequest) {
+        return collect();
+    }
+
+    $partialComponent = strtolower(trim((string) $request->header('X-Inertia-Partial-Component', '')));
+    if ($partialComponent !== 'home') {
+        return collect();
+    }
+
+    $partialDataRaw = trim((string) $request->header('X-Inertia-Partial-Data', ''));
+    if ($partialDataRaw === '') {
+        return collect();
+    }
+
+    return collect(explode(',', $partialDataRaw))
+        ->map(fn ($key) => trim((string) $key))
+        ->filter()
+        ->values();
 }
 
 private function resolveLeaderboardData(

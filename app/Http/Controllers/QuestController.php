@@ -13,6 +13,7 @@ use Inertia\Inertia;
 use App\Models\StudyGroup;
 use App\Models\UserInventory;
 use App\Models\UserInventoryLog;
+use App\Models\UserContentRead;
 use App\Models\UserQuestAttemptUnlock;
 use App\Models\UserQuestAttemptSession;
 use App\Models\UserQuestUnlock;
@@ -129,20 +130,26 @@ class QuestController extends Controller
             $unlockedQuestIdSet = array_fill_keys($unlockedQuestIds, true);
         }
 
+        $seenQuestIdSet = UserContentRead::seenContentIds($userId, UserContentRead::TYPE_QUEST, $questIds)
+            ->mapWithKeys(fn ($id) => [(int) $id => true])
+            ->all();
+
         $sortedQuests = $questCollection
-            ->map(function ($quest) use ($submittedQuestIdSet, $submissionStatusesByQuest, $unlockedQuestIdSet) {
+            ->map(function ($quest) use ($submittedQuestIdSet, $submissionStatusesByQuest, $unlockedQuestIdSet, $seenQuestIdSet) {
                 $questId = (int) (is_array($quest) ? ($quest['id'] ?? 0) : ($quest->id ?? 0));
 
                 if (is_array($quest)) {
                     $quest['user_has_submitted'] = isset($submittedQuestIdSet[$questId]);
                     $quest['user_submission_status'] = $submissionStatusesByQuest[$questId] ?? null;
                     $quest['user_has_unlock'] = isset($unlockedQuestIdSet[$questId]);
+                    $quest['is_new_for_user'] = $this->isQuestNewForUser($quest, $seenQuestIdSet);
                     return $quest;
                 }
 
                 $quest->user_has_submitted = isset($submittedQuestIdSet[$questId]);
                 $quest->user_submission_status = $submissionStatusesByQuest[$questId] ?? null;
                 $quest->user_has_unlock = isset($unlockedQuestIdSet[$questId]);
+                $quest->is_new_for_user = $this->isQuestNewForUser($quest, $seenQuestIdSet);
                 return $quest;
             })
             ->sortBy(fn ($quest) => $this->questFeedSortTuple($quest))
@@ -230,6 +237,23 @@ class QuestController extends Controller
     private function questValue(array|object $quest, string $key): mixed
     {
         return is_array($quest) ? ($quest[$key] ?? null) : ($quest->{$key} ?? null);
+    }
+
+    private function isQuestNewForUser(array|object $quest, array $seenQuestIdSet): bool
+    {
+        $questId = (int) $this->questValue($quest, 'id');
+        if ($questId <= 0 || isset($seenQuestIdSet[$questId])) {
+            return false;
+        }
+
+        if ($this->questValue($quest, 'user_has_submitted')
+            || trim((string) $this->questValue($quest, 'user_submission_status')) !== '') {
+            return false;
+        }
+
+        $createdAt = $this->questTimestamp($quest, 'created_at');
+
+        return $createdAt > 0 && $createdAt >= now()->subDays(30)->getTimestamp();
     }
 
     public function index(Request $request, ?string $groupUuid = null)
@@ -508,6 +532,10 @@ class QuestController extends Controller
     public function show(Request $request, Quest $quest)
     {
         $this->authorizeQuestAccessForCurrentUser($quest);
+
+        if (! auth()->user()?->isStaff()) {
+            UserContentRead::markSeen((int) auth()->id(), UserContentRead::TYPE_QUEST, (int) $quest->id);
+        }
 
         return $this->renderQuestShow($quest, false, $request->query('attempt') === 'new');
     }

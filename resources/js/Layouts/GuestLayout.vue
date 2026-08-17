@@ -14,7 +14,7 @@ const isThemeApplying = ref(false);
 const pendingTheme = ref(null);
 const themeActionLabel = computed(() => themeMode.value === 'light' ? 'Dark' : 'Light');
 const themeActionIcon = computed(() => themeMode.value === 'light' ? 'fi-rr-moon' : 'fi-rr-sun');
-const authBackgroundImage = computed(() => themeMode.value === 'light' ? '/images/bg-loby5.png' : '/images/bg-loby.png');
+const authBackgroundImage = computed(() => themeMode.value === 'light' ? '/images/bg-loby5.webp' : '/images/bg-loby.webp');
 const authBackgroundOverlay = computed(() => themeMode.value === 'light' ? 'bg-white/28' : 'bg-black/60');
 
 const waitForThemePaint = () => new Promise((resolve) => {

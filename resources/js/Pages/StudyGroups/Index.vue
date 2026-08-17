@@ -216,7 +216,10 @@ const leaveGroup = (group) => {
 
                     <div class="md:hidden space-y-3 flex-1">
                         <div v-for="group in groupItems" :key="`m-${group.uuid}`" class="p-3 bg-black/40 border border-slate-800">
-                            <p class="text-white uppercase text-[11px] break-words">{{ group.name }}</p>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <p class="text-white uppercase text-[11px] break-words">{{ group.name }}</p>
+                                <span v-if="group.is_new_for_user" class="party-new-badge">NEW</span>
+                            </div>
                             <div class="mt-2 flex flex-wrap gap-1">
                                 <span class="px-2 py-1 border text-[8px] uppercase" :class="memberBadgeClass(group)">
                                     {{ memberBadgeText(group) }}
@@ -300,7 +303,10 @@ const leaveGroup = (group) => {
                             <tbody>
                                 <tr v-for="group in groupItems" :key="group.uuid" class="border-b border-slate-800 hover:bg-slate-900/40">
                                     <td class="py-3 px-2">
-                                        <p class="text-white uppercase break-words">{{ group.name }}</p>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <p class="text-white uppercase break-words">{{ group.name }}</p>
+                                            <span v-if="group.is_new_for_user" class="party-new-badge">NEW</span>
+                                        </div>
                                         <p class="mt-2 text-slate-500 text-[8px] uppercase break-all">ID: {{ group.uuid }}</p>
                                     </td>
                                     <td class="py-3 px-2 text-slate-400 font-sans max-w-[420px]" :title="group.description || ''">
@@ -427,5 +433,9 @@ const leaveGroup = (group) => {
     border-width: 4px;
     padding: 1rem;
     box-shadow: 8px 8px 0 0 rgba(0, 0, 0, 0.5);
+}
+
+.party-new-badge {
+    @apply inline-flex min-w-[30px] items-center justify-center rounded-full border border-red-200 bg-red-500 px-1.5 py-0.5 text-[7px] font-bold leading-none text-white shadow-[0_0_10px_rgba(239,68,68,0.45)];
 }
 </style>

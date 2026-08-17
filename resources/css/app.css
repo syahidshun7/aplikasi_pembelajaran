@@ -1431,7 +1431,9 @@
 }
 
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .rpg-panel,
-[data-app-surface='user'][data-theme='light'] .lobby-detail-page .quest-shell {
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .quest-shell,
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .doopnews-submit-page__form,
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .doopnews-show-page__panel {
     border-color: #087f7f !important;
     background-color: #f7f7f7 !important;
     background-image: none !important;
@@ -1443,6 +1445,7 @@
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .guide-item-card,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-item-card,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .notification-item-card,
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .doopnews-page__card,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .quest-row,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .guide-row,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-row {
@@ -1455,7 +1458,8 @@
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .quest-item-card:hover,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .guide-item-card:hover,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-item-card:hover,
-[data-app-surface='user'][data-theme='light'] .lobby-detail-page .notification-item-card:hover {
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .notification-item-card:hover,
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .doopnews-page__card:hover {
     background: #f0fafa !important;
 }
 

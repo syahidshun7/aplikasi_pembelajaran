@@ -2,7 +2,7 @@
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
-defineProps({
+const props = defineProps({
     items: {
         type: Array,
         default: () => [],
@@ -23,6 +23,10 @@ defineProps({
         type: String,
         default: 'dark',
     },
+    newCount: {
+        type: Number,
+        default: 0,
+    },
 });
 
 const page = usePage();
@@ -42,6 +46,12 @@ const groupMinLevel = (group) => {
 };
 
 const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
+const visibleNewItemCount = computed(() => {
+    return (props.items || []).filter((group) => Boolean(group?.is_new_for_user)).length;
+});
+const hiddenNewItemCount = computed(() => {
+    return Math.max(0, Number(props.newCount || 0) - visibleNewItemCount.value);
+});
 </script>
 
 <template>
@@ -57,6 +67,7 @@ const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
             >
                 <i class="fi fi-rr-users text-[18px] leading-none"></i>
                 <span>View All Parties</span>
+                <span v-if="hiddenNewItemCount > 0" class="view-all-new-badge">{{ hiddenNewItemCount }} NEW</span>
             </Link>
         </div>
 
@@ -74,7 +85,10 @@ const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
             >
                 <div class="flex items-start justify-between gap-3">
                     <div>
-                        <h3 class="break-words text-[9px] uppercase text-white">{{ group.name }}</h3>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h3 class="break-words text-[9px] uppercase text-white">{{ group.name }}</h3>
+                            <span v-if="group.is_new_for_user" class="party-new-badge">NEW</span>
+                        </div>
                         <p class="mt-2 line-clamp-2 text-[7px] uppercase leading-relaxed text-slate-500">
                             {{ group.description || 'In pursuit of higher knowledge...' }}
                         </p>
@@ -170,6 +184,11 @@ const canJoinByLevel = (group) => viewerLevel.value >= groupMinLevel(group);
 
 .dashboard-section-header__action {
     @apply inline-flex items-center gap-2 border-b-4 border-r-4 p-2 text-[8px] uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,0.5)] transition-colors;
+}
+
+.view-all-new-badge,
+.party-new-badge {
+    @apply inline-flex min-w-[30px] items-center justify-center rounded-full border border-red-200 bg-red-500 px-1.5 py-0.5 text-[7px] font-bold leading-none text-white shadow-[0_0_10px_rgba(239,68,68,0.45)];
 }
 
 .dashboard-empty-state {

@@ -11,6 +11,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    newCount: {
+        type: Number,
+        default: 0,
+    },
 });
 
 const hashGroupKey = (value) => {
@@ -69,6 +73,12 @@ const eventItemsWithTone = computed(() => {
         };
     });
 });
+const visibleNewItemCount = computed(() => {
+    return (props.items || []).filter((event) => Boolean(event?.is_new_for_user)).length;
+});
+const hiddenNewItemCount = computed(() => {
+    return Math.max(0, Number(props.newCount || 0) - visibleNewItemCount.value);
+});
 </script>
 
 <template>
@@ -84,6 +94,7 @@ const eventItemsWithTone = computed(() => {
             >
                 <i class="fi fi-rr-calendar text-[18px] leading-none"></i>
                 <span>View All Events</span>
+                <span v-if="hiddenNewItemCount > 0" class="view-all-new-badge">{{ hiddenNewItemCount }} NEW</span>
             </Link>
         </div>
 
@@ -95,7 +106,10 @@ const eventItemsWithTone = computed(() => {
                 :style="event.__tone_style"
             >
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                    <span class="event-card__meeting text-[7px] uppercase">Meeting_{{ event.sequence_order }}</span>
+                    <div class="flex items-center gap-2">
+                        <span class="event-card__meeting text-[7px] uppercase">Meeting_{{ event.sequence_order }}</span>
+                        <span v-if="event.is_new_for_user" class="event-new-badge">NEW</span>
+                    </div>
                     <span class="event-card__group rounded-full border px-2 py-1 text-[7px] uppercase">
                         {{ event.study_group?.name || 'Public' }}
                     </span>
@@ -140,6 +154,10 @@ const eventItemsWithTone = computed(() => {
     @apply inline-flex items-center gap-2 border-b-4 border-r-4 p-2 text-[8px] uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,0.5)] transition-colors;
 }
 
+.view-all-new-badge {
+    @apply inline-flex min-w-[30px] items-center justify-center rounded-full border border-red-200 bg-red-500 px-1.5 py-0.5 text-[7px] font-bold leading-none text-white shadow-[0_0_10px_rgba(239,68,68,0.45)];
+}
+
 .dashboard-empty-state {
     @apply flex min-h-[260px] flex-col items-center justify-center border-2 border-dashed border-slate-800 p-6 text-center;
 }
@@ -168,6 +186,21 @@ const eventItemsWithTone = computed(() => {
 
 .event-card__meeting {
     color: color-mix(in srgb, var(--event-tone-accent) 86%, #cbd5e1 14%);
+}
+
+.event-new-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #fecaca;
+    background: #ef4444;
+    color: #fff;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.62);
+    padding: 0.22rem 0.4rem;
+    font-size: 7px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.14em;
 }
 
 .event-card__group {

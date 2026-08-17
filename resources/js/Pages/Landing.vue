@@ -185,7 +185,7 @@ const getHallRankTitle = (index) => {
 const seoTitle = 'DOOPTECH | Platform Pembelajaran Quest-Based';
 const seoDescription = 'DOOPTECH adalah aplikasi pembelajaran berbasis game yang menghubungkan pemula dan profesional dalam satu ekosistem belajar.';
 const seoCanonicalUrl = computed(() => route('lobby'));
-const seoImageUrl = computed(() => new URL('/images/bg-loby2.png', seoCanonicalUrl.value).toString());
+const seoImageUrl = computed(() => new URL('/images/bg-loby2.webp', seoCanonicalUrl.value).toString());
 const seoSchemaJson = computed(() => JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'WebSite',
@@ -471,7 +471,7 @@ onBeforeUnmount(() => {
         <meta head-key="twitter:description" name="twitter:description" :content="seoDescription" />
         <meta head-key="twitter:image" name="twitter:image" :content="seoImageUrl" />
         <link head-key="canonical" rel="canonical" :href="seoCanonicalUrl" />
-        <link rel="preload" as="image" href="/images/bg-loby2.png" />
+        <link rel="preload" as="image" href="/images/bg-loby2.webp" />
         <component :is="'script'" head-key="ld-json-website" type="application/ld+json" v-html="seoSchemaJson" />
     </Head>
 
@@ -479,7 +479,7 @@ onBeforeUnmount(() => {
         class="relative isolate min-h-screen overflow-x-hidden font-['Press_Start_2P'] text-slate-900"
     >
         <AppBackgroundLayer
-            image="/images/bg-loby2.png"
+            image="/images/bg-loby2.webp"
             overlay-class="bg-[linear-gradient(rgba(248,250,252,0.58),rgba(238,246,255,0.62))]"
             glow-class="bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.28),transparent_32%),radial-gradient(circle_at_82%_12%,rgba(103,232,249,0.18),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.12))]"
         />

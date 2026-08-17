@@ -14,7 +14,7 @@ const props = defineProps({
 const page = usePage();
 const isAuthenticated = computed(() => Boolean(page.props?.auth?.user));
 const { themeMode } = useUserTheme();
-const errorBackgroundImage = computed(() => themeMode.value === 'light' ? '/images/bg-loby5.png' : '/images/bg-loby.png');
+const errorBackgroundImage = computed(() => themeMode.value === 'light' ? '/images/bg-loby5.webp' : '/images/bg-loby.webp');
 const errorBackgroundOverlay = computed(() => themeMode.value === 'light' ? 'bg-[#f7f7f7]/72' : 'bg-black/70');
 
 const meta = computed(() => {

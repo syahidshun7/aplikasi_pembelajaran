@@ -11,12 +11,13 @@ import LibrarySection from '@/Components/Dashboard/LibrarySection.vue';
 import EventSection from '@/Components/Dashboard/EventSection.vue';
 import PartySection from '@/Components/Dashboard/PartySection.vue';
 import LeaderboardSection from '@/Components/Dashboard/LeaderboardSection.vue';
+import DoopNewsSection from '@/Components/Dashboard/DoopNewsSection.vue';
 
 const CarouselMenu = defineAsyncComponent(() => import('@/Components/Dashboard/CarouselMenu.vue'));
 const ACTIVE_MENU_STORAGE_KEY = 'home-active-menu';
-const ACTIVE_MENU_DEFAULT_KEY = 'townhall';
+const ACTIVE_MENU_DEFAULT_KEY = 'doopnews';
 const ACTIVE_MENU_INVALID_FALLBACK = 'quest';
-const validActiveMenuKeys = ['quest', 'library', 'townhall', 'party', 'leaderboard'];
+const validActiveMenuKeys = ['doopnews', 'quest', 'library', 'townhall', 'party', 'leaderboard'];
 const LEADERBOARD_MODE_STORAGE_KEY = 'home-leaderboard-mode';
 const LEADERBOARD_MODE_DEFAULT = 'global';
 const LEADERBOARD_MODE_FALLBACK = 'global';
@@ -59,7 +60,7 @@ const resolveInitialActiveMenu = () => {
         const storedValue = window.localStorage.getItem(ACTIVE_MENU_STORAGE_KEY);
 
         if (!storedValue) {
-            return normalizeActiveMenu('event', ACTIVE_MENU_DEFAULT_KEY);
+        return ACTIVE_MENU_DEFAULT_KEY;
         }
 
         return normalizeActiveMenu(storedValue, ACTIVE_MENU_INVALID_FALLBACK);
@@ -97,14 +98,46 @@ const resolveInitialLeaderboardMode = () => {
 };
 
 const props = defineProps({
-    players: Array,
-    leaderboards: Object,
-    leaderboardMeta: Object,
-    dailyQuestBoard: Object,
-    quests: Array,
-    studyGroups: Array,
-    materi: Array,
-    events: Array,
+    players: {
+        type: Array,
+        default: () => [],
+    },
+    leaderboards: {
+        type: Object,
+        default: () => ({}),
+    },
+    leaderboardMeta: {
+        type: Object,
+        default: () => ({}),
+    },
+    dailyQuestBoard: {
+        type: Object,
+        default: null,
+    },
+    quests: {
+        type: Array,
+        default: () => [],
+    },
+    studyGroups: {
+        type: Array,
+        default: () => [],
+    },
+    materi: {
+        type: Array,
+        default: () => [],
+    },
+    events: {
+        type: Array,
+        default: () => [],
+    },
+    doopNewsPosts: {
+        type: Array,
+        default: () => [],
+    },
+    newContentCounts: {
+        type: Object,
+        default: () => ({}),
+    },
     auth: Object,
 });
 
@@ -138,15 +171,30 @@ const isClassLeaderboardLoading = ref(false);
 const page = usePage();
 const { themeMode } = useUserTheme();
 const lobbyBackgroundOverlayClass = computed(() => (
-    themeMode.value === 'light' ? 'bg-[#f7f7f7]/92' : 'bg-black/60'
+    themeMode.value === 'light' ? 'bg-[#f7f7f7]/20' : 'bg-black/60'
 ));
 const lobbyBackgroundGlowClass = computed(() => (
     themeMode.value === 'light'
-        ? 'bg-[radial-gradient(circle_at_16%_18%,rgba(0,153,153,0.14),transparent_32%),radial-gradient(circle_at_84%_12%,rgba(32,32,32,0.08),transparent_30%)]'
+        ? ''
         : 'bg-[radial-gradient(circle_at_18%_20%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_82%_14%,rgba(45,212,191,0.14),transparent_30%),linear-gradient(180deg,rgba(2,6,23,0.16),rgba(2,6,23,0.4))]'
 ));
 const lobbyBackgroundImage = computed(() => (
-    themeMode.value === 'light' ? '/images/bg-loby5.png' : '/images/bg-loby.png'
+    themeMode.value === 'light' ? '/images/bg-loby5.webp' : '/images/bg-loby.webp'
+));
+const lobbyBackgroundPosition = computed(() => (
+    'center'
+));
+const lobbyInlineBackgroundStyle = computed(() => (
+    themeMode.value === 'light'
+        ? {
+            backgroundImage: "linear-gradient(rgba(247,247,247,0.18), rgba(247,247,247,0.18)), url('/images/bg-loby5.webp')",
+            backgroundColor: '#f7f7f7',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: 'cover',
+            backgroundAttachment: 'fixed',
+        }
+        : null
 ));
 const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user.email_verified_at));
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
@@ -302,14 +350,24 @@ const questItems = computed(() => {
 const questPreview = computed(() => questItems.value.slice(0, 10));
 const guidePreview = computed(() => (guides.value || []).slice(0, 10));
 const groupPreview = computed(() => (studyGroups.value || []).slice(0, 10));
+const doopNewsPreview = computed(() => (props.doopNewsPosts || []).slice(0, 5));
 
 const carouselItems = computed(() => ([
+    {
+        key: 'doopnews',
+        title: 'DoopNews',
+        subtitle: `${doopNewsPreview.value.length} broadcasts`,
+        accent: 'from-rose-node',
+        icon: 'fi fi-rr-megaphone',
+        badge_count: Number(props.newContentCounts?.doop_news || 0),
+    },
     {
         key: 'quest',
         title: 'Quest Board',
         subtitle: `${questPreview.value.length} mission node ready`,
         accent: 'from-amber-node',
         icon: 'fi fi-rr-target',
+        badge_count: Number(props.newContentCounts?.quest || 0),
     },
     {
         key: 'library',
@@ -317,6 +375,7 @@ const carouselItems = computed(() => ([
         subtitle: `${guidePreview.value.length} material archive`,
         accent: 'from-indigo-node',
         icon: 'fi fi-rr-book-alt',
+        badge_count: Number(props.newContentCounts?.guide || 0),
     },
     {
         key: 'townhall',
@@ -324,6 +383,7 @@ const carouselItems = computed(() => ([
         subtitle: `${upcomingEventPreview.value.length} event timeline`,
         accent: 'from-blue-node',
         icon: 'fi fi-rr-calendar-clock',
+        badge_count: Number(props.newContentCounts?.event || 0),
     },
     {
         key: 'party',
@@ -331,6 +391,7 @@ const carouselItems = computed(() => ([
         subtitle: `${groupPreview.value.length} ally slots open`,
         accent: 'from-emerald-node',
         icon: 'fi fi-rr-users',
+        badge_count: Number(props.newContentCounts?.study_group || 0),
     },
     {
         key: 'leaderboard',
@@ -357,6 +418,9 @@ const latestModuleMeta = computed(() => {
         },
         townhall: {
             helper: `Showing latest ${upcomingEventPreview.value.length} scheduled events.`,
+        },
+        doopnews: {
+            helper: `Showing latest ${doopNewsPreview.value.length} broadcasts.`,
         },
         party: {
             helper: `Showing latest ${groupPreview.value.length} guild records.`,
@@ -440,6 +504,7 @@ watch(activeMenu, (nextValue) => {
     } catch {
         // Ignore storage write failures so the page stays interactive.
     }
+
 }, { immediate: true });
 
 watch(leaderboardMode, (nextValue) => {
@@ -501,11 +566,21 @@ onBeforeUnmount(() => {
         data-app-surface="user"
         :data-theme="themeMode"
         class="user-theme-root relative isolate min-h-screen overflow-x-hidden font-['Press_Start_2P']"
+        :style="lobbyInlineBackgroundStyle"
     >
+        <div
+            v-if="themeMode === 'light'"
+            aria-hidden="true"
+            class="pointer-events-none absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
+            :style="lobbyInlineBackgroundStyle"
+        />
+
         <AppBackgroundLayer
+            v-if="themeMode !== 'light'"
             :image="lobbyBackgroundImage"
             :overlay-class="lobbyBackgroundOverlayClass"
             :glow-class="lobbyBackgroundGlowClass"
+            :image-position="lobbyBackgroundPosition"
         />
 
         <div class="relative z-10 flex min-h-screen flex-col">
@@ -568,18 +643,28 @@ onBeforeUnmount(() => {
                                     :items="questPreview" 
                                     :auth-user="isLoggedIn"
                                     :daily-quest-board="isLoggedIn ? props.dailyQuestBoard : null"
+                                    :new-count="Number(props.newContentCounts?.quest || 0)"
                                 />
 
                                 <LibrarySection
                                     v-else-if="activeMenu === 'library'"
                                     :items="guidePreview"
                                     :auth-user="isLoggedIn"
+                                    :new-count="Number(props.newContentCounts?.guide || 0)"
                                 />
 
                                 <EventSection
                                     v-else-if="activeMenu === 'townhall'"
                                     :items="upcomingEventPreview"
                                     :auth-user="isLoggedIn"
+                                    :new-count="Number(props.newContentCounts?.event || 0)"
+                                />
+
+                                <DoopNewsSection
+                                    v-else-if="activeMenu === 'doopnews'"
+                                    :items="doopNewsPreview"
+                                    :auth-user="isLoggedIn"
+                                    :new-count="Number(props.newContentCounts?.doop_news || 0)"
                                 />
 
                                 <PartySection
@@ -589,6 +674,7 @@ onBeforeUnmount(() => {
                                     :join-processing="joinForm.processing"
                                     :on-join="handleJoin"
                                     :on-leave="handleLeave"
+                                    :new-count="Number(props.newContentCounts?.study_group || 0)"
                                 />
 
                                 <LeaderboardSection
@@ -853,6 +939,9 @@ onBeforeUnmount(() => {
 [data-theme='light'] .lobby-color-system :deep(.quest-item-card),
 [data-theme='light'] .lobby-color-system :deep(.library-item-card),
 [data-theme='light'] .lobby-color-system :deep(.event-card),
+[data-theme='light'] .lobby-color-system :deep(.doopnews-blog-card),
+[data-theme='light'] .lobby-color-system :deep(.doopnews-featured),
+[data-theme='light'] .lobby-color-system :deep(.doopnews-list-item),
 [data-theme='light'] .lobby-color-system :deep(.party-card),
 [data-theme='light'] .lobby-color-system :deep(.leaderboard-row),
 [data-theme='light'] .lobby-color-system :deep(.dashboard-section-shell .space-y-3 > a),
@@ -869,6 +958,9 @@ onBeforeUnmount(() => {
 [data-theme='light'] .lobby-color-system :deep(.quest-item-card:hover),
 [data-theme='light'] .lobby-color-system :deep(.library-item-card:hover),
 [data-theme='light'] .lobby-color-system :deep(.event-card:hover),
+[data-theme='light'] .lobby-color-system :deep(.doopnews-blog-card:hover),
+[data-theme='light'] .lobby-color-system :deep(.doopnews-featured:hover),
+[data-theme='light'] .lobby-color-system :deep(.doopnews-list-item:hover),
 [data-theme='light'] .lobby-color-system :deep(.party-card:hover),
 [data-theme='light'] .lobby-color-system :deep(.dashboard-section-shell .space-y-3 > a:hover) {
     border-color: #009999 !important;
@@ -966,6 +1058,26 @@ onBeforeUnmount(() => {
 [data-theme='light'] .lobby-color-system :deep(.event-card__action:hover) {
     border-color: #005f5f !important;
     background: #007f7f !important;
+    color: #ffffff !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.doopnews-category),
+[data-theme='light'] .lobby-color-system :deep(.doopnews-version) {
+    border-color: rgba(190, 18, 60, 0.24) !important;
+    background: #fff1f4 !important;
+    color: #9f1239 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.doopnews-action) {
+    border-color: #be123c !important;
+    background: #fff1f4 !important;
+    color: #9f1239 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.doopnews-action:hover) {
+    background: #be123c !important;
     color: #ffffff !important;
 }
 
