@@ -263,6 +263,32 @@ const executeDelete = () => {
     });
 };
 
+const syncServerBundle = (skin) => {
+    if (!skin?.id) return;
+
+    router.post(route('admin.profile-skins.sync-example', skin.id), {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            Swal.fire({
+                icon: 'success',
+                title: 'SERVER_BUNDLE_SYNCED',
+                text: `Skin ${skin.name} berhasil disinkronkan dari file server.`,
+                background: '#1a1c2c',
+                color: '#4ed4d4',
+            });
+        },
+        onError: (errors) => {
+            Swal.fire({
+                icon: 'error',
+                title: 'SERVER_SYNC_FAILED',
+                text: Object.values(errors || {})[0] || 'Bundle server tidak bisa disinkronkan.',
+                background: '#1a1c2c',
+                color: '#ff4d4d',
+            });
+        },
+    });
+};
+
 const goToPage = (url) => {
     if (!url) return;
     router.get(url, {}, {
@@ -526,6 +552,13 @@ const onUpdateBundleFolderChange = (event) => {
                                 <span class="h-5 w-5 border border-slate-600" :style="{ backgroundColor: skin.stat_panel_bg }" />
                             </div>
                             <div class="flex justify-end gap-4 border-t border-slate-800 pt-3">
+                                <button
+                                    type="button"
+                                    class="text-[8px] uppercase text-sky-400 hover:text-white"
+                                    @click="syncServerBundle(skin)"
+                                >
+                                    [Sync_Server]
+                                </button>
                                 <button
                                     type="button"
                                     class="text-[8px] uppercase text-cyan-400 hover:text-white disabled:opacity-40"

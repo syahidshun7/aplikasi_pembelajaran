@@ -63,10 +63,14 @@ const skinRendererType = computed(() => {
 const usesConfigSkinLayout = computed(() => skinRendererType.value === 'config');
 const usesCustomSkinLayout = computed(() => skinRendererType.value === 'vue_template' && ['asset_showcase', 'arcade_cabinet', 'void_phantom'].includes(skinTemplate.value));
 const assetUrl = (path) => path ? `/storage/${path}` : '';
+const withCacheVersion = (url, version) => {
+    if (!url || !version) return url;
+    return `${url}${url.includes('?') ? '&' : '?'}v=${encodeURIComponent(version)}`;
+};
 const projectFrame = ref(null);
 const projectPostTimers = ref([]);
 const usesProjectSkinLayout = computed(() => skinRendererType.value === 'project_static' && Boolean(props.activeSkin?.project_entry_path));
-const projectSkinUrl = computed(() => assetUrl(props.activeSkin?.project_entry_path));
+const projectSkinUrl = computed(() => withCacheVersion(assetUrl(props.activeSkin?.project_entry_path), props.activeSkin?.updated_at || props.activeSkin?.id));
 const profilePhotoUrl = computed(() => {
     if (props.user?.profile_photo) {
         return `/storage/${props.user.profile_photo}`;

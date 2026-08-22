@@ -25,8 +25,12 @@ const assetUrl = (path) => {
     if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('/')) return value;
     return `/storage/${value.replace(/^\/+/, '')}`;
 };
+const withCacheVersion = (url, version) => {
+    if (!url || !version) return url;
+    return `${url}${url.includes('?') ? '&' : '?'}v=${encodeURIComponent(version)}`;
+};
 
-const previewUrl = computed(() => assetUrl(props.skin?.project_entry_path));
+const previewUrl = computed(() => withCacheVersion(assetUrl(props.skin?.project_entry_path), props.skin?.updated_at || props.skin?.id));
 const previewImageUrl = computed(() => assetUrl(props.skin?.preview_image_path || props.skin?.background_image_path));
 const usesProjectPreview = computed(() => String(props.skin?.renderer_type || '') === 'project_static' && Boolean(previewUrl.value));
 const fallbackBackUrl = computed(() => props.backUrl || route('shop.index'));

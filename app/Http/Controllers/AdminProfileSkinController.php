@@ -8,6 +8,7 @@ use App\Support\Cache\CacheVersion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -178,6 +179,95 @@ class AdminProfileSkinController extends Controller
     public function updateBundle(Request $request, ProfileSkin $skin): RedirectResponse
     {
         return $this->handleBundleImport($request, $skin);
+    }
+
+    public function syncExampleBundle(ProfileSkin $skin): RedirectResponse
+    {
+        $exampleRoot = public_path("examples/profile-skin-{$skin->slug}");
+        if (! File::isDirectory($exampleRoot)) {
+            return back()->withErrors([
+                'bundle_files' => "Folder server public/examples/profile-skin-{$skin->slug} tidak ditemukan.",
+            ]);
+        }
+
+        $manifestPath = "{$exampleRoot}/skin.json";
+        $manifest = File::exists($manifestPath)
+            ? json_decode(File::get($manifestPath), true)
+            : [];
+
+        if (! is_array($manifest)) {
+            return back()->withErrors([
+                'bundle_files' => 'skin.json di folder server tidak valid.',
+            ]);
+        }
+
+        $skinData = $manifest['skin'] ?? $manifest;
+        $manifestSlug = (string) ($skinData['slug'] ?? $skin->slug);
+        if ($manifestSlug !== $skin->slug) {
+            return back()->withErrors([
+                'bundle_files' => "Slug skin.json ({$manifestSlug}) tidak sama dengan skin yang dipilih ({$skin->slug}).",
+            ]);
+        }
+
+        $shopData = $manifest['shop'] ?? [];
+        $assets = $manifest['assets'] ?? [];
+        $project = $manifest['project'] ?? [];
+        $config = $manifest['config'] ?? $skinData['config'] ?? null;
+        $projectEntry = (string) ($project['entry'] ?? $skinData['project_entry'] ?? 'index.html');
+
+        if (! File::exists("{$exampleRoot}/{$projectEntry}")) {
+            return back()->withErrors([
+                'bundle_files' => "File project entry {$projectEntry} tidak ditemukan di folder server.",
+            ]);
+        }
+
+        DB::transaction(function () use ($skin, $skinData, $shopData, $assets, $manifest, $config, $exampleRoot, $projectEntry) {
+            if ($skin->shopItem) {
+                $skin->shopItem->update([
+                    'name' => (string) ($shopData['name'] ?? $skin->shopItem->name),
+                    'description' => (string) ($shopData['description'] ?? $skinData['description'] ?? $skin->shopItem->description),
+                    'price_gold' => (int) ($shopData['price_gold'] ?? $skin->shopItem->price_gold),
+                    'is_active' => (bool) ($shopData['is_active'] ?? $skinData['is_active'] ?? $skin->shopItem->is_active),
+                ]);
+            }
+
+            $storedAssets = [
+                'preview_image_path' => $this->copyLocalBundleAsset($exampleRoot, $assets['preview'] ?? null, $skin->slug, $skin->preview_image_path),
+                'background_image_path' => $this->copyLocalBundleAsset($exampleRoot, $assets['background'] ?? null, $skin->slug, $skin->background_image_path),
+                'avatar_frame_image_path' => $this->copyLocalBundleAsset($exampleRoot, $assets['avatar_frame'] ?? null, $skin->slug, $skin->avatar_frame_image_path),
+                'panel_image_path' => $this->copyLocalBundleAsset($exampleRoot, $assets['panel'] ?? null, $skin->slug, $skin->panel_image_path),
+                'decoration_image_path' => $this->copyLocalBundleAsset($exampleRoot, $assets['decoration'] ?? null, $skin->slug, $skin->decoration_image_path),
+            ];
+
+            if ($skin->shopItem && ! empty($storedAssets['preview_image_path'])) {
+                $skin->shopItem->update(['icon_path' => $storedAssets['preview_image_path']]);
+            }
+
+            $storedProject = $this->copyLocalProjectBundle($exampleRoot, $skin->slug, $projectEntry, $skin->project_root_path);
+
+            $skin->update([
+                'name' => (string) ($skinData['name'] ?? $skin->name),
+                'description' => (string) ($skinData['description'] ?? $skin->description),
+                'renderer_type' => (string) ($skinData['renderer_type'] ?? 'project_static'),
+                'template_key' => (string) ($skinData['template_key'] ?? 'project_static'),
+                'bundle_root_path' => "profile-skins/{$skin->slug}",
+                'hero_gradient' => (string) ($skinData['hero_gradient'] ?? $skin->hero_gradient),
+                'accent_color' => (string) ($skinData['accent_color'] ?? $skin->accent_color),
+                'border_color' => (string) ($skinData['border_color'] ?? $skin->border_color),
+                'glow_color' => (string) ($skinData['glow_color'] ?? $skin->glow_color),
+                'stat_panel_bg' => (string) ($skinData['stat_panel_bg'] ?? $skin->stat_panel_bg),
+                'text_primary' => (string) ($skinData['text_primary'] ?? $skin->text_primary),
+                'is_active' => (bool) ($skinData['is_active'] ?? $skin->is_active),
+                'project_manifest' => $manifest,
+                'config_json' => is_array($config) ? $config : $skin->config_json,
+                ...array_filter($storedAssets, fn ($path) => ! is_null($path)),
+                ...$storedProject,
+            ]);
+        });
+
+        CacheVersion::bump('shop');
+
+        return back()->with('message', 'PROFILE_SKIN_SYNCED_FROM_SERVER');
     }
 
     private function handleBundleImport(Request $request, ?ProfileSkin $targetSkin = null): RedirectResponse
@@ -484,6 +574,35 @@ class AdminProfileSkinController extends Controller
         return $file->storeAs("profile-skins/{$slug}", "{$basename}.{$extension}", 'public');
     }
 
+    private function copyLocalBundleAsset(string $sourceRoot, ?string $assetPath, string $slug, ?string $currentPath): ?string
+    {
+        $assetPath = $assetPath ? $this->normalizeBundlePath($assetPath) : null;
+        if (! $assetPath) {
+            return $currentPath;
+        }
+
+        $sourcePath = realpath($sourceRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $assetPath));
+        $sourceRootPath = realpath($sourceRoot);
+        if (! $sourcePath || ! $sourceRootPath || ! str_starts_with(str_replace('\\', '/', $sourcePath), str_replace('\\', '/', $sourceRootPath))) {
+            return $currentPath;
+        }
+
+        $extension = strtolower(pathinfo($sourcePath, PATHINFO_EXTENSION));
+        if (! in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+            return $currentPath;
+        }
+
+        if ($currentPath && Storage::disk('public')->exists($currentPath)) {
+            Storage::disk('public')->delete($currentPath);
+        }
+
+        $basename = Str::slug(pathinfo($assetPath, PATHINFO_FILENAME)) ?: Str::random(8);
+        $targetPath = "profile-skins/{$slug}/{$basename}.{$extension}";
+        Storage::disk('public')->put($targetPath, File::get($sourcePath));
+
+        return $targetPath;
+    }
+
     private function storeProjectBundle(array $bundle, string $slug, string $manifestDir, ?string $entryPath, ?string $currentRootPath): array
     {
         $entryPath = $entryPath ? $this->normalizeBundlePath($entryPath) : null;
@@ -502,7 +621,7 @@ class AdminProfileSkinController extends Controller
             ];
         }
 
-        $projectRoot = "profile-skins/{$slug}/project";
+        $projectRoot = "profile-skins/{$slug}/project-" . now()->format('YmdHis') . '-' . Str::lower(Str::random(6));
         if ($currentRootPath && Storage::disk('public')->exists($currentRootPath)) {
             Storage::disk('public')->deleteDirectory($currentRootPath);
         }
@@ -525,6 +644,45 @@ class AdminProfileSkinController extends Controller
 
         return [
             'project_entry_path' => "{$projectRoot}/" . $this->relativeBundlePath($entryBundlePath, $manifestDir),
+            'project_root_path' => $projectRoot,
+        ];
+    }
+
+    private function copyLocalProjectBundle(string $sourceRoot, string $slug, string $entryPath, ?string $currentRootPath): array
+    {
+        $entryPath = $this->normalizeBundlePath($entryPath);
+        $sourceRootPath = realpath($sourceRoot);
+        $entryFullPath = realpath($sourceRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $entryPath));
+        if (! $sourceRootPath || ! $entryFullPath || ! str_starts_with(str_replace('\\', '/', $entryFullPath), str_replace('\\', '/', $sourceRootPath))) {
+            return [
+                'project_entry_path' => null,
+                'project_root_path' => $currentRootPath,
+            ];
+        }
+
+        $projectRoot = "profile-skins/{$slug}/project-" . now()->format('YmdHis') . '-' . Str::lower(Str::random(6));
+        if ($currentRootPath && Storage::disk('public')->exists($currentRootPath)) {
+            Storage::disk('public')->deleteDirectory($currentRootPath);
+        }
+
+        foreach (File::allFiles($sourceRoot) as $file) {
+            $fullPath = str_replace('\\', '/', $file->getRealPath());
+            $rootPath = rtrim(str_replace('\\', '/', $sourceRootPath), '/');
+            $relativePath = ltrim(substr($fullPath, strlen($rootPath)), '/');
+            if ($relativePath === 'skin.json' || str_starts_with($relativePath, '../')) {
+                continue;
+            }
+
+            $extension = strtolower(pathinfo($relativePath, PATHINFO_EXTENSION));
+            if (! $this->isAllowedProjectFile($extension)) {
+                continue;
+            }
+
+            Storage::disk('public')->put("{$projectRoot}/{$relativePath}", File::get($file->getRealPath()));
+        }
+
+        return [
+            'project_entry_path' => "{$projectRoot}/{$entryPath}",
             'project_root_path' => $projectRoot,
         ];
     }
