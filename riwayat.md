@@ -1249,7 +1249,9 @@ nice -n 15 cpulimit -l 50 -- npm run build
 #### Skin yang Sudah Dikerjakan
 - `White Orbit`: skin putih modern, dashboard profile, card glass, orbit visual, creation cards, dan frame foto profil lingkaran.
 - `Cosmic Orbit`: skin antariksa gelap, orbital dashboard, telemetry cards, creation section, dan visual kosmik.
-- `Toy World`: sebelumnya Toy Flight, diganti nama menjadi Toy World, tema mainan cerah, card creation, level progress, dan layout mobile.
+- `Toy World`: skin final pengganti rencana Toy Flight, tema mainan cerah, card creation, level progress, dan layout mobile.
+- Keputusan terbaru: karena `Toy Flight` belum ada pembeli, hapus/nonaktifkan `Toy Flight` dari admin dan upload ulang `Toy World` sebagai skin bersih.
+- Jangan pakai alias `toy-flight -> toy-world` jika Toy Flight belum pernah dibeli; lebih rapi memakai satu slug final `toy-world`.
 
 #### Catatan Keputusan
 - Jangan menambah mata uang baru untuk skin saat ini; cukup pakai `gold`.

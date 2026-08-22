@@ -163,7 +163,7 @@ const logTypeLabel = (type) => {
                                 </p>
                                 <Link
                                     v-if="isProfileSkin(inventory)"
-                                    :href="route('profile.skins.preview', inventory.item.profile_skin.id)"
+                                    :href="route('profile.skins.preview', { skin: inventory.item.profile_skin.id, back: route('inventory.index') })"
                                     class="inventory-preview-button inline-flex max-w-full items-center justify-center border border-cyan-700 bg-cyan-500/10 px-2 py-2 text-[7px] uppercase text-cyan-300 hover:bg-cyan-400 hover:text-black"
                                 >
                                     Preview_Profile_Skin
