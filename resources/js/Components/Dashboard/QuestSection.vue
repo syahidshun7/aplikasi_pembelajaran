@@ -57,6 +57,7 @@ const claimDailyQuest = (quest) => {
 
     router.post(route('daily-quests.claim', quest.uuid), {}, {
         preserveScroll: true,
+        preserveState: false,
         onFinish: () => {
             claimProcessingUuid.value = null;
         },

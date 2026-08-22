@@ -411,7 +411,10 @@ class AdminProfileSkinController extends Controller
             }
 
             $shopCode = (string) ($shopData['code'] ?? ('SKIN_' . strtoupper(Str::snake($slug))));
-            $shopItem = $skin?->shopItem ?: ShopItem::query()->firstOrNew(['code' => $shopCode]);
+            $shopItem = $skin?->shopItem ?: ShopItem::withTrashed()->firstOrNew(['code' => $shopCode]);
+            if ($shopItem->exists && $shopItem->trashed()) {
+                $shopItem->restore();
+            }
             $shopItem->fill([
                 'code' => $shopCode,
                 'name' => (string) ($shopData['name'] ?? ('Skin: ' . $name)),
