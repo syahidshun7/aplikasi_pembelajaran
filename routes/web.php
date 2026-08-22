@@ -470,6 +470,7 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         Route::post('/', [AdminProfileSkinController::class, 'store'])->name('store');
         Route::post('/import-bundle', [AdminProfileSkinController::class, 'importBundle'])->name('import-bundle');
         Route::post('/{skin}/import-bundle', [AdminProfileSkinController::class, 'updateBundle'])->name('update-bundle');
+        Route::post('/{skin}/sync-example', [AdminProfileSkinController::class, 'syncExampleBundle'])->name('sync-example');
         Route::put('/{skin}', [AdminProfileSkinController::class, 'update'])->name('update');
         Route::delete('/{skin}', [AdminProfileSkinController::class, 'destroy'])->name('destroy');
     });

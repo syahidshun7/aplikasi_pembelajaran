@@ -96,6 +96,7 @@ class ProfileSkin extends Model
             'glow_color' => $this->glow_color,
             'stat_panel_bg' => $this->stat_panel_bg,
             'text_primary' => $this->text_primary,
+            'updated_at' => $this->updated_at?->toISOString(),
         ];
     }
 }

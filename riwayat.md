@@ -1204,6 +1204,10 @@ window.parent?.postMessage({ type: 'dooptech:profile-skin-ready' }, '*');
 - `[Update_Bundle]` dipakai untuk memperbarui tampilan skin lama.
 - `[Update_Bundle]` bisa memilih folder bundle lengkap yang punya `skin.json`.
 - `[Update_Bundle]` juga bisa memilih folder project-only yang berisi `index.html`, `css`, `js`, dan `assets`.
+- `[Update_Bundle]` mengambil file dari device/browser yang membuka admin, lalu menguploadnya ke server.
+- Di production, skenario terbaik adalah deploy file skin terbaru ke server di `public/examples/profile-skin-{slug}`, lalu pakai `[Sync_Server]`.
+- `[Sync_Server]` mengambil bundle langsung dari filesystem server, bukan dari laptop/admin device.
+- `[Sync_Server]` cocok untuk White Orbit, Cosmic Orbit, Toy World, dan skin lain yang source bundle-nya ikut Git/deploy.
 - Form `[Edit]` dipakai untuk metadata seperti name, description, price, active, warna, renderer, dan asset ringan.
 - Jangan create ulang skin hanya untuk update desain, karena record baru bisa memutus ekspektasi user yang sudah membeli/memakai skin lama.
 
