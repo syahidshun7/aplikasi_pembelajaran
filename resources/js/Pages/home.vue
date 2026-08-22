@@ -19,6 +19,7 @@ const ACTIVE_MENU_DEFAULT_KEY = 'doopnews';
 const ACTIVE_MENU_INVALID_FALLBACK = 'quest';
 const validActiveMenuKeys = ['doopnews', 'quest', 'library', 'townhall', 'party', 'leaderboard'];
 const LEADERBOARD_MODE_STORAGE_KEY = 'home-leaderboard-mode';
+const LOCAL_SEEN_CONTENT_STORAGE_KEY = 'home-local-seen-content';
 const LEADERBOARD_MODE_DEFAULT = 'global';
 const LEADERBOARD_MODE_FALLBACK = 'global';
 const validLeaderboardModes = ['global', 'class'];
@@ -34,6 +35,13 @@ const leaderboardModeLabelMap = {
 const activeMenuAliases = {
     event: 'townhall',
 };
+const emptySeenContentMap = () => ({
+    quest: [],
+    guide: [],
+    event: [],
+    study_group: [],
+    doop_news: [],
+});
 
 const toPositiveInteger = (value) => {
     const parsed = Number.parseInt(value, 10);
@@ -94,6 +102,28 @@ const resolveInitialLeaderboardMode = () => {
         return normalizeLeaderboardMode(storedValue, LEADERBOARD_MODE_FALLBACK);
     } catch {
         return LEADERBOARD_MODE_DEFAULT;
+    }
+};
+
+const readLocalSeenContentMap = () => {
+    if (typeof window === 'undefined') {
+        return emptySeenContentMap();
+    }
+
+    try {
+        const parsed = JSON.parse(window.sessionStorage.getItem(LOCAL_SEEN_CONTENT_STORAGE_KEY) || '{}');
+        const fallback = emptySeenContentMap();
+
+        return Object.fromEntries(
+            Object.keys(fallback).map((type) => [
+                type,
+                Array.isArray(parsed?.[type])
+                    ? parsed[type].map((id) => String(id)).filter(Boolean)
+                    : [],
+            ]),
+        );
+    } catch {
+        return emptySeenContentMap();
     }
 };
 
@@ -168,6 +198,7 @@ const activeMenu = ref(resolveInitialActiveMenu());
 const leaderboardMode = ref(resolveInitialLeaderboardMode());
 const selectedClassGroupId = ref(resolveClassGroupIdFromMeta(props.leaderboardMeta));
 const isClassLeaderboardLoading = ref(false);
+const localSeenContentIds = ref(readLocalSeenContentMap());
 const page = usePage();
 const { themeMode } = useUserTheme();
 const lobbyBackgroundOverlayClass = computed(() => (
@@ -281,7 +312,7 @@ const leaderboardPreview = computed(() => {
 const isLeaderboardEmpty = computed(() => leaderboardPreview.value.length === 0);
 
 const eventItems = computed(() => {
-    return (events.value || [])
+    return applyLocalSeenState((events.value || []), 'event')
         .map((event) => {
             const startsAtDate = toSafeDate(event?.starts_at);
             const createdAtDate = toSafeDate(event?.created_at);
@@ -303,11 +334,84 @@ const eventItems = computed(() => {
 });
 
 const upcomingEventPreview = computed(() => eventItems.value.slice(0, 10));
+const contentTypeByPayloadKey = {
+    quest: 'quest',
+    guide: 'guide',
+    event: 'event',
+    study_group: 'study_group',
+    doop_news: 'doop_news',
+};
+const newCountKeyByType = {
+    quest: 'quest',
+    guide: 'guide',
+    event: 'event',
+    study_group: 'study_group',
+    doop_news: 'doop_news',
+};
+
+const getItemContentId = (item) => {
+    const rawId = item?.id ?? item?.uuid ?? item?.slug ?? '';
+    return String(rawId || '').trim();
+};
+
+const isContentLocallySeen = (type, item) => {
+    const contentId = getItemContentId(item);
+
+    if (!contentId) {
+        return false;
+    }
+
+    return (localSeenContentIds.value?.[type] || []).includes(contentId);
+};
+
+const applyLocalSeenState = (items, type) => {
+    return (items || []).map((item) => ({
+        ...item,
+        is_new_for_user: Boolean(item?.is_new_for_user) && !isContentLocallySeen(type, item),
+    }));
+};
+
+const rawItemsForContentType = (type) => {
+    switch (type) {
+        case 'quest':
+            return quests.value || [];
+        case 'guide':
+            return guides.value || [];
+        case 'event':
+            return events.value || [];
+        case 'study_group':
+            return studyGroups.value || [];
+        case 'doop_news':
+            return props.doopNewsPosts || [];
+        default:
+            return [];
+    }
+};
+
+const getLocalSeenServerNewCount = (type) => {
+    const locallySeenIds = new Set(localSeenContentIds.value?.[type] || []);
+
+    if (locallySeenIds.size === 0) {
+        return 0;
+    }
+
+    return rawItemsForContentType(type).filter((item) => (
+        Boolean(item?.is_new_for_user)
+        && locallySeenIds.has(getItemContentId(item))
+    )).length;
+};
+
+const getLocalNewCount = (type) => {
+    const key = newCountKeyByType[type];
+    const serverCount = Number(props.newContentCounts?.[key] || 0);
+
+    return Math.max(0, serverCount - getLocalSeenServerNewCount(type));
+};
 
 const questItems = computed(() => {
     const now = currentTimestamp.value;
 
-    return (quests.value || [])
+    return applyLocalSeenState((quests.value || []), 'quest')
         .filter((quest) => {
             const isScheduledOnce = String(quest?.schedule_type || '') === 'once';
             const availableUntilDate = toSafeDate(quest?.available_until);
@@ -348,9 +452,39 @@ const questItems = computed(() => {
 });
 
 const questPreview = computed(() => questItems.value.slice(0, 10));
-const guidePreview = computed(() => (guides.value || []).slice(0, 10));
-const groupPreview = computed(() => (studyGroups.value || []).slice(0, 10));
-const doopNewsPreview = computed(() => (props.doopNewsPosts || []).slice(0, 5));
+const guidePreview = computed(() => applyLocalSeenState((guides.value || []), 'guide').slice(0, 10));
+const groupPreview = computed(() => applyLocalSeenState((studyGroups.value || []), 'study_group').slice(0, 10));
+const doopNewsPreview = computed(() => applyLocalSeenState((props.doopNewsPosts || []), 'doop_news').slice(0, 5));
+
+const persistLocalSeenContent = () => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        window.sessionStorage.setItem(LOCAL_SEEN_CONTENT_STORAGE_KEY, JSON.stringify(localSeenContentIds.value));
+    } catch {
+        // Ignore storage write failures so browser back still works through Vue state.
+    }
+};
+
+const acknowledgeContentItem = ({ type, item } = {}) => {
+    const contentType = contentTypeByPayloadKey[String(type || '')];
+    const contentId = getItemContentId(item);
+
+    if (!contentType || !contentId || !item?.is_new_for_user || isContentLocallySeen(contentType, item)) {
+        return;
+    }
+
+    localSeenContentIds.value = {
+        ...localSeenContentIds.value,
+        [contentType]: [
+            ...(localSeenContentIds.value?.[contentType] || []),
+            contentId,
+        ],
+    };
+    persistLocalSeenContent();
+};
 
 const carouselItems = computed(() => ([
     {
@@ -359,7 +493,7 @@ const carouselItems = computed(() => ([
         subtitle: `${doopNewsPreview.value.length} broadcasts`,
         accent: 'from-rose-node',
         icon: 'fi fi-rr-megaphone',
-        badge_count: Number(props.newContentCounts?.doop_news || 0),
+        badge_count: getLocalNewCount('doop_news'),
     },
     {
         key: 'quest',
@@ -367,7 +501,7 @@ const carouselItems = computed(() => ([
         subtitle: `${questPreview.value.length} mission node ready`,
         accent: 'from-amber-node',
         icon: 'fi fi-rr-target',
-        badge_count: Number(props.newContentCounts?.quest || 0),
+        badge_count: getLocalNewCount('quest'),
     },
     {
         key: 'library',
@@ -375,7 +509,7 @@ const carouselItems = computed(() => ([
         subtitle: `${guidePreview.value.length} material archive`,
         accent: 'from-indigo-node',
         icon: 'fi fi-rr-book-alt',
-        badge_count: Number(props.newContentCounts?.guide || 0),
+        badge_count: getLocalNewCount('guide'),
     },
     {
         key: 'townhall',
@@ -383,7 +517,7 @@ const carouselItems = computed(() => ([
         subtitle: `${upcomingEventPreview.value.length} event timeline`,
         accent: 'from-blue-node',
         icon: 'fi fi-rr-calendar-clock',
-        badge_count: Number(props.newContentCounts?.event || 0),
+        badge_count: getLocalNewCount('event'),
     },
     {
         key: 'party',
@@ -391,7 +525,7 @@ const carouselItems = computed(() => ([
         subtitle: `${groupPreview.value.length} ally slots open`,
         accent: 'from-emerald-node',
         icon: 'fi fi-rr-users',
-        badge_count: Number(props.newContentCounts?.study_group || 0),
+        badge_count: getLocalNewCount('study_group'),
     },
     {
         key: 'leaderboard',
@@ -620,7 +754,10 @@ onBeforeUnmount(() => {
                         <div class="academy-scene">
                             <div class="academy-scene__backdrop"></div>
                             <div class="academy-scene__content">
-                                <CarouselMenu v-model="activeMenu" :items="carouselItems" />
+                                <CarouselMenu
+                                    v-model="activeMenu"
+                                    :items="carouselItems"
+                                />
 
                                 <div class="academy-scene__footer">
                                     <p class="academy-scene__copy">
@@ -643,28 +780,32 @@ onBeforeUnmount(() => {
                                     :items="questPreview" 
                                     :auth-user="isLoggedIn"
                                     :daily-quest-board="isLoggedIn ? props.dailyQuestBoard : null"
-                                    :new-count="Number(props.newContentCounts?.quest || 0)"
+                                    :new-count="getLocalNewCount('quest')"
+                                    @item-open="acknowledgeContentItem"
                                 />
 
                                 <LibrarySection
                                     v-else-if="activeMenu === 'library'"
                                     :items="guidePreview"
                                     :auth-user="isLoggedIn"
-                                    :new-count="Number(props.newContentCounts?.guide || 0)"
+                                    :new-count="getLocalNewCount('guide')"
+                                    @item-open="acknowledgeContentItem"
                                 />
 
                                 <EventSection
                                     v-else-if="activeMenu === 'townhall'"
                                     :items="upcomingEventPreview"
                                     :auth-user="isLoggedIn"
-                                    :new-count="Number(props.newContentCounts?.event || 0)"
+                                    :new-count="getLocalNewCount('event')"
+                                    @item-open="acknowledgeContentItem"
                                 />
 
                                 <DoopNewsSection
                                     v-else-if="activeMenu === 'doopnews'"
                                     :items="doopNewsPreview"
                                     :auth-user="isLoggedIn"
-                                    :new-count="Number(props.newContentCounts?.doop_news || 0)"
+                                    :new-count="getLocalNewCount('doop_news')"
+                                    @item-open="acknowledgeContentItem"
                                 />
 
                                 <PartySection
@@ -674,7 +815,8 @@ onBeforeUnmount(() => {
                                     :join-processing="joinForm.processing"
                                     :on-join="handleJoin"
                                     :on-leave="handleLeave"
-                                    :new-count="Number(props.newContentCounts?.study_group || 0)"
+                                    :new-count="getLocalNewCount('study_group')"
+                                    @item-open="acknowledgeContentItem"
                                 />
 
                                 <LeaderboardSection
@@ -699,7 +841,7 @@ onBeforeUnmount(() => {
 
             <footer class="user-theme-footer mt-auto border-t-2 p-6 text-center md:backdrop-blur-md md:p-8">
                 <p class="user-theme-muted break-words text-[7px] uppercase tracking-[0.18em] sm:text-[8px] sm:tracking-[0.3em]">
-                    Build_Ver_1.2.0 // P-Quest Engine
+                    Build_Ver_1.2.1 // P-Quest Engine
                 </p>
             </footer>
         </div>

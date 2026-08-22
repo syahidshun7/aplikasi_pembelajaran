@@ -16,6 +16,7 @@ const props = defineProps({
         default: 0,
     },
 });
+const emit = defineEmits(['item-open']);
 
 const hashGroupKey = (value) => {
     const normalized = String(value || 'public');
@@ -77,7 +78,11 @@ const visibleNewItemCount = computed(() => {
     return (props.items || []).filter((event) => Boolean(event?.is_new_for_user)).length;
 });
 const hiddenNewItemCount = computed(() => {
-    return Math.max(0, Number(props.newCount || 0) - visibleNewItemCount.value);
+    if (visibleNewItemCount.value > 0) {
+        return 0;
+    }
+
+    return Math.max(0, Number(props.newCount || 0));
 });
 </script>
 
@@ -118,7 +123,11 @@ const hiddenNewItemCount = computed(() => {
                 <p class="mt-2 text-[8px] uppercase leading-relaxed text-slate-400">{{ event.__starts_at_label }}</p>
                 <div class="event-card__footer mt-4 flex min-h-[38px] items-center justify-between gap-2 border-t border-slate-800 pt-3">
                     <span class="text-[7px] uppercase text-cyan-300">Event Node</span>
-                    <Link :href="route('events.show', event.uuid)" class="event-card__action text-[7px] uppercase text-blue-300">
+                    <Link
+                        :href="route('events.show', event.uuid)"
+                        class="event-card__action text-[7px] uppercase text-blue-300"
+                        @click="emit('item-open', { type: 'event', item: event })"
+                    >
                         View >
                     </Link>
                 </div>

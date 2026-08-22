@@ -16,12 +16,17 @@ const props = defineProps({
         default: 0,
     },
 });
+const emit = defineEmits(['item-open']);
 
 const visibleNewItemCount = computed(() => {
     return (props.items || []).filter((item) => Boolean(item?.is_new_for_user)).length;
 });
 const hiddenNewItemCount = computed(() => {
-    return Math.max(0, Number(props.newCount || 0) - visibleNewItemCount.value);
+    if (visibleNewItemCount.value > 0) {
+        return 0;
+    }
+
+    return Math.max(0, Number(props.newCount || 0));
 });
 
 const hashGroupKey = (value) => {
@@ -112,7 +117,11 @@ const toneStyleForGuide = (item) => {
                     <span class="library-item-group text-[7px] uppercase">
                         {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
                     </span>
-                    <Link :href="route('guides.user.show', item.uuid)" class="library-item-action text-[7px] uppercase text-indigo-300">
+                    <Link
+                        :href="route('guides.user.show', item.uuid)"
+                        class="library-item-action text-[7px] uppercase text-indigo-300"
+                        @click="emit('item-open', { type: 'guide', item })"
+                    >
                         Detail >
                     </Link>
                 </div>
