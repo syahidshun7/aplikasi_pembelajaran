@@ -469,6 +469,7 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         Route::get('/', [AdminProfileSkinController::class, 'index'])->name('index');
         Route::post('/', [AdminProfileSkinController::class, 'store'])->name('store');
         Route::post('/import-bundle', [AdminProfileSkinController::class, 'importBundle'])->name('import-bundle');
+        Route::post('/{skin}/import-bundle', [AdminProfileSkinController::class, 'updateBundle'])->name('update-bundle');
         Route::put('/{skin}', [AdminProfileSkinController::class, 'update'])->name('update');
         Route::delete('/{skin}', [AdminProfileSkinController::class, 'destroy'])->name('destroy');
     });

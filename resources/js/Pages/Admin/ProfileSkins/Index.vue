@@ -17,6 +17,8 @@ const editId = ref(null);
 const deleteId = ref(null);
 const showDeleteModal = ref(false);
 const bundleInput = ref(null);
+const updateBundleInput = ref(null);
+const updateBundleSkinId = ref(null);
 const importManifest = ref(null);
 
 const form = useForm({
@@ -270,7 +272,13 @@ const goToPage = (url) => {
 };
 
 const openBundlePicker = () => {
+    updateBundleSkinId.value = null;
     bundleInput.value?.click();
+};
+
+const openUpdateBundlePicker = (skin) => {
+    updateBundleSkinId.value = skin?.id || null;
+    updateBundleInput.value?.click();
 };
 
 const readFileAsText = (file) => {
@@ -282,54 +290,58 @@ const readFileAsText = (file) => {
     });
 };
 
-const onBundleFolderChange = async (event) => {
+const submitBundleFolder = async (event, endpoint, successTitle, successText, requireManifest = true) => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
 
     const manifestFile = files.find((file) => String(file.webkitRelativePath || file.name).split(/[\\/]/).pop() === 'skin.json');
     if (!manifestFile) {
-        importManifest.value = null;
-        Swal.fire({
-            icon: 'error',
-            title: 'SKIN_JSON_NOT_FOUND',
-            text: 'Folder bundle wajib berisi skin.json.',
-            background: '#1a1c2c',
-            color: '#ff4d4d',
-        });
-        event.target.value = '';
-        return;
-    }
-
-    try {
-        importManifest.value = JSON.parse(await readFileAsText(manifestFile));
-    } catch (error) {
-        importManifest.value = null;
-        Swal.fire({
-            icon: 'error',
-            title: 'INVALID_SKIN_JSON',
-            text: 'skin.json tidak bisa dibaca sebagai JSON.',
-            background: '#1a1c2c',
-            color: '#ff4d4d',
-        });
-        event.target.value = '';
-        return;
+        if (requireManifest) {
+            importManifest.value = null;
+            Swal.fire({
+                icon: 'error',
+                title: 'SKIN_JSON_NOT_FOUND',
+                text: 'Folder bundle wajib berisi skin.json.',
+                background: '#1a1c2c',
+                color: '#ff4d4d',
+            });
+            event.target.value = '';
+            return;
+        }
+        importManifest.value = { project: { entry: 'index.html' } };
+    } else {
+        try {
+            importManifest.value = JSON.parse(await readFileAsText(manifestFile));
+        } catch (error) {
+            importManifest.value = null;
+            Swal.fire({
+                icon: 'error',
+                title: 'INVALID_SKIN_JSON',
+                text: 'skin.json tidak bisa dibaca sebagai JSON.',
+                background: '#1a1c2c',
+                color: '#ff4d4d',
+            });
+            event.target.value = '';
+            return;
+        }
     }
 
     importForm.bundle_files = files;
     importForm.relative_paths = files.map((file) => file.webkitRelativePath || file.name);
 
-    importForm.post(route('admin.profile-skins.import-bundle'), {
+    importForm.post(endpoint, {
         forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
             Swal.fire({
                 icon: 'success',
-                title: 'BUNDLE_IMPORTED',
-                text: 'Skin bundle berhasil diimport ke shop.',
+                title: successTitle,
+                text: successText,
                 background: '#1a1c2c',
                 color: '#4ed4d4',
             });
             importForm.reset();
+            updateBundleSkinId.value = null;
             event.target.value = '';
         },
         onError: (errors) => {
@@ -342,6 +354,30 @@ const onBundleFolderChange = async (event) => {
             });
         },
     });
+};
+
+const onBundleFolderChange = (event) => {
+    submitBundleFolder(
+        event,
+        route('admin.profile-skins.import-bundle'),
+        'BUNDLE_IMPORTED',
+        'Skin bundle berhasil diimport ke shop.'
+    );
+};
+
+const onUpdateBundleFolderChange = (event) => {
+    if (!updateBundleSkinId.value) {
+        event.target.value = '';
+        return;
+    }
+
+    submitBundleFolder(
+        event,
+        route('admin.profile-skins.update-bundle', updateBundleSkinId.value),
+        'BUNDLE_UPDATED',
+        'File tampilan skin lama berhasil diperbarui.',
+        false
+    );
 };
 </script>
 
@@ -366,6 +402,15 @@ const onBundleFolderChange = async (event) => {
                         directory
                         multiple
                         @change="onBundleFolderChange"
+                    >
+                    <input
+                        ref="updateBundleInput"
+                        type="file"
+                        class="hidden"
+                        webkitdirectory
+                        directory
+                        multiple
+                        @change="onUpdateBundleFolderChange"
                     >
                     <button
                         type="button"
@@ -481,6 +526,14 @@ const onBundleFolderChange = async (event) => {
                                 <span class="h-5 w-5 border border-slate-600" :style="{ backgroundColor: skin.stat_panel_bg }" />
                             </div>
                             <div class="flex justify-end gap-4 border-t border-slate-800 pt-3">
+                                <button
+                                    type="button"
+                                    class="text-[8px] uppercase text-cyan-400 hover:text-white disabled:opacity-40"
+                                    :disabled="importForm.processing"
+                                    @click="openUpdateBundlePicker(skin)"
+                                >
+                                    [Update_Bundle]
+                                </button>
                                 <button type="button" class="text-[8px] uppercase text-green-400 hover:text-white" @click="startEdit(skin)">[Edit]</button>
                                 <button type="button" class="text-[8px] uppercase text-red-400 hover:text-white" @click="confirmDelete(skin)">[Delete]</button>
                             </div>

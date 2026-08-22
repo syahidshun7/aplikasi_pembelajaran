@@ -1013,3 +1013,242 @@
 - Nama final fitur: `DoopNews`.
 - DoopNews sebaiknya tetap terasa sebagai kanal resmi aplikasi, bukan sosial media bebas.
 - User biasa boleh berkontribusi, tetapi melalui approval agar feed tetap rapi dan tidak membingungkan.
+
+
+## 2026-08-22
+
+### Aturan Profile Skin Project Static
+
+#### Tujuan Sistem Skin
+- Skin profil adalah kosmetik untuk mengubah tampilan public profile user.
+- Skin tidak boleh mengubah struktur data utama user, inventory, shop, progress, quest, class, atau creation.
+- Skin hanya membaca data dari backend lewat payload profile skin, lalu merender tampilan sendiri.
+- Skin tipe `project_static` dirender dari folder project statis di iframe.
+- Skin tipe `project_static` harus ringan, mandiri, dan tidak bergantung pada build Vite aplikasi utama.
+
+#### Struktur Bundle Skin Baru
+- Bundle skin baru wajib punya `skin.json`.
+- `skin.json` boleh berada di root folder yang dipilih atau di subfolder utama yang ikut dipilih browser.
+- Struktur yang disarankan:
+
+```text
+profile-skin-name/
+  skin.json
+  index.html
+  css/
+    style.css
+  js/
+    skin.js
+  assets/
+    preview.png
+    icon.svg
+```
+
+- Untuk skin `project_static`, `skin.json` wajib punya `project.entry`.
+- Nilai `project.entry` biasanya:
+
+```json
+{
+  "project": {
+    "entry": "index.html"
+  }
+}
+```
+
+- File project yang boleh diimport: `html`, `css`, `js`, `json`, `png`, `jpg`, `jpeg`, `webp`, `gif`, `svg`, `woff`, `woff2`, `ttf`, `otf`, `mp3`, dan `wav`.
+- File selain ekstensi yang diizinkan tidak akan disimpan ke project skin.
+
+#### Format Minimal `skin.json`
+
+```json
+{
+  "shop": {
+    "code": "SKIN_WHITE_ORBIT",
+    "name": "Skin: White Orbit",
+    "description": "Skin profil publik.",
+    "price_gold": 1200,
+    "is_active": true
+  },
+  "skin": {
+    "name": "White Orbit",
+    "slug": "white-orbit",
+    "description": "Skin profil publik bertema orbit.",
+    "renderer_type": "project_static",
+    "template_key": "project_static",
+    "is_active": true,
+    "hero_gradient": "linear-gradient(135deg, #f8fafc 0%, #e0f2fe 45%, #fff7ed 100%)",
+    "accent_color": "#2563eb",
+    "border_color": "#cbd5e1",
+    "glow_color": "rgba(37,99,235,0.18)",
+    "stat_panel_bg": "#ffffff",
+    "text_primary": "#0f172a"
+  },
+  "project": {
+    "entry": "index.html"
+  }
+}
+```
+
+#### Aturan Slug dan Update
+- `slug` adalah identitas stabil skin.
+- Jangan mengganti `slug` skin lama kalau user sudah membeli atau memakai skin itu.
+- Jika `slug` diganti, sistem akan menganggapnya sebagai skin berbeda.
+- Saat import bundle baru lewat `[Create_Import_Skin]`, `skin.json` wajib ada.
+- Saat update skin lama lewat `[Update_Bundle]`, folder boleh tanpa `skin.json` selama folder tersebut berisi `index.html`.
+- `[Update_Bundle]` memperbarui file tampilan/project skin lama tanpa membuat record skin baru.
+- `[Update_Bundle]` dipakai agar user yang sudah memakai skin tetap tersambung ke skin yang sama.
+- Jika `skin.json` pada update bundle memakai slug yang sudah dipakai skin lain, update harus ditolak.
+
+#### Folder Aktif dan Folder Contoh
+- Folder contoh bundle ada di:
+
+```text
+public/examples/profile-skin-white-orbit
+public/examples/profile-skin-cosmic-orbit
+public/examples/profile-skin-toy-world
+```
+
+- Folder skin aktif yang dipakai aplikasi biasanya ada di:
+
+```text
+public/storage/profile-skins/{slug}/project
+```
+
+- Folder aktif di `public/storage/profile-skins/{slug}` bisa saja tidak punya `skin.json`, karena yang dipakai runtime hanya folder `project`.
+- Jika ingin update dari folder aktif tersebut, gunakan tombol `[Update_Bundle]`, bukan `[Create_Import_Skin]`.
+
+#### Data Backend ke Skin
+- Skin project static menerima data dari parent app lewat `postMessage`.
+- Event data utama:
+
+```js
+window.addEventListener('message', (event) => {
+  if (event.data?.type !== 'dooptech:profile-skin-data') return;
+  // render event.data
+});
+```
+
+- Skin harus mengirim ready event agar parent app bisa mengirim ulang payload:
+
+```js
+window.parent?.postMessage({ type: 'dooptech:profile-skin-ready' }, '*');
+```
+
+- Payload utama berisi:
+  - `user`
+  - `activeSkin`
+  - `stats`
+  - `classAverages`
+  - `creations`
+  - `urls`
+
+- Data yang umum dipakai:
+  - `user.name`
+  - `user.username`
+  - `user.email`
+  - `user.bio`
+  - `user.experience`
+  - `user.location`
+  - `user.skills`
+  - `user.job_name`
+  - `user.job_emblem_path`
+  - `user.level_progress`
+  - `stats.averageGrade`
+  - `stats.totalCompleted`
+  - `stats.creationCount`
+  - `stats.appreciationCount`
+  - `classAverages`
+  - `creations`
+  - `urls.profilePhoto`
+  - `urls.hallOfCreations`
+  - `urls.lobby`
+
+#### Aturan Data Kosong
+- Jangan hardcode data dummy seperti nama, email, nomor telepon, tanggal lahir, job, skill, pengalaman, kelas, atau karya.
+- Jika data tidak ada dari backend, section terkait tidak perlu ditampilkan.
+- Jika avatar/foto profil tidak ada, jangan pakai foto dummy.
+- Jika creation tidak ada, section creation boleh disembunyikan.
+- Jika class average tidak ada, section kelas/progress kelas boleh disembunyikan.
+- Jika skill kosong, jangan tampilkan chip skill dummy.
+- Jika experience kosong, jangan tampilkan riwayat experience dummy.
+- Jika level progress kosong, panel level/progress boleh disembunyikan.
+- Fallback yang boleh dipakai hanya label teknis netral untuk mencegah layout rusak, bukan data palsu.
+
+#### Aturan Desain Skin
+- Skin harus responsif untuk desktop dan mobile.
+- Desktop harus tampil sebagai desktop, tidak boleh terkunci dalam ukuran mobile.
+- Hindari banyak scrollbar bertumpuk. Untuk preview, gunakan halaman preview penuh, bukan modal kecil.
+- Thumbnail creation harus memakai `object-fit: cover` dengan posisi center agar tidak terpotong aneh.
+- Gunakan bahasa Indonesia untuk teks UI skin yang tampil ke user.
+- Foto profil harus mengikuti tema skin. Untuk White Orbit, frame foto profil dibuat lingkaran.
+- Card creation/recent work harus tampil menarik jika data creation tersedia, memakai thumbnail, judul, deskripsi bersih tanpa HTML mentah, dan metrik seperti apresiasi/insight jika ada.
+- Deskripsi creation yang berasal dari HTML harus dibersihkan menjadi text sebelum ditampilkan.
+
+#### Preview Skin
+- Item shop bertipe skin harus punya tombol `Preview`.
+- Inventory item bertipe skin juga harus punya tombol `Preview`.
+- Preview tidak boleh memakai modal kecil yang menabrak navbar.
+- Preview memakai halaman khusus:
+
+```text
+/profile/skins/{skin}/preview
+```
+
+- Halaman preview menampilkan iframe full page dengan top bar sendiri.
+- Preview mengirim payload dummy-minimal dari backend yang mengikuti data user login, bukan hardcode di skin.
+- Tombol preview pada light theme harus tetap terlihat jelas.
+
+#### Import dan Update di Admin
+- `[Create_Import_Skin]` dipakai untuk membuat/import skin baru.
+- `[Create_Import_Skin]` wajib memilih folder yang punya `skin.json`.
+- `[Update_Bundle]` dipakai untuk memperbarui tampilan skin lama.
+- `[Update_Bundle]` bisa memilih folder bundle lengkap yang punya `skin.json`.
+- `[Update_Bundle]` juga bisa memilih folder project-only yang berisi `index.html`, `css`, `js`, dan `assets`.
+- Form `[Edit]` dipakai untuk metadata seperti name, description, price, active, warna, renderer, dan asset ringan.
+- Jangan create ulang skin hanya untuk update desain, karena record baru bisa memutus ekspektasi user yang sudah membeli/memakai skin lama.
+
+#### Deploy ke Server
+- Jika update menyentuh Vue/admin page/routes/controller, jalankan build:
+
+```bash
+npm run build
+php artisan optimize:clear
+```
+
+- Jika update hanya menimpa file di `public/storage/profile-skins/{slug}/project`, build tidak wajib karena file skin dibaca langsung oleh browser.
+- Jika tampilan masih lama setelah update:
+  - hard refresh browser;
+  - jalankan `php artisan optimize:clear`;
+  - purge cache CDN jika memakai Cloudflare;
+  - pastikan folder yang dipilih saat update adalah folder project/bundle yang benar.
+
+#### Build di Server 1 Core
+- Untuk server Debian 1 core, `taskset` tidak membantu banyak.
+- Gunakan `nice` agar build tidak terlalu mengunci server:
+
+```bash
+nice -n 15 npm run build
+```
+
+- Jika ada `cpulimit`, bisa pakai:
+
+```bash
+nice -n 15 cpulimit -l 50 -- npm run build
+```
+
+- Build dianggap berhasil jika output menampilkan:
+
+```text
+✓ built in ...
+```
+
+#### Skin yang Sudah Dikerjakan
+- `White Orbit`: skin putih modern, dashboard profile, card glass, orbit visual, creation cards, dan frame foto profil lingkaran.
+- `Cosmic Orbit`: skin antariksa gelap, orbital dashboard, telemetry cards, creation section, dan visual kosmik.
+- `Toy World`: sebelumnya Toy Flight, diganti nama menjadi Toy World, tema mainan cerah, card creation, level progress, dan layout mobile.
+
+#### Catatan Keputusan
+- Jangan menambah mata uang baru untuk skin saat ini; cukup pakai `gold`.
+- Skin adalah item shop cosmetic, bukan sistem progres baru.
+- Sistem top up QRIS bisa dipikirkan terpisah dari skin; untuk skin cukup pastikan harga memakai `price_gold`.
+- Prioritas skin profile: aman untuk data lama, mudah diupdate, ringan di server, dan tidak menampilkan data palsu.
