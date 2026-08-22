@@ -28,6 +28,7 @@ const props = defineProps({
         default: 0,
     },
 });
+const emit = defineEmits(['item-open']);
 
 const page = usePage();
 const isStaffPlayMode = computed(() => Boolean(page.props?.auth?.user?.staff_play_mode));
@@ -50,7 +51,11 @@ const visibleNewItemCount = computed(() => {
     return (props.items || []).filter((group) => Boolean(group?.is_new_for_user)).length;
 });
 const hiddenNewItemCount = computed(() => {
-    return Math.max(0, Number(props.newCount || 0) - visibleNewItemCount.value);
+    if (visibleNewItemCount.value > 0) {
+        return 0;
+    }
+
+    return Math.max(0, Number(props.newCount || 0));
 });
 </script>
 
@@ -115,6 +120,7 @@ const hiddenNewItemCount = computed(() => {
                         <Link
                             :href="route('groups.show', group.uuid)"
                             class="party-action-btn party-action-btn--detail px-3 py-1 text-[8px] uppercase transition-all"
+                            @click="emit('item-open', { type: 'study_group', item: group })"
                         >
                             Detail
                         </Link>

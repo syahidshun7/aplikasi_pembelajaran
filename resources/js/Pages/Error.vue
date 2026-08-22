@@ -144,7 +144,7 @@ const reload = () => window.location.reload();
 
         <footer class="error-page__footer relative z-10 mt-auto border-t-2 border-white/10 bg-[#1a1c2c]/55 p-5 text-center backdrop-blur-md">
             <p class="text-[8px] uppercase tracking-[0.2em] text-white/60">
-                Build_Ver_1.2.0 // P-Quest Engine
+                Build_Ver_1.2.1 // P-Quest Engine
             </p>
             <div class="mt-3">
                 <Link :href="footerActionHref" class="text-[8px] uppercase text-cyan-300 hover:text-cyan-200">

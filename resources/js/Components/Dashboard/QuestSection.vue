@@ -20,6 +20,7 @@ const props = defineProps({
         default: 0,
     },
 });
+const emit = defineEmits(['item-open']);
 
 const claimProcessingUuid = ref(null);
 const dailyQuestStatusLabelMap = {
@@ -45,7 +46,11 @@ const visibleNewItemCount = computed(() => {
     return (props.items || []).filter((quest) => Boolean(quest?.is_new_for_user)).length;
 });
 const hiddenNewItemCount = computed(() => {
-    return Math.max(0, Number(props.newCount || 0) - visibleNewItemCount.value);
+    if (visibleNewItemCount.value > 0) {
+        return 0;
+    }
+
+    return Math.max(0, Number(props.newCount || 0));
 });
 
 const claimDailyQuest = (quest) => {
@@ -345,6 +350,7 @@ const partyLabelForQuest = (quest) => {
                     <template v-if="quest.status !== 'In-Progress'">
                         <Link
                             :href="route('quests.show', quest.uuid)"
+                            @click="emit('item-open', { type: 'quest', item: quest })"
                             :class="[
                                 'btn-pixel self-start whitespace-nowrap px-3 py-2 text-[8px] font-bold uppercase transition-colors sm:self-auto',
                                 (quest.user_submission_status === 'Approved') ? 'border-emerald-800 bg-emerald-600 text-black hover:bg-emerald-400' :

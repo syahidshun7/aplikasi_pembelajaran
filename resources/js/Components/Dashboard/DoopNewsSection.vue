@@ -17,6 +17,7 @@ const props = defineProps({
         default: 0,
     },
 });
+const emit = defineEmits(['item-open']);
 
 const categoryOrder = ['all', 'announcement', 'event', 'shop_item', 'class', 'quest', 'app_update', 'community'];
 const categoryNames = {
@@ -38,7 +39,11 @@ const visibleNewItemCount = computed(() => {
 });
 
 const hiddenNewItemCount = computed(() => {
-    return Math.max(0, Number(props.newCount || 0) - visibleNewItemCount.value);
+    if (visibleNewItemCount.value > 0) {
+        return 0;
+    }
+
+    return Math.max(0, Number(props.newCount || 0));
 });
 
 const visibleCategories = computed(() => {
@@ -112,7 +117,11 @@ const authorName = (post) => post?.author?.username || post?.author?.name || 'Do
                 :key="post.slug"
                 class="doopnews-blog-card"
             >
-                <Link :href="route('doopnews.show', post.slug)" class="doopnews-blog-card__link">
+                <Link
+                    :href="route('doopnews.show', post.slug)"
+                    class="doopnews-blog-card__link"
+                    @click="emit('item-open', { type: 'doop_news', item: post })"
+                >
                     <div class="doopnews-blog-card__body">
                         <div class="doopnews-blog-card__author">
                             <img

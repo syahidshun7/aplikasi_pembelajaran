@@ -156,7 +156,7 @@ const inlineWorkspaceBackgroundStyle = {
             <slot />
         </main>
         <footer v-if="!immersive && !isDoopLabPage" class="user-theme-footer relative z-10 mt-auto border-t-2 p-6 text-center backdrop-blur-md md:p-8">
-            <p class="user-theme-muted break-words text-[7px] uppercase tracking-[0.18em] sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.2.0 // P-Quest Engine</p>
+            <p class="user-theme-muted break-words text-[7px] uppercase tracking-[0.18em] sm:text-[8px] sm:tracking-[0.3em]">Build_Ver_1.2.1 // P-Quest Engine</p>
         </footer>
 
         <FloatingChat v-if="showFloatingChat" />

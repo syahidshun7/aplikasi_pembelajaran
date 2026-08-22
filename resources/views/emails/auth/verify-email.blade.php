@@ -67,7 +67,7 @@
                     <tr>
                         <td style="padding:14px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;color:#64748b;font-size:11px;line-height:1.7;">
                             Jika kamu tidak merasa membuat akun, abaikan email ini.
-                            <br>{{ $appName }} // Build_Ver_1.2.0
+                            <br>{{ $appName }} // Build_Ver_1.2.1
                         </td>
                     </tr>
                 </table>
