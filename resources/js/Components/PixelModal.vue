@@ -29,7 +29,7 @@ onUnmounted(() => document.removeEventListener('keydown', closeOnEscape));
 </script>
 
 <template>
-    <div v-if="show" class="pixel-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" @click.self="emit('close')">
+    <div v-if="show" class="pixel-modal-backdrop fixed inset-0 z-[260] flex items-start justify-center overflow-y-auto bg-black/70 p-3 py-5 backdrop-blur-sm sm:p-4 md:items-center" @click.self="emit('close')">
         <div class="pixel-modal-panel w-full max-w-lg bg-[#1a1c2c] border-4 border-[#4ed4d4] p-4 shadow-[8px_8px_0_0_rgba(0,0,0,0.5)] font-['Press_Start_2P'] text-[#4ed4d4]" :class="panelClass" role="dialog" aria-modal="true" :aria-label="title || 'Dialog'">
             <!-- Header -->
             <div v-if="title" class="text-center mb-6 uppercase text-[10px] tracking-wider">

@@ -1,6 +1,7 @@
 /* 1. Import Font */
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-@import '@flaticon/flaticon-uicons/css/all/all.css';
+@import '@flaticon/flaticon-uicons/css/regular/rounded.css';
+@import '@flaticon/flaticon-uicons/css/solid/rounded.css';
 
 @tailwind base;
 @tailwind components;
@@ -2410,6 +2411,26 @@
     border-color: #c6d6d6 !important;
 }
 
+[data-app-surface='user'] .shop-light-page .shop-preview-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+[data-app-surface='user'][data-theme='light'] .shop-light-page .shop-preview-button {
+    border-color: #7c3aed !important;
+    background: #7c3aed !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 0 rgba(76, 29, 149, 0.32) !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .shop-light-page .shop-preview-button:hover {
+    border-color: #5b21b6 !important;
+    background: #5b21b6 !important;
+    color: #ffffff !important;
+}
+
 [data-app-surface='user'][data-theme='light'] .shop-light-page .shop-buy-button {
     border-color: #087f7f !important;
     background: #009999 !important;
@@ -2605,6 +2626,24 @@
 [data-app-surface='user'] .inventory-light-page .inventory-equip-button {
     overflow-wrap: anywhere;
     text-align: center;
+}
+
+[data-app-surface='user'] .inventory-light-page .inventory-preview-button {
+    overflow-wrap: anywhere;
+    text-align: center;
+}
+
+[data-app-surface='user'][data-theme='light'] .inventory-light-page .inventory-preview-button {
+    border-color: #0f86ab !important;
+    background: #0f86ab !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 0 rgba(15, 134, 171, 0.25) !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .inventory-light-page .inventory-preview-button:hover {
+    border-color: #0b6682 !important;
+    background: #0b6682 !important;
+    color: #ffffff !important;
 }
 
 [data-app-surface='user'] .inventory-light-page .inventory-equip-button:disabled {

@@ -303,7 +303,7 @@ class AdminStudyGroupController extends Controller
         $attendancePercentage = $events->count() > 0
             ? round(($attendanceHistory->where('status', 'present')->count() / $events->count()) * 100, 1)
             : 0.0;
-        $performanceAverage = round(($attendancePercentage + $mainQuestAverage) / 2, 1);
+        $performanceAverage = round(($attendancePercentage * 0.3) + ($mainQuestAverage * 0.7), 1);
 
         return Inertia::render('StudyGroups/Admin/StudentDetail', [
             'group' => [
@@ -987,7 +987,7 @@ class AdminStudyGroupController extends Controller
                 $mainQuestAverage = $totalMainQuests > 0
                     ? round(((float) ($gradeSumByUser[$student->id] ?? 0) / $totalMainQuests), 1)
                     : 0.0;
-                $performanceAverage = round(($attendanceRate + $mainQuestAverage) / 2, 1);
+                $performanceAverage = round(($attendanceRate * 0.3) + ($mainQuestAverage * 0.7), 1);
 
                 return [
                     'id' => (int) $student->id,

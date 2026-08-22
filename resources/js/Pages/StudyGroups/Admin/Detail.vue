@@ -182,7 +182,7 @@ const removeStaff = (staff) => {
                         <p class="text-[8px] uppercase text-cyan-300">Class_Health</p>
                         <h2 class="mt-3 text-[12px] uppercase text-white">Student_Performance_Dashboard</h2>
                         <p class="mt-3 font-sans text-[12px] leading-relaxed text-slate-400">
-                            Status dihitung dari rata-rata persentase attendance dan nilai main quest. Nilai di bawah 75% perlu diperhatikan.
+                            Status dihitung dari 30% attendance dan 70% nilai main quest. Nilai di bawah 75% perlu diperhatikan.
                         </p>
                     </div>
                     <div class="flex shrink-0 flex-wrap gap-2">

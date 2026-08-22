@@ -161,6 +161,13 @@ const logTypeLabel = (type) => {
                                 <p class="text-[8px] uppercase" :class="inventory.item?.is_usable ? 'text-emerald-300' : 'text-slate-500'">
                                     {{ isProfileSkin(inventory) ? 'Profile_Cosmetic' : (inventory.item?.is_usable ? 'Usable_Item' : 'Storage_Item') }}
                                 </p>
+                                <Link
+                                    v-if="isProfileSkin(inventory)"
+                                    :href="route('profile.skins.preview', inventory.item.profile_skin.id)"
+                                    class="inventory-preview-button inline-flex max-w-full items-center justify-center border border-cyan-700 bg-cyan-500/10 px-2 py-2 text-[7px] uppercase text-cyan-300 hover:bg-cyan-400 hover:text-black"
+                                >
+                                    Preview_Profile_Skin
+                                </Link>
                                 <button
                                     v-if="isProfileSkin(inventory)"
                                     type="button"

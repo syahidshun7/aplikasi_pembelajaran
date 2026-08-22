@@ -151,7 +151,15 @@ const buyItem = async (item) => {
                             <p v-else class="shop-not-owned text-[7px] text-slate-500 mt-1 uppercase">Not Owned</p>
                         </div>
 
-                        <div class="shop-item-action w-full pt-1 border-t border-slate-800">
+                        <div class="shop-item-action flex w-full flex-col gap-2 border-t border-slate-800 pt-1">
+                            <Link
+                                v-if="isProfileSkin(item)"
+                                :href="route('profile.skins.preview', item.profile_skin.id)"
+                                class="shop-preview-button w-full border border-purple-600 bg-purple-500/10 px-2 py-2 text-[8px] font-bold uppercase text-purple-200 transition-colors hover:bg-purple-400 hover:text-black"
+                                @click.stop
+                            >
+                                Preview
+                            </Link>
                             <button
                                 type="button"
                                 class="shop-buy-button w-full text-[8px] px-2 py-2 btn-pixel uppercase font-bold bg-[#009999] text-black border-[#006666] hover:bg-[#4ed4d4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -213,6 +221,7 @@ const buyItem = async (item) => {
                     </button>
                 </template>
             </PixelModal>
+
         </div>
     </AuthenticatedLayout>
 </template>
