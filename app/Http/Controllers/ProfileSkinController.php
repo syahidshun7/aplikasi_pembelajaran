@@ -3,12 +3,28 @@
 namespace App\Http\Controllers;
 
 use App\Models\ProfileSkin;
+use App\Support\ProfileSkinPreviewPayload;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class ProfileSkinController extends Controller
 {
+    public function preview(Request $request, ProfileSkin $skin): Response
+    {
+        if (! $skin->is_active) {
+            abort(404);
+        }
+
+        return Inertia::render('ProfileSkins/Preview', [
+            'skin' => $skin->toThemeArray(),
+            'previewPayload' => ProfileSkinPreviewPayload::make($request->user()),
+            'backUrl' => url()->previous() !== url()->current() ? url()->previous() : route('shop.index'),
+        ]);
+    }
+
     /**
      * Activate a skin the user owns.
      */

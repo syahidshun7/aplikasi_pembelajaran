@@ -1,15 +1,15 @@
 {
   "shop": {
-    "code": "SKIN_TOY_FLIGHT",
-    "name": "Skin: Toy Flight",
-    "description": "Project skin profil publik bertema toys, langit cerah, huruf balok warna-warni, pesawat mainan, dan dashboard kreator.",
+    "code": "SKIN_TOY_WORLD",
+    "name": "Skin: Toy World",
+    "description": "Project skin profil publik bertema dunia mainan, blok warna-warni, frame foto, roket, robot, progress level, dan dashboard kreator playful.",
     "price_gold": 1250,
     "is_active": true
   },
   "skin": {
-    "name": "Toy Flight",
-    "slug": "toy-flight",
-    "description": "Skin profil publik bernuansa mainan: hero sky capsule, colorful toy blocks, airplane figure, job card, profile notes, class progress, dan karya publik.",
+    "name": "Toy World",
+    "slug": "toy-world",
+    "description": "Skin profil publik bernuansa dunia mainan: hero toy room, blok warna-warni, frame foto playful, level progress, skill cards, class progress, dan karya publik.",
     "renderer_type": "project_static",
     "template_key": "project_static",
     "is_active": true,

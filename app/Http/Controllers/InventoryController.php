@@ -15,7 +15,7 @@ class InventoryController extends Controller
         $activeProfileSkinId = (int) ($user->active_profile_skin_id ?? 0);
 
         $inventoryQuery = UserInventory::query()
-            ->with('item.profileSkin:id,shop_item_id,slug,name,template_key,preview_image_path,background_image_path')
+            ->with('item.profileSkin:id,shop_item_id,slug,name,description,renderer_type,template_key,preview_image_path,background_image_path,avatar_frame_image_path,panel_image_path,decoration_image_path,project_entry_path,project_root_path,config_json,hero_gradient,accent_color,border_color,glow_color,stat_panel_bg,text_primary')
             ->where('user_id', (int) $user->id)
             ->where('quantity', '>', 0);
 
@@ -51,8 +51,21 @@ class InventoryController extends Controller
                             'name' => (string) $profileSkin->name,
                             'slug' => (string) $profileSkin->slug,
                             'template_key' => (string) ($profileSkin->template_key ?? 'default'),
+                            'renderer_type' => (string) ($profileSkin->renderer_type ?? ($profileSkin->project_entry_path ? 'project_static' : 'vue_template')),
                             'preview_image_path' => (string) ($profileSkin->preview_image_path ?? ''),
                             'background_image_path' => (string) ($profileSkin->background_image_path ?? ''),
+                            'avatar_frame_image_path' => (string) ($profileSkin->avatar_frame_image_path ?? ''),
+                            'panel_image_path' => (string) ($profileSkin->panel_image_path ?? ''),
+                            'decoration_image_path' => (string) ($profileSkin->decoration_image_path ?? ''),
+                            'project_entry_path' => (string) ($profileSkin->project_entry_path ?? ''),
+                            'project_root_path' => (string) ($profileSkin->project_root_path ?? ''),
+                            'config_json' => $profileSkin->config_json,
+                            'hero_gradient' => (string) ($profileSkin->hero_gradient ?? ''),
+                            'accent_color' => (string) ($profileSkin->accent_color ?? ''),
+                            'border_color' => (string) ($profileSkin->border_color ?? ''),
+                            'glow_color' => (string) ($profileSkin->glow_color ?? ''),
+                            'stat_panel_bg' => (string) ($profileSkin->stat_panel_bg ?? ''),
+                            'text_primary' => (string) ($profileSkin->text_primary ?? ''),
                             'is_equipped' => $activeProfileSkinId === (int) $profileSkin->id,
                         ] : null,
                         'is_usable' => in_array($code, ['TIME_KEY', 'RETAKE_TICKET'], true),

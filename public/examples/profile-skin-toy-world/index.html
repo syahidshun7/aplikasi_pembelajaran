@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skin Profil Toy World</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="toy-world-page">
+    <nav class="toy-nav" aria-label="Navigasi profil">
+      <a href="#home" class="toy-logo" aria-label="Toy World">
+        <span>TOY</span>
+        <strong>WORLD</strong>
+      </a>
+      <div class="nav-links">
+        <a href="#about">Tentang</a>
+        <a href="#experience">Pengalaman</a>
+        <a href="#projects">Karya</a>
+        <a href="#skills">Skill</a>
+        <a href="#contact">Kontak</a>
+      </div>
+      <a id="contact-top" class="download-btn" href="#contact">Hubungi Saya</a>
+    </nav>
+
+    <section id="home" class="hero-section">
+      <div class="toy-decor bunting" aria-hidden="true"></div>
+      <div class="toy-decor planet-toy" aria-hidden="true"></div>
+      <div class="toy-decor rocket-toy" aria-hidden="true"></div>
+      <div class="toy-decor blocks-left" aria-hidden="true"></div>
+      <div class="toy-decor dino-toy" aria-hidden="true"></div>
+
+      <div class="hero-copy">
+        <p class="hello">Halo, saya</p>
+        <h1 id="display-name">Memuat Profil</h1>
+        <p id="job-title" class="job-pill"></p>
+        <p id="bio" class="hero-bio"></p>
+        <div class="hero-actions">
+          <a id="hall-link" class="primary-btn" href="#" target="_parent" rel="noopener">Lihat Karya</a>
+          <a id="contact-link" class="secondary-btn" href="#contact">Hubungi Saya</a>
+        </div>
+        <div class="social-row" aria-label="Tautan sosial">
+          <span>GH</span>
+          <span>in</span>
+          <span>IG</span>
+          <span>mail</span>
+        </div>
+      </div>
+
+      <div class="hero-frame" aria-label="Foto profil">
+        <span class="frame-pin pin-red"></span>
+        <span class="frame-pin pin-star"></span>
+        <div class="photo-card">
+          <div class="photo-sky">
+            <span class="cloud c1"></span>
+            <span class="cloud c2"></span>
+            <img id="avatar" alt="Avatar profil" class="avatar">
+          </div>
+          <p id="signature-name">Toy World</p>
+        </div>
+        <div class="robot-toy" aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <section class="stats-card" aria-label="Statistik profil">
+      <article><span class="stat-icon blue-star"></span><div><strong id="average-grade">0%</strong><p>Rata-rata Nilai</p></div></article>
+      <article><span class="stat-icon green-check"></span><div><strong id="quest-clear">0</strong><p>Kelas Selesai</p></div></article>
+      <article><span class="stat-icon yellow-folder"></span><div><strong id="creation-count">0</strong><p>Karya Dibuat</p></div></article>
+      <article><span class="stat-icon red-heart"></span><div><strong id="appreciation-count">0</strong><p>Apresiasi Diterima</p></div></article>
+    </section>
+
+    <section class="top-grid">
+      <article id="about" class="paper-card about-panel">
+        <header class="panel-header blue-header"><span class="badge-icon star-badge"></span><h2>Tentang Saya</h2></header>
+        <div class="paper-body">
+          <p id="about-text"></p>
+          <dl id="profile-details" class="details-grid"></dl>
+        </div>
+      </article>
+
+      <article class="paper-card level-panel">
+        <header class="panel-header yellow-header"><span class="badge-icon trophy-badge"></span><h2>Level & Progress</h2></header>
+        <div class="level-body">
+          <span class="level-emblem"></span>
+          <div class="level-copy">
+            <h3 id="level">Level 1</h3>
+            <p id="level-title"></p>
+            <div class="progress-row">
+              <div class="progress-track"><i id="level-progress-bar"></i></div>
+              <strong id="level-progress-text">0%</strong>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="middle-grid">
+      <article id="skills" class="paper-card skills-panel">
+        <header class="panel-header green-header"><span class="badge-icon puzzle-badge"></span><h2>Skill</h2></header>
+        <div id="skill-list" class="skill-list"></div>
+      </article>
+
+      <article id="experience" class="paper-card experience-panel">
+        <header class="panel-header red-header"><span class="badge-icon bag-badge"></span><h2>Pengalaman</h2></header>
+        <div id="experience-list" class="timeline-list"></div>
+      </article>
+
+      <article class="paper-card education-panel">
+        <header class="panel-header blue-header"><span class="badge-icon cap-badge"></span><h2>Pendidikan</h2></header>
+        <div id="education-list" class="education-list"></div>
+        <div class="book-stack" aria-hidden="true"></div>
+      </article>
+    </section>
+
+    <section id="projects" class="paper-card creations-panel">
+      <header class="plain-title">
+        <div><span class="lego-mark"></span><h2>Karya Saya</h2></div>
+        <a id="hall-link-panel" href="#" target="_parent" rel="noopener">Lihat Semua</a>
+      </header>
+      <div id="creations" class="creation-grid"></div>
+    </section>
+
+    <section class="paper-card classes-panel">
+      <header class="plain-title">
+        <div><span class="lego-mark book-mark"></span><h2>Kelas yang Diikuti</h2></div>
+      </header>
+      <div id="classes" class="class-list"></div>
+    </section>
+
+    <section id="contact" class="contact-card">
+      <div class="box-robot" aria-hidden="true"></div>
+      <div>
+        <h2>Ayo bangun sesuatu yang keren bersama!</h2>
+        <p>Saya terbuka untuk kesempatan baru dan proyek menarik.</p>
+      </div>
+      <div id="contact-chips" class="contact-chips"></div>
+    </section>
+
+    <footer class="footer-line">
+      <span id="footer-year">2026</span>
+      <span>Toy World</span>
+      <span class="tiny-star"></span>
+    </footer>
+  </main>
+  <script src="js/skin.js"></script>
+</body>
+</html>

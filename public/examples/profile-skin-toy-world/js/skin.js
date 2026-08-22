@@ -117,7 +117,7 @@ const renderSkills = (skills) => {
   clear(node);
   const items = asArray(skills);
   toggleSection(node, items.length > 0);
-  items.slice(0, 10).forEach((skill) => {
+  items.slice(0, 8).forEach((skill) => {
     const chip = document.createElement('span');
     chip.className = 'skill-chip';
     chip.dataset.initial = String(skill).trim().slice(0, 2).toUpperCase();
@@ -226,13 +226,15 @@ const renderCreations = (creations) => {
   if (!node) return;
   clear(node);
   const items = Array.isArray(creations) ? creations : [];
-  if (items.length === 0) {
+  const visible = items.slice(0, 3);
+
+  if (visible.length === 0) {
     toggleSection(node, false);
     return;
   }
   toggleSection(node, true);
 
-  items.slice(0, 3).forEach((creation) => {
+  visible.forEach((creation) => {
     const targetUrl = creationUrl(creation);
     const imageUrl = creationImage(creation);
     const card = document.createElement(targetUrl ? 'a' : 'article');
@@ -269,14 +271,28 @@ const renderCreations = (creations) => {
     likes.textContent = `${numberText(creation.appreciations_count || 0)} suka`;
     const insights = document.createElement('span');
     insights.textContent = `${numberText(creation.insights_count || 0)} insight`;
-    const open = document.createElement('span');
-    open.className = 'creation-link';
-    open.textContent = 'Lihat Karya ->';
-    meta.append(likes, insights, open);
+    meta.append(likes, insights);
     body.append(title, desc, meta);
     card.append(thumb, body);
     node.appendChild(card);
   });
+
+  if (items.length > visible.length) {
+    const more = document.createElement('article');
+    more.className = 'creation-card';
+    const thumb = document.createElement('div');
+    thumb.className = 'creation-thumb';
+    const plus = document.createElement('span');
+    plus.textContent = '+';
+    thumb.appendChild(plus);
+    const body = document.createElement('div');
+    body.className = 'creation-body';
+    const title = document.createElement('h3');
+    title.textContent = `${items.length - visible.length} karya lainnya`;
+    body.append(title);
+    more.append(thumb, body);
+    node.appendChild(more);
+  }
 };
 
 const renderContact = (user) => {
@@ -308,6 +324,7 @@ const renderProfile = (payload) => {
   const progressValue = clampPercent(progress.progress || progress.percent || 0);
 
   text('display-name', displayName);
+  text('signature-name', displayName);
   text('job-title', user.job_name);
   text('bio', bio);
   text('about-text', user.experience || bio);
@@ -322,8 +339,8 @@ const renderProfile = (payload) => {
   text('level', hasLevel ? `Level ${user.lvl || progress.level}` : '');
   text('level-title', progress.title);
   text('level-progress-text', `${progressValue}%`);
-  const levelCard = document.querySelector('.level-card');
-  if (levelCard) levelCard.hidden = !hasLevel && !hasValue(progress.title) && progressValue <= 0;
+  const levelPanel = document.querySelector('.level-panel');
+  if (levelPanel) levelPanel.hidden = !hasLevel && !hasValue(progress.title) && progressValue <= 0;
   text('footer-year', new Date().getFullYear());
 
   const progressBar = document.getElementById('level-progress-bar');
@@ -337,8 +354,8 @@ const renderProfile = (payload) => {
 
   const contact = document.getElementById('contact-link');
   if (contact && user.email) contact.href = `mailto:${user.email}`;
-  const cv = document.getElementById('cv-link');
-  if (cv && user.email) cv.href = `mailto:${user.email}`;
+  const contactTop = document.getElementById('contact-top');
+  if (contactTop && user.email) contactTop.href = `mailto:${user.email}`;
 
   renderDetails(user);
   renderSkills(user.skills);

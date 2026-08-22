@@ -1,151 +1,131 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Cosmic Orbit Profile Skin</title>
+  <title>Skin Profil Cosmic Orbit</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <main class="cosmic-page">
-    <nav class="space-nav" aria-label="Profile navigation">
-      <span class="mission-mark" id="initials">CO</span>
-      <div class="nav-pills">
-        <a href="#home">Mission</a>
-        <a href="#telemetry">Telemetry</a>
-        <a href="#skills">Skills</a>
-        <a href="#projects">Artifacts</a>
+    <nav class="top-nav" aria-label="Navigasi profil">
+      <a class="brand" href="#home" aria-label="Cosmic Orbit">
+        <span class="brand-mark"></span>
+        <strong>COSMIC<br>ORBIT</strong>
+      </a>
+      <div class="nav-links">
+        <a href="#about">Tentang</a>
+        <a href="#experience">Pengalaman</a>
+        <a href="#projects">Karya</a>
+        <a href="#skills">Skill</a>
+        <a href="#contact">Kontak</a>
       </div>
-      <a id="hall-link-top" class="nav-action" href="#" target="_parent" rel="noopener">Open Hall</a>
+      <a id="cv-link" class="download-btn" href="#contact">Hubungi Saya</a>
     </nav>
 
-    <section id="home" class="hero">
-      <div class="star-field" aria-hidden="true"></div>
-      <img src="assets/comet.svg" alt="" class="comet comet-a">
-      <img src="assets/star.svg" alt="" class="star star-a">
-
+    <section id="home" class="hero-section">
       <div class="hero-copy">
-        <p class="eyebrow">Public Mission Profile</p>
-        <h1 id="display-name">Loading Profile</h1>
-        <p id="bio" class="bio">Waiting for backend profile payload.</p>
-
+        <p class="hello">Halo, saya</p>
+        <h1 id="display-name">Memuat Profil</h1>
+        <p id="job-title" class="job-title"></p>
+        <p id="bio" class="hero-bio"></p>
         <div class="hero-actions">
-          <a id="hall-link" href="#" target="_parent" rel="noopener">View Artifacts</a>
-          <a id="lobby-link" href="#" target="_parent" rel="noopener">Leaderboard</a>
+          <a id="hall-link" class="primary-btn" href="#" target="_parent" rel="noopener">Lihat Karya</a>
+          <a id="contact-link" class="secondary-btn" href="#contact">Hubungi Saya</a>
         </div>
-
-        <div class="mission-tags">
-          <span id="role">Role: -</span>
-          <span id="job-name">Path: -</span>
-          <span id="location">Location: -</span>
+        <div class="social-row" aria-label="Tautan sosial">
+          <span>GH</span>
+          <span>in</span>
+          <span>IG</span>
+          <span>mail</span>
         </div>
       </div>
 
-      <aside class="orbit-stage" aria-label="Profile orbit">
-        <div class="orbit-ring orbit-ring-a"></div>
-        <div class="orbit-ring orbit-ring-b"></div>
-        <img src="assets/ringed-planet.svg" alt="" class="planet">
-        <img src="assets/rocket.svg" alt="" class="rocket">
-        <div class="avatar-module">
-          <img id="avatar" alt="Profile avatar">
-          <div>
-            <span id="level-title">Level</span>
-            <strong id="level">1</strong>
-          </div>
+      <div class="hero-visual" aria-label="Foto profil orbit">
+        <span class="planet planet-top"></span>
+        <span class="planet planet-mini"></span>
+        <span class="orbit-path orbit-wide"></span>
+        <span class="orbit-path orbit-inner"></span>
+        <div class="portrait-shell">
+          <img id="avatar" alt="Avatar profil" class="avatar">
         </div>
-      </aside>
+        <aside class="level-card">
+          <span class="level-icon"></span>
+          <div>
+            <strong id="level">Level 1</strong>
+            <p id="level-title"></p>
+            <div class="level-progress"><i id="level-progress-bar"></i></div>
+          </div>
+          <small id="level-progress-text">0%</small>
+        </aside>
+      </div>
     </section>
 
-    <section id="telemetry" class="metric-grid" aria-label="Profile telemetry">
+    <section id="about" class="glass-card about-card">
       <article>
-        <span>Average Grade</span>
-        <strong id="average-grade">0%</strong>
+        <div class="section-title"><span class="title-icon user-icon"></span><h2>Tentang Saya</h2></div>
+        <p id="about-text"></p>
       </article>
-      <article>
-        <span>Quest Clear</span>
-        <strong id="quest-clear">0</strong>
-      </article>
-      <article>
-        <span>Artifacts</span>
-        <strong id="creation-count">0</strong>
-      </article>
-      <article>
-        <span>Respect</span>
-        <strong id="appreciation-count">0</strong>
+      <dl id="profile-details" class="details-grid"></dl>
+    </section>
+
+    <section class="stats-card" aria-label="Statistik profil">
+      <article><span class="stat-icon star-icon"></span><div><strong id="average-grade">0%</strong><p>Rata-rata Nilai</p></div></article>
+      <article><span class="stat-icon check-icon"></span><div><strong id="quest-clear">0</strong><p>Kelas Selesai</p></div></article>
+      <article><span class="stat-icon folder-icon"></span><div><strong id="creation-count">0</strong><p>Karya Dibuat</p></div></article>
+      <article><span class="stat-icon heart-icon"></span><div><strong id="appreciation-count">0</strong><p>Apresiasi Diterima</p></div></article>
+    </section>
+
+    <section class="content-grid">
+      <div class="left-stack">
+        <article id="skills" class="glass-card panel">
+          <div class="section-title"><span class="title-icon code-icon"></span><h2>Skill</h2></div>
+          <div id="skill-list" class="skill-list"></div>
+        </article>
+
+        <article class="glass-card panel">
+          <div class="section-title"><span class="title-icon edu-icon"></span><h2>Pendidikan</h2></div>
+          <div id="education-list" class="education-list"></div>
+        </article>
+      </div>
+
+      <article id="experience" class="glass-card panel experience-panel">
+        <div class="section-title"><span class="title-icon briefcase-icon"></span><h2>Pengalaman</h2></div>
+        <div id="experience-list" class="timeline-list"></div>
       </article>
     </section>
 
-    <section class="dashboard">
-      <article class="panel job-panel">
-        <div class="panel-head">
-          <span>Jobs Status</span>
-          <img src="assets/satellite.svg" alt="">
+    <section class="work-grid">
+      <article id="projects" class="glass-card panel creations-panel">
+        <div class="section-title panel-title-row">
+          <span class="title-icon folder-icon"></span>
+          <h2>Karya</h2>
+          <a id="hall-link-panel" href="#" target="_parent" rel="noopener">Lihat Semua</a>
         </div>
-        <div class="job-status-card">
-          <div class="job-emblem-frame">
-            <img id="job-emblem" src="/images/logo.png" alt="Job emblem">
-          </div>
-          <div>
-            <span>Current Path</span>
-            <strong id="job-current">Adventurer</strong>
-          </div>
-        </div>
+        <div id="creations" class="creation-list"></div>
       </article>
 
-      <article class="panel profile-notes-panel">
-        <div class="panel-head">
-          <span>Profile Notes</span>
-          <img src="assets/star.svg" alt="">
-        </div>
-        <div class="profile-note-list">
-          <div>
-            <span>Display Name</span>
-            <strong id="profile-display-name">-</strong>
-          </div>
-          <div>
-            <span>Experience</span>
-            <strong id="profile-experience">-</strong>
-          </div>
-          <div>
-            <span>Location</span>
-            <strong id="profile-location-note">-</strong>
-          </div>
-          <p id="profile-skills-note">No public skills shared on this profile.</p>
-        </div>
-      </article>
-
-      <article id="skills" class="panel skills-panel">
-        <div class="panel-head">
-          <span>Skill Satellites</span>
-          <img src="assets/satellite.svg" alt="">
-        </div>
-        <div id="skill-list" class="chips">
-          <span>No skills yet</span>
-        </div>
-      </article>
-
-      <article class="panel class-panel">
-        <div class="panel-head">
-          <span>Class Telemetry</span>
-          <img src="assets/comet.svg" alt="">
-        </div>
-        <div id="classes" class="class-list">
-          <p>No class data.</p>
-        </div>
-      </article>
-
-      <article id="projects" class="panel wide creation-panel">
-        <div class="panel-head">
-          <span>Public Artifacts</span>
-          <a id="hall-link-panel" href="#" target="_parent" rel="noopener">Open Hall</a>
-        </div>
-        <div id="creations" class="creation-list">
-          <p>No public creation yet.</p>
-        </div>
+      <article class="glass-card panel class-panel">
+        <div class="section-title"><span class="title-icon book-icon"></span><h2>Kelas yang Diikuti</h2></div>
+        <div id="classes" class="class-list"></div>
       </article>
     </section>
+
+    <section id="contact" class="contact-card glass-card">
+      <div class="astronaut" aria-hidden="true"></div>
+      <div>
+        <h2>Mari Terhubung</h2>
+        <p>Saya terbuka untuk kesempatan baru dan proyek menarik.</p>
+      </div>
+      <div id="contact-chips" class="contact-chips"></div>
+    </section>
+
+    <footer class="footer-line">
+      <span id="footer-year">2026</span>
+      <span>Cosmic Orbit</span>
+      <span class="mini-orbit"></span>
+    </footer>
   </main>
-
   <script src="js/skin.js"></script>
 </body>
 </html>

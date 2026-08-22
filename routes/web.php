@@ -255,6 +255,7 @@ Route::middleware('auth')->group(function () {
 
         Route::post('/profile/skins/{skin}/activate', [ProfileSkinController::class, 'activate'])->name('profile.skins.activate');
         Route::delete('/profile/skins/active', [ProfileSkinController::class, 'deactivate'])->name('profile.skins.deactivate');
+        Route::get('/profile/skins/{skin}/preview', [ProfileSkinController::class, 'preview'])->name('profile.skins.preview');
 
         Route::get('/quests/{quest}', [QuestController::class, 'show'])->name('quests.show');
         Route::post('/quests/{quest}/platforming-progress', [QuestController::class, 'savePlatformingProgress'])->name('quests.platforming-progress.save');

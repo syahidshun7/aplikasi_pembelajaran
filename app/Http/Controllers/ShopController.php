@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\ShopItem;
 use App\Models\ShopTransaction;
-use App\Models\User;
 use App\Models\UserGoldTransfer;
 use App\Models\UserInventory;
 use App\Models\UserInventoryLog;
@@ -20,13 +19,14 @@ class ShopController extends Controller
     public function index()
     {
         $user = auth()->user();
+        $user->loadMissing(['detailUser', 'job']);
 
         $shopCacheVersion = CacheVersion::get('shop');
         $items = Cache::remember(
-            "shop.items.v{$shopCacheVersion}",
+            "shop.items.preview.v{$shopCacheVersion}",
             now()->addMinutes(5),
             fn () => ShopItem::query()
-                ->with('profileSkin:id,shop_item_id,slug,name,template_key,preview_image_path,background_image_path')
+                ->with('profileSkin:id,shop_item_id,slug,name,description,renderer_type,template_key,preview_image_path,background_image_path,avatar_frame_image_path,panel_image_path,decoration_image_path,project_entry_path,project_root_path,config_json,hero_gradient,accent_color,border_color,glow_color,stat_panel_bg,text_primary')
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->select([
@@ -54,8 +54,21 @@ class ShopController extends Controller
                 'name' => (string) $item->profileSkin->name,
                 'slug' => (string) $item->profileSkin->slug,
                 'template_key' => (string) ($item->profileSkin->template_key ?? 'default'),
+                'renderer_type' => (string) ($item->profileSkin->renderer_type ?? ($item->profileSkin->project_entry_path ? 'project_static' : 'vue_template')),
                 'preview_image_path' => (string) ($item->profileSkin->preview_image_path ?? ''),
                 'background_image_path' => (string) ($item->profileSkin->background_image_path ?? ''),
+                'avatar_frame_image_path' => (string) ($item->profileSkin->avatar_frame_image_path ?? ''),
+                'panel_image_path' => (string) ($item->profileSkin->panel_image_path ?? ''),
+                'decoration_image_path' => (string) ($item->profileSkin->decoration_image_path ?? ''),
+                'project_entry_path' => (string) ($item->profileSkin->project_entry_path ?? ''),
+                'project_root_path' => (string) ($item->profileSkin->project_root_path ?? ''),
+                'config_json' => $item->profileSkin->config_json,
+                'hero_gradient' => (string) ($item->profileSkin->hero_gradient ?? ''),
+                'accent_color' => (string) ($item->profileSkin->accent_color ?? ''),
+                'border_color' => (string) ($item->profileSkin->border_color ?? ''),
+                'glow_color' => (string) ($item->profileSkin->glow_color ?? ''),
+                'stat_panel_bg' => (string) ($item->profileSkin->stat_panel_bg ?? ''),
+                'text_primary' => (string) ($item->profileSkin->text_primary ?? ''),
             ] : null;
             unset($item->profileSkin);
 

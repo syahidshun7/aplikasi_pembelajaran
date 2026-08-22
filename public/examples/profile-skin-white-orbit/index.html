@@ -1,128 +1,75 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>White Orbit Profile Skin</title>
+  <title>Skin Profil White Orbit</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <main class="orbit-page">
-    <section class="hero">
+  <main class="portfolio-page">
+    <section class="hero-section">
       <div class="hero-copy">
-        <p class="eyebrow">PUBLIC PROFILE SYSTEM</p>
-        <h1 id="display-name">Loading Profile</h1>
-        <p id="bio" class="bio">Waiting for backend profile payload.</p>
-
-        <div class="identity-pills">
-          <span id="job-name">Path: -</span>
-          <span id="location">Location: -</span>
-          <span id="role">Role: -</span>
+        <p class="hello">Halo, saya</p>
+        <h1 id="display-name">Memuat Profil</h1>
+        <p id="job-title" class="job-title"></p>
+        <p id="bio" class="hero-bio"></p>
+        <div class="hero-actions">
+          <a id="hall-link" class="primary-btn" href="#" target="_parent" rel="noopener">Lihat Karya</a>
+          <a id="contact-link" class="secondary-btn" href="#">Hubungi Saya</a>
+        </div>
+        <div class="social-row" aria-label="Social links">
+          <span>GH</span>
+          <span>in</span>
+          <span>IG</span>
+          <span>mail</span>
         </div>
       </div>
 
-      <div class="orbit-card">
-        <img src="assets/orbit-rings.svg" alt="" class="orbit-rings">
-        <div class="avatar-wrap">
-          <img id="avatar" alt="Profile avatar" class="avatar">
-        </div>
-        <div class="level-card">
-          <span id="level-title">Level</span>
-          <strong id="level">1</strong>
+      <div class="hero-visual" aria-label="Foto profil">
+        <span class="orbit-line orbit-one"></span>
+        <span class="orbit-line orbit-two"></span>
+        <span class="purple-dot dot-a"></span>
+        <span class="purple-dot dot-b"></span>
+        <span class="purple-dot dot-c"></span>
+        <div class="portrait-orbit">
+          <img id="avatar" alt="Avatar profil" class="avatar">
         </div>
       </div>
     </section>
 
-    <section class="metric-grid" aria-label="Profile metrics">
-      <article>
-        <span>Average Grade</span>
-        <strong id="average-grade">0%</strong>
+    <section class="intro-card">
+      <article class="about-block">
+        <div class="section-title"><span class="title-icon">i</span><h2>Tentang Saya</h2></div>
+        <p id="about-text"></p>
       </article>
-      <article>
-        <span>Quest Clear</span>
-        <strong id="quest-clear">0</strong>
-      </article>
-      <article>
-        <span>Creations</span>
-        <strong id="creation-count">0</strong>
-      </article>
-      <article>
-        <span>Respect</span>
-        <strong id="appreciation-count">0</strong>
+      <article class="details-block">
+        <dl id="profile-details"></dl>
       </article>
     </section>
 
-    <section class="dashboard">
-      <article class="panel job-panel">
-        <div class="panel-head">
-          <span>JOB STATUS</span>
-          <img src="assets/spark.svg" alt="">
-        </div>
-        <div class="job-status-card">
-          <div class="job-emblem-frame">
-            <img id="job-emblem" src="/images/logo.png" alt="Job emblem">
-          </div>
-          <div>
-            <span>CURRENT PATH</span>
-            <strong id="job-current">Adventurer</strong>
-          </div>
-        </div>
+    <section class="lower-grid">
+      <article class="panel skills-panel">
+        <div class="section-title"><span class="title-icon">#</span><h2>Keahlian</h2></div>
+        <div id="skills-list" class="skills-list"></div>
       </article>
 
-      <article class="panel profile-notes-panel">
-        <div class="panel-head">
-          <span>PROFILE NOTES</span>
-          <img src="assets/spark.svg" alt="">
-        </div>
-        <div class="profile-note-list">
-          <div>
-            <span>DISPLAY NAME</span>
-            <strong id="profile-display-name">-</strong>
-          </div>
-          <div>
-            <span>EXPERIENCE</span>
-            <strong id="profile-experience">-</strong>
-          </div>
-          <div>
-            <span>LOCATION</span>
-            <strong id="profile-location-note">-</strong>
-          </div>
-          <p id="profile-skills-note">No public skills shared on this profile.</p>
-        </div>
+      <article class="panel experience-panel">
+        <div class="section-title"><span class="title-icon">+</span><h2>Pengalaman</h2></div>
+        <div id="experience-list" class="timeline-list"></div>
       </article>
 
-      <article class="panel profile-panel">
-        <div class="panel-head">
-          <span>SKILLS</span>
-          <img src="assets/spark.svg" alt="">
-        </div>
-        <div id="skills" class="chips">
-          <span>No skills yet</span>
-        </div>
+      <article class="panel education-panel">
+        <div class="section-title"><span class="title-icon">@</span><h2>Pendidikan</h2></div>
+        <div id="education-list" class="education-list"></div>
       </article>
 
-      <article class="panel">
-        <div class="panel-head">
-          <span>CLASS PROGRESS</span>
-          <img src="assets/spark.svg" alt="">
-        </div>
-        <div id="classes" class="class-list">
-          <p>No class data.</p>
-        </div>
-      </article>
-
-      <article class="panel wide">
-        <div class="panel-head">
-          <span>PUBLIC CREATIONS</span>
-          <a id="hall-link" href="#" target="_blank" rel="noopener">Open Hall</a>
-        </div>
-        <div id="creations" class="creation-list">
-          <p>No public creation yet.</p>
-        </div>
+      <article class="panel works-panel">
+        <div class="section-title"><span class="title-icon">*</span><h2>Karya Terbaru</h2></div>
+        <div id="works-list" class="works-list"></div>
       </article>
     </section>
   </main>
-
   <script src="js/skin.js"></script>
 </body>
 </html>
