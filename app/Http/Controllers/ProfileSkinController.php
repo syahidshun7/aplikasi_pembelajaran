@@ -21,8 +21,39 @@ class ProfileSkinController extends Controller
         return Inertia::render('ProfileSkins/Preview', [
             'skin' => $skin->toThemeArray(),
             'previewPayload' => ProfileSkinPreviewPayload::make($request->user()),
-            'backUrl' => url()->previous() !== url()->current() ? url()->previous() : route('shop.index'),
+            'backUrl' => $this->resolvePreviewBackUrl($request),
         ]);
+    }
+
+    private function resolvePreviewBackUrl(Request $request): string
+    {
+        $candidate = (string) $request->query('back', '');
+        if ($this->isSafePreviewBackUrl($candidate)) {
+            return $candidate;
+        }
+
+        $previous = url()->previous();
+        if ($this->isSafePreviewBackUrl($previous) && $previous !== url()->current()) {
+            return $previous;
+        }
+
+        return route('shop.index');
+    }
+
+    private function isSafePreviewBackUrl(string $url): bool
+    {
+        if ($url === '') {
+            return false;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+        $host = parse_url($url, PHP_URL_HOST);
+        if ($host && $host !== request()->getHost()) {
+            return false;
+        }
+
+        return is_string($path)
+            && ! preg_match('#^/profile/skins/\d+/preview$#', $path);
     }
 
     /**

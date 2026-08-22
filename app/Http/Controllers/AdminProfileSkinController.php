@@ -183,7 +183,7 @@ class AdminProfileSkinController extends Controller
 
     public function syncExampleBundle(ProfileSkin $skin): RedirectResponse
     {
-        $exampleRoot = public_path("examples/profile-skin-{$skin->slug}");
+        $exampleRoot = $this->resolveServerExampleRoot($skin);
         if (! File::isDirectory($exampleRoot)) {
             return back()->withErrors([
                 'bundle_files' => "Folder server public/examples/profile-skin-{$skin->slug} tidak ditemukan.",
@@ -268,6 +268,16 @@ class AdminProfileSkinController extends Controller
         CacheVersion::bump('shop');
 
         return back()->with('message', 'PROFILE_SKIN_SYNCED_FROM_SERVER');
+    }
+
+    private function resolveServerExampleRoot(ProfileSkin $skin): string
+    {
+        $candidate = public_path("examples/profile-skin-{$skin->slug}");
+        if (File::isDirectory($candidate)) {
+            return $candidate;
+        }
+
+        return $candidate;
     }
 
     private function handleBundleImport(Request $request, ?ProfileSkin $targetSkin = null): RedirectResponse

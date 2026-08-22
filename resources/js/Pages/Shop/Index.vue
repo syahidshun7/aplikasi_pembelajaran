@@ -154,7 +154,7 @@ const buyItem = async (item) => {
                         <div class="shop-item-action flex w-full flex-col gap-2 border-t border-slate-800 pt-1">
                             <Link
                                 v-if="isProfileSkin(item)"
-                                :href="route('profile.skins.preview', item.profile_skin.id)"
+                                :href="route('profile.skins.preview', { skin: item.profile_skin.id, back: route('shop.index') })"
                                 class="shop-preview-button w-full border border-purple-600 bg-purple-500/10 px-2 py-2 text-[8px] font-bold uppercase text-purple-200 transition-colors hover:bg-purple-400 hover:text-black"
                                 @click.stop
                             >
