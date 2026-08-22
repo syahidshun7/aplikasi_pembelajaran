@@ -395,7 +395,9 @@ class DailyQuestService
                 $updateData['level'] = $nextLevel;
             }
 
-            $lockedUser->update($updateData);
+            User::query()
+                ->whereKey($lockedUser->id)
+                ->update($updateData);
 
             return $lockedQuest->fresh();
         });

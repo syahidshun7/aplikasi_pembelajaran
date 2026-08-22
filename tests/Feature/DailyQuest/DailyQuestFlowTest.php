@@ -44,7 +44,7 @@ test('login completes daily login quest, claim works, and bonus remains isolated
     $this->actingAs($user)
         ->post(route('daily-quests.claim', $dailyQuest->uuid))
         ->assertSessionHasNoErrors()
-        ->assertSessionMissing('daily_quest_feedback')
+        ->assertSessionHas('daily_quest_feedback.kind', 'claimed')
         ->assertSessionMissing('message');
 
     $dailyQuest->refresh();

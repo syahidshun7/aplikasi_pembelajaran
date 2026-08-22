@@ -17,8 +17,17 @@ class DailyQuestController extends Controller
             ]);
         }
 
-        $dailyQuestService->claim($dailyQuest, $request->user());
+        $claimedQuest = $dailyQuestService->claim($dailyQuest, $request->user());
 
-        return back();
+        return back()->with('daily_quest_feedback', [
+            'kind' => 'claimed',
+            'title' => 'Daily Quest Claimed',
+            'text' => sprintf(
+                '%s berhasil diklaim. +%d EXP / +%d Gold',
+                (string) ($claimedQuest->title ?: 'Reward'),
+                (int) ($claimedQuest->reward_exp ?? 0),
+                (int) ($claimedQuest->reward_gold ?? 0),
+            ),
+        ]);
     }
 }
