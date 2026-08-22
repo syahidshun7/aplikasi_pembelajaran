@@ -172,6 +172,16 @@ class AdminProfileSkinController extends Controller
 
     public function importBundle(Request $request): RedirectResponse
     {
+        return $this->handleBundleImport($request);
+    }
+
+    public function updateBundle(Request $request, ProfileSkin $skin): RedirectResponse
+    {
+        return $this->handleBundleImport($request, $skin);
+    }
+
+    private function handleBundleImport(Request $request, ?ProfileSkin $targetSkin = null): RedirectResponse
+    {
         $validated = $request->validate([
             'bundle_files' => ['required', 'array', 'min:2'],
             'bundle_files.*' => ['required', 'file', 'max:8192'],
@@ -192,12 +202,42 @@ class AdminProfileSkinController extends Controller
             ->first(fn (string $path) => basename($path) === 'skin.json');
 
         if (! $manifestPath) {
-            return back()->withErrors([
-                'bundle_files' => 'Folder skin wajib berisi file skin.json di root atau subfolder utama.',
-            ]);
+            if (! $targetSkin) {
+                return back()->withErrors([
+                    'bundle_files' => 'Folder skin wajib berisi file skin.json di root atau subfolder utama.',
+                ]);
+            }
+
+            $manifest = [
+                'skin' => [
+                    'name' => $targetSkin->name,
+                    'slug' => $targetSkin->slug,
+                    'description' => $targetSkin->description,
+                    'renderer_type' => 'project_static',
+                    'template_key' => 'project_static',
+                    'hero_gradient' => $targetSkin->hero_gradient,
+                    'accent_color' => $targetSkin->accent_color,
+                    'border_color' => $targetSkin->border_color,
+                    'glow_color' => $targetSkin->glow_color,
+                    'stat_panel_bg' => $targetSkin->stat_panel_bg,
+                    'text_primary' => $targetSkin->text_primary,
+                    'is_active' => $targetSkin->is_active,
+                ],
+                'shop' => [
+                    'code' => $targetSkin->shopItem?->code,
+                    'name' => $targetSkin->shopItem?->name,
+                    'description' => $targetSkin->shopItem?->description,
+                    'price_gold' => $targetSkin->shopItem?->price_gold,
+                    'is_active' => $targetSkin->shopItem?->is_active,
+                ],
+                'project' => [
+                    'entry' => 'index.html',
+                ],
+            ];
+        } else {
+            $manifest = json_decode((string) file_get_contents($bundle[$manifestPath]->getRealPath()), true);
         }
 
-        $manifest = json_decode((string) file_get_contents($bundle[$manifestPath]->getRealPath()), true);
         if (! is_array($manifest)) {
             return back()->withErrors([
                 'bundle_files' => 'skin.json tidak valid. Pastikan formatnya JSON object.',
@@ -209,7 +249,9 @@ class AdminProfileSkinController extends Controller
         $assets = $manifest['assets'] ?? [];
         $project = $manifest['project'] ?? [];
         $config = $manifest['config'] ?? $skinData['config'] ?? null;
-        $manifestDir = trim(str_replace('\\', '/', dirname($manifestPath)), '.');
+        $manifestDir = $manifestPath
+            ? trim(str_replace('\\', '/', dirname($manifestPath)), '.')
+            : '';
         $manifestDir = $manifestDir === '' ? '' : trim($manifestDir, '/');
 
         $name = trim((string) ($skinData['name'] ?? ''));
@@ -220,6 +262,13 @@ class AdminProfileSkinController extends Controller
         $slug = Str::slug((string) ($skinData['slug'] ?? $name));
         if ($slug === '') {
             return back()->withErrors(['bundle_files' => 'skin.json menghasilkan slug kosong.']);
+        }
+
+        if ($targetSkin && ProfileSkin::withTrashed()
+            ->where('slug', $slug)
+            ->whereKeyNot($targetSkin->getKey())
+            ->exists()) {
+            return back()->withErrors(['bundle_files' => 'Slug skin.json sudah dipakai skin lain.']);
         }
 
         $projectEntry = $project['entry'] ?? $skinData['project_entry'] ?? null;
@@ -237,6 +286,12 @@ class AdminProfileSkinController extends Controller
             return back()->withErrors(['bundle_files' => 'Skin project_static wajib punya project.entry di skin.json.']);
         }
 
+        if (! $manifestPath && $projectEntry) {
+            $entryBundlePath = $this->resolveBundlePath($bundle, (string) $projectEntry, '');
+            $entryDirectory = $entryBundlePath ? trim(dirname($entryBundlePath), '.\\/') : '';
+            $manifestDir = $entryDirectory === '' ? '' : $this->normalizeBundlePath($entryDirectory);
+        }
+
         if ($projectEntry && ! $this->resolveBundlePath($bundle, (string) $projectEntry, $manifestDir)) {
             return back()->withErrors(['bundle_files' => 'File project.entry tidak ditemukan di folder skin.']);
         }
@@ -249,8 +304,8 @@ class AdminProfileSkinController extends Controller
             'decoration_image_path' => $assets['decoration'] ?? null,
         ];
 
-        DB::transaction(function () use ($bundle, $slug, $name, $skinData, $shopData, $rendererType, $templateKey, $assetFields, $manifest, $config, $manifestDir, $projectEntry) {
-            $skin = ProfileSkin::withTrashed()->where('slug', $slug)->first();
+        DB::transaction(function () use ($bundle, $slug, $name, $skinData, $shopData, $rendererType, $templateKey, $assetFields, $manifest, $config, $manifestDir, $projectEntry, $targetSkin) {
+            $skin = $targetSkin ?: ProfileSkin::withTrashed()->where('slug', $slug)->first();
             if ($skin?->trashed()) {
                 $skin->restore();
             }
@@ -320,7 +375,7 @@ class AdminProfileSkinController extends Controller
 
         CacheVersion::bump('shop');
 
-        return back()->with('message', 'PROFILE_SKIN_BUNDLE_IMPORTED');
+        return back()->with('message', $targetSkin ? 'PROFILE_SKIN_BUNDLE_UPDATED' : 'PROFILE_SKIN_BUNDLE_IMPORTED');
     }
 
     public function destroy(ProfileSkin $skin): RedirectResponse
