@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ShopItem;
 use App\Models\ShopTransaction;
+use App\Models\User;
 use App\Models\UserGoldTransfer;
 use App\Models\UserInventory;
 use App\Models\UserInventoryLog;
