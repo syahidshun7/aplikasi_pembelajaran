@@ -1258,3 +1258,22 @@ nice -n 15 cpulimit -l 50 -- npm run build
 - Skin adalah item shop cosmetic, bukan sistem progres baru.
 - Sistem top up QRIS bisa dipikirkan terpisah dari skin; untuk skin cukup pastikan harga memakai `price_gold`.
 - Prioritas skin profile: aman untuk data lama, mudah diupdate, ringan di server, dan tidak menampilkan data palsu.
+
+
+## 2026-09-14
+
+### Fix: Preview Skin Shop untuk User yang Belum Memiliki Skin
+
+- Bug/kebutuhan: skin di shop harus bisa dipreview oleh user meski belum dibeli, sedangkan equip/activate tetap wajib sudah memiliki skin.
+- Konfirmasi backend: `ProfileSkinController::preview` hanya mengecek skin aktif dan tidak mengecek ownership, jadi preview memang boleh untuk non-owner.
+- Update UI `resources/js/Pages/Shop/Index.vue`: tombol `Preview` ditambahkan juga ke modal detail item shop untuk semua item bertipe `profile_skin`, bukan hanya mengandalkan tombol di card.
+- Update CSS `resources/css/app.css`: tambahkan style `shop-modal-preview-button` agar tombol preview konsisten di dark/light theme.
+- Tambah regression test di `tests/Feature/ProfileSkin/ProfileSkinProjectImportTest.php`:
+  - user yang belum punya skin bisa membuka halaman preview skin aktif;
+  - user yang belum punya skin tetap tidak bisa activate/equip skin tersebut.
+- Sekalian menyesuaikan assertion test import skin agar menerima folder project versi `project-YYYY...`, sesuai perilaku importer saat ini.
+- Verifikasi berhasil:
+  - `php -l app\Http\Controllers\ProfileSkinController.php`
+  - `php -l tests\Feature\ProfileSkin\ProfileSkinProjectImportTest.php`
+  - `php artisan test tests\Feature\ProfileSkin\ProfileSkinProjectImportTest.php`
+  - `npm.cmd run build`

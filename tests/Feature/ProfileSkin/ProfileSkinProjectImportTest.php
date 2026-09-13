@@ -4,6 +4,7 @@ use App\Models\ProfileSkin;
 use App\Models\ShopItem;
 use App\Models\User;
 use App\Models\UserInventory;
+use Inertia\Testing\AssertableInertia as Assert;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -60,12 +61,13 @@ it('imports a static project folder as a profile skin bundle', function () {
     $skin = ProfileSkin::query()->where('slug', 'test-project')->firstOrFail();
 
     expect($skin->template_key)->toBe('project_static')
-        ->and($skin->project_entry_path)->toBe('profile-skins/test-project/project/index.html')
-        ->and($skin->project_root_path)->toBe('profile-skins/test-project/project')
+        ->and($skin->project_entry_path)->toStartWith('profile-skins/test-project/project-')
+        ->and($skin->project_entry_path)->toEndWith('/index.html')
+        ->and($skin->project_root_path)->toStartWith('profile-skins/test-project/project-')
         ->and($skin->shopItem?->code)->toBe('SKIN_TEST_PROJECT');
 
-    Storage::disk('public')->assertExists('profile-skins/test-project/project/index.html');
-    Storage::disk('public')->assertExists('profile-skins/test-project/project/css/style.css');
+    Storage::disk('public')->assertExists($skin->project_entry_path);
+    Storage::disk('public')->assertExists($skin->project_root_path.'/css/style.css');
     Storage::disk('public')->assertExists('profile-skins/test-project/preview.png');
 });
 
@@ -109,4 +111,85 @@ it('lets a user equip an owned imported profile skin', function () {
         ->assertRedirect();
 
     expect((int) $user->fresh()->active_profile_skin_id)->toBe((int) $skin->id);
+});
+
+it('lets a user preview an active shop skin before owning it', function () {
+    $user = User::factory()->create([
+        'email_verified_at' => now(),
+    ]);
+
+    $shopItem = ShopItem::query()->create([
+        'code' => 'SKIN_PREVIEW_PROJECT',
+        'name' => 'Skin: Preview Project',
+        'price_gold' => 500,
+        'is_active' => true,
+        'is_stackable' => false,
+    ]);
+
+    $skin = ProfileSkin::query()->create([
+        'shop_item_id' => $shopItem->id,
+        'name' => 'Preview Project',
+        'slug' => 'preview-project',
+        'renderer_type' => 'project_static',
+        'template_key' => 'project_static',
+        'project_entry_path' => 'profile-skins/preview-project/project/index.html',
+        'project_root_path' => 'profile-skins/preview-project/project',
+        'hero_gradient' => 'linear-gradient(135deg, #05070b 0%, #111827 100%)',
+        'accent_color' => '#22d3ee',
+        'border_color' => '#334155',
+        'glow_color' => 'rgba(34,211,238,0.2)',
+        'stat_panel_bg' => '#0f172a',
+        'text_primary' => '#67e8f9',
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('profile.skins.preview', $skin))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('ProfileSkins/Preview')
+            ->where('skin.id', $skin->id)
+            ->where('skin.slug', 'preview-project')
+        );
+
+    expect($skin->isOwnedBy($user))->toBeFalse();
+});
+
+it('does not let a user activate a shop skin before owning it', function () {
+    $user = User::factory()->create([
+        'email_verified_at' => now(),
+    ]);
+
+    $shopItem = ShopItem::query()->create([
+        'code' => 'SKIN_LOCKED_PROJECT',
+        'name' => 'Skin: Locked Project',
+        'price_gold' => 500,
+        'is_active' => true,
+        'is_stackable' => false,
+    ]);
+
+    $skin = ProfileSkin::query()->create([
+        'shop_item_id' => $shopItem->id,
+        'name' => 'Locked Project',
+        'slug' => 'locked-project',
+        'renderer_type' => 'project_static',
+        'template_key' => 'project_static',
+        'project_entry_path' => 'profile-skins/locked-project/project/index.html',
+        'project_root_path' => 'profile-skins/locked-project/project',
+        'hero_gradient' => 'linear-gradient(135deg, #05070b 0%, #111827 100%)',
+        'accent_color' => '#22d3ee',
+        'border_color' => '#334155',
+        'glow_color' => 'rgba(34,211,238,0.2)',
+        'stat_panel_bg' => '#0f172a',
+        'text_primary' => '#67e8f9',
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($user)
+        ->from(route('shop.index'))
+        ->post(route('profile.skins.activate', $skin))
+        ->assertRedirect(route('shop.index'))
+        ->assertSessionHasErrors('skin');
+
+    expect($user->fresh()->active_profile_skin_id)->toBeNull();
 });
