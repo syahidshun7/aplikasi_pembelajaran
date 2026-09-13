@@ -210,6 +210,13 @@ const buyItem = async (item) => {
                 </template>
                 <template #footer>
                     <button type="button" class="shop-modal-close-button" @click="closeItemDetail">Close</button>
+                    <Link
+                        v-if="selectedItem && isProfileSkin(selectedItem)"
+                        :href="route('profile.skins.preview', { skin: selectedItem.profile_skin.id, back: route('shop.index') })"
+                        class="shop-modal-preview-button"
+                    >
+                        Preview
+                    </Link>
                     <button
                         v-if="selectedItem && !isUnlockedCosmetic(selectedItem)"
                         type="button"

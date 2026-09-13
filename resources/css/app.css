@@ -2516,12 +2516,14 @@
 }
 
 [data-app-surface='user'] .shop-light-page .shop-modal-close-button,
+[data-app-surface='user'] .shop-light-page .shop-modal-preview-button,
 [data-app-surface='user'] .shop-light-page .shop-modal-buy-button {
     min-width: 110px;
     border: 2px solid #009999;
     padding: 0.65rem 0.85rem;
     font-size: 8px;
     text-transform: uppercase;
+    text-align: center;
 }
 
 [data-app-surface='user'] .shop-light-page .shop-modal-close-button {
@@ -2532,6 +2534,12 @@
 [data-app-surface='user'] .shop-light-page .shop-modal-buy-button {
     background: #009999;
     color: #ffffff;
+}
+
+[data-app-surface='user'] .shop-light-page .shop-modal-preview-button {
+    border-color: #7c3aed;
+    background: rgba(124, 58, 237, 0.14);
+    color: #ddd6fe;
 }
 
 [data-app-surface='user'] .shop-light-page .shop-modal-buy-button:disabled {
@@ -2578,8 +2586,19 @@
     color: #202020;
 }
 
+[data-app-surface='user'][data-theme='light'] .shop-light-page .shop-modal-preview-button {
+    border-color: #6d28d9;
+    background: #ede9fe;
+    color: #4c1d95;
+}
+
 [data-app-surface='user'][data-theme='light'] .shop-light-page .shop-modal-close-button:hover {
     background: #202020;
+    color: #ffffff;
+}
+
+[data-app-surface='user'][data-theme='light'] .shop-light-page .shop-modal-preview-button:hover {
+    background: #6d28d9;
     color: #ffffff;
 }
 
