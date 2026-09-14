@@ -76,23 +76,26 @@ test('admin study group detail includes attendance dashboard matrix', function (
 
     $response = $this
         ->actingAs($admin)
-        ->get(route('groups.detail', $group->uuid));
+        ->get(route('groups.attendance', $group->uuid));
 
     $response
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('StudyGroups/Admin/Detail')
+            ->component('StudyGroups/Admin/AttendanceDashboard')
             ->where('attendanceDashboard.summary.total_events', 2)
             ->where('attendanceDashboard.summary.total_students', 2)
             ->where('attendanceDashboard.summary.class_attendance_rate', 50)
             ->has('attendanceDashboard.events', 2)
             ->has('attendanceDashboard.students', 2)
+            ->where('attendanceDashboard.events.0.title', 'Session 02')
+            ->where('attendanceDashboard.events.1.title', 'Session 01')
             ->where('attendanceDashboard.students.0.name', 'Andi Learner')
             ->where('attendanceDashboard.students.0.attendance_rate', 50)
-            ->where('attendanceDashboard.students.0.events.0.status', 'present')
-            ->where('attendanceDashboard.students.0.events.1.status', 'absent')
+            ->where('attendanceDashboard.students.0.events.0.status', 'absent')
+            ->where('attendanceDashboard.students.0.events.1.status', 'present')
             ->where('attendanceDashboard.students.1.name', 'Budi Learner')
             ->where('attendanceDashboard.students.1.attendance_rate', 50)
-            ->where('attendanceDashboard.students.1.events.1.status', 'pending')
+            ->where('attendanceDashboard.students.1.events.0.status', 'pending')
+            ->where('attendanceDashboard.students.1.events.1.status', 'present')
         );
 });

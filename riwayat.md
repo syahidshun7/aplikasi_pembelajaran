@@ -1277,3 +1277,21 @@ nice -n 15 cpulimit -l 50 -- npm run build
   - `php -l tests\Feature\ProfileSkin\ProfileSkinProjectImportTest.php`
   - `php artisan test tests\Feature\ProfileSkin\ProfileSkinProjectImportTest.php`
   - `npm.cmd run build`
+
+### Fix: Sorting Event Admin Terbaru di Atas
+
+- Bug/kebutuhan: data event di area admin masih terasa ascending sehingga event/data lama bisa muncul lebih atas.
+- Update `AdminEventController::index`: list event admin sekarang diurutkan dari `created_at` terbaru lalu `id` terbaru, sehingga event yang baru dibuat muncul paling atas.
+- Update `AdminStudyGroupController`:
+  - riwayat attendance student sekarang menampilkan event dengan `starts_at` terbaru lebih dulu;
+  - attendance dashboard matrix kelas juga memakai event terbaru lebih dulu, dengan event tanpa tanggal tetap di belakang.
+- Tambah/ubah regression test:
+  - `tests/Feature/Event/AdminEventTrashTest.php` memastikan admin event index menampilkan event terbaru paling atas;
+  - `tests/Feature/StudyGroup/AdminStudyGroupAttendanceDashboardTest.php` memastikan matrix attendance mengikuti urutan event terbaru.
+- Verifikasi berhasil:
+  - `php -l app\Http\Controllers\AdminEventController.php`
+  - `php -l app\Http\Controllers\AdminStudyGroupController.php`
+  - `php -l tests\Feature\Event\AdminEventTrashTest.php`
+  - `php -l tests\Feature\StudyGroup\AdminStudyGroupAttendanceDashboardTest.php`
+  - `php artisan test tests\Feature\Event\AdminEventTrashTest.php`
+  - `php artisan test tests\Feature\StudyGroup\AdminStudyGroupAttendanceDashboardTest.php`

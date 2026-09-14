@@ -68,7 +68,7 @@ class AdminEventController extends Controller
                         });
                 });
             })
-            ->orderBy('sequence_order')
+            ->latest('created_at')
             ->latest('id')
             ->paginate(10)
             ->withQueryString();
