@@ -306,6 +306,7 @@ class AdminEventController extends Controller
             'event' => $event,
             'attendanceUsers' => $attendanceUsers,
             'activeCheckInCode' => $activeCheckInCode ? [
+                'code' => (string) ($activeCheckInCode->plain_code ?? ''),
                 'last_four' => (string) $activeCheckInCode->plain_code_last_four,
                 'expires_at' => $activeCheckInCode->expires_at?->toISOString(),
                 'qr_url' => route('events.attendance.qr', [
@@ -338,6 +339,7 @@ class AdminEventController extends Controller
             EventCheckInCode::query()->create([
                 'event_id' => (int) $event->id,
                 'code_hash' => Hash::make($plainCode),
+                'plain_code' => $plainCode,
                 'plain_code_last_four' => substr($plainCode, -4),
                 'qr_token' => $qrToken,
                 'expires_at' => $expiresAt,
@@ -493,7 +495,7 @@ class AdminEventController extends Controller
         $validated = $request->validate([
             'attendance' => ['required', 'array', 'min:1'],
             'attendance.*.user_id' => ['required', 'integer', 'exists:users,id'],
-            'attendance.*.status' => ['required', 'in:pending,present,absent,excused'],
+            'attendance.*.status' => ['required', 'in:pending,present,absent,excused,sick'],
         ]);
 
         $allowedUserIds = User::query()

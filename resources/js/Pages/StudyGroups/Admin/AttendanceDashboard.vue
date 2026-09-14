@@ -19,6 +19,7 @@ const statusClass = (status) => {
     if (status === 'present') return 'border-emerald-600 bg-emerald-500/15 text-emerald-300';
     if (status === 'absent') return 'border-red-600 bg-red-500/15 text-red-300';
     if (status === 'excused') return 'border-cyan-600 bg-cyan-500/15 text-cyan-300';
+    if (status === 'sick') return 'border-amber-600 bg-amber-500/15 text-amber-300';
     return 'border-slate-700 bg-slate-800/40 text-slate-400';
 };
 
@@ -26,6 +27,7 @@ const statusLabel = (status) => {
     if (status === 'present') return 'P';
     if (status === 'absent') return 'A';
     if (status === 'excused') return 'I';
+    if (status === 'sick') return 'S';
     return '-';
 };
 
@@ -80,7 +82,7 @@ const shortDate = (value) => {
             </section>
 
             <section class="rpg-panel border-emerald-500/50">
-                <p class="mb-4 font-sans text-[12px] text-slate-400">P = Present, A = Absent, I = Izin, - = Pending.</p>
+                <p class="mb-4 font-sans text-[12px] text-slate-400">P = Present, A = Absent, I = Izin, S = Sick, - = Pending.</p>
 
                 <div v-if="attendanceEvents.length === 0" class="border border-slate-800 bg-black/30 p-5 text-[8px] uppercase text-slate-500">
                     Belum ada event kelas untuk dashboard attendance.
@@ -103,7 +105,7 @@ const shortDate = (value) => {
                                 <td class="sticky left-0 z-10 border-r border-slate-800 bg-[#111827] p-3">
                                     <p class="font-bold uppercase text-white">{{ student.name }}</p>
                                     <p class="mt-1 text-[10px] text-slate-500">@{{ student.username || 'user' }}</p>
-                                    <p class="mt-2 text-[10px] text-slate-400">P {{ student.counts?.present || 0 }} / A {{ student.counts?.absent || 0 }} / I {{ student.counts?.excused || 0 }} / - {{ student.counts?.pending || 0 }}</p>
+                                    <p class="mt-2 text-[10px] text-slate-400">P {{ student.counts?.present || 0 }} / A {{ student.counts?.absent || 0 }} / I {{ student.counts?.excused || 0 }} / S {{ student.counts?.sick || 0 }} / - {{ student.counts?.pending || 0 }}</p>
                                 </td>
                                 <td class="border-r border-slate-800 p-3 text-center font-bold" :class="rateClass(student.attendance_rate)">{{ student.attendance_rate }}%</td>
                                 <td v-for="eventStatus in student.events" :key="`${student.id}-${eventStatus.event_uuid}`" class="border-r border-slate-800 p-2 text-center">

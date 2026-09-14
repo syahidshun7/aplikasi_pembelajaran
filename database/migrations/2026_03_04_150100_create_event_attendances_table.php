@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('event_id')->constrained('events')->cascadeOnDelete();
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
-            $table->enum('status', ['pending', 'present', 'absent', 'excused'])->default('pending');
+            $table->enum('status', ['pending', 'present', 'absent', 'excused', 'sick'])->default('pending');
             $table->timestamp('checked_at')->nullable();
             $table->timestamps();
 
@@ -31,4 +31,3 @@ return new class extends Migration
         Schema::dropIfExists('event_attendances');
     }
 };
-

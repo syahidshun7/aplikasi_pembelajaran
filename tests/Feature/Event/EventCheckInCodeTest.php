@@ -4,6 +4,7 @@ use App\Models\Event;
 use App\Models\EventAttendance;
 use App\Models\EventCheckInCode;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia;
 
@@ -42,6 +43,17 @@ test('admin can generate event check in code and user can attend with the code',
     $storedCode = EventCheckInCode::query()->where('event_id', $event->id)->firstOrFail();
     expect(Hash::check((string) $payload['code'], (string) $storedCode->code_hash))->toBeTrue();
     expect((string) $storedCode->code_hash)->not->toBe((string) $payload['code']);
+    expect((string) $storedCode->plain_code)->toBe((string) $payload['code']);
+    expect((string) DB::table('event_check_in_codes')->where('id', $storedCode->id)->value('plain_code'))->not->toBe((string) $payload['code']);
+
+    $this
+        ->actingAs($admin)
+        ->get(route('admin.events.attendance', $event->uuid))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Events/Admin/Attendance')
+            ->where('activeCheckInCode.code', (string) $payload['code'])
+        );
 
     $attendResponse = $this
         ->actingAs($user)

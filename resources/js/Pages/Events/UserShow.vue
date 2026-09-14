@@ -65,6 +65,7 @@ const attendanceBadgeClass = computed(() => {
     if (status === 'present') return 'border-emerald-500/70 text-emerald-300';
     if (status === 'absent') return 'border-rose-500/70 text-rose-300';
     if (status === 'excused') return 'border-amber-500/70 text-amber-300';
+    if (status === 'sick') return 'border-orange-500/70 text-orange-300';
     return 'border-slate-600 text-slate-300';
 });
 
@@ -75,6 +76,7 @@ const attendanceStatusLabel = computed(() => {
     if (status === 'present') return 'Sudah hadir';
     if (status === 'absent') return 'Tidak hadir';
     if (status === 'excused') return 'Izin';
+    if (status === 'sick') return 'Sakit';
     return 'Belum absensi';
 });
 
