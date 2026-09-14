@@ -275,8 +275,9 @@ class AdminStudyGroupController extends Controller
 
         $events = Event::query()
             ->where('study_group_id', (int) $group->id)
-            ->orderBy('starts_at')
-            ->orderBy('title')
+            ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
+            ->orderByDesc('starts_at')
+            ->orderByDesc('id')
             ->get(['id', 'uuid', 'title', 'starts_at', 'ends_at']);
         $attendanceByEvent = $events->isEmpty()
             ? collect()
@@ -798,9 +799,9 @@ class AdminStudyGroupController extends Controller
         $events = Event::query()
             ->where('study_group_id', (int) $group->id)
             ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
-            ->orderBy('starts_at')
-            ->orderBy('sequence_order')
-            ->orderBy('id')
+            ->orderByDesc('starts_at')
+            ->orderByDesc('sequence_order')
+            ->orderByDesc('id')
             ->get(['id', 'uuid', 'title', 'sequence_order', 'starts_at', 'ends_at']);
 
         $attendanceRows = EventAttendance::query()
