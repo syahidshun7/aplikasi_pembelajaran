@@ -133,9 +133,9 @@ class UserEventController extends Controller
 
         $attendanceStatus = (string) ($attendance?->status ?? 'pending');
         $canSelfAttend = (bool) $event->self_attendance_enabled
-            && ! in_array($attendanceStatus, ['present', 'absent', 'excused'], true);
+            && ! in_array($attendanceStatus, ['present', 'absent', 'excused', 'sick'], true);
         $canCodeAttend = ! $canSelfAttend
-            && ! in_array($attendanceStatus, ['present', 'absent', 'excused'], true);
+            && ! in_array($attendanceStatus, ['present', 'absent', 'excused', 'sick'], true);
         $activeCheckInCode = EventCheckInCode::query()
             ->where('event_id', (int) $event->id)
             ->where('is_active', true)
@@ -213,7 +213,7 @@ class UserEventController extends Controller
 
         $currentStatus = (string) ($attendance->status ?? 'pending');
 
-        if (in_array($currentStatus, ['absent', 'excused'], true)) {
+        if (in_array($currentStatus, ['absent', 'excused', 'sick'], true)) {
             return back()->with('message', 'EVENT_ATTENDANCE_ALREADY_FINALIZED');
         }
 
@@ -253,7 +253,7 @@ class UserEventController extends Controller
 
         $currentStatus = (string) ($attendance->status ?? 'pending');
 
-        if (in_array($currentStatus, ['absent', 'excused'], true)) {
+        if (in_array($currentStatus, ['absent', 'excused', 'sick'], true)) {
             return back()->with('message', 'EVENT_ATTENDANCE_ALREADY_FINALIZED');
         }
 
@@ -287,7 +287,7 @@ class UserEventController extends Controller
 
         $currentStatus = (string) ($attendance->status ?? 'pending');
 
-        if (in_array($currentStatus, ['absent', 'excused'], true)) {
+        if (in_array($currentStatus, ['absent', 'excused', 'sick'], true)) {
             return redirect()
                 ->route('events.show', $event->uuid)
                 ->with('message', 'EVENT_ATTENDANCE_ALREADY_FINALIZED');

@@ -65,6 +65,7 @@ const statusClass = (status) => ({
     present: 'border-emerald-600 bg-emerald-950/30 text-emerald-300',
     absent: 'border-red-600 bg-red-950/30 text-red-300',
     excused: 'border-yellow-600 bg-yellow-950/30 text-yellow-300',
+    sick: 'border-amber-600 bg-amber-950/30 text-amber-300',
     pending: 'border-slate-600 bg-slate-900/50 text-slate-400',
 }[status] || 'border-slate-600 bg-slate-900/50 text-slate-400');
 
@@ -248,6 +249,7 @@ const openQuestHistory = (quest) => {
                                 <option value="present">PRESENT</option>
                                 <option value="absent">ABSENT</option>
                                 <option value="excused">EXCUSED</option>
+                                <option value="sick">SICK</option>
                                 <option value="pending">PENDING</option>
                             </select>
                         </div>

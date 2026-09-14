@@ -122,9 +122,15 @@ const photoUrl = (user) => {
                                 <p class="mt-2 text-[8px] uppercase text-slate-400">Expired: {{ formatDateTime(generatedCheckInCode.expires_at) }}</p>
                             </div>
                             <div v-else-if="activeCheckInCode" class="mt-3 border border-slate-700 bg-black/30 p-3">
+                                <template v-if="activeCheckInCode.code">
+                                    <p class="text-[8px] uppercase text-slate-400">Kode aktif tersedia, berakhir {{ formatDateTime(activeCheckInCode.expires_at) }}.</p>
+                                    <p class="mt-2 text-2xl tracking-[0.35em] text-emerald-200">{{ activeCheckInCode.code }}</p>
+                                </template>
                                 <p class="text-[8px] uppercase text-slate-400">
-                                    Kode aktif tersedia, berakhir {{ formatDateTime(activeCheckInCode.expires_at) }}.
-                                    Last four: ****{{ activeCheckInCode.last_four }}
+                                    <template v-if="!activeCheckInCode.code">
+                                        Kode aktif tersedia, berakhir {{ formatDateTime(activeCheckInCode.expires_at) }}.
+                                        Last four: ****{{ activeCheckInCode.last_four }}
+                                    </template>
                                 </p>
                             </div>
                             <div v-else class="mt-3 text-[8px] uppercase text-slate-500">
@@ -179,6 +185,7 @@ const photoUrl = (user) => {
                             <button type="button" @click="applyStatusToAll('present')" class="px-3 py-2 border border-emerald-500 text-emerald-400 hover:bg-emerald-500 hover:text-black text-[10px] font-sans uppercase">Select_All_Present</button>
                             <button type="button" @click="applyStatusToAll('absent')" class="px-3 py-2 border border-red-500 text-red-400 hover:bg-red-500 hover:text-black text-[10px] font-sans uppercase">Select_All_Absent</button>
                             <button type="button" @click="applyStatusToAll('excused')" class="px-3 py-2 border border-cyan-500 text-cyan-400 hover:bg-cyan-500 hover:text-black text-[10px] font-sans uppercase">Select_All_Excused</button>
+                            <button type="button" @click="applyStatusToAll('sick')" class="px-3 py-2 border border-amber-500 text-amber-400 hover:bg-amber-500 hover:text-black text-[10px] font-sans uppercase">Select_All_Sick</button>
                             <button type="button" @click="applyStatusToAll('pending')" class="px-3 py-2 border border-slate-500 text-slate-300 hover:bg-slate-500 hover:text-black text-[10px] font-sans uppercase">Reset_All_Pending</button>
                         </div>
                     </div>
@@ -208,6 +215,10 @@ const photoUrl = (user) => {
                                     <label class="flex items-center gap-1 text-[8px] font-sans uppercase text-cyan-400 border border-cyan-700/50 px-1.5 py-1 whitespace-nowrap">
                                         <input type="radio" :name="`attendance-${member.id}`" :checked="getAttendanceStatus(member.id) === 'excused'" @change="setAttendanceStatus(member.id, 'excused')">
                                         Excused
+                                    </label>
+                                    <label class="flex items-center gap-1 text-[8px] font-sans uppercase text-amber-400 border border-amber-700/50 px-1.5 py-1 whitespace-nowrap">
+                                        <input type="radio" :name="`attendance-${member.id}`" :checked="getAttendanceStatus(member.id) === 'sick'" @change="setAttendanceStatus(member.id, 'sick')">
+                                        Sick
                                     </label>
                                     <label class="flex items-center gap-1 text-[8px] font-sans uppercase text-slate-300 border border-slate-700 px-1.5 py-1 whitespace-nowrap">
                                         <input type="radio" :name="`attendance-${member.id}`" :checked="getAttendanceStatus(member.id) === 'pending'" @change="setAttendanceStatus(member.id, 'pending')">

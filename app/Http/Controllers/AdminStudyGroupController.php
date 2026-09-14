@@ -820,6 +820,7 @@ class AdminStudyGroupController extends Controller
                     'present' => 0,
                     'absent' => 0,
                     'excused' => 0,
+                    'sick' => 0,
                     'pending' => 0,
                 ];
 
@@ -855,6 +856,7 @@ class AdminStudyGroupController extends Controller
                     'present' => 0,
                     'absent' => 0,
                     'excused' => 0,
+                    'sick' => 0,
                     'pending' => 0,
                 ];
 

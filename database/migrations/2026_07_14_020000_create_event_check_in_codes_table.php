@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('event_id')->constrained('events')->cascadeOnDelete();
             $table->string('code_hash');
+            $table->text('plain_code')->nullable();
             $table->string('plain_code_last_four', 4);
             $table->string('qr_token', 96)->unique();
             $table->timestamp('expires_at');

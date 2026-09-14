@@ -424,7 +424,7 @@ const removeStaff = (staff) => {
                     <div>
                         <h2 class="text-emerald-300 uppercase">Attendance_Dashboard</h2>
                         <p class="mt-2 font-sans text-[12px] leading-relaxed text-slate-300">
-                            Monitoring kehadiran siswa pada event kelas. P = Present, A = Absent, I = Izin, - = Pending.
+                            Monitoring kehadiran siswa pada event kelas. P = Present, A = Absent, I = Izin, S = Sick, - = Pending.
                         </p>
                     </div>
                 </div>
@@ -488,7 +488,7 @@ const removeStaff = (staff) => {
                                     <p class="break-words text-[12px] font-bold uppercase text-white">{{ student.name }}</p>
                                     <p class="mt-1 break-words text-[10px] text-slate-500">@{{ student.username || 'user' }}</p>
                                     <p class="mt-2 text-[10px] text-slate-400">
-                                        P {{ student.counts?.present || 0 }} / A {{ student.counts?.absent || 0 }} / I {{ student.counts?.excused || 0 }} / - {{ student.counts?.pending || 0 }}
+                                        P {{ student.counts?.present || 0 }} / A {{ student.counts?.absent || 0 }} / I {{ student.counts?.excused || 0 }} / S {{ student.counts?.sick || 0 }} / - {{ student.counts?.pending || 0 }}
                                     </p>
                                 </td>
                                 <td class="border-r border-slate-800 p-3 text-center font-bold" :class="rateClass(student.attendance_rate)">

@@ -9,6 +9,7 @@ class EventCheckInCode extends Model
     protected $fillable = [
         'event_id',
         'code_hash',
+        'plain_code',
         'plain_code_last_four',
         'qr_token',
         'expires_at',
@@ -17,6 +18,7 @@ class EventCheckInCode extends Model
     ];
 
     protected $casts = [
+        'plain_code' => 'encrypted',
         'expires_at' => 'datetime',
         'is_active' => 'boolean',
     ];
