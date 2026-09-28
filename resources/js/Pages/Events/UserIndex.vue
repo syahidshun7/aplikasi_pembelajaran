@@ -168,6 +168,19 @@ const toneStyleForEvent = (item) => {
                             <p class="mt-2 text-slate-400 font-sans text-[11px]">{{ shortText(item.description, 120) }}</p>
                             <p class="mt-2 text-slate-500 text-[8px]">{{ formatDate(item.starts_at) }}</p>
                             <p class="mt-1 text-[8px] uppercase text-slate-400">Guide: {{ item.guides_count || 0 }} | Quest: {{ item.quests_count || 0 }}</p>
+                            <div v-if="item.content_progress?.enabled" class="event-progress">
+                                <span class="event-progress__label">Progress</span>
+                                <span class="event-progress__track" aria-hidden="true">
+                                    <span
+                                        class="event-progress__fill"
+                                        :class="{ 'is-complete': item.content_progress.completed }"
+                                        :style="{ width: `${item.content_progress.percent || 0}%` }"
+                                    ></span>
+                                </span>
+                                <span class="event-progress__value" :class="{ 'is-complete': item.content_progress.completed }">
+                                    {{ item.content_progress.percent || 0 }}%
+                                </span>
+                            </div>
                             <div class="mt-3 flex items-center gap-2">
                                 <Link
                                     :href="route('events.show', item.uuid)"
@@ -215,7 +228,22 @@ const toneStyleForEvent = (item) => {
                                         {{ shortText(item.description, 120) }}
                                     </td>
                                     <td class="py-3 px-2 text-slate-500">{{ formatDate(item.starts_at) }}</td>
-                                    <td class="py-3 px-2 text-slate-400 uppercase text-[8px]">Guide: {{ item.guides_count || 0 }} | Quest: {{ item.quests_count || 0 }}</td>
+                                    <td class="py-3 px-2 text-slate-400 uppercase text-[8px]">
+                                        <p>Guide: {{ item.guides_count || 0 }} | Quest: {{ item.quests_count || 0 }}</p>
+                                        <div v-if="item.content_progress?.enabled" class="event-progress mt-2 min-w-[140px]">
+                                            <span class="event-progress__label">Progress</span>
+                                            <span class="event-progress__track" aria-hidden="true">
+                                                <span
+                                                    class="event-progress__fill"
+                                                    :class="{ 'is-complete': item.content_progress.completed }"
+                                                    :style="{ width: `${item.content_progress.percent || 0}%` }"
+                                                ></span>
+                                            </span>
+                                            <span class="event-progress__value" :class="{ 'is-complete': item.content_progress.completed }">
+                                                {{ item.content_progress.percent || 0 }}%
+                                            </span>
+                                        </div>
+                                    </td>
                                     <td class="py-3 px-2 text-right">
                                         <Link
                                             :href="route('events.show', item.uuid)"
@@ -304,5 +332,46 @@ const toneStyleForEvent = (item) => {
     border-color: color-mix(in srgb, var(--event-tone-border) 58%, transparent 42%);
     background: color-mix(in srgb, var(--event-tone-bg) 74%, transparent 26%);
     color: color-mix(in srgb, var(--event-tone-accent) 90%, #f8fafc 10%);
+}
+
+.event-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.55rem;
+}
+
+.event-progress__label,
+.event-progress__value {
+    flex: none;
+    font-size: 7px;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: #8cc4ff;
+}
+
+.event-progress__value.is-complete {
+    color: #6ee7b7;
+}
+
+.event-progress__track {
+    flex: 1;
+    height: 12px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.28);
+}
+
+.event-progress__fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: #38bdf8;
+}
+
+.event-progress__fill.is-complete {
+    background: #34d399;
 }
 </style>

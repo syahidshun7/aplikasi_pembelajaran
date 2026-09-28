@@ -1458,6 +1458,31 @@
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page tr:hover,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .quest-item-card:hover,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .guide-item-card:hover,
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-progress__meta {
+    color: #526a80 !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-progress__label,
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-progress__value {
+    color: #006f6f !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-progress__value.is-complete {
+    color: #166534 !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-progress__track {
+    background: #d7e7e7 !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-progress__fill {
+    background: #009999 !important;
+}
+
+[data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-progress__fill.is-complete {
+    background: #16a34a !important;
+}
+
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .event-item-card:hover,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .notification-item-card:hover,
 [data-app-surface='user'][data-theme='light'] .lobby-detail-page .doopnews-page__card:hover {

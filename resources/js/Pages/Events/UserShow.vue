@@ -7,6 +7,10 @@ import { toast } from '@/Utils/Alert';
 const props = defineProps({
     event: Object,
     userAttendance: Object,
+    contentProgress: {
+        type: Object,
+        default: () => ({ enabled: false }),
+    },
     previewMode: {
         type: Boolean,
         default: false,
@@ -114,6 +118,14 @@ const submitCodeAttendance = () => {
     });
 };
 
+const progress = computed(() => props.contentProgress || { enabled: false });
+const progressEnabled = computed(() => Boolean(progress.value.enabled) && !props.previewMode);
+const progressPercent = computed(() => Math.max(0, Math.min(100, Number(progress.value.percent || 0))));
+const progressLabel = computed(() => {
+    const attendance = progress.value.attendance_done ? 'hadir' : 'belum hadir';
+
+    return `${progress.value.opened}/${progress.value.total} selesai · Guide ${progress.value.guides_opened}/${progress.value.guides_total} · Quest ${progress.value.quests_opened}/${progress.value.quests_total} · Absensi ${attendance}`;
+});
 const isPublicEvent = computed(() => !props.event?.study_group_id && !props.event?.study_group);
 const publicShareUrl = computed(() => isPublicEvent.value ? route('public.events.show', { uuid: props.event.uuid }) : '');
 const backHref = computed(() => props.backUrl || route('events.user.index'));
@@ -245,6 +257,22 @@ const copyPublicLink = async () => {
                         </form>
                     </div>
                 </div>
+                <div v-if="progressEnabled" class="event-progress-panel">
+                    <div class="event-progress">
+                        <span class="event-progress__label">Progress</span>
+                        <span class="event-progress__track" aria-hidden="true">
+                            <span
+                                class="event-progress__fill"
+                                :class="{ 'is-complete': progress.completed }"
+                                :style="{ width: `${progressPercent}%` }"
+                            ></span>
+                        </span>
+                        <span class="event-progress__value" :class="{ 'is-complete': progress.completed }">
+                            {{ progressPercent }}%
+                        </span>
+                    </div>
+                    <p class="event-progress__meta">{{ progressLabel }}</p>
+                </div>
                 <div v-if="event.description" class="mt-4 p-4 border border-slate-700 bg-black/30">
                     <p class="text-[8px] text-slate-300 uppercase mb-3 tracking-widest">Event_Description</p>
                     <p class="text-[13px] md:text-[14px] font-sans text-slate-200 leading-7 whitespace-pre-line break-words">
@@ -293,7 +321,16 @@ const copyPublicLink = async () => {
                     <h2 class="text-indigo-300 text-[10px] uppercase mb-4">Event_Guides</h2>
                     <div class="space-y-3 max-h-[520px] overflow-y-auto pr-2 custom-scroll">
                         <div v-for="guide in event.guides" :key="guide.uuid" class="p-3 bg-[#0d1117] border border-slate-700">
-                            <p class="text-[9px] text-white uppercase mb-1">{{ guide.title }}</p>
+                            <div class="mb-1 flex items-start justify-between gap-2">
+                                <p class="text-[9px] text-white uppercase">{{ guide.title }}</p>
+                                <span
+                                    v-if="progressEnabled && guide.counts_toward_progress"
+                                    class="shrink-0 border px-2 py-1 text-[7px] uppercase"
+                                    :class="guide.opened_for_user ? 'border-emerald-500 text-emerald-300' : 'border-slate-600 text-slate-400'"
+                                >
+                                    {{ guide.opened_for_user ? 'Opened' : 'Not_Opened' }}
+                                </span>
+                            </div>
                             <p class="text-[7px] text-cyan-400 uppercase mb-2">{{ guide.study_group?.name || 'Public' }}</p>
                             <p class="text-[8px] text-slate-500 line-clamp-2 font-sans mb-3">{{ guide.description || 'No description.' }}</p>
                             <Link
@@ -311,7 +348,16 @@ const copyPublicLink = async () => {
                     <h2 class="text-yellow-400 text-[10px] uppercase mb-4">Event_Quests</h2>
                     <div class="space-y-3 max-h-[520px] overflow-y-auto pr-2 custom-scroll">
                         <div v-for="quest in event.quests" :key="quest.uuid" class="p-3 bg-[#0d1117] border border-slate-700">
-                            <p class="text-[9px] text-white uppercase mb-1">{{ quest.title }}</p>
+                            <div class="mb-1 flex items-start justify-between gap-2">
+                                <p class="text-[9px] text-white uppercase">{{ quest.title }}</p>
+                                <span
+                                    v-if="progressEnabled && quest.counts_toward_progress"
+                                    class="shrink-0 border px-2 py-1 text-[7px] uppercase"
+                                    :class="quest.opened_for_user ? 'border-emerald-500 text-emerald-300' : 'border-slate-600 text-slate-400'"
+                                >
+                                    {{ quest.opened_for_user ? 'Opened' : 'Not_Opened' }}
+                                </span>
+                            </div>
                             <div class="flex items-center justify-between mb-2">
                                 <p class="text-[7px] text-cyan-400 uppercase">{{ quest.study_group?.name || 'Public' }}</p>
                                 <p class="text-[7px] text-orange-400 uppercase">{{ quest.difficulty }}</p>
@@ -356,5 +402,57 @@ const copyPublicLink = async () => {
 .custom-scroll::-webkit-scrollbar-thumb {
     background: #334155;
     border-radius: 999px;
+}
+
+.event-progress-panel {
+    margin-top: 1rem;
+}
+
+.event-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.event-progress__label,
+.event-progress__value {
+    flex: none;
+    font-size: 7px;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: #8cc4ff;
+}
+
+.event-progress__value.is-complete {
+    color: #6ee7b7;
+}
+
+.event-progress__track {
+    flex: 1;
+    height: 12px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.28);
+}
+
+.event-progress__fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: #38bdf8;
+}
+
+.event-progress__fill.is-complete {
+    background: #34d399;
+}
+
+.event-progress__meta {
+    margin-top: 0.4rem;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #94a3b8;
 }
 </style>

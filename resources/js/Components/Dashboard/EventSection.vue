@@ -121,7 +121,20 @@ const hiddenNewItemCount = computed(() => {
                 </div>
                 <h3 class="mt-3 break-words text-[10px] uppercase text-white">{{ event.title }}</h3>
                 <p class="mt-2 text-[8px] uppercase leading-relaxed text-slate-400">{{ event.__starts_at_label }}</p>
-                <div class="event-card__footer mt-4 flex min-h-[38px] items-center justify-between gap-2 border-t border-slate-800 pt-3">
+                <div v-if="event.content_progress?.enabled" class="event-progress">
+                    <span class="event-progress__label">Progress</span>
+                    <span class="event-progress__track" aria-hidden="true">
+                        <span
+                            class="event-progress__fill"
+                            :class="{ 'is-complete': event.content_progress.completed }"
+                            :style="{ width: `${Math.max(0, Math.min(100, Number(event.content_progress.percent || 0)))}%` }"
+                        ></span>
+                    </span>
+                    <span class="event-progress__value" :class="{ 'is-complete': event.content_progress.completed }">
+                        {{ event.content_progress.percent }}%
+                    </span>
+                </div>
+                <div class="event-card__footer mt-4 flex min-h-[38px] items-center justify-between gap-2 pt-1">
                     <span class="text-[7px] uppercase text-cyan-300">Event Node</span>
                     <Link
                         :href="route('events.show', event.uuid)"
@@ -216,5 +229,46 @@ const hiddenNewItemCount = computed(() => {
     border-color: color-mix(in srgb, var(--event-tone-border) 56%, transparent 44%);
     background: color-mix(in srgb, var(--event-tone-bg) 72%, transparent 28%);
     color: color-mix(in srgb, var(--event-tone-accent) 88%, #f8fafc 12%);
+}
+
+.event-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.7rem;
+}
+
+.event-progress__label,
+.event-progress__value {
+    flex: none;
+    font-size: 7px;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: #8cc4ff;
+}
+
+.event-progress__value.is-complete {
+    color: #6ee7b7;
+}
+
+.event-progress__track {
+    flex: 1;
+    height: 12px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.28);
+}
+
+.event-progress__fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: #38bdf8;
+}
+
+.event-progress__fill.is-complete {
+    background: #34d399;
 }
 </style>

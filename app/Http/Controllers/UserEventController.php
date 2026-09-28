@@ -9,6 +9,7 @@ use App\Models\EventAttendance;
 use App\Models\EventCheckInCode;
 use App\Models\StudyGroup;
 use App\Models\UserContentRead;
+use App\Services\EventContentProgressService;
 use App\Services\StudyGroupStaffAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -89,8 +90,13 @@ class UserEventController extends Controller
             ->mapWithKeys(fn ($id) => [(int) $id => true])
             ->all();
 
-        $events->getCollection()->transform(function (Event $event) use ($seenEventIdSet) {
+        $progressByEvent = app(EventContentProgressService::class)
+            ->summariesFor($events->items(), (int) ($user?->id ?? 0));
+
+        $events->getCollection()->transform(function (Event $event) use ($seenEventIdSet, $progressByEvent) {
             $event->is_new_for_user = $this->isEventNewForUser($event, $seenEventIdSet);
+            $event->content_progress = $progressByEvent[(int) $event->id]
+                ?? app(EventContentProgressService::class)->disabledSummary();
             return $event;
         });
 
@@ -143,8 +149,14 @@ class UserEventController extends Controller
             ->latest('id')
             ->first();
 
+        $contentProgress = app(EventContentProgressService::class)->decorateEvent(
+            $event,
+            $user?->isStaff() ? 0 : (int) $user->id,
+        );
+
         return Inertia::render('Events/UserShow', [
             'event' => $event,
+            'contentProgress' => $contentProgress,
             'userAttendance' => [
                 'status' => $attendanceStatus,
                 'checked_at' => $attendance?->checked_at?->toISOString(),

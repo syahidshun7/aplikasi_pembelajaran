@@ -1295,3 +1295,26 @@ nice -n 15 cpulimit -l 50 -- npm run build
   - `php -l tests\Feature\StudyGroup\AdminStudyGroupAttendanceDashboardTest.php`
   - `php artisan test tests\Feature\Event\AdminEventTrashTest.php`
   - `php artisan test tests\Feature\StudyGroup\AdminStudyGroupAttendanceDashboardTest.php`
+
+## 2026-09-25
+
+### Fitur: Progress Bar Event dari Guide dan Quest yang Dibuka
+
+- Kebutuhan: event bisa complete 100% setelah user membuka semua guide dan quest yang menempel di event tersebut.
+- Progress memakai jejak buka yang sudah ada di `user_content_reads.seen_at` (`content_type` `guide` dan `quest`). Tidak ada tabel baru.
+- Membuka halaman event tetap hanya menandai event sebagai sudah dilihat untuk badge NEW. Itu tidak mengisi progress bar.
+- Aturan hitung:
+  - semua guide event masuk pembagi;
+  - hanya quest berstatus `Available` yang masuk pembagi;
+  - absensi `present` dihitung sebagai satu bagian progress;
+  - event tanpa guide dan quest tetap menunggu absensi sebelum 100%.
+- Fitur hanya aktif untuk event yang `created_at`-nya mulai 25 September 2026. Event sebelum tanggal itu tidak menampilkan bar.
+- Menambahkan `app/Services/EventContentProgressService.php` untuk menghitung ringkasan per event dan menandai item `opened_for_user`.
+- Menampilkan progress di:
+  - detail event `resources/js/Pages/Events/UserShow.vue`, termasuk status `Opened` / `Not_Opened` per guide dan quest;
+  - daftar event `resources/js/Pages/Events/UserIndex.vue`;
+  - kartu Town Hall Timeline di home user lewat `resources/js/Components/Dashboard/EventSection.vue`.
+- Payload home dikirim dari `HomeController`, payload daftar dan detail dari `UserEventController`.
+- Tambah test `tests/Feature/Event/EventContentProgressTest.php` untuk batas tanggal, progres 50% lalu 100%, event kosong, dan payload home.
+- Verifikasi berhasil: `php artisan test tests\Feature\Event\EventContentProgressTest.php` (3 tests, 88 assertions).
+- Tampilan browser belum diverifikasi karena sesi ini tidak punya browser tools.

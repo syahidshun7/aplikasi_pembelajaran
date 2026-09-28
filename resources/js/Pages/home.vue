@@ -1180,6 +1180,27 @@ onBeforeUnmount(() => {
     color: #00b3b3 !important;
 }
 
+[data-theme='light'] .lobby-color-system :deep(.event-progress__label),
+[data-theme='light'] .lobby-color-system :deep(.event-progress__value) {
+    color: #006f6f !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.event-progress__value.is-complete) {
+    color: #166534 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.event-progress__track) {
+    background: #d7e7e7 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.event-progress__fill) {
+    background: #009999 !important;
+}
+
+[data-theme='light'] .lobby-color-system :deep(.event-progress__fill.is-complete) {
+    background: #16a34a !important;
+}
+
 [data-theme='light'] .lobby-color-system :deep(.event-card__footer) {
     margin-top: auto !important;
 }
