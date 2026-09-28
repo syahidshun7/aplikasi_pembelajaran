@@ -14,6 +14,7 @@ use App\Models\Event;
 use App\Models\DoopNewsPost;
 use App\Models\UserContentRead;
 use App\Models\UserQuestUnlock;
+use App\Services\EventContentProgressService;
 use App\Services\LevelingService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Http\Request;
@@ -323,8 +324,15 @@ class HomeController extends Controller
         );
         $eventIds = $events->pluck('id')->map(fn ($id) => (int) $id)->all();
         $seenEventIdSet = $this->seenEventIdSet($userId, $eventIds);
-        $events = $events->map(function ($event) use ($seenEventIdSet) {
+        $progressByEvent = app(EventContentProgressService::class)->summariesFor(
+            Event::query()->whereIn('id', $eventIds)->get(),
+            (int) $userId,
+        );
+        $events = $events->map(function ($event) use ($seenEventIdSet, $progressByEvent) {
+            $eventId = (int) ($event['id'] ?? 0);
             $event['is_new_for_user'] = $this->isEventNewForUser($event, $seenEventIdSet);
+            $event['content_progress'] = $progressByEvent[$eventId]
+                ?? app(EventContentProgressService::class)->disabledSummary();
             return $event;
         });
     }
