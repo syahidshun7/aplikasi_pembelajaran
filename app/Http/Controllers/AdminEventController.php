@@ -750,14 +750,15 @@ class AdminEventController extends Controller
         $events = Event::query()
             ->where('study_group_id', $group->id)
             ->with(['attendances' => fn ($query) => $query->whereIn('user_id', $students)])
-            ->orderBy('sequence_order')
+            ->orderByRaw('CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('starts_at')
             ->orderBy('id')
             ->get();
 
         return response()->streamDownload(function () use ($group, $students, $events): void {
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF");
-            fputcsv($out, ['Kelas', 'Event', 'Deskripsi', 'Hari Mulai', 'Tanggal Mulai', 'Jam Mulai', 'Hari Selesai', 'Tanggal Selesai', 'Jam Selesai', 'Durasi', 'Zona Waktu', 'Total Siswa', 'Hadir', 'Tidak Hadir', 'Izin', 'Sakit', 'Belum Cek', 'Persentase Kehadiran'], ',', '"', '');
+            fputcsv($out, ['Waktu Mulai', 'Waktu Berakhir', 'Kelas', 'Nama Event', 'Deskripsi', 'Durasi', 'Total Siswa', 'Hadir', 'Tidak Hadir', 'Izin', 'Sakit', 'Belum Cek', 'Persentase Kehadiran', 'Created At'], ',', '"', '');
 
             foreach ($events as $event) {
                 $counts = array_fill_keys(['present', 'absent', 'excused', 'sick', 'pending'], 0);
@@ -779,16 +780,12 @@ class AdminEventController extends Controller
                     $duration = intdiv($minutes, 60).' jam '.($minutes % 60).' menit';
                 }
                 $schedule = [
-                    $startsAt?->copy()->locale('id')->isoFormat('dddd') ?? '',
-                    $startsAt?->format('d-m-Y') ?? '',
-                    $startsAt?->format('H:i') ?? '',
-                    $endsAt?->copy()->locale('id')->isoFormat('dddd') ?? '',
-                    $endsAt?->format('d-m-Y') ?? '',
-                    $endsAt?->format('H:i') ?? '',
-                    $duration,
-                    config('app.timezone', 'UTC'),
+                    $startsAt ? $startsAt->copy()->locale('id')->isoFormat('dddd').', '.$startsAt->format('d/m/Y h.i a') : '',
+                    $endsAt ? $endsAt->copy()->locale('id')->isoFormat('dddd').', '.$endsAt->format('d/m/Y h.i a') : '',
                 ];
-                fputcsv($out, [...$labels, ...$schedule, $students->count(), $counts['present'], $counts['absent'], $counts['excused'], $counts['sick'], $counts['pending'], ($students->count() > 0 ? round($counts['present'] / $students->count() * 100, 1) : 0).'%'], ',', '"', '');
+                $createdAt = $event->created_at;
+                $createdAtText = $createdAt ? $createdAt->copy()->locale('id')->isoFormat('dddd').', '.$createdAt->format('d/m/Y h.i a') : '';
+                fputcsv($out, [...$schedule, ...$labels, $duration, $students->count(), $counts['present'], $counts['absent'], $counts['excused'], $counts['sick'], $counts['pending'], ($students->count() > 0 ? round($counts['present'] / $students->count() * 100, 1) : 0).'%', $createdAtText], ',', '"', '');
             }
             fclose($out);
         }, 'Rekap_Event_'.$group->uuid.'_'.now()->format('Ymd_His').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
