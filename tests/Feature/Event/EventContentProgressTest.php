@@ -4,6 +4,7 @@ use App\Models\Event;
 use App\Models\EventAttendance;
 use App\Models\Guide;
 use App\Models\Quest;
+use App\Models\Submission;
 use App\Models\User;
 use App\Models\UserContentRead;
 use Illuminate\Support\Facades\Cache;
@@ -28,6 +29,37 @@ function makeProgressQuest(string $title, string $status = Quest::STATUS_AVAILAB
         'difficulty' => 'C-Rank',
     ]);
 }
+
+test('quest progress requires an approved submission belonging to the current user', function () {
+    $user = User::factory()->create(['role' => User::ROLE_USER]);
+    $other = User::factory()->create(['role' => User::ROLE_USER]);
+    $event = Event::create(['title' => 'Approval Progress']);
+    $event->forceFill(['created_at' => Carbon::parse('2026-09-25 12:00:00')])->save();
+    $quest = makeProgressQuest('Quest Approval');
+    $event->quests()->attach($quest->id);
+    UserContentRead::markSeen($user->id, UserContentRead::TYPE_QUEST, $quest->id);
+    Submission::create(['user_id' => $other->id, 'quest_id' => $quest->id, 'content' => 'Other answer', 'status' => Submission::STATUS_APPROVED]);
+    $service = app(EventContentProgressService::class);
+    $assertProgress = function (int $expected) use ($service, $event, $user): void {
+        $detail = $service->decorateEvent($event->fresh(), $user->id);
+        $list = $service->summariesFor([$event->fresh()], $user->id)[$event->id];
+        expect($detail)->toBe($list);
+        expect($detail['quests_total'])->toBe(1);
+        expect($detail['quests_opened'])->toBe($expected);
+        expect($detail['percent'])->toBe($expected === 1 ? 50 : 0);
+    };
+    $assertProgress(0);
+    $submission = Submission::create(['user_id' => $user->id, 'quest_id' => $quest->id, 'content' => 'Answer', 'status' => Submission::STATUS_PENDING]);
+    $assertProgress(0);
+    $submission->update(['status' => Submission::STATUS_REJECTED]);
+    $assertProgress(0);
+    $submission->update(['status' => Submission::STATUS_APPROVED]);
+    $assertProgress(1);
+    UserContentRead::where('user_id', $user->id)->where('content_type', UserContentRead::TYPE_QUEST)->delete();
+    $assertProgress(1);
+    $submission->delete();
+    $assertProgress(0);
+});
 
 test('event created before the progress start date does not expose a progress bar', function () {
     $user = User::factory()->create([
@@ -56,7 +88,7 @@ test('event created before the progress start date does not expose a progress ba
         );
 });
 
-test('opening attached guides and available quests fills the event progress bar', function () {
+test('opened guides and approved quest submissions fill the event progress bar', function () {
     Carbon::setTestNow(Carbon::parse('2026-09-25 10:00:00', config('app.timezone')));
 
     $user = User::factory()->create([
@@ -86,6 +118,7 @@ test('opening attached guides and available quests fills the event progress bar'
 
     UserContentRead::markSeen((int) $user->id, UserContentRead::TYPE_GUIDE, (int) $openedGuide->id);
     UserContentRead::markSeen((int) $user->id, UserContentRead::TYPE_QUEST, (int) $openedQuest->id);
+    Submission::create(['user_id' => $user->id, 'quest_id' => $openedQuest->id, 'content' => 'Jawaban', 'status' => Submission::STATUS_APPROVED]);
 
     $this->actingAs($user)
         ->get(route('events.show', $event->uuid))
@@ -107,6 +140,7 @@ test('opening attached guides and available quests fills the event progress bar'
 
     UserContentRead::markSeen((int) $user->id, UserContentRead::TYPE_GUIDE, (int) $closedGuide->id);
     UserContentRead::markSeen((int) $user->id, UserContentRead::TYPE_QUEST, (int) $closedQuest->id);
+    Submission::create(['user_id' => $user->id, 'quest_id' => $closedQuest->id, 'content' => 'Jawaban', 'status' => Submission::STATUS_APPROVED]);
     EventAttendance::query()->create([
         'event_id' => $event->id,
         'user_id' => $user->id,

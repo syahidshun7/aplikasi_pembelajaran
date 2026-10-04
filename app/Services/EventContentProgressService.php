@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Event;
 use App\Models\EventAttendance;
 use App\Models\Quest;
+use App\Models\Submission;
 use App\Models\UserContentRead;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Carbon;
@@ -54,9 +55,8 @@ class EventContentProgressService
             UserContentRead::TYPE_GUIDE,
             $tracked->flatMap(fn (Event $event) => $event->guides->pluck('id'))->all()
         );
-        $seenQuests = $this->seenIdSet(
+        $approvedQuests = $this->approvedQuestIdSet(
             $userId,
-            UserContentRead::TYPE_QUEST,
             $tracked->flatMap(fn (Event $event) => $event->quests->pluck('id'))->all()
         );
         $presentEvents = $this->presentEventIdSet($userId, $tracked->pluck('id')->all());
@@ -72,8 +72,8 @@ class EventContentProgressService
             $summaries[$eventId] = $this->summaryFromCounts(
                 $event->guides->count(),
                 $event->guides->filter(fn ($guide) => isset($seenGuides[(int) $guide->id]))->count(),
-                $event->quests->count(),
-                $event->quests->filter(fn ($quest) => isset($seenQuests[(int) $quest->id]))->count(),
+                $event->quests->where('status', Quest::STATUS_AVAILABLE)->count(),
+                $event->quests->where('status', Quest::STATUS_AVAILABLE)->filter(fn ($quest) => isset($approvedQuests[(int) $quest->id]))->count(),
                 isset($presentEvents[$eventId]),
             );
         }
@@ -92,6 +92,7 @@ class EventContentProgressService
             });
             $event->quests->each(function ($quest): void {
                 $quest->setAttribute('opened_for_user', false);
+                $quest->setAttribute('completed_for_user', false);
                 $quest->setAttribute('counts_toward_progress', false);
             });
 
@@ -112,23 +113,25 @@ class EventContentProgressService
             UserContentRead::TYPE_QUEST,
             $activeQuests->pluck('id')->all()
         );
+        $approvedQuests = $this->approvedQuestIdSet($userId, $activeQuests->pluck('id')->all());
         $attendanceDone = isset($this->presentEventIdSet($userId, [(int) $event->id])[(int) $event->id]);
 
         $event->guides->each(function ($guide) use ($seenGuides): void {
             $guide->setAttribute('counts_toward_progress', true);
             $guide->setAttribute('opened_for_user', isset($seenGuides[(int) $guide->id]));
         });
-        $event->quests->each(function ($quest) use ($seenQuests): void {
+        $event->quests->each(function ($quest) use ($seenQuests, $approvedQuests): void {
             $counts = (string) $quest->status === Quest::STATUS_AVAILABLE;
             $quest->setAttribute('counts_toward_progress', $counts);
             $quest->setAttribute('opened_for_user', $counts && isset($seenQuests[(int) $quest->id]));
+            $quest->setAttribute('completed_for_user', $counts && isset($approvedQuests[(int) $quest->id]));
         });
 
         return $this->summaryFromCounts(
             $event->guides->count(),
             $event->guides->filter(fn ($guide) => (bool) $guide->opened_for_user)->count(),
             $activeQuests->count(),
-            $activeQuests->filter(fn ($quest) => (bool) $quest->opened_for_user)->count(),
+            $activeQuests->filter(fn ($quest) => (bool) $quest->completed_for_user)->count(),
             $attendanceDone,
         );
     }
@@ -186,6 +189,18 @@ class EventContentProgressService
             ->whereIn('event_id', $ids->all())
             ->where('status', 'present')
             ->pluck('event_id')
+            ->mapWithKeys(fn ($id) => [(int) $id => true])
+            ->all();
+    }
+
+    private function approvedQuestIdSet(int $userId, array $questIds): array
+    {
+        return Submission::query()
+            ->where('user_id', $userId)
+            ->whereIn('quest_id', $questIds)
+            ->where('status', Submission::STATUS_APPROVED)
+            ->distinct()
+            ->pluck('quest_id')
             ->mapWithKeys(fn ($id) => [(int) $id => true])
             ->all();
     }

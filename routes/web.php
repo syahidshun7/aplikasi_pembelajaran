@@ -526,6 +526,7 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
     Route::get('/admin/study-groups/{groupUuid}/quests', [QuestController::class, 'index'])->name('groups.quests.index');
     Route::get('/admin/study-groups/{groupUuid}/guides', [AdminGuideController::class, 'index'])->name('groups.guides.index');
     Route::get('/admin/study-groups/{groupUuid}/events', [AdminEventController::class, 'index'])->name('groups.events.index');
+    Route::get('/admin/study-groups/{groupUuid}/events/recap', [AdminEventController::class, 'recap'])->name('groups.events.recap');
     Route::get('/admin/quests/{quest}/user-preview', [QuestController::class, 'userPreview'])->name('quests.user-preview');
     Route::post('/admin/quests/{quest}/user-preview/submissions', [QuestController::class, 'previewSubmission'])->name('quests.user-preview.submissions');
     Route::get('/admin/guides/{guide:uuid}/user-preview', [GuideController::class, 'userPreview'])->name('guides.user-preview');
