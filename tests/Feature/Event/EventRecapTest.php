@@ -16,6 +16,7 @@ it('exports only selected group events and counts unrecorded attendance', functi
     $group->attachOrRestoreMember($admin->id);
     $description = "Materi, diskusi dan latihan \"praktik\".\nEvaluasi bersama.";
     $event = Event::create(['title' => 'Event A', 'description' => 'Materi, diskusi dan latihan &quot;praktik&quot;.<br><strong>Evaluasi bersama.</strong>', 'study_group_id' => $group->id]);
+    $event->forceFill(['created_at' => '2026-10-05 11:30:00'])->save();
     Event::create(['title' => 'Event B', 'study_group_id' => $other->id]);
     EventAttendance::create(['event_id' => $event->id, 'user_id' => $students[0]->id, 'status' => 'present']);
     EventAttendance::create(['event_id' => $event->id, 'user_id' => $students[1]->id, 'status' => 'excused']);
@@ -30,8 +31,8 @@ it('exports only selected group events and counts unrecorded attendance', functi
     $header = fgetcsv($stream, 0, ',', '"', '');
     $row = fgetcsv($stream, 0, ',', '"', '');
     fclose($stream);
-    expect($header[2])->toBe('Deskripsi');
-    expect($row)->toBe(['Kelas A', 'Event A', $description, '', '', '', '', '', '', 'Belum tersedia', config('app.timezone'), '3', '1', '0', '1', '0', '1', '33.3%']);
+    expect($header)->toBe(['Waktu Mulai', 'Waktu Berakhir', 'Kelas', 'Nama Event', 'Deskripsi', 'Durasi', 'Total Siswa', 'Hadir', 'Tidak Hadir', 'Izin', 'Sakit', 'Belum Cek', 'Persentase Kehadiran', 'Created At']);
+    expect($row)->toBe(['', '', 'Kelas A', 'Event A', $description, 'Belum tersedia', '3', '1', '0', '1', '0', '1', '33.3%', 'Senin, 05/10/2026 11.30 am']);
 });
 
 it('exports Indonesian schedule dates and duration across midnight', function () {
@@ -53,11 +54,31 @@ it('exports Indonesian schedule dates and duration across midnight', function ()
     $csv = $this->actingAs($admin)->get(route('groups.events.recap', $group->uuid))
         ->assertOk()->streamedContent();
     $lines = preg_split('/\r?\n/', trim(substr($csv, 3)));
-    $row = str_getcsv($lines[1], ',', '"', '');
-    expect($row[2])->toBe('');
-    expect(array_slice($row, 3, 8))->toBe(['Senin', '05-10-2026', '23:30', 'Selasa', '06-10-2026', '01:15', '1 jam 45 menit', 'Asia/Makassar']);
-    $incomplete = str_getcsv($lines[2], ',', '"', '');
-    expect(array_slice($incomplete, 6, 4))->toBe(['', '', '', 'Belum tersedia']);
+    $row = str_getcsv($lines[2], ',', '"', '');
+    expect(array_slice($row, 0, 13))->toBe(['Senin, 05/10/2026 11.30 pm', 'Selasa, 06/10/2026 01.15 am', 'Kelas Jadwal', 'Event Malam', '', '1 jam 45 menit', '0', '0', '0', '0', '0', '0', '0%']);
+    $incomplete = str_getcsv($lines[1], ',', '"', '');
+    expect($incomplete[0])->toBe('Senin, 05/10/2026 09.00 am');
+    expect($incomplete[1])->toBe('');
+    expect($incomplete[5])->toBe('Belum tersedia');
+});
+
+it('orders recap by start date and time ascending with unscheduled events last', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $group = StudyGroup::create(['name' => 'Kelas Urutan', 'invite_code' => 'RECAP-ORDER']);
+    foreach ([
+        ['Terbaru', '2026-10-06 08:00:00', 1],
+        ['Belum Dijadwalkan', null, 2],
+        ['Siang', '2026-10-05 13:00:00', 3],
+        ['Pagi', '2026-10-05 09:00:00', 4],
+        ['Terlama', '2026-09-29 11:30:00', 5],
+    ] as [$title, $startsAt, $sequence]) {
+        Event::create(['title' => $title, 'study_group_id' => $group->id, 'starts_at' => $startsAt, 'sequence_order' => $sequence]);
+    }
+    $csv = $this->actingAs($admin)->get(route('groups.events.recap', $group->uuid))
+        ->assertOk()->streamedContent();
+    $lines = preg_split('/\r?\n/', trim(substr($csv, 3)));
+    $titles = array_map(fn ($line) => str_getcsv($line, ',', '"', '')[3], array_slice($lines, 1));
+    expect($titles)->toBe(['Terlama', 'Pagi', 'Siang', 'Terbaru', 'Belum Dijadwalkan']);
 });
 
 it('denies recap access to an unassigned mentor', function () {
