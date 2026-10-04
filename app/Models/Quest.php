@@ -67,8 +67,14 @@ class Quest extends Model
 
 public function submissions()
 {
-
     return $this->hasMany(Submission::class);
+}
+
+public function hasBeenApproved(): bool
+{
+    return $this->submissions()
+        ->where('status', 'Approved')
+        ->exists();
 }
 
 public function studyGroup()

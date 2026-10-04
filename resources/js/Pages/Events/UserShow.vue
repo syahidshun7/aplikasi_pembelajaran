@@ -353,9 +353,9 @@ const copyPublicLink = async () => {
                                 <span
                                     v-if="progressEnabled && quest.counts_toward_progress"
                                     class="shrink-0 border px-2 py-1 text-[7px] uppercase"
-                                    :class="quest.opened_for_user ? 'border-emerald-500 text-emerald-300' : 'border-slate-600 text-slate-400'"
+                                    :class="quest.completed_for_user ? 'border-emerald-500 text-emerald-300' : 'border-slate-600 text-slate-400'"
                                 >
-                                    {{ quest.opened_for_user ? 'Opened' : 'Not_Opened' }}
+                                    {{ quest.completed_for_user ? 'Approved' : 'Not_Approved' }}
                                 </span>
                             </div>
                             <div class="flex items-center justify-between mb-2">

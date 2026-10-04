@@ -740,4 +740,57 @@ class AdminEventController extends Controller
     {
         CacheVersion::bump('home');
     }
+
+    public function recap(Request $request, string $groupUuid): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $group = $this->resolveScopedStudyGroup($request, $groupUuid);
+        $students = $group->users()
+            ->whereNotIn('users.role', User::staffRoles())
+            ->pluck('users.id');
+        $events = Event::query()
+            ->where('study_group_id', $group->id)
+            ->with(['attendances' => fn ($query) => $query->whereIn('user_id', $students)])
+            ->orderBy('sequence_order')
+            ->orderBy('id')
+            ->get();
+
+        return response()->streamDownload(function () use ($group, $students, $events): void {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, ['Kelas', 'Event', 'Deskripsi', 'Hari Mulai', 'Tanggal Mulai', 'Jam Mulai', 'Hari Selesai', 'Tanggal Selesai', 'Jam Selesai', 'Durasi', 'Zona Waktu', 'Total Siswa', 'Hadir', 'Tidak Hadir', 'Izin', 'Sakit', 'Belum Cek', 'Persentase Kehadiran'], ',', '"', '');
+
+            foreach ($events as $event) {
+                $counts = array_fill_keys(['present', 'absent', 'excused', 'sick', 'pending'], 0);
+                $attendanceMap = $event->attendances->keyBy('user_id');
+                foreach ($students as $studentId) {
+                    $status = $attendanceMap->get($studentId)?->status ?? 'pending';
+                    $counts[array_key_exists($status, $counts) ? $status : 'pending']++;
+                }
+
+                // Prevent spreadsheet formulas in user-controlled labels.
+                $description = preg_replace('/<br\s*\/?>/i', "\n", $event->description ?? '');
+                $description = html_entity_decode(strip_tags($description), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $labels = array_map(fn ($value) => preg_match('/^[=+@\\-\\t\\r\\n]/', $value) ? "'".$value : $value, [$group->name, $event->title, $description]);
+                $startsAt = $event->starts_at;
+                $endsAt = $event->ends_at;
+                $duration = 'Belum tersedia';
+                if ($startsAt && $endsAt && $endsAt->greaterThanOrEqualTo($startsAt)) {
+                    $minutes = (int) $startsAt->diffInMinutes($endsAt);
+                    $duration = intdiv($minutes, 60).' jam '.($minutes % 60).' menit';
+                }
+                $schedule = [
+                    $startsAt?->copy()->locale('id')->isoFormat('dddd') ?? '',
+                    $startsAt?->format('d-m-Y') ?? '',
+                    $startsAt?->format('H:i') ?? '',
+                    $endsAt?->copy()->locale('id')->isoFormat('dddd') ?? '',
+                    $endsAt?->format('d-m-Y') ?? '',
+                    $endsAt?->format('H:i') ?? '',
+                    $duration,
+                    config('app.timezone', 'UTC'),
+                ];
+                fputcsv($out, [...$labels, ...$schedule, $students->count(), $counts['present'], $counts['absent'], $counts['excused'], $counts['sick'], $counts['pending'], ($students->count() > 0 ? round($counts['present'] / $students->count() * 100, 1) : 0).'%'], ',', '"', '');
+            }
+            fclose($out);
+        }, 'Rekap_Event_'.$group->uuid.'_'.now()->format('Ymd_His').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
 }

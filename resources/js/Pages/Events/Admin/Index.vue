@@ -16,6 +16,7 @@ const isMentor = computed(() => String(page.props?.auth?.user?.role || '').toLow
 const firstStudyGroupId = computed(() => props.studyGroups?.[0]?.id ?? '');
 const isScopedGroup = computed(() => Boolean(props.selectedStudyGroup?.uuid));
 const indexRouteUrl = computed(() => props.selectedStudyGroup?.events_url || route('admin.events.index'));
+const recapUrl = computed(() => isScopedGroup.value ? route('groups.events.recap', { groupUuid: props.selectedStudyGroup.uuid }) : null);
 const studyGroupJobMap = computed(() => Object.fromEntries((props.studyGroups || []).map((group) => [String(group.id), group.job_id || ''])));
 
 const isEditing = ref(false);
@@ -305,7 +306,17 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b-4 border-blue-900 pb-4">
-                <h1 class="text-base sm:text-xl uppercase tracking-widest animate-pulse">Events_Registry_System</h1>
+                <div class="flex items-center gap-4">
+                    <h1 class="text-base sm:text-xl uppercase tracking-widest animate-pulse">Kelola Event</h1>
+                    <a
+                        v-if="recapUrl"
+                        :href="recapUrl"
+                        target="_blank"
+                        class="inline-flex items-center justify-center px-3 py-2 border border-emerald-500 bg-emerald-900/20 text-emerald-300 hover:bg-emerald-500 hover:text-black transition-colors uppercase text-[9px] sm:text-[10px] cursor-pointer hover:cursor-pointer"
+                    >
+                        [Rekap CSV]
+                    </a>
+                </div>
                 <div class="flex items-center gap-2">
                     <button
                         type="button"
