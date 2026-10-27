@@ -239,7 +239,7 @@ const goToPage = (url) => {
                                     <p class="text-[8px] text-slate-500">{{ row.user?.email }}</p>
                                 </td>
                                 <td class="py-3 px-2">
-                                    <p class="text-slate-200 uppercase">{{ row.quest?.title }}</p>
+                                    <p class="text-slate-200">{{ row.quest?.title }}</p>
                                     <p class="text-[8px] text-slate-500">{{ row.quest?.difficulty }}</p>
                                 </td>
                                 <td class="py-3 px-2">

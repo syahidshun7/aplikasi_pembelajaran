@@ -702,6 +702,79 @@ test('manual quest accepts file-only raw submission and marks it pending preproc
     Storage::disk('public')->assertExists((string) $submission->file_path);
 });
 
+test('manual quest accepts up to multiple raw files and stores every attachment', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create(['email_verified_at' => now()]);
+    $quest = Quest::query()->create([
+        'title' => 'Multi File Quest',
+        'description' => 'Accept several raw files',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+    ]);
+
+    $response = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'files' => [
+            UploadedFile::fake()->create('laporan.pdf', 10, 'application/pdf'),
+            UploadedFile::fake()->create('catatan.txt', 2, 'text/plain'),
+        ],
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    $submission = Submission::query()->where('quest_id', $quest->id)->firstOrFail();
+    $attachments = $submission->attachments()->get();
+
+    expect($attachments)->toHaveCount(2);
+    expect($attachments->pluck('original_name')->all())->toBe(['laporan.pdf', 'catatan.txt']);
+    expect((string) $submission->file_path)->toBe((string) $attachments->first()->file_path);
+    $attachments->each(fn ($attachment) => Storage::disk('public')->assertExists($attachment->file_path));
+});
+
+test('manual quest preserves existing attachments when adding a new file and removes only selected attachment', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create(['email_verified_at' => now()]);
+    $quest = Quest::query()->create([
+        'title' => 'Managed Attachments Quest',
+        'description' => 'Manage files individually',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 500,
+        'reward_exp' => 500,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+    ]);
+
+    $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'files' => [
+            UploadedFile::fake()->create('lama.pdf', 10, 'application/pdf'),
+            UploadedFile::fake()->create('tetap.txt', 2, 'text/plain'),
+        ],
+    ])->assertSessionHasNoErrors();
+
+    $submission = Submission::query()->where('quest_id', $quest->id)->firstOrFail();
+    $existingIds = $submission->attachments()->pluck('id')->all();
+
+    $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'retained_attachment_ids' => $existingIds,
+        'files' => [UploadedFile::fake()->create('baru.png', 10, 'image/png')],
+    ])->assertSessionHasNoErrors();
+
+    expect($submission->fresh()->attachments()->pluck('original_name')->all())
+        ->toBe(['lama.pdf', 'tetap.txt', 'baru.png']);
+
+    $pathToDelete = $submission->fresh()->attachments()->where('id', $existingIds[0])->value('file_path');
+    $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'retained_attachment_ids' => [$existingIds[1]],
+    ])->assertSessionHasNoErrors();
+
+    expect($submission->fresh()->attachments()->pluck('original_name')->all())->toBe(['tetap.txt']);
+    Storage::disk('public')->assertMissing($pathToDelete);
+});
+
 test('pending submission cannot be changed after preprocessing has started', function () {
     $user = User::factory()->create([
         'email_verified_at' => now(),

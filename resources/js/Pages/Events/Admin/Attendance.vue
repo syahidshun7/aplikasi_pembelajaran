@@ -86,7 +86,7 @@ const photoUrl = (user) => {
             <div class="rpg-panel border-yellow-500/40">
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <div>
-                        <h1 class="text-base md:text-xl text-white uppercase tracking-widest">{{ event.title }}</h1>
+                        <h1 class="text-base md:text-xl text-white tracking-widest">{{ event.title }}</h1>
                         <p class="text-[8px] text-slate-400 uppercase mt-2">
                             ABSENSI_EVENT | GROUP: <span class="text-cyan-400">{{ event.study_group?.name || 'GLOBAL_EVENT' }}</span>
                         </p>

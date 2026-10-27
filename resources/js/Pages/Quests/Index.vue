@@ -2,6 +2,7 @@
 import { Head, useForm, Link, usePage, router } from '@inertiajs/vue3';
 import { ref, watch, computed } from 'vue'; 
 import AdminNavbar from '@/Components/AdminNavbar.vue';
+import QuestDescriptionEditor from '@/Components/Quests/QuestDescriptionEditor.vue';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 
@@ -541,15 +542,13 @@ const commitThemeBundle = async () => {
                             <div>
                                 <label class="block mb-2 text-white">QUEST_TITLE:</label>
                                 <input v-model="form.title" type="text"
-                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-cyan-400 outline-none text-cyan-400 uppercase"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-cyan-400 outline-none text-cyan-400"
                                     placeholder="Enter quest name..." required>
                             </div>
 
                             <div>
                                 <label class="block mb-2 text-white">DESCRIPTION:</label>
-                                <textarea v-model="form.description"
-                                    class="w-full bg-black border-2 border-slate-700 p-2 text-[12px] font-sans text-slate-200 focus:border-cyan-400 focus:ring-0"
-                                    style="resize: vertical; min-height: 100px;"></textarea>
+                                <QuestDescriptionEditor v-model="form.description" />
                             </div>
 
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -923,7 +922,7 @@ const commitThemeBundle = async () => {
                                             ID: {{ q.uuid.substring(0,8) }} // RANK: {{ q.difficulty }}
                                             <span v-if="q.study_group" class="text-emerald-500 ml-2">// [PARTY: {{ q.study_group.name }}]</span>
                                         </div>
-                                        <div class="text-white uppercase text-[9px]">{{ q.title }}</div>
+                                        <div class="text-white text-[9px]">{{ q.title }}</div>
                                         <div class="text-[7px] text-teal-300 uppercase mt-1">
                                             TASK_BANK: {{ q.task_bank?.name || 'MANUAL' }}
                                             <span v-if="q.task_bank?.assessment_type" class="text-yellow-300 ml-1">[{{ q.task_bank.assessment_type }}]</span>

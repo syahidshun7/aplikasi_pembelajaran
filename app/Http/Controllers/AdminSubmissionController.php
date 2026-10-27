@@ -117,6 +117,7 @@ class AdminSubmissionController extends Controller
         // Pastikan relasi terload agar Vue tidak membaca 'undefined'
         $submission->load([
             'user',
+            'attachments:id,submission_id,file_path,original_name,mime_type,size_bytes',
             'quest.taskBank:id,uuid,name,assessment_type',
             'quest.taskBank.questions' => function ($query) {
                 $query->where('is_active', true)
@@ -150,11 +151,16 @@ class AdminSubmissionController extends Controller
         ]);
     }
 
-    public function previewFile(Submission $submission)
+    public function previewFile(Submission $submission, ?int $attachment = null)
     {
         $this->assertMentorCanAccessSubmission($submission);
 
         $storedPath = (string) ($submission->file_path ?? '');
+        if ($attachment !== null) {
+            $storedPath = (string) $submission->attachments()
+                ->whereKey($attachment)
+                ->value('file_path');
+        }
         abort_if($storedPath === '', 404);
 
         $disk = Storage::disk('public');

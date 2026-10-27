@@ -159,7 +159,7 @@ const toneStyleForEvent = (item) => {
                             :style="toneStyleForEvent(item)"
                         >
                             <div class="flex items-start justify-between gap-2">
-                                <p class="text-white uppercase text-[11px]">{{ item.title }}</p>
+                                <p class="text-white text-[11px]">{{ item.title }}</p>
                                 <span v-if="item.is_new_for_user" class="event-new-badge">NEW</span>
                             </div>
                             <p class="event-item-type mt-1 text-[8px] uppercase">

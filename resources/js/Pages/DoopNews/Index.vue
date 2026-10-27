@@ -131,7 +131,7 @@ const formatDate = (value) => value ? new Date(value).toLocaleString('id-ID', { 
                                         </span>
                                     </div>
 
-                                    <h2 class="doopnews-page__card-title mt-3 line-clamp-1 break-words text-[12px] uppercase leading-relaxed text-white">{{ post.title }}</h2>
+                                    <h2 class="doopnews-page__card-title mt-3 line-clamp-1 break-words text-[12px] leading-relaxed text-white">{{ post.title }}</h2>
                                     <p class="doopnews-page__card-copy mt-2 line-clamp-2 font-sans text-[13px] leading-relaxed text-slate-300">
                                         {{ post.excerpt || post.body }}
                                     </p>

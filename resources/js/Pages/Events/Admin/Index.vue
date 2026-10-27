@@ -346,7 +346,7 @@ onBeforeUnmount(() => {
                                 <input
                                     v-model="form.title"
                                     type="text"
-                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-blue-400 outline-none text-blue-300 uppercase"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-blue-400 outline-none text-blue-300"
                                     required
                                 >
                             </div>
@@ -550,7 +550,7 @@ onBeforeUnmount(() => {
                                         <div class="text-[8px] text-slate-500 mb-1 uppercase tracking-tighter">
                                             ID: {{ event.uuid.substring(0, 8) }}
                                         </div>
-                                        <div class="text-white uppercase">{{ event.title }}</div>
+                                        <div class="text-white">{{ event.title }}</div>
                                         <div class="text-[7px] text-emerald-400 uppercase mt-1">
                                             SELF_ATTENDANCE: {{ event.self_attendance_enabled ? 'ENABLED' : 'DISABLED' }}
                                         </div>

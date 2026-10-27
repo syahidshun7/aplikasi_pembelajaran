@@ -410,7 +410,7 @@ const displayDate = (value) => {
                 <section class="rpg-panel border-slate-700">
                     <div class="space-y-2 border-b border-slate-700 pb-4 mb-4">
                         <p class="text-[8px] text-slate-500 uppercase">Creation</p>
-                        <h2 class="text-white text-[12px] uppercase">{{ creation.title }}</h2>
+                        <h2 class="text-white text-[12px]">{{ creation.title }}</h2>
                         <p class="text-[8px] text-slate-400 uppercase">
                             Creator: {{ creation.creator?.username || creation.creator?.name || '-' }}
                             <span class="ml-2 text-cyan-300">Job: {{ creation.creator?.job_id ?? '-' }}</span>

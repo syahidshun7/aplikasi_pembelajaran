@@ -131,7 +131,7 @@ const closeGalleryModal = () => {
             <div class="rpg-panel border-blue-500/50">
                 <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <div class="min-w-0">
-                        <h1 class="text-base md:text-xl text-white uppercase tracking-widest break-words">{{ event.title }}</h1>
+                        <h1 class="text-base md:text-xl text-white tracking-widest break-words">{{ event.title }}</h1>
                         <p class="text-[8px] text-slate-400 uppercase mt-2 leading-relaxed break-words">
                             EVENT_ID: {{ event.uuid.substring(0, 8) }}
                             | SEQ: <span class="text-yellow-400">{{ event.sequence_order }}</span>
@@ -214,7 +214,7 @@ const closeGalleryModal = () => {
                                 v-model="guideAttachForm.guide_ids"
                                 :disabled="attachedGuideIds.has(guide.id)"
                             >
-                            <span class="text-[8px] text-slate-200 uppercase flex-1 min-w-0 break-words">{{ guide.title }}</span>
+                            <span class="text-[8px] text-slate-200 flex-1 min-w-0 break-words">{{ guide.title }}</span>
                             <span class="text-[7px] text-cyan-400 uppercase ml-auto shrink-0">
                                 {{ guide.study_group?.name || 'NO_GROUP' }}
                             </span>
@@ -253,7 +253,7 @@ const closeGalleryModal = () => {
                                         min="1"
                                         class="w-16 bg-black border border-slate-600 p-1 text-yellow-400"
                                     >
-                                    <span class="text-[8px] text-slate-200 uppercase flex-1 min-w-0 break-words">{{ guide.title }}</span>
+                                    <span class="text-[8px] text-slate-200 flex-1 min-w-0 break-words">{{ guide.title }}</span>
                                     <button
                                         @click="detachGuide(guide.uuid)"
                                         class="text-[8px] text-red-400 hover:text-red-300 uppercase shrink-0"
@@ -284,7 +284,7 @@ const closeGalleryModal = () => {
                                 v-model="questAttachForm.quest_ids"
                                 :disabled="attachedQuestIds.has(quest.id)"
                             >
-                            <span class="text-[8px] text-slate-200 uppercase flex-1 min-w-0 break-words">{{ quest.title }}</span>
+                            <span class="text-[8px] text-slate-200 flex-1 min-w-0 break-words">{{ quest.title }}</span>
                             <span class="text-[7px] text-blue-300 uppercase ml-auto shrink-0">
                                 {{ quest.study_group?.name || 'NO_GROUP' }}
                             </span>
@@ -323,7 +323,7 @@ const closeGalleryModal = () => {
                                         min="1"
                                         class="w-16 bg-black border border-slate-600 p-1 text-yellow-400"
                                     >
-                                    <span class="text-[8px] text-slate-200 uppercase flex-1 min-w-0 break-words">{{ quest.title }}</span>
+                                    <span class="text-[8px] text-slate-200 flex-1 min-w-0 break-words">{{ quest.title }}</span>
                                     <button
                                         @click="detachQuest(quest.uuid)"
                                         class="text-[8px] text-red-400 hover:text-red-300 uppercase shrink-0"

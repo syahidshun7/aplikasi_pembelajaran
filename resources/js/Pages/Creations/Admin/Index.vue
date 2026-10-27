@@ -136,7 +136,7 @@ const formatDateTime = (value) => {
                         <tbody>
                             <tr v-for="row in rows" :key="row.id" class="border-b border-slate-800 hover:bg-slate-900/40">
                                 <td class="py-3 px-2">
-                                    <p class="text-white uppercase">{{ row.title }}</p>
+                                    <p class="text-white">{{ row.title }}</p>
                                     <p class="text-[8px] text-slate-500">{{ row.category || '-' }} | {{ row.status }} | {{ row.progress || 0 }}%</p>
                                 </td>
                                 <td class="py-3 px-2">

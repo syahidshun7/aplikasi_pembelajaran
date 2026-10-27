@@ -80,7 +80,7 @@ onMounted(async () => {
                 <div v-if="loading" class="text-[8px] uppercase text-slate-400">Loading review result...</div>
 
                 <div v-else-if="creation && officialReview" class="space-y-4">
-                    <h2 class="text-[9px] sm:text-[10px] uppercase leading-relaxed text-cyan-200 break-words [overflow-wrap:anywhere]">{{ creation.title }}</h2>
+                    <h2 class="text-[9px] sm:text-[10px] leading-relaxed text-cyan-200 break-words [overflow-wrap:anywhere]">{{ creation.title }}</h2>
 
                     <div class="flex flex-wrap items-center gap-2 text-[8px] uppercase">
                         <span class="rounded border border-cyan-500/60 px-2 py-1 text-cyan-300">

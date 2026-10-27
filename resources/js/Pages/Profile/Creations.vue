@@ -211,7 +211,7 @@ onMounted(() => {
                         <div class="space-y-3 p-4">
                             <div class="space-y-2">
                                 <div class="flex flex-wrap items-start justify-between gap-2">
-                                    <h2 class="line-clamp-2 text-[9px] uppercase leading-relaxed text-white">{{ creation.title }}</h2>
+                                    <h2 class="line-clamp-2 text-[9px] leading-relaxed text-white">{{ creation.title }}</h2>
                                     <span class="rounded border px-2 py-[3px] text-[7px] uppercase" :class="statusBadgeClass(creation.status)">
                                         {{ creation.status }}
                                     </span>

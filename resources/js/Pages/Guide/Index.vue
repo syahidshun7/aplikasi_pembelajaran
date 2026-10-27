@@ -368,7 +368,7 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                             <div>
                                 <label class="block mb-2 text-white">TITLE_OF_SCROLL:</label>
                                 <input v-model="form.title" type="text"
-                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-indigo-400 outline-none text-indigo-400 uppercase"
+                                    class="w-full bg-black border-2 border-slate-700 p-2 focus:border-indigo-400 outline-none text-indigo-400"
                                     placeholder="Enter scroll title..." required>
                             </div>
 
@@ -524,7 +524,7 @@ watch([isMentor, firstStudyGroupId], ([mentor, firstGroup]) => {
                                     <div class="flex-1">
                                         <div class="text-[8px] text-slate-500 mb-1 uppercase tracking-tighter">REF_ID:
                                             {{ item.uuid }}</div>
-                                        <div class="text-white uppercase tracking-tight">{{ item.title }}</div>
+                                        <div class="text-white tracking-tight">{{ item.title }}</div>
                                         <div class="text-[8px] mt-1 uppercase"
                                             :class="item.study_group_id ? 'text-emerald-400' : 'text-cyan-400'">
                                             {{ item.study_group_id ? `PARTY: ${item.study_group?.name || 'UNKNOWN'}` : 'GLOBAL_GUIDE' }}

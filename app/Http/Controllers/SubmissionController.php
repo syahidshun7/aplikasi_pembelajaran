@@ -23,6 +23,13 @@ use Illuminate\Validation\ValidationException;
 
 class SubmissionController extends Controller
 {
+    /** @var array<int, array{file_path:string,original_name:string,mime_type:?string,size_bytes:int}> */
+    private array $pendingSubmissionUploads = [];
+    /** @var array<int, int>|null */
+    private ?array $pendingRetainedAttachmentIds = null;
+    private bool $pendingLegacyFileRemoval = false;
+    private ?string $pendingLegacyFilePath = null;
+
     public function saveExamDraft(
         Request $request,
         Quest $quest,
@@ -243,6 +250,7 @@ class SubmissionController extends Controller
 
             throw $exception;
         }
+        $this->syncPendingSubmissionUploads($submission);
         if (! $isUpdate && $attemptUnlock) {
             $attemptUnlock->update(['used_at' => now()]);
         }
@@ -290,6 +298,8 @@ class SubmissionController extends Controller
                 'preprocess_started' => (bool) $submission->preprocess_started,
                 'content' => $submission->content,
                 'file_path' => $submission->file_path,
+                'attachments' => $submission->attachments()
+                    ->get(['id', 'file_path', 'original_name', 'mime_type', 'size_bytes']),
                 'feedback' => $submission->feedback,
                 'submitted_at' => $submission->created_at->format('d M Y | H:i'),
                 'quest' => $submission->quest,
@@ -326,6 +336,7 @@ class SubmissionController extends Controller
         $wasEvaluated = $this->isSubmissionEvaluated($submission);
         $this->applyUserSubmissionPayload($request, $quest, $submission, true);
         $submission->save();
+        $this->syncPendingSubmissionUploads($submission);
 
         if ($wasEvaluated || $this->isSubmissionEvaluated($submission)) {
             app(UserRewardSyncService::class)->sync((int) $submission->user_id);
@@ -342,11 +353,20 @@ class SubmissionController extends Controller
 
         $validated = $request->validate([
             'content' => ['nullable', 'string'],
-            'file' => ['nullable', 'file', 'min:1', 'mimes:jpg,jpeg,png,webp,pdf,docx,txt', 'max:10240'],
+            // `file` dipertahankan untuk submission lama/API. UI baru mengirim `files`.
+            'file' => ['nullable', 'file', 'min:1', 'mimes:jpg,jpeg,png,webp,pdf,docx,txt', 'max:5120'],
+            'files' => ['nullable', 'array', 'max:20'],
+            'files.*' => ['file', 'min:1', 'mimes:jpg,jpeg,png,webp,pdf,docx,txt', 'max:5120'],
+            'retained_attachment_ids' => ['nullable', 'array'],
+            'retained_attachment_ids.*' => ['integer'],
+            'remove_legacy_file' => ['nullable', 'boolean'],
         ]);
 
         $rawContent = (string) ($validated['content'] ?? '');
-        if (trim($rawContent) === '' && ! $request->hasFile('file')) {
+        $hasRetainedAttachment = $isUpdate
+            && $request->has('retained_attachment_ids')
+            && count((array) ($validated['retained_attachment_ids'] ?? [])) > 0;
+        if (trim($rawContent) === '' && ! $this->hasUploadedSubmissionFiles($request) && ! $hasRetainedAttachment) {
             throw ValidationException::withMessages([
                 'content' => 'Submission harus berupa teks atau file.',
             ]);
@@ -358,8 +378,24 @@ class SubmissionController extends Controller
             $submission->content = '';
         }
 
-        $submission->file_path = $this->storeUploadedFile($request, $submission);
-        $submission->file_type = $this->detectSubmissionFileType($request, $submission);
+        $this->pendingSubmissionUploads = $this->storeUploadedFiles($request);
+        $hasRetentionPayload = $request->has('retained_attachment_ids');
+        $this->pendingRetainedAttachmentIds = $isUpdate && $hasRetentionPayload
+            ? array_map('intval', (array) ($validated['retained_attachment_ids'] ?? []))
+            // Kompatibilitas endpoint/API lama: upload `file` tunggal tetap mengganti file sebelumnya.
+            : ($isUpdate && $this->pendingSubmissionUploads !== [] ? [] : null);
+        $this->pendingLegacyFileRemoval = $isUpdate && (
+            (bool) ($validated['remove_legacy_file'] ?? false)
+            || (! $hasRetentionPayload && $this->pendingSubmissionUploads !== [])
+        );
+        $this->pendingLegacyFilePath = $this->pendingLegacyFileRemoval
+            && ! $submission->attachments()->exists()
+            ? $submission->file_path
+            : null;
+        $submission->file_path = $this->pendingSubmissionUploads[0]['file_path'] ?? $submission->file_path;
+        $submission->file_type = $this->pendingSubmissionUploads !== []
+            ? $this->mapFileType(pathinfo($this->pendingSubmissionUploads[0]['original_name'], PATHINFO_EXTENSION))
+            : $this->detectSubmissionFileType($request, $submission);
         $submission->pipeline_status = Submission::PIPELINE_STATUS_PENDING_PREPROCESSING;
         $submission->preprocess_started = false;
         $submission->status = Submission::STATUS_PENDING;
@@ -602,6 +638,78 @@ class SubmissionController extends Controller
         return $request->file('file')->store('submissions', 'public');
     }
 
+    /**
+     * @return array<int, array{file_path:string,original_name:string,mime_type:?string,size_bytes:int}>
+     */
+    private function storeUploadedFiles(Request $request): array
+    {
+        $files = $this->uploadedSubmissionFiles($request);
+        if ($files === []) {
+            return [];
+        }
+
+        return array_map(function ($file): array {
+            return [
+                'file_path' => $file->store('submissions', 'public'),
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'size_bytes' => (int) $file->getSize(),
+            ];
+        }, $files);
+    }
+
+    private function syncPendingSubmissionUploads(Submission $submission): void
+    {
+        $hadManagedAttachments = $submission->attachments()->exists();
+        if ($this->pendingRetainedAttachmentIds !== null) {
+            $this->deleteSubmissionAttachmentsExcept($submission, $this->pendingRetainedAttachmentIds);
+        }
+
+        if ($this->pendingLegacyFileRemoval && ! $hadManagedAttachments) {
+            $this->deleteSubmissionFileIfExists($this->pendingLegacyFilePath);
+            if ($this->pendingSubmissionUploads === []) {
+                $submission->file_path = null;
+            }
+        }
+
+        if ($this->pendingSubmissionUploads !== []) {
+            $submission->attachments()->createMany($this->pendingSubmissionUploads);
+        }
+
+        $primaryAttachment = $submission->attachments()->orderBy('id')->first();
+        if ($primaryAttachment) {
+            $submission->file_path = $primaryAttachment->file_path;
+        } elseif ($hadManagedAttachments && $this->pendingRetainedAttachmentIds !== null) {
+            $submission->file_path = null;
+        }
+        $submission->saveQuietly();
+
+        $this->pendingSubmissionUploads = [];
+        $this->pendingRetainedAttachmentIds = null;
+        $this->pendingLegacyFileRemoval = false;
+        $this->pendingLegacyFilePath = null;
+    }
+
+    private function hasUploadedSubmissionFiles(Request $request): bool
+    {
+        return $this->uploadedSubmissionFiles($request) !== [];
+    }
+
+    /** @return array<int, \Illuminate\Http\UploadedFile> */
+    private function uploadedSubmissionFiles(Request $request): array
+    {
+        $files = collect($request->file('files', []))
+            ->filter(fn ($file) => $file && $file->isValid())
+            ->values()
+            ->all();
+
+        if ($request->hasFile('file') && $request->file('file')->isValid()) {
+            array_unshift($files, $request->file('file'));
+        }
+
+        return $files;
+    }
+
     private function detectSubmissionFileType(Request $request, Submission $submission): ?string
     {
         if ($request->hasFile('file')) {
@@ -648,6 +756,17 @@ class SubmissionController extends Controller
         if ($filePath && Storage::disk('public')->exists($filePath)) {
             Storage::disk('public')->delete($filePath);
         }
+    }
+
+    private function deleteSubmissionAttachmentsExcept(Submission $submission, array $retainedIds): void
+    {
+        $submission->attachments()
+            ->whereNotIn('id', $retainedIds)
+            ->get()
+            ->each(function ($attachment): void {
+            $this->deleteSubmissionFileIfExists($attachment->file_path);
+            $attachment->delete();
+        });
     }
 
     private function isQuestLate(Quest $quest): bool

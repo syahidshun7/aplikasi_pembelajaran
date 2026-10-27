@@ -168,7 +168,7 @@ const formatDate = (value) => value ? new Date(value).toLocaleString('id-ID', { 
                                     <span class="border border-slate-700 px-2 py-1 text-[7px] uppercase text-slate-300">{{ statusLabel(post.status) }}</span>
                                     <span class="text-[7px] uppercase text-slate-500">{{ formatDate(post.created_at) }}</span>
                                 </div>
-                                <h3 class="mt-3 text-[12px] uppercase text-white">{{ post.title }}</h3>
+                                <h3 class="mt-3 text-[12px] text-white">{{ post.title }}</h3>
                                 <img v-if="post.cover_image_path" :src="`/storage/${post.cover_image_path}`" alt="" class="mt-3 aspect-[4/3] w-full max-w-sm border-2 border-slate-700 object-cover" loading="lazy" decoding="async">
                                 <p class="mt-2 font-sans text-[13px] leading-relaxed text-slate-300">{{ post.excerpt || post.body?.slice(0, 180) }}</p>
                                 <p class="mt-2 text-[7px] uppercase text-slate-500">Author: {{ post.author?.username || post.author?.name || '-' }}</p>

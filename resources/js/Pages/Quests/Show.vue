@@ -44,8 +44,12 @@ const props = defineProps({
 
 const existingStatus = computed(() => props.existingSubmission?.status || null);
 const questObjectiveText = computed(() => String(props.quest?.description || '').trim());
+const questObjectivePlainText = computed(() => questObjectiveText.value
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .trim());
 const hasQuestObjective = computed(() => {
-    const normalized = questObjectiveText.value.toLowerCase();
+    const normalized = questObjectivePlainText.value.toLowerCase();
     return normalized !== '' && normalized !== 'no data' && normalized !== 'no data.';
 });
 const canResubmitPending = computed(() => props.hasSubmitted && props.canSubmit && existingStatus.value === 'Pending');
@@ -124,6 +128,9 @@ const requestedAttemptNumber = Number(
 const form = useForm({
     content: props.examDraft?.content || props.existingSubmission?.content || '',
     file: null,
+    files: [],
+    retained_attachment_ids: (props.existingSubmission?.attachments || []).map(file => Number(file.id)),
+    remove_legacy_file: false,
     task_answers: {
         ...(taskAnswersFromSubmission.value || {}),
         ...(props.examDraft?.task_answers || {}),
@@ -138,7 +145,9 @@ const form = useForm({
 const unlockForm = useForm({});
 const retakeUnlockForm = useForm({});
 const page = usePage();
-const maxSubmissionFileBytes = 10 * 1024 * 1024;
+const maxSubmissionFileBytes = 5 * 1024 * 1024;
+const maxSubmissionFiles = 20;
+const acceptedSubmissionFileTypes = '.jpg,.jpeg,.png,.webp,.pdf,.docx,.txt';
 
 const questDraftStorageKey = computed(() => {
     const questKey = String(props.quest?.uuid || props.quest?.id || 'quest');
@@ -318,15 +327,75 @@ const questToneStyle = computed(() => {
     return { '--quest-tone-border': '#2d65cf', '--quest-tone-bg': 'rgba(22, 47, 93, 0.16)', '--quest-tone-accent': '#8cc4ff' };
 });
 
-const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file && file.size > maxSubmissionFileBytes) {
-        Swal.fire({ title: 'FILE_TOO_LARGE', text: 'Max 10MB.', icon: 'error', background: '#161b22', color: '#ef4444' });
-        e.target.value = '';
-        form.file = null;
+const submissionFileInput = ref(null);
+const isFileDropActive = ref(false);
+const submissionFileView = ref('grid');
+const submittedFiles = computed(() => props.existingSubmission?.attachments?.length
+    ? props.existingSubmission.attachments.filter(file => form.retained_attachment_ids.includes(Number(file.id)))
+    : (props.existingSubmission?.file_path
+        && !form.remove_legacy_file
+        ? [{ file_path: props.existingSubmission.file_path, original_name: props.existingSubmission.file_path.split('/').pop(), legacy: true }]
+        : []));
+const hasQueuedSubmissionFiles = computed(() => form.files.length > 0);
+const storedSubmissionFileCount = computed(() => submittedFiles.value.length);
+const submissionFileEntries = computed(() => [
+    ...submittedFiles.value.map(file => ({
+        key: `stored-${file.id || file.file_path}`,
+        kind: 'stored',
+        id: file.id,
+        legacy: Boolean(file.legacy),
+        name: file.original_name,
+        size: file.size_bytes,
+        path: file.file_path,
+    })),
+    ...form.files.map((file, index) => ({
+        key: `queued-${file.name}-${file.lastModified}-${index}`,
+        kind: 'queued',
+        name: file.name,
+        size: file.size,
+        queueIndex: index,
+    })),
+]);
+const fileExtension = (name) => String(name || '').split('.').pop()?.toUpperCase() || 'FILE';
+const formatFileSize = (bytes) => {
+    const value = Number(bytes || 0);
+    if (!value) return '';
+    return value >= 1024 * 1024
+        ? `${(value / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.ceil(value / 1024)} KB`;
+};
+const addSubmissionFiles = (candidateFiles) => {
+    const incoming = Array.from(candidateFiles || []);
+    const combined = [...form.files, ...incoming];
+    const tooLarge = incoming.find(file => file.size > maxSubmissionFileBytes);
+    if (tooLarge) {
+        Swal.fire({ title: 'FILE_TOO_LARGE', text: 'Setiap file maksimal 5MB.', icon: 'error', background: '#161b22', color: '#ef4444' });
         return;
     }
-    form.file = file;
+    if (combined.length > maxSubmissionFiles) {
+        Swal.fire({ title: 'TOO_MANY_FILES', text: 'Maksimal 20 file untuk satu submission.', icon: 'error', background: '#161b22', color: '#ef4444' });
+        return;
+    }
+    form.files = combined;
+};
+const handleFileChange = (event) => {
+    addSubmissionFiles(event.target.files);
+    event.target.value = '';
+};
+const handleFileDrop = (event) => {
+    isFileDropActive.value = false;
+    addSubmissionFiles(event.dataTransfer?.files);
+};
+const removeSubmissionFile = (index) => {
+    form.files = form.files.filter((_, fileIndex) => fileIndex !== index);
+};
+const removeStoredSubmissionFile = (entry) => {
+    if (entry.legacy) {
+        form.remove_legacy_file = true;
+        return;
+    }
+    form.retained_attachment_ids = form.retained_attachment_ids
+        .filter(id => Number(id) !== Number(entry.id));
 };
 
 // === SHARED GAME DATA & PERSISTENCE ===
@@ -690,7 +759,7 @@ const submitReport = () => {
         return;
     }
 
-    if (!isStructuredTaskBankQuest.value && String(form.content || '').trim() === '' && !form.file) {
+    if (!isStructuredTaskBankQuest.value && String(form.content || '').trim() === '' && form.files.length === 0) {
         Swal.fire({
             title: 'CONTENT_REQUIRED',
             text: 'Isi laporan atau upload file submission terlebih dahulu.',
@@ -706,6 +775,13 @@ const submitReport = () => {
         preserveScroll: true,
         onSuccess: () => {
             clearDraft();
+            form.reset('file', 'files');
+            // Jangan pertahankan state komponen; ambil ulang props submission dari server.
+            router.visit(window.location.href, {
+                replace: true,
+                preserveScroll: true,
+                preserveState: false,
+            });
         },
         onError: (errors) => {
             const firstError = Object.values(errors || {}).find((value) => Boolean(value));
@@ -799,7 +875,7 @@ const useRetakeTicket = () => {
                                         <span class="text-[7px] text-red-400 font-bold uppercase tracking-tighter">{{ previewMode ? 'Preview' : 'Live' }}</span>
                                     </div>
                                 </div>
-                                <span class="hidden sm:block text-white text-[9px] font-bold truncate tracking-widest uppercase flex-1 text-center px-4">{{ quest.title }}</span>
+                                <span class="hidden sm:block text-white text-[9px] font-bold truncate tracking-widest flex-1 text-center px-4">{{ quest.title }}</span>
                                 <div class="bg-amber-500/10 border border-amber-500/30 px-2 py-1 pf-bevel-xs shrink-0">
                                     <span class="text-amber-300 text-[9px] font-black tabular-nums">{{ quest.reward_gold }}G</span>
                                 </div>
@@ -1073,7 +1149,7 @@ const useRetakeTicket = () => {
                 <div v-else class="h-full flex flex-col bg-slate-950/90">
                     <div class="shrink-0 p-3 border-b border-rose-300/20 bg-slate-950 flex items-center justify-between">
                         <Link :href="questBackUrl" class="text-rose-400 text-[8px] border border-rose-500/30 px-3 py-1 pf-bevel-xs font-bold uppercase">CANCEL</Link>
-                        <span class="text-white text-[10px] font-bold uppercase tracking-widest">ACCESS_DENIED: {{ quest.title }}</span>
+                        <span class="text-white text-[10px] font-bold tracking-widest"><span class="uppercase">ACCESS_DENIED:</span> {{ quest.title }}</span>
                         <div class="bg-rose-500/10 border border-rose-500/30 px-2 py-1 pf-bevel-xs"><span class="text-rose-400 text-[8px] font-black uppercase">LOCKED</span></div>
                     </div>
                     <div class="flex-1 p-6 flex flex-col items-center justify-center space-y-6">
@@ -1108,7 +1184,7 @@ const useRetakeTicket = () => {
                     <div v-if="previewMode" class="mb-4 border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-[8px] uppercase leading-relaxed text-emerald-300">
                         User_View_Simulation: submit tidak membuat submission, score, gold, atau exp.
                     </div>
-                    <h1 class="text-lg md:text-2xl text-white uppercase tracking-tighter leading-tight">{{ quest.title }}</h1>
+                    <h1 class="text-lg md:text-2xl text-white tracking-tighter leading-tight">{{ quest.title }}</h1>
                 </div>
                 <div class="p-4 md:p-8 space-y-8">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-b-2 border-slate-800 pb-6 text-[12px]">
@@ -1117,7 +1193,7 @@ const useRetakeTicket = () => {
                     </div>
                     <div v-if="hasQuestObjective" class="space-y-4">
                         <h3 class="text-[12px] text-cyan-400 uppercase tracking-widest underline italic">Quest_Objectives:</h3>
-                        <div class="quest-objective-card bg-black/30 p-4 border-l-4 border-slate-700 font-sans text-[14px] text-slate-300 whitespace-pre-wrap">{{ questObjectiveText }}</div>
+                        <div class="quest-objective-card quest-objective-rich bg-black/30 p-4 border-l-4 border-slate-700 font-sans text-[14px] text-slate-300" v-html="questObjectiveText"></div>
                     </div>
 
                     <section
@@ -1340,19 +1416,50 @@ const useRetakeTicket = () => {
                                 </div>
                                 <div>
                                     <label class="block text-[12px] text-slate-500 mb-2 uppercase">Raw File:</label>
-                                    <label class="flex items-center gap-3 w-full bg-[#0d1117] border-2 border-slate-800 p-3 cursor-pointer hover:border-cyan-700 transition-colors">
-                                        <span class="shrink-0 px-3 py-2 bg-cyan-900/40 border border-cyan-700 text-cyan-300 text-[10px] uppercase font-['Press_Start_2P']">Choose File</span>
-                                        <span class="text-[11px] text-slate-400 font-sans truncate">{{ form.file ? form.file.name : 'No file chosen' }}</span>
-                                        <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.txt" @change="handleFileChange" class="hidden" />
-                                    </label>
-                                    <p class="mt-2 text-[10px] text-slate-500 font-sans">PDF, DOCX, TXT, JPG, PNG, WEBP. Max 10MB.</p>
-                                    <!-- File yang sudah diupload sebelumnya -->
-                                    <div v-if="existingSubmission?.file_path" class="mt-3 p-3 border border-slate-700 bg-black/30 flex items-center justify-between gap-3">
-                                        <div class="min-w-0">
-                                            <p class="text-[9px] text-slate-400 uppercase mb-1">Current File:</p>
-                                            <p class="text-[11px] text-cyan-300 font-sans truncate">{{ existingSubmission.file_path.split('/').pop() }}</p>
+                                    <div
+                                        class="submission-file-manager overflow-hidden border-2 border-slate-700 bg-[#0d1117] font-sans"
+                                        :class="isFileDropActive ? 'border-cyan-500' : ''"
+                                        @dragenter.prevent="isFileDropActive = true"
+                                        @dragover.prevent="isFileDropActive = true"
+                                        @dragleave.prevent="isFileDropActive = false"
+                                        @drop.prevent="handleFileDrop"
+                                    >
+                                        <div class="submission-file-toolbar flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 bg-slate-900/80 px-3 py-2">
+                                            <div class="flex items-center gap-2">
+                                                <button type="button" class="submission-file-add-button border-2 border-cyan-400 bg-cyan-900/50 px-3 py-2 text-[9px] uppercase text-cyan-100 shadow-[3px_3px_0_#164e63] transition-transform hover:-translate-y-px hover:bg-cyan-700/70 active:translate-x-px active:translate-y-px active:shadow-none font-['Press_Start_2P']" @click="submissionFileInput?.click()">+ FILE</button>
+                                                <span class="text-[11px] text-slate-400">{{ submissionFileEntries.length }}/20 file</span>
+                                            </div>
+                                            <div class="flex items-center gap-1">
+                                                <button type="button" class="border px-2 py-1 text-[12px]" :class="submissionFileView === 'grid' ? 'border-cyan-500 bg-cyan-900/50 text-cyan-200' : 'border-slate-700 text-slate-500 hover:border-cyan-700 hover:text-cyan-200'" title="Tampilan grid" @click="submissionFileView = 'grid'">▦</button>
+                                                <button type="button" class="border px-2 py-1 text-[12px]" :class="submissionFileView === 'list' ? 'border-cyan-500 bg-cyan-900/50 text-cyan-200' : 'border-slate-700 text-slate-500 hover:border-cyan-700 hover:text-cyan-200'" title="Tampilan daftar" @click="submissionFileView = 'list'">☷</button>
+                                            </div>
                                         </div>
-                                        <a :href="`/storage/${existingSubmission.file_path}`" target="_blank" class="shrink-0 px-3 py-2 border border-cyan-700 text-cyan-400 text-[9px] uppercase hover:bg-cyan-900/30 font-['Press_Start_2P']">VIEW</a>
+                                        <div class="submission-file-breadcrumb flex items-center gap-2 border-b border-slate-800 px-3 py-2 text-[12px] text-slate-300">
+                                            <span class="text-cyan-400">▰</span>
+                                            <span>Files</span>
+                                            <span class="ml-auto text-[10px] text-slate-500">Maks. 5 MB per file</span>
+                                        </div>
+                                        <input ref="submissionFileInput" type="file" multiple :accept="acceptedSubmissionFileTypes" class="hidden" @change="handleFileChange" />
+
+                                        <div v-if="submissionFileEntries.length" class="submission-file-content max-h-64 overflow-y-auto p-3" :class="submissionFileView === 'grid' ? 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4' : 'space-y-2'">
+                                            <div v-for="entry in submissionFileEntries" :key="entry.key" class="submission-file-entry group relative border border-slate-700 bg-slate-900/40" :class="submissionFileView === 'grid' ? 'min-h-32 p-3' : 'flex items-center gap-3 px-3 py-2'">
+                                                <div class="submission-file-type flex shrink-0 items-center justify-center border border-cyan-900/70 bg-cyan-950/40 text-[10px] font-bold text-cyan-300" :class="submissionFileView === 'grid' ? 'h-12 w-12' : 'h-9 w-9'">{{ fileExtension(entry.name) }}</div>
+                                                <div class="min-w-0" :class="submissionFileView === 'grid' ? 'mt-3' : 'flex-1'">
+                                                    <p class="submission-file-name truncate text-[11px] text-slate-200" :title="entry.name">{{ entry.name }}</p>
+                                                    <p class="submission-file-meta mt-1 text-[10px]" :class="entry.kind === 'queued' ? 'text-amber-300' : 'text-slate-500'">{{ entry.kind === 'queued' ? 'Baru · akan diunggah' : 'Tersimpan' }}<span v-if="entry.size"> · {{ formatFileSize(entry.size) }}</span></p>
+                                                </div>
+                                                <button v-if="entry.kind === 'queued'" type="button" class="absolute right-1 top-1 border border-red-500 bg-red-950/80 p-1.5 text-[12px] leading-none text-red-200 shadow-[2px_2px_0_#450a0a] hover:bg-red-800" title="Hapus file" aria-label="Hapus file" @click="removeSubmissionFile(entry.queueIndex)"><i class="fi fi-rr-trash"></i></button>
+                                                <div v-else class="absolute right-1 top-1 flex gap-1">
+                                                    <a :href="storageUrl(entry.path)" target="_blank" class="border border-cyan-800 bg-slate-800 p-1.5 text-[11px] leading-none text-cyan-300 shadow-[2px_2px_0_#0f172a] hover:bg-cyan-950" title="Lihat file" aria-label="Lihat file">↗</a>
+                                                    <button type="button" class="border border-red-500 bg-red-950/80 p-1.5 text-[12px] leading-none text-red-200 shadow-[2px_2px_0_#450a0a] hover:bg-red-800" title="Hapus file" aria-label="Hapus file" @click="removeStoredSubmissionFile(entry)"><i class="fi fi-rr-trash"></i></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button v-else type="button" class="submission-file-empty flex min-h-40 w-full flex-col items-center justify-center gap-2 p-6 text-center text-slate-400 hover:bg-slate-900/40" @click="submissionFileInput?.click()">
+                                            <span class="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-cyan-700 text-xl text-cyan-400">+</span>
+                                            <span class="text-[12px]">Belum ada file. Klik atau tarik file ke sini untuk menambahkan.</span>
+                                            <span class="text-[10px] text-slate-600">PDF, DOCX, TXT, JPG, PNG, WEBP</span>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -1419,6 +1526,13 @@ const useRetakeTicket = () => {
     box-shadow: inset 4px 0 0 #22d3ee, 0 0 0 1px rgba(34, 211, 238, 0.2) !important;
 }
 
+.quest-objective-rich :deep(p) { margin: 0.55rem 0; }
+.quest-objective-rich :deep(h2), .quest-objective-rich :deep(h3) { margin: 0.8rem 0 0.35rem; color: #67e8f9; font-weight: 700; }
+.quest-objective-rich :deep(ul), .quest-objective-rich :deep(ol) { margin: 0.55rem 0; padding-left: 1.5rem; }
+.quest-objective-rich :deep(ul) { list-style: disc; }
+.quest-objective-rich :deep(ol) { list-style: decimal; }
+.quest-objective-rich :deep(a) { color: #67e8f9; text-decoration: underline; }
+
 .quest-page--dark .quest-answer-label {
     color: #e2e8f0 !important;
 }
@@ -1451,6 +1565,74 @@ const useRetakeTicket = () => {
 .quest-page--light .quest-question-card,
 .quest-page--light .quest-submit-panel {
     color: #202020 !important;
+}
+
+.quest-page--light .submission-file-manager {
+    border-color: #79a8a8 !important;
+    background: #ffffff !important;
+    color: #1f2937;
+}
+
+.quest-page--light .submission-file-toolbar {
+    border-color: #b8cccc !important;
+    background: #edf7f7 !important;
+}
+
+.quest-page--light .submission-file-toolbar button:first-child {
+    border-color: #008f8f !important;
+    background: #d9f2f2 !important;
+    color: #006d6d !important;
+}
+
+.quest-page--light .submission-file-toolbar button:not(:first-child) {
+    color: #547070 !important;
+}
+
+.quest-page--light .submission-file-toolbar button:not(:first-child).bg-slate-700 {
+    background: #cfe8e8 !important;
+    color: #007777 !important;
+}
+
+.quest-page--light .submission-file-breadcrumb {
+    border-color: #d3e2e2 !important;
+    background: #ffffff !important;
+    color: #253b3b !important;
+}
+
+.quest-page--light .submission-file-breadcrumb span:first-child {
+    color: #008f8f !important;
+}
+
+.quest-page--light .submission-file-entry {
+    border-color: #c7d9d9 !important;
+    background: #fbfefe !important;
+}
+
+.quest-page--light .submission-file-entry:hover {
+    border-color: #009999 !important;
+    background: #eefafa !important;
+}
+
+.quest-page--light .submission-file-type {
+    border-color: #81baba !important;
+    background: #e0f4f4 !important;
+    color: #007777 !important;
+}
+
+.quest-page--light .submission-file-name {
+    color: #263b3b !important;
+}
+
+.quest-page--light .submission-file-meta {
+    color: #657777 !important;
+}
+
+.quest-page--light .submission-file-empty {
+    color: #4c6464 !important;
+}
+
+.quest-page--light .submission-file-empty:hover {
+    background: #f2fbfb !important;
 }
 
 .quest-page--light .quest-answer-option {

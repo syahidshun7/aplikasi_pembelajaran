@@ -231,7 +231,7 @@ const formatActivityType = (value) => {
                         <div class="flex items-start justify-between gap-4 mb-2">
                             <div class="space-y-2">
                                 <p class="text-[8px] text-slate-500 uppercase tracking-tighter">ID: {{ item.id }} // {{ item.code }}</p>
-                                <h3 class="text-white uppercase">{{ item.title }}</h3>
+                                <h3 class="text-white">{{ item.title }}</h3>
                             </div>
                             <span
                                 class="text-[8px] px-2 py-1 border uppercase"
