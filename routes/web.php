@@ -321,7 +321,7 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
         ->name('admin.quests.submissions.download-files');
     Route::get('/submissions/{submission}/inspect', [AdminSubmissionController::class, 'inspect'])
         ->name('admin.submissions.inspect');
-    Route::get('/submissions/{submission}/file', [AdminSubmissionController::class, 'previewFile'])
+    Route::get('/submissions/{submission}/file/{attachment?}', [AdminSubmissionController::class, 'previewFile'])
         ->name('admin.submissions.file');
     Route::post('/submissions/{submission}/verdict', [AdminSubmissionController::class, 'verdict'])
         ->name('admin.submissions.verdict');

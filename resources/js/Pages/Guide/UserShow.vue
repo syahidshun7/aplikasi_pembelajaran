@@ -160,7 +160,7 @@ const backLabel = computed(() => props.previewMode ? '[Back_to_Admin_Guides]' : 
                                 {{ guideClassLabel }}
                             </span>
                         </p>
-                        <h2 class="text-white text-sm md:text-lg uppercase leading-relaxed">{{ guide.title }}</h2>
+                        <h2 class="text-white text-sm md:text-lg leading-relaxed">{{ guide.title }}</h2>
                         <p class="text-[8px] uppercase text-slate-500">Created_At: {{ createdAtLabel }}</p>
                     </div>
 

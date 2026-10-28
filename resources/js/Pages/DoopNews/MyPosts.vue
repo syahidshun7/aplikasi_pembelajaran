@@ -117,7 +117,7 @@ const goToPage = (url) => {
                                 <span class="doopnews-mine-card__status border border-slate-700 px-2 py-1 text-[7px] uppercase text-slate-300">{{ statusLabel(post.status) }}</span>
                                 <span class="doopnews-mine-card__date text-[7px] uppercase text-slate-500">{{ formatDate(post.created_at) }}</span>
                             </div>
-                            <h2 class="doopnews-mine-card__title mt-2 break-words text-[11px] uppercase leading-relaxed text-white">{{ post.title }}</h2>
+                            <h2 class="doopnews-mine-card__title mt-2 break-words text-[11px] leading-relaxed text-white">{{ post.title }}</h2>
                             <p class="doopnews-mine-card__copy mt-1 line-clamp-2 font-sans text-[12px] leading-relaxed text-slate-300">{{ post.excerpt || post.body }}</p>
                             <p v-if="post.rejection_reason" class="doopnews-mine-card__rejection mt-2 border border-red-700 bg-red-950/40 p-2 font-sans text-[12px] text-red-200">Alasan ditolak: {{ post.rejection_reason }}</p>
                         </div>

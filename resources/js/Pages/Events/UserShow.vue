@@ -164,7 +164,7 @@ const copyPublicLink = async () => {
 
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0 pr-24 md:pr-28">
-                        <h1 class="text-white text-sm md:text-lg uppercase">{{ event.title }}</h1>
+                        <h1 class="text-white text-sm md:text-lg">{{ event.title }}</h1>
                         <p class="text-[8px] text-slate-400 uppercase mt-2">
                             Meeting_{{ event.sequence_order }}
                             | Target: {{ event.study_group?.name || (event.job?.name ? `Public / ${event.job.name}` : 'Public') }}
@@ -322,7 +322,7 @@ const copyPublicLink = async () => {
                     <div class="space-y-3 max-h-[520px] overflow-y-auto pr-2 custom-scroll">
                         <div v-for="guide in event.guides" :key="guide.uuid" class="p-3 bg-[#0d1117] border border-slate-700">
                             <div class="mb-1 flex items-start justify-between gap-2">
-                                <p class="text-[9px] text-white uppercase">{{ guide.title }}</p>
+                                <p class="text-[9px] text-white">{{ guide.title }}</p>
                                 <span
                                     v-if="progressEnabled && guide.counts_toward_progress"
                                     class="shrink-0 border px-2 py-1 text-[7px] uppercase"
@@ -349,7 +349,7 @@ const copyPublicLink = async () => {
                     <div class="space-y-3 max-h-[520px] overflow-y-auto pr-2 custom-scroll">
                         <div v-for="quest in event.quests" :key="quest.uuid" class="p-3 bg-[#0d1117] border border-slate-700">
                             <div class="mb-1 flex items-start justify-between gap-2">
-                                <p class="text-[9px] text-white uppercase">{{ quest.title }}</p>
+                                <p class="text-[9px] text-white">{{ quest.title }}</p>
                                 <span
                                     v-if="progressEnabled && quest.counts_toward_progress"
                                     class="shrink-0 border px-2 py-1 text-[7px] uppercase"

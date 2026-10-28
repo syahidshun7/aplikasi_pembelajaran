@@ -89,7 +89,17 @@ try {
         $redis = Find-Executable 'redis-server.exe' 'bin\redis\*\redis-server.exe'
         $conf = Join-Path (Split-Path $redis -Parent) 'redis.windows.conf'
         if (-not (Test-Path -LiteralPath $conf)) { throw "Konfigurasi Redis tidak ditemukan: $conf" }
-        Start-Background 'Redis' $redis @($conf, '--port', "$redisPort") (Split-Path $redis -Parent)
+        # Folder bawaan Laragon dapat gagal ditulisi Redis saat menyimpan dump.rdb.
+        # Simpan data dan log di workspace aplikasi yang pasti writable.
+        $redisDataDir = Join-Path $root 'storage\redis'
+        New-Item -ItemType Directory -Path $redisDataDir -Force | Out-Null
+        Start-Background 'Redis' $redis @(
+            $conf,
+            '--port', "$redisPort",
+            '--dir', $redisDataDir,
+            '--dbfilename', 'dump.rdb',
+            '--logfile', (Join-Path $logDir 'Redis.log')
+        ) $redisDataDir
     }
     $artisan = Join-Path $root 'artisan'
     Ensure-Service 'Laravel' '127.0.0.1' 8000 {

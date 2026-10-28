@@ -280,11 +280,28 @@
                             </div>
                         </div>
 
-                        <div v-if="submission.file_path" class="border-4 border-black bg-black shadow-2xl overflow-hidden">
-                            <div v-if="isImage(submission.file_path)" class="p-2">
+                        <div v-if="attachmentItems.length" class="border-4 border-black bg-black shadow-2xl overflow-hidden">
+                            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-slate-950 p-3">
+                                <div>
+                                    <p class="text-[8px] text-cyan-300 uppercase">ATTACHMENT_VIEWER</p>
+                                    <p class="mt-1 max-w-md truncate font-sans text-[12px] text-slate-200">{{ selectedAttachment?.original_name }}</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button type="button" class="border border-slate-700 px-2 py-1 text-[10px] text-slate-300 hover:border-cyan-500 disabled:opacity-30" :disabled="selectedAttachmentIndex === 0" @click="showPreviousAttachment">‹</button>
+                                    <span class="text-[8px] text-slate-500">{{ selectedAttachmentIndex + 1 }}/{{ attachmentItems.length }}</span>
+                                    <button type="button" class="border border-slate-700 px-2 py-1 text-[10px] text-slate-300 hover:border-cyan-500 disabled:opacity-30" :disabled="selectedAttachmentIndex === attachmentItems.length - 1" @click="showNextAttachment">›</button>
+                                </div>
+                            </div>
+                            <div class="flex gap-2 overflow-x-auto border-b border-slate-800 bg-slate-950/60 p-3">
+                                <button v-for="(file, index) in attachmentItems" :key="file.id || file.file_path" type="button" class="shrink-0 border px-2 py-2 text-left text-[8px] transition-colors" :class="selectedAttachmentIndex === index ? 'border-cyan-400 bg-cyan-900/40 text-cyan-100' : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-cyan-700'" @click="selectAttachment(index)">
+                                    <span class="mr-2 border border-cyan-900 bg-cyan-950/50 px-1 py-0.5 text-[7px] text-cyan-300">{{ attachmentExtension(file) }}</span>
+                                    {{ file.original_name }}
+                                </button>
+                            </div>
+                            <div v-if="isImage(selectedAttachment?.file_path)" class="p-2">
                                 <img :src="attachmentPreviewUrl" class="w-full h-auto" alt="Submission attachment">
                             </div>
-                            <div v-else-if="isPdf(submission.file_path)" class="h-[500px] w-full bg-slate-800">
+                            <div v-else-if="isPdf(selectedAttachment?.file_path)" class="h-[500px] w-full bg-slate-800">
                                 <div v-if="isMobilePdfPreview" class="h-full w-full p-4 text-[8px] text-slate-300 uppercase border border-slate-700 bg-black">
                                     Preview PDF di mobile kadang dibatasi browser. Gunakan OPEN_ATTACHMENT untuk membuka viewer bawaan browser.
                                 </div>
@@ -1647,13 +1664,39 @@ const aiPreviewSummary = computed(() => {
     };
 });
 
+const attachmentItems = computed(() => {
+    const attachments = Array.isArray(props.submission?.attachments) ? props.submission.attachments : [];
+    if (attachments.length) return attachments;
+    if (!props.submission?.file_path) return [];
+    return [{
+        id: null,
+        file_path: props.submission.file_path,
+        original_name: String(props.submission.file_path).split('/').pop(),
+    }];
+});
+const selectedAttachmentIndex = ref(0);
+const selectedAttachment = computed(() => attachmentItems.value[selectedAttachmentIndex.value] || null);
+const attachmentExtension = (file) => String(file?.original_name || file?.file_path || '').split('.').pop()?.toUpperCase() || 'FILE';
+const selectAttachment = (index) => {
+    selectedAttachmentIndex.value = index;
+};
+const showPreviousAttachment = () => {
+    selectedAttachmentIndex.value = Math.max(0, selectedAttachmentIndex.value - 1);
+};
+const showNextAttachment = () => {
+    selectedAttachmentIndex.value = Math.min(attachmentItems.value.length - 1, selectedAttachmentIndex.value + 1);
+};
 const attachmentPreviewUrl = computed(() => {
-    if (!props.submission?.file_path) return null;
+    if (!selectedAttachment.value?.file_path) return null;
     try {
-        return route('admin.submissions.file', { submission: props.submission.uuid });
+        return route('admin.submissions.file', {
+            submission: props.submission.uuid,
+            attachment: selectedAttachment.value.id || undefined,
+        });
     } catch (error) {
         // Fallback untuk deploy yang cache Ziggy-nya belum update.
-        return `/submissions/${props.submission.uuid}/file`;
+        const attachmentId = selectedAttachment.value.id ? `/${selectedAttachment.value.id}` : '';
+        return `/submissions/${props.submission.uuid}/file${attachmentId}`;
     }
 });
 

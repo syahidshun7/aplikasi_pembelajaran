@@ -569,6 +569,7 @@ class QuestController extends Controller
 
         $submissions = $quest->submissions()
             ->where('user_id', $userId)
+            ->with('attachments:id,submission_id,file_path,original_name,mime_type,size_bytes')
             ->latest('id')
             ->get();
         $submission = $submissions->first();

@@ -31,7 +31,7 @@ const isLightTheme = computed(() => themeMode.value === 'light');
                     <span class="doopnews-show-page__category border border-[#009999]/60 bg-[#009999]/10 px-2 py-1 text-[7px] uppercase text-cyan-200">{{ categoryLabel(post.category) }}</span>
                     <span v-if="post.version_label" class="doopnews-show-page__version border border-cyan-500 bg-cyan-500/10 px-2 py-1 text-[7px] uppercase text-cyan-200">{{ post.version_label }}</span>
                 </div>
-                <h1 class="doopnews-show-page__title mt-4 text-lg uppercase leading-relaxed text-white md:text-2xl">{{ post.title }}</h1>
+                <h1 class="doopnews-show-page__title mt-4 text-lg leading-relaxed text-white md:text-2xl">{{ post.title }}</h1>
                 <p class="doopnews-show-page__meta mt-3 text-[8px] uppercase text-slate-500">{{ formatDate(post.published_at) }} | {{ post.author?.username || post.author?.name || 'DoopNews' }}</p>
             </div>
 

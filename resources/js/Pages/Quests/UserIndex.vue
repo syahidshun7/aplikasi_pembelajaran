@@ -214,7 +214,7 @@ const classLabelForQuest = (item) => {
                             :style="toneStyleForQuest(item)"
                         >
                             <div class="flex items-start justify-between gap-2">
-                                <p class="text-white uppercase text-[11px]">{{ item.title }}</p>
+                                <p class="text-white text-[11px]">{{ item.title }}</p>
                                 <span v-if="item.is_new_for_user" class="quest-new-badge">NEW</span>
                             </div>
                             <div class="mt-2 flex flex-wrap gap-1">

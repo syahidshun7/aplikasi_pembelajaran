@@ -550,7 +550,7 @@ onBeforeUnmount(() => {
                         <p class="text-[8px] uppercase text-slate-400">
                             Hall of Creations / {{ creation.category || 'General' }}
                         </p>
-                        <h1 class="text-[12px] uppercase text-white">{{ creation.title }}</h1>
+                        <h1 class="text-[12px] text-white">{{ creation.title }}</h1>
                         <p class="text-[8px] uppercase text-cyan-300">
                             by {{ creation.creator?.username || creation.creator?.name || 'Unknown Creator' }}
                         </p>

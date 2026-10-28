@@ -85,7 +85,7 @@ const copyShareLink = async () => {
 
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0 pr-24 md:pr-28">
-                        <h1 class="text-white text-sm md:text-lg uppercase">{{ event.title }}</h1>
+                        <h1 class="text-white text-sm md:text-lg">{{ event.title }}</h1>
                         <p class="text-[8px] text-slate-400 uppercase mt-2">
                             Meeting_{{ event.sequence_order || 0 }}
                             | Audience: {{ event.job?.name ? `Public / ${event.job.name}` : 'Public' }}
