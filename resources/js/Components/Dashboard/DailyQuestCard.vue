@@ -1,6 +1,7 @@
 <script setup>
 import { router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { richTextToPlainText } from '@/Utils/richText';
 
 const props = defineProps({
     board: {
@@ -151,7 +152,7 @@ onBeforeUnmount(() => {
                 <div class="daily-quest-item__top">
                     <div class="space-y-2">
                         <h3 class="daily-quest-item__title">{{ quest.title }}</h3>
-                        <p class="daily-quest-item__description">{{ quest.description }}</p>
+                        <p class="daily-quest-item__description">{{ richTextToPlainText(quest.description, '-') }}</p>
                     </div>
 
                     <span
