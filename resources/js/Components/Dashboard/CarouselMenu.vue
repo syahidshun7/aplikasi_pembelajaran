@@ -269,7 +269,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .carousel-shell {
-    @apply relative mx-auto max-w-[80rem] px-1 pb-7 pt-9 sm:px-2 sm:pb-8 sm:pt-10;
+    @apply relative mx-auto max-w-[76rem] px-1 pb-4 pt-6 sm:px-2 sm:pb-5 sm:pt-7;
 }
 
 .carousel-track {
@@ -291,13 +291,13 @@ onBeforeUnmount(() => {
 
 .carousel-card {
     @apply snap-center border-none bg-transparent p-0 text-left outline-none transition-all duration-500 ease-in-out;
-    flex: 0 0 min(72vw, 292px);
+    flex: 0 0 min(68vw, 252px);
     scroll-snap-align: center;
     user-select: none;
 }
 
 .carousel-card__frame {
-    @apply relative flex min-h-[188px] flex-col justify-between overflow-hidden border-2 border-[#31445f] bg-[#111827]/95 p-4 shadow-[0_18px_34px_rgba(3,8,18,0.48)];
+    @apply relative flex min-h-[164px] flex-col justify-between overflow-hidden border-2 border-[#31445f] bg-[#111827]/95 p-3 shadow-[0_12px_24px_rgba(3,8,18,0.36)];
 }
 
 .carousel-card__new-dot {
@@ -319,7 +319,7 @@ onBeforeUnmount(() => {
 }
 
 .carousel-card__icon {
-    @apply relative z-10 flex h-14 w-14 items-center justify-center border border-cyan-300/30 bg-[#0b1220] text-[22px] text-cyan-200 shadow-[0_0_16px_rgba(78,212,212,0.16)];
+    @apply relative z-10 flex h-11 w-11 items-center justify-center border border-cyan-300/30 bg-[#0b1220] text-[18px] text-cyan-200 shadow-[0_0_12px_rgba(78,212,212,0.12)];
 }
 
 .carousel-card__badge {
@@ -327,7 +327,7 @@ onBeforeUnmount(() => {
 }
 
 .carousel-card__body {
-    @apply relative z-10 mt-5 space-y-3;
+    @apply relative z-10 mt-3 space-y-2;
 }
 
 .carousel-card__eyebrow {
@@ -335,11 +335,11 @@ onBeforeUnmount(() => {
 }
 
 .carousel-card__title {
-    @apply text-[14px] uppercase tracking-[0.12em] text-white;
+    @apply text-[12px] uppercase tracking-[0.12em] text-white;
 }
 
 .carousel-card__stats {
-    @apply relative z-10 flex items-center justify-between gap-3 border-t border-white/10 pt-4;
+    @apply relative z-10 flex items-center justify-between gap-3 border-t border-white/10 pt-3;
 }
 
 .carousel-card__chip {
@@ -352,11 +352,11 @@ onBeforeUnmount(() => {
 
 .carousel-card--active {
     @apply z-20 scale-100 opacity-100 blur-0;
-    transform: translateY(-8px);
+    transform: translateY(-4px);
 }
 
 .carousel-card--active .carousel-card__frame {
-    @apply border-cyan-300/70 shadow-[0_24px_42px_rgba(8,24,44,0.6)];
+    @apply border-cyan-300/70 shadow-[0_16px_28px_rgba(8,24,44,0.46)];
 }
 
 .carousel-card--active .carousel-card__badge,
@@ -366,8 +366,7 @@ onBeforeUnmount(() => {
 
 .carousel-card--inactive {
     @apply z-10 opacity-55;
-    filter: blur(1px);
-    transform: translateY(8px) scale(0.82);
+    transform: translateY(4px) scale(0.88);
 }
 
 .from-amber-node {

@@ -173,7 +173,7 @@
 
                         <p class="text-[8px] text-slate-500 uppercase italic">Objective_Brief:</p>
                         <p class="text-slate-400 font-sans text-xs leading-relaxed italic border-l-2 border-slate-700 pl-4">
-                            "{{ submission.quest.description }}"
+                            "{{ richTextToPlainText(submission.quest.description, '-') }}"
                         </p>
                     </div>
 
@@ -1244,6 +1244,7 @@ import { ref, computed, onMounted } from 'vue';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
+import { richTextToPlainText } from '@/Utils/richText';
 
 const props = defineProps({
     submission: Object,

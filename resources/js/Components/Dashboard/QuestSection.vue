@@ -232,11 +232,11 @@ const partyLabelForQuest = (quest) => {
             </div>
         </article>
 
-        <div v-if="items.length > 0" class="grid gap-4 lg:grid-cols-2">
+        <div v-if="items.length > 0" class="grid gap-3 lg:grid-cols-2">
             <article
                 v-for="quest in items"
                 :key="quest.uuid"
-                class="quest-item-card group flex min-h-[220px] flex-col border-2 p-4 transition-all"
+                class="quest-item-card group flex min-h-[188px] flex-col border-2 p-3 transition-colors"
                 :style="toneStyleForQuest(quest)"
                 :class="[
                     (quest.user_submission_status === 'Approved') ? 'border-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.35)] bg-emerald-950/20' :
@@ -248,7 +248,7 @@ const partyLabelForQuest = (quest) => {
                     quest.user_has_submitted ? 'border-yellow-600 shadow-[0_0_10px_rgba(202,138,4,0.2)]' : 'border-slate-700 hover:border-[#009999]'
                 ]"
             >
-                <div class="mb-3 flex items-start justify-between gap-2">
+                <div class="mb-2 flex items-start justify-between gap-2">
                     <div class="flex flex-wrap items-center gap-1.5">
                         <span class="border border-slate-600 bg-slate-800 px-2 py-1 text-[7px] uppercase text-slate-400">
                             ID:{{ quest.id }}
@@ -275,7 +275,7 @@ const partyLabelForQuest = (quest) => {
                     </div>
                 </div>
 
-                <h3 class="mb-2 line-clamp-3 break-words text-[9px] uppercase leading-relaxed text-white group-hover:text-[#4ed4d4] sm:text-[10px]">
+                <h3 class="mb-2 line-clamp-2 break-words text-[9px] uppercase leading-relaxed text-white group-hover:text-[#4ed4d4] sm:text-[10px]">
                     {{ quest.title }}
                 </h3>
 
@@ -341,9 +341,9 @@ const partyLabelForQuest = (quest) => {
                     </p>
                 </div>
 
-                <div class="mt-4 flex flex-col gap-3 border-t border-slate-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="flex flex-col">
-                        <span class="mb-1 text-[6px] uppercase text-slate-500">Reward</span>
+                <div class="mt-3 flex items-center justify-between gap-3 border-t border-slate-800 pt-3">
+                    <div class="flex items-baseline gap-1.5">
+                        <span class="text-[6px] uppercase text-slate-500">Reward</span>
                         <span class="text-[8px] font-bold tracking-tighter text-yellow-500">{{ quest.reward_gold }}G</span>
                     </div>
 
@@ -352,7 +352,7 @@ const partyLabelForQuest = (quest) => {
                             :href="route('quests.show', quest.uuid)"
                             @click="emit('item-open', { type: 'quest', item: quest })"
                             :class="[
-                                'btn-pixel self-start whitespace-nowrap px-3 py-2 text-[8px] font-bold uppercase transition-colors sm:self-auto',
+                                'btn-pixel shrink-0 whitespace-nowrap px-3 py-2 text-[8px] font-bold uppercase transition-colors',
                                 (quest.user_submission_status === 'Approved') ? 'border-emerald-800 bg-emerald-600 text-black hover:bg-emerald-400' :
                                 (quest.user_submission_status === 'Pending') ? 'border-yellow-800 bg-yellow-600 text-black hover:bg-yellow-400' :
                                 (quest.user_submission_status === 'Rejected') ? 'border-red-950 bg-red-700 text-white hover:bg-red-600' :
@@ -386,11 +386,11 @@ const partyLabelForQuest = (quest) => {
 
 <style scoped>
 .dashboard-section-shell {
-    @apply border-2 border-[#3d415f] bg-[#1a1c2c] p-5 shadow-[0_18px_50px_rgba(2,8,16,0.46)];
+    @apply border-2 border-[#3d415f] bg-[#1a1c2c] p-4 shadow-[0_12px_28px_rgba(2,8,16,0.32)];
 }
 
 .dashboard-section-header {
-    @apply mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 pb-4;
+    @apply mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 pb-3;
 }
 
 .dashboard-section-header__eyebrow {
@@ -426,7 +426,7 @@ const partyLabelForQuest = (quest) => {
 }
 
 .daily-claim-card {
-    @apply mb-6 border border-cyan-900/70 bg-[linear-gradient(135deg,rgba(8,18,28,0.92),rgba(12,24,40,0.92))] p-4 shadow-[0_12px_32px_rgba(2,8,16,0.36)];
+    @apply mb-4 border border-cyan-900/70 bg-[linear-gradient(135deg,rgba(8,18,28,0.92),rgba(12,24,40,0.92))] p-3 shadow-[0_8px_20px_rgba(2,8,16,0.28)];
 }
 
 .daily-claim-card__header {

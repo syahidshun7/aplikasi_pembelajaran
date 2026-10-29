@@ -3,6 +3,7 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { computed, ref } from 'vue';
 import { toast } from '@/Utils/Alert';
+import { richTextToPlainText } from '@/Utils/richText';
 
 const props = defineProps({
     event: Object,
@@ -362,7 +363,7 @@ const copyPublicLink = async () => {
                                 <p class="text-[7px] text-cyan-400 uppercase">{{ quest.study_group?.name || 'Public' }}</p>
                                 <p class="text-[7px] text-orange-400 uppercase">{{ quest.difficulty }}</p>
                             </div>
-                            <p class="text-[8px] text-slate-500 line-clamp-2 font-sans mb-2">{{ quest.description || 'No description.' }}</p>
+                            <p class="text-[8px] text-slate-500 line-clamp-2 font-sans mb-2">{{ richTextToPlainText(quest.description, 'No description.') }}</p>
                             <p class="text-[7px] text-slate-400 uppercase mb-3">
                                 Deadline: {{ quest.deadline ? new Date(quest.deadline).toLocaleString('id-ID') : 'No_Limit' }}
                             </p>

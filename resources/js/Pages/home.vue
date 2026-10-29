@@ -223,7 +223,7 @@ const lobbyInlineBackgroundStyle = computed(() => (
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
             backgroundSize: 'cover',
-            backgroundAttachment: 'fixed',
+            backgroundAttachment: 'scroll',
         }
         : null
 ));
@@ -231,6 +231,7 @@ const isEmailUnverified = computed(() => !!(auth.value?.user && !auth.value.user
 const isEmailVerifiedSuccess = computed(() => page.url.includes('verified=1') && !isEmailUnverified.value);
 const isLoggedIn = computed(() => Boolean(auth.value?.user));
 const currentTimestamp = ref(Date.now());
+const isDocumentVisible = ref(typeof document === 'undefined' ? true : !document.hidden);
 let questClockInterval = null;
 
 const toSafeDate = (dateLike) => {
@@ -451,7 +452,7 @@ const questItems = computed(() => {
     });
 });
 
-const questPreview = computed(() => questItems.value.slice(0, 10));
+const questPreview = computed(() => questItems.value.slice(0, 6));
 const guidePreview = computed(() => applyLocalSeenState((guides.value || []), 'guide').slice(0, 10));
 const groupPreview = computed(() => applyLocalSeenState((studyGroups.value || []), 'study_group').slice(0, 10));
 const doopNewsPreview = computed(() => applyLocalSeenState((props.doopNewsPosts || []), 'doop_news').slice(0, 5));
@@ -679,17 +680,62 @@ watch(selectedClassGroupId, (nextValue, previousValue) => {
     fetchClassLeaderboard(nextGroupId);
 });
 
-onMounted(() => {
+const hasSecondPrecisionQuestWindow = computed(() => {
+    if (activeMenu.value !== 'quest') {
+        return false;
+    }
+
+    const now = currentTimestamp.value;
+
+    return (quests.value || []).some((quest) => {
+        if (String(quest?.schedule_type || '') !== 'once') {
+            return false;
+        }
+
+        const availableUntil = toSafeDate(quest?.available_until);
+        return Boolean(availableUntil && availableUntil.getTime() > now);
+    });
+});
+
+const stopQuestClock = () => {
+    if (!questClockInterval) {
+        return;
+    }
+
+    window.clearInterval(questClockInterval);
+    questClockInterval = null;
+};
+
+const syncQuestClock = () => {
+    stopQuestClock();
+
+    if (!isDocumentVisible.value || activeMenu.value !== 'quest') {
+        return;
+    }
+
+    const intervalMs = hasSecondPrecisionQuestWindow.value ? 1000 : 60000;
     questClockInterval = window.setInterval(() => {
         currentTimestamp.value = Date.now();
-    }, 1000);
+    }, intervalMs);
+};
+
+const handleVisibilityChange = () => {
+    isDocumentVisible.value = !document.hidden;
+
+    if (isDocumentVisible.value) {
+        currentTimestamp.value = Date.now();
+    }
+};
+
+watch([activeMenu, isDocumentVisible, hasSecondPrecisionQuestWindow], syncQuestClock, { immediate: true });
+
+onMounted(() => {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 });
 
 onBeforeUnmount(() => {
-    if (questClockInterval) {
-        window.clearInterval(questClockInterval);
-        questClockInterval = null;
-    }
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    stopQuestClock();
 });
 </script>
 
@@ -768,7 +814,7 @@ onBeforeUnmount(() => {
                         </div>
 
                         <section class="dashboard-focus-shell dashboard-focus-shell--joined">
-                            <div class="dashboard-focus-shell__meta">
+                            <div v-if="activeMenu !== 'quest'" class="dashboard-focus-shell__meta">
                                 <p class="dashboard-focus-shell__eyebrow">Latest Snapshot</p>
                                 <h2 class="dashboard-focus-shell__title">{{ activeCarouselItem?.title }}</h2>
                                 <p class="dashboard-focus-shell__helper">{{ latestModuleMeta.helper }}</p>
@@ -923,7 +969,7 @@ onBeforeUnmount(() => {
     @apply relative overflow-hidden border;
     border-color: var(--panel-border);
     background-color: var(--panel);
-    min-height: 268px;
+    min-height: 224px;
 }
 
 .academy-scene__backdrop {
@@ -943,11 +989,11 @@ onBeforeUnmount(() => {
 }
 
 .academy-scene__content {
-    @apply relative z-10 flex min-h-[268px] flex-col justify-center pt-1;
+    @apply relative z-10 flex min-h-[224px] flex-col justify-center pt-1;
 }
 
 .academy-scene__copy {
-    @apply mx-auto max-w-[760px] px-4 pb-4 text-center text-[9px] uppercase leading-relaxed tracking-[0.16em];
+    @apply mx-auto max-w-[640px] px-4 pb-3 text-center text-[7px] uppercase leading-relaxed tracking-[0.14em];
     color: var(--text-muted);
 }
 
@@ -964,7 +1010,7 @@ onBeforeUnmount(() => {
 }
 
 .dashboard-focus-shell--joined {
-    @apply border-t px-2 pb-2 pt-5;
+    @apply border-t px-2 pb-2 pt-4;
     border-top-color: var(--panel-border);
 }
 
@@ -1435,11 +1481,11 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1279px) {
     .academy-scene {
-        min-height: 244px;
+        min-height: 216px;
     }
 
     .academy-scene__content {
-        min-height: 244px;
+        min-height: 216px;
         padding-top: 0.25rem;
     }
 }
@@ -1454,11 +1500,11 @@ onBeforeUnmount(() => {
     }
 
     .academy-scene {
-        min-height: 232px;
+        min-height: 214px;
     }
 
     .academy-scene__content {
-        min-height: 232px;
+        min-height: 214px;
         padding-top: 0.25rem;
     }
 

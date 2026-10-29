@@ -1,6 +1,7 @@
 <script setup>
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { richTextToPlainText } from '@/Utils/richText';
 
 const props = defineProps({
     quests: Object,
@@ -228,7 +229,7 @@ const classLabelForQuest = (item) => {
                                 <span class="px-2 py-1 border text-[8px] uppercase" :class="userQuestStatusClass(item)">{{ resolveUserQuestStatus(item) }}</span>
                                 <span class="px-2 py-1 border text-[8px] uppercase" :class="statusClass(item.status)">{{ item.status }}</span>
                             </div>
-                            <p class="mt-2 text-slate-400 font-sans text-[11px]">{{ item.description || '-' }}</p>
+                            <p class="mt-2 text-slate-400 font-sans text-[11px]">{{ richTextToPlainText(item.description, '-') }}</p>
                             <p class="mt-2 text-yellow-500 text-[8px]">Reward: {{ item.reward_gold || 0 }} G</p>
                             <div class="mt-3">
                                 <Link

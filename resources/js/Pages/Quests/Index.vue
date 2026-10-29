@@ -3,6 +3,7 @@ import { Head, useForm, Link, usePage, router } from '@inertiajs/vue3';
 import { ref, watch, computed } from 'vue'; 
 import AdminNavbar from '@/Components/AdminNavbar.vue';
 import QuestDescriptionEditor from '@/Components/Quests/QuestDescriptionEditor.vue';
+import { richTextToPlainText } from '@/Utils/richText';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 
@@ -958,7 +959,7 @@ const commitThemeBundle = async () => {
 
                                 <div v-if="q.description"
                                     class="text-[7px] text-slate-500 italic mb-4 border-t border-slate-800 pt-2 leading-loose line-clamp-2">
-                                    > {{ q.description }}
+                                    > {{ richTextToPlainText(q.description) }}
                                 </div>
 
                                 <div class="flex gap-4 self-end mt-auto">
