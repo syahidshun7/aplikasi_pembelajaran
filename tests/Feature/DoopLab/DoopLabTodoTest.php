@@ -163,3 +163,34 @@ test('dooplab todo supports schedule fields on create and edit', function () {
     expect($todo->deadline?->toDateTimeString())->not->toBe($initialDeadline);
     expect((bool) $todo->notify_deadline_email)->toBeFalse();
 });
+
+test('dooplab todo keeps browser local schedule time when receiving ISO timestamps', function () {
+    config(['app.timezone' => 'Asia/Makassar']);
+
+    $admin = User::factory()->create([
+        'role' => User::ROLE_ADMIN,
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('dooplab.todos.store'), [
+            'title' => 'Todo tanpa pergeseran timezone',
+            'assignment_mode' => DoopLabTodo::MODE_SELF,
+            // datetime-local 18:30 di UTC+8 dikirim browser sebagai 10:30Z.
+            'start_at' => '2026-11-01T10:30:00.000Z',
+            'deadline' => '2026-11-01T12:00:00.000Z',
+        ])
+        ->assertRedirect();
+
+    $todo = DoopLabTodo::query()->latest('id')->firstOrFail();
+
+    expect($todo->start_at?->format('Y-m-d H:i:s P'))
+        ->toBe('2026-11-01 18:30:00 +08:00');
+    expect($todo->deadline?->format('Y-m-d H:i:s P'))
+        ->toBe('2026-11-01 20:00:00 +08:00');
+
+    $this->assertDatabaseHas('dooplab_todos', [
+        'id' => $todo->id,
+        'start_at' => '2026-11-01 18:30:00',
+        'deadline' => '2026-11-01 20:00:00',
+    ]);
+});
