@@ -7,7 +7,6 @@ use App\Models\DailyQuestDefinition;
 use App\Models\Event;
 use App\Models\EventAttendance;
 use App\Models\EventCheckInCode;
-use App\Models\StudyGroup;
 use App\Models\UserContentRead;
 use App\Services\EventContentProgressService;
 use App\Services\StudyGroupStaffAccessService;
@@ -32,22 +31,34 @@ class UserEventController extends Controller
         $search = trim((string) ($validated['search'] ?? ''));
         $classGroupId = (int) ($validated['class_group_id'] ?? 0);
         $userJobId = $user?->job_id;
-        $userGroupIds = $canManageMembership
+        // The accessible-group list is used both for authorization and filter options.
+        // Load it once rather than issuing the same relationship query twice.
+        $availableClassGroups = $canManageMembership
             ? $user->studyGroups()
                 ->where('study_groups.job_id', $userJobId)
-                ->pluck('study_groups.id')
-                ->toArray()
-            : [];
-        $availableClassGroups = StudyGroup::query()
-            ->whereIn('id', $userGroupIds)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+                ->orderBy('study_groups.name')
+                ->get(['study_groups.id', 'study_groups.name'])
+            : collect();
+        $userGroupIds = $availableClassGroups
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
         if ($classGroupId > 0 && !in_array($classGroupId, $userGroupIds, true)) {
             $classGroupId = 0;
         }
 
         $events = Event::query()
+            ->select([
+                'id',
+                'uuid',
+                'title',
+                'sequence_order',
+                'study_group_id',
+                'job_id',
+                'starts_at',
+                'created_at',
+            ])
             ->where(function ($query) use ($userGroupIds, $userJobId) {
                 $query->where(function ($publicQuery) use ($userJobId) {
                     $publicQuery->whereNull('study_group_id')
@@ -90,13 +101,20 @@ class UserEventController extends Controller
             ->mapWithKeys(fn ($id) => [(int) $id => true])
             ->all();
 
-        $progressByEvent = app(EventContentProgressService::class)
+        $progressService = app(EventContentProgressService::class);
+        $progressByEvent = $progressService
             ->summariesFor($events->items(), (int) ($user?->id ?? 0));
+        $disabledProgress = $progressService->disabledSummary();
 
-        $events->getCollection()->transform(function (Event $event) use ($seenEventIdSet, $progressByEvent) {
+        $events->getCollection()->transform(function (Event $event) use ($seenEventIdSet, $progressByEvent, $disabledProgress) {
             $event->is_new_for_user = $this->isEventNewForUser($event, $seenEventIdSet);
             $event->content_progress = $progressByEvent[(int) $event->id]
-                ?? app(EventContentProgressService::class)->disabledSummary();
+                ?? $disabledProgress;
+
+            // These relations are loaded only to calculate progress. Sending them
+            // back to Inertia serializes full guide/quest content into the list.
+            $event->unsetRelation('guides');
+            $event->unsetRelation('quests');
             return $event;
         });
 

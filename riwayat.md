@@ -1318,3 +1318,4 @@ nice -n 15 cpulimit -l 50 -- npm run build
 - Tambah test `tests/Feature/Event/EventContentProgressTest.php` untuk batas tanggal, progres 50% lalu 100%, event kosong, dan payload home.
 - Verifikasi berhasil: `php artisan test tests\Feature\Event\EventContentProgressTest.php` (3 tests, 88 assertions).
 - Tampilan browser belum diverifikasi karena sesi ini tidak punya browser tools.
+  
