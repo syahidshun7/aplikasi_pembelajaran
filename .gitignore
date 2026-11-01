@@ -46,3 +46,5 @@ __pycache__/
 # Laravel Env
 Homestead.json
 Homestead.yaml
+/designs
+/tools/figcraft/

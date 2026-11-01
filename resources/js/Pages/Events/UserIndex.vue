@@ -1,5 +1,6 @@
 <script setup>
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 
 const props = defineProps({
@@ -14,6 +15,22 @@ const props = defineProps({
 const form = useForm({
     search: props.filters?.search || '',
     class_group_id: props.filters?.class_group_id ? String(props.filters.class_group_id) : '',
+});
+
+// CSS `hidden` still leaves both mobile cards and desktop rows in the DOM.
+// Render one representation only so the list stays light on narrow devices.
+const isMobileViewport = ref(false);
+const syncViewport = () => {
+    isMobileViewport.value = window.innerWidth < 768;
+};
+
+onMounted(() => {
+    syncViewport();
+    window.addEventListener('resize', syncViewport, { passive: true });
+});
+
+onBeforeUnmount(() => {
+    window.removeEventListener('resize', syncViewport);
 });
 
 const applySearch = () => {
@@ -36,13 +53,6 @@ const formatDate = (value) => {
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return 'Schedule_Not_Set';
     return parsed.toLocaleString('id-ID');
-};
-
-const shortText = (text, max = 130) => {
-    const value = String(text || '').replace(/\s+/g, ' ').trim();
-    if (value === '') return '-';
-    if (value.length <= max) return value;
-    return `${value.slice(0, max)}...`;
 };
 
 const hashGroupKey = (value) => {
@@ -151,7 +161,7 @@ const toneStyleForEvent = (item) => {
                         </div>
                     </form>
 
-                    <div class="md:hidden space-y-3 flex-1">
+                    <div v-if="isMobileViewport" class="space-y-3 flex-1">
                         <div
                             v-for="item in events.data"
                             :key="`m-${item.uuid}`"
@@ -165,7 +175,6 @@ const toneStyleForEvent = (item) => {
                             <p class="event-item-type mt-1 text-[8px] uppercase">
                                 {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : `Public${item.job?.name ? ` / ${item.job.name}` : ''}` }}
                             </p>
-                            <p class="mt-2 text-slate-400 font-sans text-[11px]">{{ shortText(item.description, 120) }}</p>
                             <p class="mt-2 text-slate-500 text-[8px]">{{ formatDate(item.starts_at) }}</p>
                             <p class="mt-1 text-[8px] uppercase text-slate-400">Guide: {{ item.guides_count || 0 }} | Quest: {{ item.quests_count || 0 }}</p>
                             <div v-if="item.content_progress?.enabled" class="event-progress">
@@ -192,15 +201,14 @@ const toneStyleForEvent = (item) => {
                         </div>
                     </div>
 
-                    <div class="hidden md:block overflow-x-auto flex-1">
-                        <table class="w-full min-w-[980px] text-left">
+                    <div v-else class="overflow-x-auto flex-1">
+                        <table class="w-full min-w-[820px] text-left">
                             <thead class="border-b border-slate-700 text-slate-500 text-[8px] uppercase">
                                 <tr>
                                     <th class="py-3 px-2">Title</th>
                                     <th class="py-3 px-2">Type</th>
-                                    <th class="py-3 px-2">Description</th>
                                     <th class="py-3 px-2">Schedule</th>
-                                    <th class="py-3 px-2">Stats</th>
+                                    <th class="py-3 px-2 min-w-[260px]">Stats</th>
                                     <th class="py-3 px-2 text-right">Action</th>
                                 </tr>
                             </thead>
@@ -224,13 +232,10 @@ const toneStyleForEvent = (item) => {
                                             {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : `Public${item.job?.name ? ` / ${item.job.name}` : ''}` }}
                                         </span>
                                     </td>
-                                    <td class="py-3 px-2 text-slate-400 font-sans" :title="item.description || ''">
-                                        {{ shortText(item.description, 120) }}
-                                    </td>
                                     <td class="py-3 px-2 text-slate-500">{{ formatDate(item.starts_at) }}</td>
-                                    <td class="py-3 px-2 text-slate-400 uppercase text-[8px]">
+                                    <td class="py-3 px-2 text-slate-400 uppercase text-[8px] min-w-[260px]">
                                         <p>Guide: {{ item.guides_count || 0 }} | Quest: {{ item.quests_count || 0 }}</p>
-                                        <div v-if="item.content_progress?.enabled" class="event-progress mt-2 min-w-[140px]">
+                                        <div v-if="item.content_progress?.enabled" class="event-progress mt-2 min-w-[220px]">
                                             <span class="event-progress__label">Progress</span>
                                             <span class="event-progress__track" aria-hidden="true">
                                                 <span
@@ -254,7 +259,7 @@ const toneStyleForEvent = (item) => {
                                     </td>
                                 </tr>
                                 <tr v-if="events.data.length === 0">
-                                    <td colspan="6" class="py-8 text-center text-slate-500 uppercase">No_Event_Available</td>
+                                    <td colspan="5" class="py-8 text-center text-slate-500 uppercase">No_Event_Available</td>
                                 </tr>
                             </tbody>
                         </table>

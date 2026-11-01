@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\DateTimeInput;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use App\Models\DoopLabLogbook;
@@ -60,6 +62,20 @@ class DoopLabTodo extends Model
         'review_requested_at' => 'datetime',
         'reviewed_at' => 'datetime',
     ];
+
+    protected function startAt(): Attribute
+    {
+        return Attribute::make(
+            set: fn ($value) => DateTimeInput::normalizeNullable($value),
+        );
+    }
+
+    protected function deadline(): Attribute
+    {
+        return Attribute::make(
+            set: fn ($value) => DateTimeInput::normalizeNullable($value),
+        );
+    }
 
     protected static function booted(): void
     {

@@ -296,10 +296,22 @@ class HomeController extends Controller
 
     if ($shouldLoadEvents) {
         $events = Cache::remember(
-        "home.events.v{$homeCacheVersion}.job.{$jobKey}.groups.{$groupKey}",
+        "home.events.v{$homeCacheVersion}.compact-v2.job.{$jobKey}.groups.{$groupKey}",
         now()->addMinutes(5),
         fn () => Event::query()
-            ->with(['studyGroup:id,name', 'job:id,name'])
+            // The lobby card does not display event descriptions or job data.
+            // Excluding them prevents large rich-text descriptions from being
+            // cached and sent with every carousel response.
+            ->select([
+                'id',
+                'uuid',
+                'title',
+                'sequence_order',
+                'study_group_id',
+                'starts_at',
+                'created_at',
+            ])
+            ->with(['studyGroup:id,name'])
             ->withCount(['guides', 'quests'])
             ->where(function ($query) use ($userGroupIds, $userJobId) {
                 $query->where(function ($publicQuery) use ($userJobId) {
@@ -324,15 +336,20 @@ class HomeController extends Controller
         );
         $eventIds = $events->pluck('id')->map(fn ($id) => (int) $id)->all();
         $seenEventIdSet = $this->seenEventIdSet($userId, $eventIds);
-        $progressByEvent = app(EventContentProgressService::class)->summariesFor(
-            Event::query()->whereIn('id', $eventIds)->get(),
+        $progressService = app(EventContentProgressService::class);
+        $progressByEvent = $progressService->summariesFor(
+            Event::query()
+                ->select(['id', 'created_at'])
+                ->whereIn('id', $eventIds)
+                ->get(),
             (int) $userId,
         );
-        $events = $events->map(function ($event) use ($seenEventIdSet, $progressByEvent) {
+        $disabledProgress = $progressService->disabledSummary();
+        $events = $events->map(function ($event) use ($seenEventIdSet, $progressByEvent, $disabledProgress) {
             $eventId = (int) ($event['id'] ?? 0);
             $event['is_new_for_user'] = $this->isEventNewForUser($event, $seenEventIdSet);
             $event['content_progress'] = $progressByEvent[$eventId]
-                ?? app(EventContentProgressService::class)->disabledSummary();
+                ?? $disabledProgress;
             return $event;
         });
     }
