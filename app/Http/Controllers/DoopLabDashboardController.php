@@ -180,6 +180,8 @@ class DoopLabDashboardController extends Controller
                 }
             })
             ->orderBy('is_completed')
+            ->orderByRaw('CASE WHEN deadline IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('deadline')
             ->latest('created_at')
             ->limit(80)
             ->get()
