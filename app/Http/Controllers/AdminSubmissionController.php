@@ -156,10 +156,11 @@ class AdminSubmissionController extends Controller
         $this->assertMentorCanAccessSubmission($submission);
 
         $storedPath = (string) ($submission->file_path ?? '');
+        $originalName = $submission->attachments()->where('file_path', $storedPath)->value('original_name');
         if ($attachment !== null) {
-            $storedPath = (string) $submission->attachments()
-                ->whereKey($attachment)
-                ->value('file_path');
+            $selectedAttachment = $submission->attachments()->whereKey($attachment)->first();
+            $storedPath = (string) ($selectedAttachment?->file_path ?? '');
+            $originalName = $selectedAttachment?->original_name;
         }
         abort_if($storedPath === '', 404);
 
@@ -167,6 +168,12 @@ class AdminSubmissionController extends Controller
         abort_unless($disk->exists($storedPath), 404);
 
         $absolutePath = $disk->path($storedPath);
+        if (strtolower(pathinfo($storedPath, PATHINFO_EXTENSION)) === 'bin') {
+            return response()->download($absolutePath, basename($originalName ?: $storedPath), [
+                'Content-Type' => 'application/octet-stream',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        }
         $mimeType = (string) ($disk->mimeType($storedPath) ?: 'application/octet-stream');
         $safeFilename = str_replace(['"', "\r", "\n"], '', basename($storedPath));
 

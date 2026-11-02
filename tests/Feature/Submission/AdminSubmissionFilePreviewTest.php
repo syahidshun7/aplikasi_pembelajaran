@@ -46,6 +46,30 @@ test('admin can preview pdf submission file inline', function () {
     expect((string) $response->headers->get('content-disposition'))->toContain('inline');
 });
 
+test('admin downloads arbitrary attachments with their original names instead of executing inline', function () {
+    Storage::fake('public');
+    $admin = User::factory()->create(['role' => 'admin', 'email_verified_at' => now()]);
+    $student = User::factory()->create(['email_verified_at' => now()]);
+    $quest = Quest::query()->create([
+        'title' => 'Code upload', 'description' => 'Code assignment',
+        'difficulty' => 'C-Rank', 'reward_gold' => 0, 'reward_exp' => 0,
+        'status' => 'Available', 'deadline' => now()->addDay(),
+    ]);
+    $this->actingAs($student)->post(route('submissions.store', $quest->uuid), [
+        'files' => [\Illuminate\Http\UploadedFile::fake()->createWithContent('index.html', '<html><script>alert(1)</script>'.str_repeat(' ', 1024).'</html>')],
+    ])->assertSessionHasNoErrors();
+    $submission = Submission::query()->where('quest_id', $quest->id)->firstOrFail();
+    $attachment = $submission->attachments()->firstOrFail();
+    foreach ([null, $attachment->id] as $attachmentId) {
+        $response = $this->actingAs($admin)->get(route('admin.submissions.file', [
+            'submission' => $submission->uuid, 'attachment' => $attachmentId,
+        ]));
+        $response->assertOk()->assertDownload('index.html')
+            ->assertHeader('Content-Type', 'application/octet-stream')
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+    }
+});
+
 test('admin file preview returns not found when submission file is missing', function () {
     $admin = User::factory()->create([
         'role' => 'admin',

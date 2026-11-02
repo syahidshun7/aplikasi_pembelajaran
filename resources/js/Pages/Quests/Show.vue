@@ -147,7 +147,6 @@ const retakeUnlockForm = useForm({});
 const page = usePage();
 const maxSubmissionFileBytes = 5 * 1024 * 1024;
 const maxSubmissionFiles = 20;
-const acceptedSubmissionFileTypes = '.jpg,.jpeg,.png,.webp,.pdf,.docx,.txt';
 
 const questDraftStorageKey = computed(() => {
     const questKey = String(props.quest?.uuid || props.quest?.id || 'quest');
@@ -1437,9 +1436,9 @@ const useRetakeTicket = () => {
                                         <div class="submission-file-breadcrumb flex items-center gap-2 border-b border-slate-800 px-3 py-2 text-[12px] text-slate-300">
                                             <span class="text-cyan-400">▰</span>
                                             <span>Files</span>
-                                            <span class="ml-auto text-[10px] text-slate-500">Maks. 5 MB per file</span>
+                                            <span class="ml-auto text-[10px] text-slate-500">Semua jenis file · Maks. 5 MB per file</span>
                                         </div>
-                                        <input ref="submissionFileInput" type="file" multiple :accept="acceptedSubmissionFileTypes" class="hidden" @change="handleFileChange" />
+                                        <input ref="submissionFileInput" type="file" multiple class="hidden" @change="handleFileChange" />
 
                                         <div v-if="submissionFileEntries.length" class="submission-file-content max-h-64 overflow-y-auto p-3" :class="submissionFileView === 'grid' ? 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4' : 'space-y-2'">
                                             <div v-for="entry in submissionFileEntries" :key="entry.key" class="submission-file-entry group relative border border-slate-700 bg-slate-900/40" :class="submissionFileView === 'grid' ? 'min-h-32 p-3' : 'flex items-center gap-3 px-3 py-2'">

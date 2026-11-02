@@ -814,7 +814,57 @@ test('pending submission cannot be changed after preprocessing has started', fun
     expect($submission->preprocess_started)->toBeTrue();
 });
 
-test('manual quest rejects empty raw submission, empty file, and unsupported extension', function () {
+test('manual quest accepts arbitrary file formats on create and update', function (string $filename, string $mime, string $field) {
+    Storage::fake('public');
+    $user = User::factory()->create(['email_verified_at' => now()]);
+    $quest = Quest::query()->create([
+        'title' => 'Any Format Quest', 'description' => 'Raw intake',
+        'difficulty' => 'C-Rank', 'reward_gold' => 0, 'reward_exp' => 0,
+        'status' => 'Available', 'deadline' => now()->addDay(),
+    ]);
+    $upload = UploadedFile::fake()->create($filename, 5120, $mime);
+    $payload = [$field => $field === 'files' ? [$upload] : $upload];
+    $this->actingAs($user)->post(route('submissions.store', $quest->uuid), $payload)
+        ->assertSessionHasNoErrors();
+
+    $submission = Submission::query()->where('quest_id', $quest->id)->firstOrFail();
+    $attachment = $submission->attachments()->firstOrFail();
+    expect($attachment->original_name)->toBe($filename);
+    expect(pathinfo($attachment->file_path, PATHINFO_EXTENSION))->toBe('bin');
+    Storage::disk('public')->assertExists($attachment->file_path);
+
+    // Re-upload follows the same manual-quest validation path.
+    $newFile = UploadedFile::fake()->create('revision.zip', 10, 'application/zip');
+    $this->post(route('submissions.store', $quest->uuid), ['files' => [$newFile]])
+        ->assertSessionHasNoErrors();
+    expect($submission->fresh()->attachments()->pluck('original_name')->all())->toContain('revision.zip');
+})->with([
+    ['project.zip', 'application/zip', 'files'],
+    ['data.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'files'],
+    ['slides.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'file'],
+    ['assignment.php', 'application/x-httpd-php', 'file'],
+    ['diagram.svg', 'image/svg+xml', 'files'],
+    ['artifact', 'application/octet-stream', 'files'],
+]);
+
+test('manual quest still limits upload size and count for arbitrary formats', function () {
+    Storage::fake('public');
+    $user = User::factory()->create(['email_verified_at' => now()]);
+    $quest = Quest::query()->create([
+        'title' => 'Bounded Upload Quest', 'description' => 'Raw intake',
+        'difficulty' => 'C-Rank', 'reward_gold' => 0, 'reward_exp' => 0,
+        'status' => 'Available', 'deadline' => now()->addDay(),
+    ]);
+    $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'files' => [UploadedFile::fake()->create('large.zip', 5121, 'application/zip')],
+    ])->assertSessionHasErrors('files.0');
+    $this->post(route('submissions.store', $quest->uuid), [
+        'files' => array_map(fn ($i) => UploadedFile::fake()->create("file-$i.zip", 1, 'application/zip'), range(1, 21)),
+    ])->assertSessionHasErrors('files');
+    expect(Submission::query()->where('quest_id', $quest->id)->exists())->toBeFalse();
+});
+
+test('manual quest rejects empty raw submission, empty file, and oversized file', function () {
     Storage::fake('public');
 
     $user = User::factory()->create([
@@ -843,11 +893,11 @@ test('manual quest rejects empty raw submission, empty file, and unsupported ext
 
     $emptyFile->assertSessionHasErrors('file');
 
-    $unsupported = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
-        'file' => UploadedFile::fake()->create('malware.exe', 10, 'application/x-msdownload'),
+    $oversized = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
+        'file' => UploadedFile::fake()->create('project.zip', 5121, 'application/zip'),
     ]);
 
-    $unsupported->assertSessionHasErrors('file');
+    $oversized->assertSessionHasErrors('file');
 
     expect(Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->exists())->toBeFalse();
 });
