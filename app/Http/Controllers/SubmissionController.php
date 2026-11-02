@@ -354,9 +354,9 @@ class SubmissionController extends Controller
         $validated = $request->validate([
             'content' => ['nullable', 'string'],
             // `file` dipertahankan untuk submission lama/API. UI baru mengirim `files`.
-            'file' => ['nullable', 'file', 'min:1', 'mimes:jpg,jpeg,png,webp,pdf,docx,txt', 'max:5120'],
+            'file' => ['nullable', 'file', 'min:1', 'max:5120'],
             'files' => ['nullable', 'array', 'max:20'],
-            'files.*' => ['file', 'min:1', 'mimes:jpg,jpeg,png,webp,pdf,docx,txt', 'max:5120'],
+            'files.*' => ['file', 'min:1', 'max:5120'],
             'retained_attachment_ids' => ['nullable', 'array'],
             'retained_attachment_ids.*' => ['integer'],
             'remove_legacy_file' => ['nullable', 'boolean'],
@@ -649,8 +649,16 @@ class SubmissionController extends Controller
         }
 
         return array_map(function ($file): array {
+            // Accept every format, but never give executable/active content an
+            // executable extension on the public disk. Keep the original name
+            // in attachment metadata for downloads.
+            $extension = strtolower((string) $file->extension());
+            $storageExtension = in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'docx', 'txt'], true)
+                ? $extension
+                : 'bin';
+
             return [
-                'file_path' => $file->store('submissions', 'public'),
+                'file_path' => $file->storeAs('submissions', Str::uuid().'.'.$storageExtension, 'public'),
                 'original_name' => $file->getClientOriginalName(),
                 'mime_type' => $file->getClientMimeType(),
                 'size_bytes' => (int) $file->getSize(),
