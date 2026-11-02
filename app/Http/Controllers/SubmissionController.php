@@ -354,9 +354,9 @@ class SubmissionController extends Controller
         $validated = $request->validate([
             'content' => ['nullable', 'string'],
             // `file` dipertahankan untuk submission lama/API. UI baru mengirim `files`.
-            'file' => ['nullable', 'file', 'min:1', 'max:5120'],
+            'file' => ['nullable', 'file', 'max:5120'],
             'files' => ['nullable', 'array', 'max:20'],
-            'files.*' => ['file', 'min:1', 'max:5120'],
+            'files.*' => ['file', 'max:5120'],
             'retained_attachment_ids' => ['nullable', 'array'],
             'retained_attachment_ids.*' => ['integer'],
             'remove_legacy_file' => ['nullable', 'boolean'],

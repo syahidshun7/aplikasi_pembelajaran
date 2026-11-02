@@ -864,7 +864,7 @@ test('manual quest still limits upload size and count for arbitrary formats', fu
     expect(Submission::query()->where('quest_id', $quest->id)->exists())->toBeFalse();
 });
 
-test('manual quest rejects empty raw submission, empty file, and oversized file', function () {
+test('manual quest rejects empty raw submission and oversized file', function () {
     Storage::fake('public');
 
     $user = User::factory()->create([
@@ -886,12 +886,6 @@ test('manual quest rejects empty raw submission, empty file, and oversized file'
     ]);
 
     $empty->assertSessionHasErrors('content');
-
-    $emptyFile = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
-        'file' => UploadedFile::fake()->create('empty.pdf', 0, 'application/pdf'),
-    ]);
-
-    $emptyFile->assertSessionHasErrors('file');
 
     $oversized = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
         'file' => UploadedFile::fake()->create('project.zip', 5121, 'application/zip'),
