@@ -427,8 +427,9 @@ class DashboardController extends Controller
             : collect();
 
         $useRedesign = $request->boolean('redesign') || $request->routeIs('dashboard.redesign');
+        $standaloneRedesign = $request->routeIs('redesign.admin-dashboard');
 
-        return Inertia::render($useRedesign ? 'DashboardRedesign' : 'Dashboard', [
+        return Inertia::render($standaloneRedesign ? 'Redesign/AdminDashboard/Dashboard' : ($useRedesign ? 'DashboardRedesign' : 'Dashboard'), [
             'stats' => $stats,
             'students' => $students,
             'helpUsers' => $helpUsers,
