@@ -50,25 +50,25 @@ const handleLogout = () => {
 </script>
 
 <template>
-    <nav class="admin-nav relative z-[120] overflow-visible mb-6 md:mb-8 flex justify-between items-center gap-3">
+    <nav class="rpg-panel relative z-[120] overflow-visible mb-6 md:mb-8 flex justify-between items-center gap-3 border-indigo-500/50 bg-[#1a1c2c]/90 backdrop-blur-md">
         
         <div class="flex items-center gap-3 min-w-0">
             <div class="flex flex-col">
                 <div class="flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 bg-[#00a99d] rounded-full"></span>
-                    <h1 class="text-[#173b40] text-base sm:text-lg font-bold tracking-tight">
-                        Admin dashboard
+                    <span class="w-3 h-3 bg-green-500 animate-pulse rounded-full shadow-[0_0_8px_#22c55e]"></span>
+                    <h1 class="text-white text-[11px] sm:text-sm uppercase tracking-widest">
+                        Admin_Console <span class="text-indigo-400">v2.0</span>
                     </h1>
                 </div>
-                <p class="hidden sm:block text-xs text-[#73848b] mt-1">
-                    {{ authUser?.name || '-' }} · {{ roleLabel }}
+                <p class="hidden sm:block text-[8px] text-slate-500 mt-1 uppercase">
+                    Operator: <span class="text-cyan-400">{{ authUser?.name || '-' }}</span> | Role: <span class="text-indigo-400">{{ roleLabel }}</span>
                 </p>
             </div>
         </div>
 
         <button
             type="button"
-            class="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-xl border border-[#c9dada] bg-white text-[#007f78]"
+            class="md:hidden inline-flex items-center justify-center w-10 h-10 border-2 border-slate-600 bg-slate-900/70 text-cyan-300"
             @click="mobileMenuOpen = !mobileMenuOpen"
             :aria-expanded="mobileMenuOpen ? 'true' : 'false'"
             aria-label="Toggle admin menu"
@@ -78,23 +78,23 @@ const handleLogout = () => {
 
         <div class="hidden md:flex flex-wrap justify-center items-center gap-3 md:gap-4">
             <Link :href="route('dashboard')"
-                    class="nav-item hover:text-[#007f78] transition-colors">
-                Dashboard
+                  class="nav-item hover:text-indigo-300 transition-colors">
+                ADMIN_DASHBOARD
             </Link>
 
             <Link :href="route('dooplab.dashboard')"
-                    class="nav-item hover:text-[#007f78] transition-colors text-[#007f78]">
-                DoopLab
+                  class="nav-item hover:text-cyan-300 transition-colors text-cyan-500">
+                DOOPLAB
             </Link>
 
             <Link :href="route('hall.creations.index')"
-                    class="nav-item hover:text-[#007f78] transition-colors text-[#007f78]">
-                Creations
+                  class="nav-item hover:text-emerald-300 transition-colors text-emerald-400">
+                HALL_OF_CREATIONS
             </Link>
 
             <Link :href="route('admin.doopnews.index')"
-                    class="nav-item hover:text-[#007f78] transition-colors text-[#c67a22]">
-                DoopNews
+                  class="nav-item hover:text-amber-300 transition-colors text-amber-400">
+                DOOPNEWS
             </Link>
 
             <NotificationBell variant="admin" />
@@ -102,12 +102,12 @@ const handleLogout = () => {
             <div class="relative z-[130]">
                 <button
                     type="button"
-                    class="nav-item cursor-pointer list-none rounded-lg border border-[#c9dada] px-3 py-2 hover:border-[#007f78] hover:text-[#007f78]"
+                    class="nav-item cursor-pointer list-none border border-slate-600 px-3 py-1 hover:border-cyan-400 hover:text-cyan-300"
                     @click="desktopMenuOpen = !desktopMenuOpen"
                 >
                     MENU
                 </button>
-                <div v-if="desktopMenuOpen" class="absolute right-0 mt-2 min-w-[220px] rounded-xl bg-white border border-[#dce7e8] shadow-xl p-2 z-[140]">
+                <div v-if="desktopMenuOpen" class="absolute right-0 mt-2 min-w-[220px] bg-[#0f101a] border-2 border-slate-700 shadow-xl p-2 z-[140]">
                     <Link :href="route('admin.profile.edit')" class="dropdown-item text-emerald-400" @click="closeAllMenus">PROFILE</Link>
                     <Link v-if="isTrueSuperAdmin" href="/admin/materi" class="dropdown-item" @click="closeAllMenus">GUIDE</Link>
                     <Link v-if="isTrueSuperAdmin" :href="route('quests.index')" class="dropdown-item" @click="closeAllMenus">QUEST</Link>
@@ -133,7 +133,7 @@ const handleLogout = () => {
 
         <div
             v-if="mobileMenuOpen"
-            class="md:hidden absolute left-0 right-0 top-[calc(100%+8px)] rounded-xl bg-white border border-[#dce7e8] shadow-xl p-2 z-[140] mx-3"
+            class="md:hidden absolute left-0 right-0 top-[calc(100%+8px)] bg-[#0f101a] border-2 border-slate-700 shadow-xl p-2 z-[140] mx-3"
         >
             <div class="grid grid-cols-1 gap-2">
                 <Link :href="route('dashboard')" class="dropdown-item" @click="closeAllMenus">ADMIN_DASHBOARD</Link>
@@ -170,17 +170,17 @@ const handleLogout = () => {
 </template>
 
 <style scoped>
-.admin-nav {
-    @apply rounded-2xl border border-[#dce7e8] bg-white px-5 py-4;
-    box-shadow: 0 8px 22px rgba(22, 66, 72, .05);
+.rpg-panel {
+    @apply p-5 relative border-4 border-[#3d415f] bg-[#1a1c2c];
+    box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 0.5);
 }
 
 .nav-item {
-    @apply text-xs tracking-normal font-semibold py-1 text-[#526d72];
+    @apply text-[10px] tracking-tighter uppercase font-bold py-1;
 }
 
 .dropdown-item {
-    @apply block w-full rounded-lg px-3 py-2 text-xs text-[#526d72] hover:bg-[#eef7f6] hover:text-[#007f78] transition-colors;
+    @apply block w-full px-3 py-2 text-[10px] uppercase text-slate-300 hover:bg-slate-800 hover:text-cyan-300 transition-colors;
 }
 
 /* Garis pemisah estetik di samping navigasi */
