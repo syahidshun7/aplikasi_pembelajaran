@@ -14,6 +14,7 @@ use App\Services\LevelingService;
 use App\Services\StudyGroupStaffAccessService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -21,7 +22,7 @@ use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
-    public function index(StudyGroupStaffAccessService $studyGroupAccess)
+    public function index(StudyGroupStaffAccessService $studyGroupAccess, Request $request)
     {
         $authUser = auth()->user();
         $isMentor = (bool) $authUser?->isMentor();
@@ -425,7 +426,7 @@ class DashboardController extends Controller
                 ->values()
             : collect();
 
-        return Inertia::render('Dashboard', [
+        return Inertia::render($request->boolean('redesign') ? 'DashboardRedesign' : 'Dashboard', [
             'stats' => $stats,
             'students' => $students,
             'helpUsers' => $helpUsers,
