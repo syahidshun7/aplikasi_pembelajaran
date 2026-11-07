@@ -426,7 +426,9 @@ class DashboardController extends Controller
                 ->values()
             : collect();
 
-        return Inertia::render($request->boolean('redesign') ? 'DashboardRedesign' : 'Dashboard', [
+        $useRedesign = $request->boolean('redesign') || $request->routeIs('dashboard.redesign');
+
+        return Inertia::render($useRedesign ? 'DashboardRedesign' : 'Dashboard', [
             'stats' => $stats,
             'students' => $students,
             'helpUsers' => $helpUsers,
