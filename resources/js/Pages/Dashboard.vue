@@ -57,57 +57,56 @@ const getRiskColor = (grade) => {
 
     <Head title="ADMIN_PANEL | P-QUEST" />
 
-    <div
-        class="min-h-screen bg-[#0f101a] p-4 md:p-8 font-['Press_Start_2P'] text-[#4ed4d4] text-[10px] leading-relaxed">
-        <div class="max-w-7xl mx-auto space-y-8">
+    <div class="min-h-screen bg-[#f4f7f7] text-[#173b40] text-sm leading-relaxed">
+        <div class="mx-auto max-w-[1440px] px-4 py-4 md:px-8 md:py-7">
 
         <AdminNavbar />
 
         <div v-if="isSuperAdmin" class="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-2 lg:grid-cols-5">
-            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
-                <p class="text-[7px] text-slate-500 uppercase italic mb-2">Jobs</p>
-                <div class="text-xl font-bold text-cyan-400">{{ stats?.total_jobs || 0 }}</div>
+            <div class="metric-card">
+                <p class="metric-label">Jobs</p>
+                <div class="metric-value text-[#007f78]">{{ stats?.total_jobs || 0 }}</div>
             </div>
-            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
-                <p class="text-[7px] text-slate-500 uppercase italic mb-2">Study_Groups</p>
-                <div class="text-xl font-bold text-emerald-400">{{ stats?.total_study_groups || 0 }}</div>
+            <div class="metric-card">
+                <p class="metric-label">Study groups</p>
+                <div class="metric-value text-[#007f78]">{{ stats?.total_study_groups || 0 }}</div>
             </div>
-            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
-                <p class="text-[7px] text-slate-500 uppercase italic mb-2">Students</p>
-                <div class="text-xl font-bold text-cyan-400">{{ stats?.total_students || 0 }}</div>
+            <div class="metric-card">
+                <p class="metric-label">Students</p>
+                <div class="metric-value text-[#007f78]">{{ stats?.total_students || 0 }}</div>
             </div>
-            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
-                <p class="text-[7px] text-slate-500 uppercase italic mb-2">Pending_Reviews</p>
-                <div class="text-xl font-bold text-red-500">{{ stats?.pending_verdicts || 0 }}</div>
+            <div class="metric-card">
+                <p class="metric-label">Pending reviews</p>
+                <div class="metric-value text-[#d6574d]">{{ stats?.pending_verdicts || 0 }}</div>
             </div>
             <Link
                 :href="route('admin.error-logs.index')"
-                class="rpg-panel block py-4 border-slate-700 bg-black/40 shadow-none transition-colors hover:border-cyan-500"
+                class="metric-card block transition-colors hover:border-[#007f78]"
             >
-                <p class="text-[7px] text-slate-500 uppercase italic mb-2">System_Health</p>
-                <div class="text-[13px] font-bold uppercase" :class="systemHealthClass">{{ systemHealthLabel }}</div>
-                <p class="mt-2 text-[7px] uppercase text-slate-500">{{ stats?.system_errors_24h || 0 }} errors / 24h</p>
+                <p class="metric-label">System health</p>
+                <div class="metric-value text-base" :class="systemHealthClass">{{ systemHealthLabel }}</div>
+                <p class="mt-2 text-xs text-[#73848b]">{{ stats?.system_errors_24h || 0 }} errors / 24h</p>
             </Link>
         </div>
 
         <div v-else class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+            <div class="metric-card">
                 <p class="text-[8px] text-slate-500 uppercase italic mb-2">Total_Materi</p>
                 <div class="text-xl font-bold text-indigo-400">{{ stats?.total_materi || 0 }}</div>
             </div>
-            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+            <div class="metric-card">
                 <p class="text-[8px] text-slate-500 uppercase italic mb-2">Total_Siswa</p>
                 <div class="text-xl font-bold text-cyan-400">{{ stats?.total_students || 0 }}</div>
             </div>
-            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+            <div class="metric-card">
                 <p class="text-[8px] text-slate-500 uppercase italic mb-2">Pending_Reviews</p>
                 <div class="text-xl font-bold text-red-500 animate-pulse">{{ stats?.pending_verdicts || 0 }}</div>
             </div>
-            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+            <div class="metric-card">
                 <p class="text-[8px] text-slate-500 uppercase italic mb-2">Avg_Grade_30D</p>
                 <div class="text-xl font-bold text-emerald-400">{{ stats?.avg_grade_30d ?? 0 }}%</div>
             </div>
-            <div class="rpg-panel py-4 border-slate-700 bg-black/40 shadow-none">
+            <div class="metric-card">
                 <p class="text-[8px] text-slate-500 uppercase italic mb-2">Graded_7D</p>
                 <div class="text-xl font-bold text-yellow-400">{{ stats?.graded_7d || 0 }}</div>
             </div>
@@ -358,8 +357,21 @@ const getRiskColor = (grade) => {
 
 <style scoped>
 .rpg-panel {
-    @apply p-6 relative border-4 border-[#3d415f] bg-[#1a1c2c];
-    box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 0.5);
+    @apply relative rounded-2xl border border-[#dce7e8] bg-white p-5 md:p-6;
+    box-shadow: 0 12px 30px rgba(22, 66, 72, .06);
+}
+
+.metric-card {
+    @apply rounded-2xl border border-[#dce7e8] bg-white p-5;
+    box-shadow: 0 8px 22px rgba(22, 66, 72, .05);
+}
+
+.metric-label {
+    @apply text-xs font-semibold uppercase tracking-[.12em] text-[#73848b];
+}
+
+.metric-value {
+    @apply mt-3 text-3xl font-bold tracking-tight;
 }
 
 </style>
