@@ -19,7 +19,6 @@ const items = ref([]);
 const unreadCount = ref(0);
 let channel = null;
 let echoInstance = null;
-let pollTimer = null;
 let refreshInFlight = null;
 
 const applySummary = (summary) => {
@@ -198,7 +197,6 @@ onMounted(() => {
     }
 
     document.addEventListener('visibilitychange', refreshWhenVisible);
-    pollTimer = window.setInterval(refreshWhenVisible, 20_000);
     refreshWhenVisible();
 
     echoInstance = initEcho();
@@ -215,7 +213,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
     document.removeEventListener('click', handleDocumentClick);
     document.removeEventListener('visibilitychange', refreshWhenVisible);
-    if (pollTimer) window.clearInterval(pollTimer);
 
     if (echoInstance && authUser.value?.id) {
         echoInstance.leave(`App.Models.User.${authUser.value.id}`);
