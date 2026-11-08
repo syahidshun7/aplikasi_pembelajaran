@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\Quest;
+use App\Models\ShopItem;
+use App\Models\ShopTransaction;
 use App\Models\Submission;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -12,8 +14,18 @@ it('reports real submission and participant counts on the admin redesign dashboa
     $admin = User::factory()->create([
         'role' => User::ROLE_SUPER_ADMIN,
         'email_verified_at' => now(),
+        'gold' => 999,
     ]);
-    $participant = User::factory()->create(['role' => User::ROLE_USER]);
+    $participant = User::factory()->create(['role' => User::ROLE_USER, 'gold' => 750]);
+    $item = ShopItem::query()->create(['name' => 'Tiket ulang', 'code' => 'RETAKE_TEST', 'price_gold' => 250, 'is_active' => true]);
+    ShopTransaction::query()->create([
+        'user_id' => $participant->id, 'shop_item_id' => $item->id,
+        'type' => 'purchase', 'quantity' => 1, 'gold_change' => -250,
+    ]);
+    ShopTransaction::query()->create([
+        'user_id' => $participant->id, 'shop_item_id' => $item->id,
+        'type' => 'consume_unlock', 'quantity' => 1, 'gold_change' => 0,
+    ]);
     $quest = Quest::query()->create([
         'title' => 'Dashboard insight test',
         'difficulty' => 'C-Rank',
@@ -43,6 +55,9 @@ it('reports real submission and participant counts on the admin redesign dashboa
             ->where('dashboardInsights.statuses.pending', 1)
             ->where('dashboardInsights.statuses.approved', 1)
             ->where('stats.avg_grade_30d', 84)
-            ->where('overviewStudents.0.id', $participant->id)
+            ->where('shopOverview.gold_in_circulation', 750)
+            ->where('shopOverview.total_transactions', 2)
+            ->where('shopOverview.recent_transactions.0.type', 'consume_unlock')
+            ->where('shopOverview.recent_transactions.1.item_name', 'Tiket ulang')
             ->etc());
 });

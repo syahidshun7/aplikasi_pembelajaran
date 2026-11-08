@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Guide;
 use App\Models\Creation;
 use App\Models\StudyGroupJoinRequest;
+use App\Models\ShopTransaction;
 use App\Models\Event;
 use App\Models\ErrorLog;
 use App\Models\JobRole;
@@ -499,27 +500,34 @@ class DashboardController extends Controller
                 }
             ) : null;
 
-        $overviewStudents = $standaloneRedesign && ! $classRedesign
+        $shopOverview = $standaloneRedesign && ! $classRedesign
             ? Cache::remember(
-                "dashboard.overview-students.v{$dashboardCacheVersion}.global",
-                now()->addMinutes(3),
-                fn () => User::query()
-                    ->whereNotIn('role', User::staffRoles())
-                    ->whereHas('submissions', fn ($query) => $query->whereIn('status', ['Approved', 'Rejected']))
-                    ->withCount(['submissions as graded_count' => fn ($query) => $query->whereIn('status', ['Approved', 'Rejected'])])
-                    ->withAvg(['submissions as avg_grade' => fn ($query) => $query->whereIn('status', ['Approved', 'Rejected'])], 'grade')
-                    ->orderByDesc('avg_grade')
-                    ->limit(8)
-                    ->get(['id', 'name', 'username', 'exp'])
-                    ->map(fn (User $student) => [
-                        'id' => (int) $student->id,
-                        'name' => (string) $student->name,
-                        'username' => (string) $student->username,
-                        'lvl' => LevelingService::levelFromExp((int) $student->exp),
-                        'graded_count' => (int) $student->graded_count,
-                        'avg_grade' => round((float) $student->avg_grade, 1),
-                    ])
-                    ->all()
+                'dashboard.shop-overview.v1.shop-'.CacheVersion::get('shop'),
+                now()->addMinute(),
+                fn () => [
+                    'gold_in_circulation' => (int) User::query()
+                        ->whereNotIn('role', User::staffRoles())
+                        ->sum('gold'),
+                    'total_transactions' => (int) ShopTransaction::query()->count(),
+                    'recent_transactions' => ShopTransaction::query()
+                        ->with(['user:id,name,username', 'item:id,name,code'])
+                        ->latest('id')
+                        ->limit(8)
+                        ->get(['id', 'user_id', 'shop_item_id', 'type', 'quantity', 'gold_change', 'meta', 'created_at'])
+                        ->map(fn (ShopTransaction $transaction) => [
+                            'id' => (int) $transaction->id,
+                            'user_id' => (int) $transaction->user_id,
+                            'user_name' => (string) ($transaction->user?->name ?? 'Pengguna dihapus'),
+                            'username' => (string) ($transaction->user?->username ?? ''),
+                            'item_id' => $transaction->item?->id,
+                            'item_name' => (string) ($transaction->item?->name ?? ($transaction->meta['item_code'] ?? 'Item dihapus')),
+                            'type' => (string) $transaction->type,
+                            'quantity' => (int) $transaction->quantity,
+                            'gold_change' => (int) $transaction->gold_change,
+                            'cancelled' => ! empty($transaction->meta['admin_cancelled_at']),
+                            'created_at' => $transaction->created_at?->toIso8601String(),
+                        ])->all(),
+                ]
             ) : null;
 
         return Inertia::render($classRedesign ? 'Redesign/AdminDashboard/ClassDashboard' : ($standaloneRedesign ? 'Redesign/AdminDashboard/Dashboard' : ($useRedesign ? 'DashboardRedesign' : 'Dashboard')), [
@@ -530,7 +538,7 @@ class DashboardController extends Controller
             'jobCommandItems' => $jobCommandItems,
             'redesignAttention' => $redesignAttention,
             'dashboardInsights' => $dashboardInsights,
-            'overviewStudents' => $overviewStudents,
+            'shopOverview' => $shopOverview,
             'scope' => [
                 'role' => (string) ($authUser?->role ?? ''),
                 'job_id' => $isMentor ? $mentorJobId : null,
