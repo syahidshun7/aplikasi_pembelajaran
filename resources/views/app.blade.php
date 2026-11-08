@@ -29,6 +29,9 @@
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
         <!-- Scripts -->
+        @php
+            \Tighten\Ziggy\BladeRouteGenerator::$generated = false;
+        @endphp
         @routes
         @php
             $bladeUser = null;
@@ -47,7 +50,12 @@
             });
             // (intentionally empty)
         </script>
-        @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
+        @php
+            $pageAsset = str_starts_with($page['component'], 'Redesign/')
+                ? "resources/js/{$page['component']}.vue"
+                : "resources/js/Pages/{$page['component']}.vue";
+        @endphp
+        @vite(['resources/js/app.js', $pageAsset])
         @inertiaHead
 
     <link rel="preload" as="image" href="/images/bg-loby.webp">
