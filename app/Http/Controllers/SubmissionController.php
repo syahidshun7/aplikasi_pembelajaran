@@ -363,16 +363,18 @@ class SubmissionController extends Controller
         ]);
 
         $rawContent = (string) ($validated['content'] ?? '');
+        $plainContent = html_entity_decode(strip_tags($rawContent), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $hasReadableContent = preg_replace('/[\s\x{00A0}]+/u', '', $plainContent) !== '';
         $hasRetainedAttachment = $isUpdate
             && $request->has('retained_attachment_ids')
             && count((array) ($validated['retained_attachment_ids'] ?? [])) > 0;
-        if (trim($rawContent) === '' && ! $this->hasUploadedSubmissionFiles($request) && ! $hasRetainedAttachment) {
+        if (! $hasReadableContent && ! $this->hasUploadedSubmissionFiles($request) && ! $hasRetainedAttachment) {
             throw ValidationException::withMessages([
                 'content' => 'Submission harus berupa teks atau file.',
             ]);
         }
 
-        if (trim($rawContent) !== '') {
+        if ($request->has('content')) {
             $submission->content = $rawContent;
         } elseif (! $isUpdate) {
             $submission->content = '';

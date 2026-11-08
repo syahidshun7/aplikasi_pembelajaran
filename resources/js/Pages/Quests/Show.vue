@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import QuestDescriptionEditor from '@/Components/Quests/QuestDescriptionEditor.vue';
 import { useUserTheme } from '@/Composables/useUserTheme';
 
 const props = defineProps({
@@ -758,7 +759,7 @@ const submitReport = () => {
         return;
     }
 
-    if (!isStructuredTaskBankQuest.value && String(form.content || '').trim() === '' && form.files.length === 0) {
+    if (!isStructuredTaskBankQuest.value && String(form.content || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim() === '' && form.files.length === 0) {
         Swal.fire({
             title: 'CONTENT_REQUIRED',
             text: 'Isi laporan atau upload file submission terlebih dahulu.',
@@ -1411,7 +1412,8 @@ const useRetakeTicket = () => {
                             <div v-else class="space-y-4">
                                 <div>
                                     <label class="block text-[12px] text-slate-500 mb-2 uppercase">Content:</label>
-                                    <textarea v-model="form.content" class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[14px] outline-none" rows="4" placeholder="Tulis jawaban mentah di sini..."></textarea>
+                                    <QuestDescriptionEditor v-model="form.content" placeholder="Tulis jawaban atau laporan tugas di sini..." />
+                                    <p v-if="form.errors.content" class="mt-2 text-[11px] text-red-400">{{ form.errors.content }}</p>
                                 </div>
                                 <div>
                                     <label class="block text-[12px] text-slate-500 mb-2 uppercase">Raw File:</label>

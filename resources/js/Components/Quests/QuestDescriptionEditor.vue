@@ -10,6 +10,10 @@ const props = defineProps({
         type: String,
         default: '',
     },
+    placeholder: {
+        type: String,
+        default: 'Tulis tujuan, instruksi, dan langkah pengerjaan quest...',
+    },
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -20,7 +24,7 @@ const editor = useEditor({
     extensions: [
         StarterKit.configure({ heading: { levels: [2, 3] } }),
         Link.configure({ openOnClick: false, autolink: true }),
-        Placeholder.configure({ placeholder: 'Tulis tujuan, instruksi, dan langkah pengerjaan quest...' }),
+        Placeholder.configure({ placeholder: props.placeholder }),
     ],
     editorProps: {
         attributes: {

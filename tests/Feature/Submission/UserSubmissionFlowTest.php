@@ -887,6 +887,15 @@ test('manual quest rejects empty raw submission and oversized file', function ()
 
     $empty->assertSessionHasErrors('content');
 
+    $emptyRichText = $this->post(route('submissions.store', $quest->uuid), [
+        'content' => '<p><br></p>',
+    ]);
+
+    $emptyRichText->assertSessionHasErrors('content');
+
+    $this->post(route('submissions.store', $quest->uuid), ['content' => '<p>&nbsp;</p>'])
+        ->assertSessionHasErrors('content');
+
     $oversized = $this->actingAs($user)->post(route('submissions.store', $quest->uuid), [
         'file' => UploadedFile::fake()->create('project.zip', 5121, 'application/zip'),
     ]);
@@ -894,6 +903,26 @@ test('manual quest rejects empty raw submission and oversized file', function ()
     $oversized->assertSessionHasErrors('file');
 
     expect(Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->exists())->toBeFalse();
+});
+
+test('manual quest accepts formatted content from the quest editor', function () {
+    $user = User::factory()->create(['email_verified_at' => now()]);
+    $quest = Quest::query()->create([
+        'title' => 'Formatted answer quest',
+        'difficulty' => 'C-Rank',
+        'reward_gold' => 0,
+        'reward_exp' => 0,
+        'status' => 'Available',
+        'deadline' => now()->addDay(),
+    ]);
+
+    $content = '<h2>Hasil</h2><p>Jawaban <strong>penting</strong>.</p>';
+    $this->actingAs($user)
+        ->post(route('submissions.store', $quest->uuid), ['content' => $content])
+        ->assertSessionHasNoErrors();
+
+    expect(Submission::query()->where('quest_id', $quest->id)->where('user_id', $user->id)->value('content'))
+        ->toBe($content);
 });
 
 test('manual quest pending submission cannot be re-attempted after deadline', function () {

@@ -181,8 +181,8 @@
                         <p class="text-[8px] text-cyan-500 uppercase mb-2 italic animate-pulse">Artifact_Viewer_Active:</p>
 
                         <div v-if="submission.content"
-                            class="bg-black border-2 border-slate-800 p-6 font-sans text-sm text-slate-300 whitespace-pre-wrap mb-4 shadow-inner max-h-96 overflow-y-auto custom-scrollbar">
-                            {{ submission.content }}
+                            class="submission-rich-text bg-black border-2 border-slate-800 p-6 font-sans text-sm text-slate-300 mb-4 shadow-inner max-h-96 overflow-y-auto custom-scrollbar"
+                            v-html="submissionContentToHtml(submission.content)">
                         </div>
 
                         <div v-if="taskQuestions.length"
@@ -1244,7 +1244,7 @@ import { ref, computed, onMounted } from 'vue';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 import AdminNavbar from '@/Components/AdminNavbar.vue';
-import { richTextToPlainText } from '@/Utils/richText';
+import { richTextToPlainText, submissionContentToHtml } from '@/Utils/richText';
 
 const props = defineProps({
     submission: Object,
@@ -2923,4 +2923,5 @@ input[type=number] {
 .manual-score-display__helper {
     @apply font-sans text-[11px] leading-relaxed text-slate-400;
 }
+.submission-rich-text :deep(p),.submission-rich-text :deep(ul),.submission-rich-text :deep(ol),.submission-rich-text :deep(blockquote){margin:.5rem 0}.submission-rich-text :deep(ul),.submission-rich-text :deep(ol){padding-left:1.5rem}.submission-rich-text :deep(ul){list-style:disc}.submission-rich-text :deep(ol){list-style:decimal}.submission-rich-text :deep(h2),.submission-rich-text :deep(h3){font-weight:700;color:#67e8f9;margin:.8rem 0 .4rem}.submission-rich-text :deep(a){color:#67e8f9;text-decoration:underline}.submission-rich-text :deep(pre){white-space:pre-wrap;overflow-wrap:anywhere}
 </style>
