@@ -82,7 +82,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         if ($user?->isStaff()) {
-            return redirect()->route('dashboard');
+            return redirect()->route($user->staffRedesignRoute());
         }
 
         return redirect()->intended(route('lobby', absolute: false));

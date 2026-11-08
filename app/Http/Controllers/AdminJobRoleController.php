@@ -22,11 +22,15 @@ class AdminJobRoleController extends Controller
 
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
+            'status' => ['nullable', Rule::in(['all', 'active', 'coming_soon', 'draft', 'archive'])],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
+        $status = (string) ($validated['status'] ?? 'all');
 
         $jobs = JobRole::query()
+            ->when($status === 'archive', fn ($query) => $query->onlyTrashed())
+            ->when(! in_array($status, ['all', 'archive'], true), fn ($query) => $query->where('status', $status))
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
@@ -39,12 +43,29 @@ class AdminJobRoleController extends Controller
             ->paginate(12)
             ->withQueryString();
 
-        return Inertia::render('Jobs/Admin/Index', [
+        return Inertia::render($request->routeIs('redesign.jobs') ? 'Redesign/AdminDashboard/Jobs' : 'Jobs/Admin/Index', [
             'jobs' => $jobs,
             'jobItems' => $jobs->getCollection()->values(),
             'filters' => [
                 'search' => $search,
+                'status' => $status,
             ],
+        ]);
+    }
+
+    public function createRedesign(Request $request): Response
+    {
+        $this->abortNonSuperAdmin($request);
+
+        return Inertia::render('Redesign/AdminDashboard/JobForm', ['job' => null]);
+    }
+
+    public function editRedesign(Request $request, JobRole $jobRole): Response
+    {
+        $this->abortNonSuperAdmin($request);
+
+        return Inertia::render('Redesign/AdminDashboard/JobForm', [
+            'job' => $jobRole->only(['id', 'name', 'status', 'description', 'emblem_path']),
         ]);
     }
 
@@ -88,7 +109,7 @@ class AdminJobRoleController extends Controller
             ])
             ->values();
 
-        return Inertia::render('Jobs/Admin/Show', [
+        return Inertia::render(request()->routeIs('redesign.jobs.show') ? 'Redesign/AdminDashboard/JobDetail' : 'Jobs/Admin/Show', [
             'job' => [
                 'id' => (int) $jobRole->id,
                 'name' => (string) $jobRole->name,
@@ -101,8 +122,10 @@ class AdminJobRoleController extends Controller
                 'task_banks_count' => (int) ($jobRole->task_banks_count ?? 0),
             ],
             'groups' => $groups,
-            'studyGroupsUrl' => route('groups.manage', ['search' => $jobRole->name]),
-            'jobsUrl' => route('admin.jobs.index'),
+            'studyGroupsUrl' => request()->routeIs('redesign.jobs.show')
+                ? route('redesign.study-groups', ['job_id' => $jobRole->id])
+                : route('groups.manage', ['search' => $jobRole->name]),
+            'jobsUrl' => request()->routeIs('redesign.jobs.show') ? route('redesign.jobs') : route('admin.jobs.index'),
         ]);
     }
 
@@ -132,7 +155,9 @@ class AdminJobRoleController extends Controller
 
         CacheVersion::bump('landing');
 
-        return back()->with('message', 'JOB_CREATED');
+        return $request->boolean('redesign')
+            ? redirect()->route('redesign.jobs')->with('message', 'JOB_CREATED')
+            : back()->with('message', 'JOB_CREATED');
     }
 
     public function update(Request $request, JobRole $jobRole): RedirectResponse
@@ -169,7 +194,9 @@ class AdminJobRoleController extends Controller
 
         CacheVersion::bump('landing');
 
-        return back()->with('message', 'JOB_UPDATED');
+        return $request->boolean('redesign')
+            ? redirect()->route('redesign.jobs')->with('message', 'JOB_UPDATED')
+            : back()->with('message', 'JOB_UPDATED');
     }
 
     public function destroy(JobRole $jobRole): RedirectResponse

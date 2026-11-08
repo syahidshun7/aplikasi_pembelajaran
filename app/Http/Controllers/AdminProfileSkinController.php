@@ -16,7 +16,7 @@ use Inertia\Response;
 
 class AdminProfileSkinController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $skins = ProfileSkin::query()
             ->with('shopItem:id,code,name,price_gold,is_active')
@@ -24,9 +24,19 @@ class AdminProfileSkinController extends Controller
             ->latest()
             ->paginate(15);
 
-        return Inertia::render('Admin/ProfileSkins/Index', [
+        return Inertia::render($request->routeIs('redesign.profile-skins') ? 'Redesign/AdminDashboard/ProfileSkins' : 'Admin/ProfileSkins/Index', [
             'skins' => $skins,
         ]);
+    }
+
+    public function createRedesign(): Response
+    {
+        return Inertia::render('Redesign/AdminDashboard/ProfileSkinForm', ['skin' => null]);
+    }
+
+    public function editRedesign(ProfileSkin $skin): Response
+    {
+        return Inertia::render('Redesign/AdminDashboard/ProfileSkinForm', ['skin' => $skin->load('shopItem')]);
     }
 
     public function store(Request $request): RedirectResponse

@@ -1,0 +1,9 @@
+:where(.workspace,.quests-app,.events-app) .table-wrap{border-radius:9px;overflow-x:auto}
+:where(.workspace,.quests-app,.events-app) table{width:100%;border-collapse:collapse;font-family:Inter,ui-sans-serif,system-ui,sans-serif;font-size:12px;color:#19333d}
+:where(.workspace,.quests-app,.events-app) thead th{background:#f0f5f6;color:#70858c;text-align:left;padding:13px 14px;font-weight:700}
+:where(.workspace,.quests-app,.events-app) tbody td{padding:17px 14px;border-bottom:1px solid #e5edef;vertical-align:middle;background:#fff}
+:where(.workspace,.quests-app,.events-app) tbody tr:last-child td{border-bottom:0}
+:where(.workspace,.quests-app,.events-app) tbody tr:focus-within td{background:#f6faf9}
+:where(.workspace,.quests-app,.events-app) tbody strong{font-size:13px;font-weight:750;color:#19333d}
+:where(.workspace,.quests-app,.events-app) .table-wrap a{color:#007f78;font-weight:700;text-decoration:none}
+:where(.workspace,.quests-app,.events-app) .table-wrap a:hover{text-decoration:underline;text-underline-offset:3px}

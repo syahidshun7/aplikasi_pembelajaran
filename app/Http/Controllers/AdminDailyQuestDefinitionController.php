@@ -16,12 +16,16 @@ class AdminDailyQuestDefinitionController extends Controller
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'activity_type' => ['nullable', Rule::in(array_merge(['all'], $this->activityTypes()))],
+            'status' => ['nullable', Rule::in(['all', 'active', 'inactive'])],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
         $activityType = (string) ($validated['activity_type'] ?? 'all');
+        $status = $request->routeIs('redesign.daily-quests') ? (string) ($validated['status'] ?? 'all') : 'all';
 
         $definitions = DailyQuestDefinition::query()
+            ->when($status === 'active', fn ($query) => $query->where('is_active', true))
+            ->when($status === 'inactive', fn ($query) => $query->where('is_active', false))
             ->when($activityType !== '' && $activityType !== 'all', function ($query) use ($activityType) {
                 $query->where('activity_type', $activityType);
             })
@@ -57,6 +61,8 @@ class AdminDailyQuestDefinitionController extends Controller
                     'is_active' => (bool) $definition->is_active,
                     'activity_steps' => $activitySteps,
                     'activity_steps_text' => implode(PHP_EOL, $activitySteps),
+                    'meta_category' => (string) ($meta['category'] ?? ''),
+                    'meta_icon' => (string) ($meta['icon'] ?? ''),
                 ];
             })
             ->withQueryString();
@@ -67,14 +73,31 @@ class AdminDailyQuestDefinitionController extends Controller
             'inactive' => DailyQuestDefinition::query()->where('is_active', false)->count(),
         ];
 
-        return Inertia::render('DailyQuests/Admin/Index', [
+        return Inertia::render($request->routeIs('redesign.daily-quests') ? 'Redesign/AdminDashboard/DailyQuests' : 'DailyQuests/Admin/Index', [
             'definitions' => $definitions,
             'stats' => $stats,
             'activityTypes' => $this->activityTypes(),
             'filters' => [
                 'search' => $search,
                 'activity_type' => $activityType,
+                'status' => $status,
             ],
+        ]);
+    }
+
+    public function createRedesign(): Response
+    {
+        return Inertia::render('Redesign/AdminDashboard/DailyQuestForm', [
+            'definition' => null,
+            'activityTypes' => $this->activityTypes(),
+        ]);
+    }
+
+    public function editRedesign(DailyQuestDefinition $definition): Response
+    {
+        return Inertia::render('Redesign/AdminDashboard/DailyQuestForm', [
+            'definition' => $definition,
+            'activityTypes' => $this->activityTypes(),
         ]);
     }
 
@@ -95,7 +118,9 @@ class AdminDailyQuestDefinitionController extends Controller
             'meta' => $this->buildMetaPayload($validated),
         ]);
 
-        return back()->with('message', 'DAILY_QUEST_DEFINITION_CREATED');
+        return $request->boolean('redesign_form')
+            ? redirect()->route('redesign.daily-quests')->with('message', 'DAILY_QUEST_DEFINITION_CREATED')
+            : back()->with('message', 'DAILY_QUEST_DEFINITION_CREATED');
     }
 
     public function update(Request $request, DailyQuestDefinition $definition): RedirectResponse
@@ -115,7 +140,9 @@ class AdminDailyQuestDefinitionController extends Controller
             'meta' => $this->buildMetaPayload($validated, $definition),
         ]);
 
-        return back()->with('message', 'DAILY_QUEST_DEFINITION_UPDATED');
+        return $request->boolean('redesign_form')
+            ? redirect()->route('redesign.daily-quests')->with('message', 'DAILY_QUEST_DEFINITION_UPDATED')
+            : back()->with('message', 'DAILY_QUEST_DEFINITION_UPDATED');
     }
 
     public function destroy(DailyQuestDefinition $definition): RedirectResponse

@@ -70,6 +70,11 @@ test('join group request notifies group admins and global super admin accounts v
         'job_id' => $job->id,
     ]);
 
+    $mentorGroupAdmin = User::factory()->create([
+        'role' => User::ROLE_MENTOR,
+        'job_id' => $job->id,
+    ]);
+
     $regularMember = User::factory()->create([
         'role' => User::ROLE_USER,
         'job_id' => $job->id,
@@ -95,6 +100,7 @@ test('join group request notifies group admins and global super admin accounts v
 
     $group->users()->attach($groupLeader->id, ['role' => 'leader']);
     $group->users()->attach($groupAdmin->id, ['role' => 'admin']);
+    $group->users()->attach($mentorGroupAdmin->id, ['role' => 'admin']);
     $group->users()->attach($regularMember->id, ['role' => 'member']);
 
     $response = $this
@@ -123,6 +129,7 @@ test('join group request notifies group admins and global super admin accounts v
     Notification::assertSentTo($globalSuperAdminOutsideGroup, JoinGroupRequestNotification::class);
     Notification::assertSentTo($globalAdminOutsideGroup, JoinGroupRequestNotification::class);
     Notification::assertNotSentTo($regularMember, JoinGroupRequestNotification::class);
+    Notification::assertNotSentTo($mentorGroupAdmin, JoinGroupRequestNotification::class);
     Notification::assertNotSentTo($requester, JoinGroupRequestNotification::class);
 });
 

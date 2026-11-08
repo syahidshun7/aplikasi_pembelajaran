@@ -24,11 +24,16 @@ class AdminTaskBankController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
+            'status' => ['nullable', Rule::in(['all', 'active', 'draft', 'archive'])],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
+        $status = $request->routeIs('redesign.task-banks') ? (string) ($validated['status'] ?? 'all') : 'all';
 
         $taskBankQuery = TaskBank::query()
+            ->when($status === 'archive', fn ($query) => $query->onlyTrashed())
+            ->when($status === 'active', fn ($query) => $query->where('is_active', true))
+            ->when($status === 'draft', fn ($query) => $query->where('is_active', false))
             ->with('jobRole:id,name')
             ->withCount('questions');
 
@@ -56,13 +61,39 @@ class AdminTaskBankController extends Controller
             $jobsQuery->whereKey($this->requireMentorJobId());
         }
 
-        return Inertia::render('Tasks/Admin/Index', [
+        return Inertia::render($request->routeIs('redesign.task-banks') ? 'Redesign/AdminDashboard/TaskBanks' : 'Tasks/Admin/Index', [
             'taskBanks' => $taskBanks,
             'jobs' => $jobsQuery->get(['id', 'name']),
             'filters' => [
                 'search' => $search,
+                'status' => $status,
             ],
         ]);
+    }
+
+    public function createRedesign(): Response
+    {
+        return Inertia::render('Redesign/AdminDashboard/TaskBankForm', [
+            'taskBank' => null,
+            'jobs' => $this->redesignJobs(),
+        ]);
+    }
+
+    public function editRedesign(TaskBank $taskBank): Response
+    {
+        $this->assertMentorCanAccessTaskBank($taskBank);
+
+        return Inertia::render('Redesign/AdminDashboard/TaskBankForm', [
+            'taskBank' => $taskBank->load('jobRole:id,name'),
+            'jobs' => $this->redesignJobs(),
+        ]);
+    }
+
+    private function redesignJobs()
+    {
+        return JobRole::query()->active()
+            ->when($this->isMentorUser(), fn ($query) => $query->whereKey($this->requireMentorJobId()))
+            ->orderBy('name')->get(['id', 'name']);
     }
 
     public function store(Request $request): RedirectResponse
@@ -87,7 +118,9 @@ class AdminTaskBankController extends Controller
 
         TaskBank::query()->create($validated);
 
-        return back()->with('message', 'TASK_BANK_CREATED');
+        return $request->boolean('redesign_form')
+            ? redirect()->route('redesign.task-banks')->with('message', 'TASK_BANK_CREATED')
+            : back()->with('message', 'TASK_BANK_CREATED');
     }
 
     public function update(Request $request, TaskBank $taskBank): RedirectResponse
@@ -114,7 +147,9 @@ class AdminTaskBankController extends Controller
 
         $taskBank->update($validated);
 
-        return back()->with('message', 'TASK_BANK_UPDATED');
+        return $request->boolean('redesign_form')
+            ? redirect()->route('redesign.task-banks')->with('message', 'TASK_BANK_UPDATED')
+            : back()->with('message', 'TASK_BANK_UPDATED');
     }
 
     private function normalizeTimeLimitInput(Request $request): void
@@ -144,6 +179,15 @@ class AdminTaskBankController extends Controller
         return back()->with('message', 'TASK_BANK_DELETED');
     }
 
+    public function restore(string $uuid): RedirectResponse
+    {
+        $taskBank = TaskBank::onlyTrashed()->where('uuid', $uuid)->firstOrFail();
+        $this->assertMentorCanAccessTaskBank($taskBank);
+        $taskBank->restore();
+
+        return back()->with('message', 'TASK_BANK_RESTORED');
+    }
+
     public function show(TaskBank $taskBank, Request $request): Response
     {
         $this->assertMentorCanAccessTaskBank($taskBank);
@@ -163,7 +207,7 @@ class AdminTaskBankController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        return Inertia::render('Tasks/Admin/Show', [
+        return Inertia::render($request->routeIs('redesign.task-banks.questions') ? 'Redesign/AdminDashboard/QuestionEditor' : 'Tasks/Admin/Show', [
             'taskBank' => $taskBank->load('jobRole:id,name'),
             'questions' => $questions,
             'importResult' => $request->session()->get('task_bank_import_result'),
@@ -186,6 +230,20 @@ class AdminTaskBankController extends Controller
             ],
             'filters' => [
                 'search' => $search,
+            ],
+        ]);
+    }
+
+    public function showImportRedesign(TaskBank $taskBank, Request $request): Response
+    {
+        $this->assertMentorCanAccessTaskBank($taskBank);
+
+        return Inertia::render('Redesign/AdminDashboard/QuestionImport', [
+            'taskBank' => $taskBank->load('jobRole:id,name'),
+            'importResult' => $request->session()->get('task_bank_import_result'),
+            'importTemplate' => [
+                'download_url' => asset('examples/task-bank-import-template.json'),
+                'sample' => $this->taskBankImportJsonTemplate((string) ($taskBank->assessment_type ?? 'mixed')),
             ],
         ]);
     }

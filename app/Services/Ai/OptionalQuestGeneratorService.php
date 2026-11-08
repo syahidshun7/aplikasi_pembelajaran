@@ -143,6 +143,7 @@ class OptionalQuestGeneratorService
         $questionType = (string) ($payload['question_type'] ?? 'mixed');
         $questionCount = max(3, min(30, (int) ($payload['question_count'] ?? 10)));
         $difficulty = (string) ($payload['difficulty'] ?? 'C-Rank');
+        $questType = (string) ($payload['quest_type'] ?? Quest::TYPE_OPTIONAL);
         if (! in_array($difficulty, ['C-Rank', 'B-Rank', 'A-Rank', 'S-Rank'], true)) {
             $difficulty = 'C-Rank';
         }
@@ -153,7 +154,7 @@ class OptionalQuestGeneratorService
         $messages = [
             [
                 'role' => 'system',
-                'content' => 'Kamu adalah AI perancang side quest + task bank. Balas HANYA JSON valid, Bahasa Indonesia.',
+                'content' => 'Kamu adalah AI perancang quest pembelajaran dan task bank. Balas HANYA JSON valid, Bahasa Indonesia.',
             ],
             [
                 'role' => 'user',
@@ -163,6 +164,7 @@ class OptionalQuestGeneratorService
                     'question_type' => $questionType,
                     'question_count' => $questionCount,
                     'difficulty' => $difficulty,
+                    'quest_type' => $questType,
                     'study_group_id' => (int) ($payload['study_group_id'] ?? 0) ?: null,
                     'job_id' => (int) ($payload['job_id'] ?? 0) ?: null,
                 ]),
@@ -273,7 +275,7 @@ class OptionalQuestGeneratorService
             }
 
             return Quest::query()->create([
-                'title' => mb_substr(trim((string) ($quest['title'] ?? 'Side Quest AI')), 0, 255),
+                'title' => mb_substr(trim((string) ($quest['title'] ?? 'Quest AI')), 0, 255),
                 'description' => trim((string) ($quest['description'] ?? '')),
                 'difficulty' => $difficulty,
                 'reward_gold' => $reward,
@@ -312,7 +314,7 @@ class OptionalQuestGeneratorService
         $importantNote = trim((string) ($input['ai_note'] ?? ''));
 
         return implode("\n", [
-            'Buat 1 SIDE quest lengkap dengan task bank dan daftar soal berdasarkan input:',
+            'Buat 1 quest pembelajaran lengkap dengan task bank dan daftar soal berdasarkan input. Jika quest_type=main, buat quest utama yang dinilai dalam progres akademik. Jika quest_type=optional, buat quest tambahan untuk latihan dan reward:',
             json_encode($input, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
             $importantNote !== ''
                 ? 'Catatan penting (WAJIB diprioritaskan): '.$importantNote
@@ -399,7 +401,7 @@ class OptionalQuestGeneratorService
 
         return [
             'quest' => [
-                'title' => mb_substr(trim((string) ($quest['title'] ?? 'Side Quest AI')), 0, 255),
+                'title' => mb_substr(trim((string) ($quest['title'] ?? 'Quest AI')), 0, 255),
                 'description' => trim((string) ($quest['description'] ?? '')),
                 'difficulty' => $questDifficulty,
                 'learning_objectives' => $this->normalizeStringList($quest['learning_objectives'] ?? []),

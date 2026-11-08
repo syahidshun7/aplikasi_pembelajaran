@@ -90,7 +90,7 @@ class ProfileController extends Controller
                 ])
                 ->values();
 
-        return Inertia::render('Admin/Profile/Edit', [
+        return Inertia::render($request->routeIs('redesign.profile') ? 'Redesign/AdminDashboard/Profile' : 'Admin/Profile/Edit', [
             'user' => [
                 'name' => (string) $user->name,
                 'username' => (string) ($user->username ?? ''),

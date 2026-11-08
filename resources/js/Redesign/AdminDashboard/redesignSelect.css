@@ -1,0 +1,8 @@
+:root[data-redesign-page='true']{color-scheme:light}
+:root[data-redesign-page='true'] :is(input,textarea,select){color-scheme:light !important;font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+:root[data-redesign-page='true'] select{background-color:#fff;color:#19333d}
+:root[data-redesign-page='true'] select option,
+:root[data-redesign-page='true'] select optgroup{background:#fff !important;background-color:#fff !important;color:#19333d !important;font-family:Inter,ui-sans-serif,system-ui,sans-serif !important;font-size:13px}
+:root[data-redesign-page='true'] select option:checked,
+:root[data-redesign-page='true'] select option:hover,
+:root[data-redesign-page='true'] select option:focus{background:linear-gradient(0deg,#e5f5f1,#e5f5f1) !important;background-color:#e5f5f1 !important;color:#007f78 !important}

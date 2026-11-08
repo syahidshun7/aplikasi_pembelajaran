@@ -208,9 +208,11 @@ class UserEventController extends Controller
         return Inertia::render('Events/UserShow', [
             'event' => $event,
             'previewMode' => true,
-            'backUrl' => $event->studyGroup
-                ? route('groups.events.index', $event->studyGroup->uuid)
-                : route('admin.events.index'),
+            'backUrl' => $request->query('from') === 'redesign'
+                ? route('redesign.events.show', $event->uuid)
+                : ($event->studyGroup
+                    ? route('groups.events.index', $event->studyGroup->uuid)
+                    : route('admin.events.index')),
             'userAttendance' => [
                 'status' => 'preview',
                 'checked_at' => null,

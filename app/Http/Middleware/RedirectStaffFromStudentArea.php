@@ -13,7 +13,7 @@ class RedirectStaffFromStudentArea
         $user = $request->user();
 
         if ($user?->isStaff()) {
-            return redirect()->route('dashboard');
+            return redirect()->route($user->staffRedesignRoute());
         }
 
         return $next($request);

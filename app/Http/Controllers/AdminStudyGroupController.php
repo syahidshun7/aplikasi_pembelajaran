@@ -21,21 +21,49 @@ use Illuminate\Support\Facades\Auth;
 
 class AdminStudyGroupController extends Controller
 {
+    public function createRedesign(Request $request): Response
+    {
+        abort_unless($request->user()?->isAdmin(), 403);
+
+        return Inertia::render('Redesign/AdminDashboard/StudyGroupForm', [
+            'group' => null,
+            'jobs' => JobRole::query()->active()->orderBy('name')->get(['id', 'name']),
+            'selectedJobId' => (int) $request->query('job_id', 0),
+        ]);
+    }
+
+    public function editRedesign(Request $request, string $uuid, StudyGroupStaffAccessService $access): Response
+    {
+        abort_unless($request->user()?->isAdmin(), 403);
+        $group = StudyGroup::query()->where('uuid', $uuid)->firstOrFail();
+        abort_unless($access->canAccess($request->user(), $group), 403);
+
+        return Inertia::render('Redesign/AdminDashboard/StudyGroupForm', [
+            'group' => $group->only(['uuid', 'name', 'description', 'job_id', 'max_members', 'min_level']),
+            'jobs' => JobRole::query()->active()->orderBy('name')->get(['id', 'name']),
+            'selectedJobId' => (int) $group->job_id,
+        ]);
+    }
+
      public function manage(Request $request, StudyGroupStaffAccessService $access)
 {
     $validated = $request->validate([
         'search' => ['nullable', 'string', 'max:255'],
         'view' => ['nullable', 'in:active,trash'],
+        'job_id' => ['nullable', 'integer', 'exists:job_roles,id'],
     ]);
     $search = trim((string) ($validated['search'] ?? ''));
     $view = (string) ($validated['view'] ?? 'active');
+    $jobId = $validated['job_id'] ?? null;
 
-    return Inertia::render('StudyGroups/Admin/Index', [
+    return Inertia::render($request->routeIs('redesign.study-groups') ? 'Redesign/AdminDashboard/StudyGroups' : 'StudyGroups/Admin/Index', [
         'groups' => StudyGroup::query()
             ->tap(fn ($query) => $access->scopeAccessibleGroups($query, auth()->user()))
             ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
+            ->when($jobId, fn ($query) => $query->where('job_id', $jobId))
             ->with('job:id,name')
             ->withCount('staff as staff_count')
+            ->withCount('quests as quests_count')
             ->withCount([
                 'users as users_count' => fn ($userQuery) => $userQuery->whereNotIn('users.role', User::staffRoles()),
                 'joinRequests as pending_requests_count' => function ($q) {
@@ -55,6 +83,7 @@ class AdminStudyGroupController extends Controller
         'filters' => [
             'search' => $search,
             'view' => $view,
+            'job_id' => $jobId,
         ],
         'jobs' => JobRole::query()->active()->orderBy('name')->get(['id', 'name', 'slug']),
     ]);
@@ -88,7 +117,9 @@ class AdminStudyGroupController extends Controller
 
         CacheVersion::bump('study_groups');
 
-        return back()->with('message', 'NEW_PARTY_ESTABLISHED');
+        return $request->boolean('redesign')
+            ? redirect()->route('redesign.study-groups')->with('message', 'NEW_PARTY_ESTABLISHED')
+            : back()->with('message', 'NEW_PARTY_ESTABLISHED');
     }
 
 
@@ -153,7 +184,9 @@ class AdminStudyGroupController extends Controller
                 ->update(['job_id' => $newJobId]);
         }
 
-        return back()->with('message', 'DATA_UPDATED_SUCCESSFULLY');
+        return $request->boolean('redesign')
+            ? redirect()->route('redesign.study-groups')->with('message', 'DATA_UPDATED_SUCCESSFULLY')
+            : back()->with('message', 'DATA_UPDATED_SUCCESSFULLY');
     }
 
     public function detail($uuid, StudyGroupStaffAccessService $access)
@@ -169,8 +202,22 @@ class AdminStudyGroupController extends Controller
             abort(403, 'STUDY_GROUP_STAFF_ACCESS_DENIED');
         }
 
-        return Inertia::render('StudyGroups/Admin/Detail', [
+        if (request()->routeIs('redesign.study-groups.show')) {
+            $group->loadCount(['quests', 'events', 'roadmaps']);
+        }
+
+        return Inertia::render(request()->routeIs('redesign.study-groups.show') ? 'Redesign/AdminDashboard/StudyGroupDetail' : 'StudyGroups/Admin/Detail', [
             'group' => $group,
+            'operations' => request()->routeIs('redesign.study-groups.show') ? [
+                'quests' => (int) $group->quests_count,
+                'guides' => \App\Models\Guide::query()->where('study_group_id', $group->id)->count(),
+                'events' => (int) $group->events_count,
+                'roadmaps' => (int) $group->roadmaps_count,
+                'pending_reviews' => \App\Models\Submission::query()
+                    ->whereHas('quest', fn ($query) => $query->where('study_group_id', $group->id))
+                    ->where('status', \App\Models\Submission::STATUS_PENDING)
+                    ->count(),
+            ] : null,
             'studentDashboard' => $this->buildStudentDashboard($group),
             'staffMembers' => $group->staff
                 ->map(fn (User $staff) => [
@@ -306,7 +353,7 @@ class AdminStudyGroupController extends Controller
             : 0.0;
         $performanceAverage = round(($attendancePercentage * 0.3) + ($mainQuestAverage * 0.7), 1);
 
-        return Inertia::render('StudyGroups/Admin/StudentDetail', [
+        return Inertia::render(request()->routeIs('redesign.study-groups.students.detail') ? 'Redesign/AdminDashboard/StudentPerformance' : 'StudyGroups/Admin/StudentDetail', [
             'group' => [
                 'uuid' => (string) $group->uuid,
                 'name' => (string) $group->name,
@@ -350,7 +397,12 @@ class AdminStudyGroupController extends Controller
             abort(403, 'STUDY_GROUP_STAFF_ACCESS_DENIED');
         }
 
-        return Inertia::render('StudyGroups/Admin/Roadmaps', [
+        $isRedesign = request()->routeIs('redesign.study-groups.roadmaps');
+        if ($isRedesign) {
+            $group->load('roadmaps.nodes');
+        }
+
+        return Inertia::render($isRedesign ? 'Redesign/AdminDashboard/Roadmaps' : 'StudyGroups/Admin/Roadmaps', [
             'group' => $group,
             'attachedRoadmaps' => $group->roadmaps
                 ->map(fn (DoopLabRoadmap $roadmap) => [
@@ -360,6 +412,10 @@ class AdminStudyGroupController extends Controller
                     'is_published' => (bool) $roadmap->is_published,
                     'sort_order' => (int) ($roadmap->pivot?->sort_order ?? 0),
                     'is_active' => (bool) ($roadmap->pivot?->is_active ?? true),
+                    'nodes' => $isRedesign ? $roadmap->nodes->sortBy('sort_order')->values()->map(fn ($node) => [
+                        'title' => (string) ($node->title ?? ''),
+                        'resource_type' => (string) ($node->resource_type ?? ''),
+                    ])->values() : [],
                 ])
                 ->values(),
             'availableRoadmaps' => DoopLabRoadmap::query()
@@ -383,7 +439,7 @@ class AdminStudyGroupController extends Controller
             abort(403, 'STUDY_GROUP_STAFF_ACCESS_DENIED');
         }
 
-        return Inertia::render('StudyGroups/Admin/AttendanceDashboard', [
+        return Inertia::render(request()->routeIs('redesign.study-groups.attendance') ? 'Redesign/AdminDashboard/Attendance' : 'StudyGroups/Admin/AttendanceDashboard', [
             'group' => $group,
             'attendanceDashboard' => $this->buildAttendanceDashboard($group),
         ]);
@@ -410,14 +466,18 @@ class AdminStudyGroupController extends Controller
             })
             ->values();
 
-        return Inertia::render('StudyGroups/Admin/JoinRequests', [
+        return Inertia::render(request()->routeIs('redesign.study-groups.membership') ? 'Redesign/AdminDashboard/Membership' : 'StudyGroups/Admin/JoinRequests', [
             'group' => $group,
             'requests' => $requests,
             'members' => $group->users()
-                ->select('users.id', 'users.name', 'users.username', 'users.email')
+                ->select('users.id', 'users.name', 'users.username', 'users.email', 'users.exp')
                 ->whereNotIn('users.role', User::staffRoles())
                 ->orderBy('users.name')
-                ->get(),
+                ->get()
+                ->map(function (User $member) {
+                    $member->user_level = LevelingService::levelFromExp((int) ($member->exp ?? 0));
+                    return $member;
+                }),
         ]);
     }
 

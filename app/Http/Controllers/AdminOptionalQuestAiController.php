@@ -12,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 class AdminOptionalQuestAiController extends Controller
 {
-    private const MENTOR_JOB_REQUIRED_MESSAGE = 'Akun mentor wajib punya jurusan (job) sebelum generate side quest.';
+    private const MENTOR_JOB_REQUIRED_MESSAGE = 'Akun mentor wajib punya jurusan (job) sebelum generate quest.';
 
     public function generatePreview(Request $request, OptionalQuestGeneratorService $generator): JsonResponse
     {
@@ -107,6 +107,7 @@ class AdminOptionalQuestAiController extends Controller
             'question_type' => ['required', 'in:multiple_choice,essay,mixed,platforming,word_match'],
             'question_count' => ['required', 'integer', 'min:3', 'max:30'],
             'difficulty' => ['required', 'in:C-Rank,B-Rank,A-Rank,S-Rank'],
+            'quest_type' => ['nullable', 'in:main,optional'],
             'study_group_id' => ['nullable', 'integer', 'exists:study_groups,id'],
             'job_id' => ['nullable', 'integer', 'exists:job_roles,id'],
         ]);
@@ -181,7 +182,7 @@ class AdminOptionalQuestAiController extends Controller
         $payloadJobId = (int) ($payload['job_id'] ?? 0);
         if ($payloadJobId > 0 && $payloadJobId !== $mentorJobId) {
             throw ValidationException::withMessages([
-                'job_id' => 'Mentor hanya boleh generate side quest untuk jurusannya sendiri.',
+                'job_id' => 'Mentor hanya boleh generate quest untuk jurusannya sendiri.',
             ]);
         }
 

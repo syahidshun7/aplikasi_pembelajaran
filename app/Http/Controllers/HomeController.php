@@ -34,7 +34,7 @@ class HomeController extends Controller
     }
 
     if (Auth::user()?->isStaff()) {
-        return redirect()->route('dashboard');
+        return redirect()->route(Auth::user()->staffRedesignRoute());
     }
 
     $userId = Auth::id();

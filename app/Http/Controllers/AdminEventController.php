@@ -39,14 +39,20 @@ class AdminEventController extends Controller
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'view' => ['nullable', 'in:active,trash'],
+            'status' => ['nullable', 'in:scheduled,ongoing,finished,unscheduled'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
         $view = (string) ($validated['view'] ?? 'active');
+        $status = $request->routeIs('redesign.events*') || $request->routeIs('redesign.study-groups.events') ? (string) ($validated['status'] ?? '') : '';
 
         $eventsQuery = Event::query()
             ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
             ->when($scopedGroup, fn ($query) => $query->where('study_group_id', (int) $scopedGroup->id))
+            ->when($status === 'scheduled', fn ($query) => $query->where('starts_at', '>', now()))
+            ->when($status === 'ongoing', fn ($query) => $query->where('starts_at', '<=', now())->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>=', now())))
+            ->when($status === 'finished', fn ($query) => $query->where('ends_at', '<', now()))
+            ->when($status === 'unscheduled', fn ($query) => $query->whereNull('starts_at'))
             ->with(['studyGroup:id,uuid,name', 'job:id,name', 'images:id,event_id,path,sort_order'])
             ->withCount(['guides', 'quests']);
 
@@ -81,13 +87,15 @@ class AdminEventController extends Controller
             $studyGroupQuery->where('job_id', $this->requireMentorJobId());
         }
 
-        return Inertia::render('Events/Admin/Index', [
+        return Inertia::render($request->routeIs('redesign.events*') || $request->routeIs('redesign.study-groups.events') ? 'Redesign/AdminDashboard/Events' : 'Events/Admin/Index', [
+            'timezone' => config('app.timezone'),
             'events' => $events,
             'studyGroups' => $studyGroupQuery->get(['id', 'name', 'job_id']),
             'jobRoles' => JobRole::query()->active()->orderBy('name')->get(['id', 'name']),
             'filters' => [
                 'search' => $search,
                 'view' => $view,
+                'status' => $status,
             ],
             'selectedStudyGroup' => $scopedGroup ? [
                 'uuid' => (string) $scopedGroup->uuid,
@@ -96,6 +104,38 @@ class AdminEventController extends Controller
                 'back_url' => route('groups.detail', $scopedGroup->uuid),
                 'events_url' => route('groups.events.index', $scopedGroup->uuid),
             ] : null,
+        ]);
+    }
+
+    public function createRedesign(Request $request, ?string $groupUuid = null): Response
+    {
+        $group = $this->resolveScopedStudyGroup($request, $groupUuid);
+        $this->abortNonSuperAdminGlobalIndex($request, $group);
+        $groups = StudyGroup::query()->orderBy('name');
+        if ($group) $groups->whereKey((int) $group->id);
+
+        return Inertia::render('Redesign/AdminDashboard/EventForm', [
+            'event' => null,
+            'timezone' => config('app.timezone'),
+            'studyGroups' => $groups->get(['id', 'uuid', 'name', 'job_id']),
+            'jobRoles' => JobRole::query()->active()->orderBy('name')->get(['id', 'name']),
+            'selectedStudyGroup' => $group ? ['id' => $group->id, 'uuid' => $group->uuid, 'name' => $group->name] : null,
+        ]);
+    }
+
+    public function editRedesign(Request $request, Event $event): Response
+    {
+        $this->assertMentorCanAccessEvent($event);
+        $event->load(['images:id,event_id,path,sort_order', 'studyGroup:id,uuid,name']);
+        $groups = StudyGroup::query()->orderBy('name');
+        if ($this->isMentorUser()) $groups->whereKey((int) $event->study_group_id);
+
+        return Inertia::render('Redesign/AdminDashboard/EventForm', [
+            'event' => $event,
+            'timezone' => config('app.timezone'),
+            'studyGroups' => $groups->get(['id', 'uuid', 'name', 'job_id']),
+            'jobRoles' => JobRole::query()->active()->orderBy('name')->get(['id', 'name']),
+            'selectedStudyGroup' => null,
         ]);
     }
 
@@ -117,7 +157,9 @@ class AdminEventController extends Controller
         $notifications->notifyEventPublished($event);
         $this->bumpEventCaches();
 
-        return back()->with('message', 'EVENT_CREATED');
+        return $request->boolean('redesign')
+            ? redirect()->route($event->studyGroup ? 'redesign.study-groups.events' : 'redesign.events', $event->studyGroup ? ['groupUuid' => $event->studyGroup->uuid] : [])->with('message', 'EVENT_CREATED')
+            : back()->with('message', 'EVENT_CREATED');
     }
 
     public function update(Request $request, Event $event): RedirectResponse
@@ -164,7 +206,10 @@ class AdminEventController extends Controller
         $this->attachImages($event, $uploadedImages);
         $this->bumpEventCaches();
 
-        return back()->with('message', 'EVENT_UPDATED');
+        $event->refresh()->load('studyGroup');
+        return $request->boolean('redesign')
+            ? redirect()->route($event->studyGroup ? 'redesign.study-groups.events' : 'redesign.events', $event->studyGroup ? ['groupUuid' => $event->studyGroup->uuid] : [])->with('message', 'EVENT_UPDATED')
+            : back()->with('message', 'EVENT_UPDATED');
     }
 
     public function destroy(Event $event): RedirectResponse
@@ -260,10 +305,14 @@ class AdminEventController extends Controller
             ->latest('id')
             ->get(['id', 'uuid', 'title', 'status', 'deadline', 'study_group_id']);
 
-        return Inertia::render('Events/Admin/Detail', [
+        return Inertia::render(request()->routeIs('redesign.events.show') ? 'Redesign/AdminDashboard/EventDetail' : 'Events/Admin/Detail', [
+            'timezone' => config('app.timezone'),
             'event' => $event,
             'availableGuides' => $availableGuides,
             'availableQuests' => $availableQuests,
+            'participantCount' => request()->routeIs('redesign.events.show') && $event->studyGroup
+                ? $event->studyGroup->users()->whereNotIn('users.role', User::staffRoles())->count()
+                : null,
         ]);
     }
 
@@ -280,7 +329,7 @@ class AdminEventController extends Controller
             ->first();
 
         $attendanceUsers = User::query()
-            ->select('users.id', 'users.name', 'users.profile_photo')
+            ->select('users.id', 'users.name', 'users.username', 'users.profile_photo')
             ->whereNotIn('users.role', User::staffRoles())
             ->when($event->study_group_id, function ($query) use ($event) {
                 $query->whereIn('users.id', function ($q) use ($event) {
@@ -297,12 +346,14 @@ class AdminEventController extends Controller
             ->orderBy('users.name')
             ->get()
             ->map(function ($user) use ($event) {
-                $status = $event->attendances->firstWhere('user_id', $user->id)?->status ?? 'pending';
+                $attendance = $event->attendances->firstWhere('user_id', $user->id);
+                $status = $attendance?->status ?? 'pending';
                 $user->attendance_status = $status;
+                $user->checked_at = $attendance?->checked_at?->toISOString();
                 return $user;
             });
 
-        return Inertia::render('Events/Admin/Attendance', [
+        return Inertia::render(request()->routeIs('redesign.events.attendance') ? 'Redesign/AdminDashboard/EventAttendance' : 'Events/Admin/Attendance', [
             'event' => $event,
             'attendanceUsers' => $attendanceUsers,
             'activeCheckInCode' => $activeCheckInCode ? [
@@ -639,7 +690,7 @@ class AdminEventController extends Controller
             'sequence_order' => ['required', 'integer', 'min:1'],
             'study_group_id' => ['nullable', 'exists:study_groups,id'],
             'job_id' => ['nullable', 'exists:job_roles,id'],
-            'starts_at' => ['nullable', 'date'],
+            'starts_at' => ['nullable', 'date', 'required_with:ends_at'],
             'ends_at' => ['nullable', 'date', 'after:starts_at'],
             'self_attendance_enabled' => ['nullable', 'boolean'],
             'images' => ['nullable', 'array'],

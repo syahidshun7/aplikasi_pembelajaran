@@ -20,7 +20,7 @@ class AdminDoopNewsController extends Controller
             'search' => ['nullable', 'string', 'max:120'],
         ]);
 
-        $status = (string) ($validated['status'] ?? 'pending');
+        $status = (string) ($validated['status'] ?? ($request->routeIs('redesign.doopnews') ? 'all' : 'pending'));
         $category = (string) ($validated['category'] ?? 'all');
         $search = trim((string) ($validated['search'] ?? ''));
 
@@ -39,7 +39,7 @@ class AdminDoopNewsController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        return Inertia::render('DoopNews/Admin/Index', [
+        return Inertia::render($request->routeIs('redesign.doopnews') ? 'Redesign/AdminDashboard/DoopNews' : 'DoopNews/Admin/Index', [
             'posts' => $posts,
             'filters' => [
                 'status' => $status,
@@ -48,6 +48,20 @@ class AdminDoopNewsController extends Controller
             ],
             'categories' => DoopNewsPost::categories(),
             'statuses' => DoopNewsPost::statuses(),
+        ]);
+    }
+
+    public function createRedesign(): Response
+    {
+        return Inertia::render('Redesign/AdminDashboard/DoopNewsForm', [
+            'post' => null, 'categories' => DoopNewsPost::categories(),
+        ]);
+    }
+
+    public function editRedesign(DoopNewsPost $post): Response
+    {
+        return Inertia::render('Redesign/AdminDashboard/DoopNewsForm', [
+            'post' => $post, 'categories' => DoopNewsPost::categories(),
         ]);
     }
 

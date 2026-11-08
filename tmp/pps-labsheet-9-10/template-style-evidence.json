@@ -1,0 +1,153 @@
+{
+  "input": "D:\\STIMIK_WICIDA\\Praktikum PPS\\2443908_Syahid Hussein_Labsheet 5 PPS.docx",
+  "fonts_by_char_count": {},
+  "direct_run_formatting_runs": 46,
+  "direct_paragraph_formatting_paragraphs": 74,
+  "heading_like_paragraphs_not_heading_style": [
+    {
+      "para_index": 1,
+      "text": "LAPORAN AKHIR PRAKTIKUM",
+      "style": "Body Text"
+    },
+    {
+      "para_index": 2,
+      "text": "PEMROGRAMAN PERANGKAT SELULER",
+      "style": "Normal"
+    },
+    {
+      "para_index": 3,
+      "text": "PERTEMUAN KE- Labsheet 5 (PPS)",
+      "style": "Normal"
+    },
+    {
+      "para_index": 15,
+      "text": "DAFTAR ISI",
+      "style": "Body Text"
+    },
+    {
+      "para_index": 21,
+      "text": "1. LinearLayout",
+      "style": "Normal"
+    },
+    {
+      "para_index": 23,
+      "text": "2. RelativeLayout",
+      "style": "Normal"
+    },
+    {
+      "para_index": 25,
+      "text": "3. ConstraintLayout",
+      "style": "Normal"
+    },
+    {
+      "para_index": 39,
+      "text": "3.1. Struktur Folder Layout di Android Studio",
+      "style": "Normal"
+    },
+    {
+      "para_index": 43,
+      "text": "3.2. Konversi LinearLayout ke RelativeLayout",
+      "style": "Normal"
+    },
+    {
+      "para_index": 47,
+      "text": "3.3. Pengaturan Posisi Button pada RelativeLayout",
+      "style": "Normal"
+    },
+    {
+      "para_index": 51,
+      "text": "3.4. Konversi Layout ke ConstraintLayout",
+      "style": "Normal"
+    },
+    {
+      "para_index": 55,
+      "text": "3.5. Fitur dan Atribut Utama ConstraintLayout",
+      "style": "Normal"
+    },
+    {
+      "para_index": 61,
+      "text": "4.1. Struktur Folder Layout di Android Studio",
+      "style": "Normal"
+    },
+    {
+      "para_index": 65,
+      "text": "4.2. Konversi LinearLayout ke RelativeLayout",
+      "style": "Normal"
+    },
+    {
+      "para_index": 69,
+      "text": "4.3. Pengaturan Posisi Button pada RelativeLayout",
+      "style": "Normal"
+    },
+    {
+      "para_index": 73,
+      "text": "4.4. Konversi Layout ke ConstraintLayout",
+      "style": "Normal"
+    },
+    {
+      "para_index": 77,
+      "text": "4.5. Fitur dan Atribut Utama ConstraintLayout",
+      "style": "Normal"
+    }
+  ],
+  "examples": {
+    "direct_run_formatting": [
+      {
+        "para_index": 1,
+        "run_text": "LAPORAN",
+        "style": "Body Text"
+      },
+      {
+        "para_index": 1,
+        "run_text": " ",
+        "style": "Body Text"
+      },
+      {
+        "para_index": 1,
+        "run_text": "AKHIR ",
+        "style": "Body Text"
+      },
+      {
+        "para_index": 1,
+        "run_text": "PRAKTIKUM",
+        "style": "Body Text"
+      },
+      {
+        "para_index": 2,
+        "run_text": "PEMROGRAMAN PERANGKAT SELULER",
+        "style": "Normal"
+      }
+    ],
+    "direct_paragraph_formatting": [
+      {
+        "para_index": 6,
+        "text": "Nim\t\t\t: 2443908",
+        "style": "Normal"
+      },
+      {
+        "para_index": 7,
+        "text": "Nama Mahasiswa \t: Syahid Hussein",
+        "style": "Normal"
+      },
+      {
+        "para_index": 8,
+        "text": "Kelas/ Kelompok \t: TI/MA/1",
+        "style": "Normal"
+      },
+      {
+        "para_index": 9,
+        "text": "",
+        "style": "Normal"
+      },
+      {
+        "para_index": 10,
+        "text": "",
+        "style": "Normal"
+      }
+    ]
+  },
+  "notes": [
+    "Direct formatting is not always wrong, but it often causes inconsistent output when templates change.",
+    "Heading-like paragraphs not using Heading styles can break TOC and accessibility."
+  ]
+}

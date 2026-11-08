@@ -141,7 +141,7 @@ class AdminSubmissionController extends Controller
         $rubricPayload = $rubric ? $this->buildRubricEvaluationPayload($rubric) : null;
         $rubricSource = $rubric ? 'quest' : null;
 
-        return Inertia::render('Quests/Admin/Inspect', [
+        return Inertia::render(request()->routeIs('redesign.submissions.inspect') ? 'Redesign/AdminDashboard/SubmissionInspect' : 'Quests/Admin/Inspect', [
             'submission' => $submission,
             'rubric' => $rubricPayload,
             'rubricSource' => $rubricSource,

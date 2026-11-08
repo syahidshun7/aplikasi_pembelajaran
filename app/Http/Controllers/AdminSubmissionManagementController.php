@@ -74,7 +74,7 @@ class AdminSubmissionManagementController extends Controller
 
         $submissions = $query->paginate(20)->withQueryString();
 
-        return Inertia::render('Submissions/Admin/Index', [
+        return Inertia::render($request->routeIs('redesign.submissions') ? 'Redesign/AdminDashboard/SubmissionManagement' : 'Submissions/Admin/Index', [
             'submissions' => $submissions,
             'filters' => [
                 'search' => $search,
@@ -82,6 +82,13 @@ class AdminSubmissionManagementController extends Controller
                 'duplicates' => $duplicates,
                 'view' => $view,
             ],
+        ]);
+    }
+
+    public function editRedesign(Submission $submission): Response
+    {
+        return Inertia::render('Redesign/AdminDashboard/SubmissionEdit', [
+            'submission' => $submission->load(['user:id,name,username', 'quest:id,title,uuid']),
         ]);
     }
 
@@ -124,7 +131,9 @@ class AdminSubmissionManagementController extends Controller
 
         CacheVersion::bump('dashboard');
 
-        return back()->with('message', 'SUBMISSION_UPDATED');
+        return $request->boolean('redesign_form')
+            ? redirect()->route('redesign.submissions')->with('message', 'SUBMISSION_UPDATED')
+            : back()->with('message', 'SUBMISSION_UPDATED');
     }
 
     public function destroy(Submission $submission): RedirectResponse

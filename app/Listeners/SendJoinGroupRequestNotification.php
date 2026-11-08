@@ -23,6 +23,7 @@ class SendJoinGroupRequestNotification
 
         $groupAdminRecipients = $group->users()
             ->wherePivotIn('role', ['leader', 'admin'])
+            ->whereNotIn('users.role', User::staffRoles())
             ->where('users.id', '!=', (int) $joinRequest->user_id)
             ->select('users.id', 'users.name', 'users.username', 'users.email')
             ->get();

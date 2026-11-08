@@ -265,16 +265,19 @@ class QuestController extends Controller
             'search' => ['nullable', 'string', 'max:255'],
             'view' => ['nullable', 'in:active,trash'],
             'quest_type' => ['nullable', 'in:all,main,optional'],
+            'status' => ['nullable', 'in:Available,In-Progress,Done'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
         $view = (string) ($validated['view'] ?? 'active');
         $questType = (string) ($validated['quest_type'] ?? 'all');
+        $status = $request->routeIs('redesign.quests*') || $request->routeIs('redesign.study-groups.quests') ? (string) ($validated['status'] ?? '') : '';
 
         $adminQuestQuery = Quest::query()
             ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
             ->when($scopedGroup, fn ($query) => $query->where('study_group_id', (int) $scopedGroup->id))
             ->when($questType !== 'all', fn ($query) => $query->where('quest_type', $questType))
+            ->when($status !== '', fn ($query) => $query->where('status', $status))
             ->with([
                 'studyGroup' => function ($query) {
                     $query->withTrashed();
@@ -324,7 +327,8 @@ class QuestController extends Controller
             $rubricsQuery->where('mentor_id', (int) $request->user()?->id);
         }
 
-        return Inertia::render('Quests/Index', [
+        return Inertia::render($request->routeIs('redesign.quests*') || $request->routeIs('redesign.study-groups.quests') ? 'Redesign/AdminDashboard/Quests' : 'Quests/Index', [
+            'timezone' => config('app.timezone'),
             'quests' => $adminQuestQuery
                 ->when($search !== '', function ($query) use ($search) {
                     $query->where(function ($q) use ($search) {
@@ -353,6 +357,7 @@ class QuestController extends Controller
                 'search' => $search,
                 'view' => $view,
                 'quest_type' => $questType,
+                'status' => $status,
             ],
             'selectedStudyGroup' => $scopedGroup ? [
                 'uuid' => (string) $scopedGroup->uuid,
@@ -361,6 +366,96 @@ class QuestController extends Controller
                 'back_url' => route('groups.detail', $scopedGroup->uuid),
                 'quests_url' => route('groups.quests.index', $scopedGroup->uuid),
             ] : null,
+        ]);
+    }
+
+    public function createRedesign(Request $request, ?string $groupUuid = null)
+    {
+        return $this->renderRedesignForm($request, $groupUuid);
+    }
+
+    public function generateAiRedesign(Request $request, ?string $groupUuid = null)
+    {
+        $scopedGroup = $this->resolveScopedStudyGroup($request, $groupUuid);
+        $this->abortNonSuperAdminGlobalIndex($request, $scopedGroup);
+
+        $studyGroups = StudyGroup::query()->with('job:id,name')->select('id', 'uuid', 'name', 'job_id');
+        if ($scopedGroup) {
+            $studyGroups->whereKey($scopedGroup->id);
+        } elseif ($this->isMentorUser()) {
+            $studyGroups->where('job_id', $this->requireMentorJobId());
+        }
+
+        return Inertia::render('Redesign/AdminDashboard/QuestAiGenerator', [
+            'selectedStudyGroup' => $scopedGroup ? [
+                'id' => (int) $scopedGroup->id,
+                'uuid' => (string) $scopedGroup->uuid,
+                'name' => (string) $scopedGroup->name,
+                'job_id' => (int) $scopedGroup->job_id,
+            ] : null,
+            'studyGroups' => $studyGroups->orderBy('name')->get(),
+            'jobRoles' => JobRole::query()->active()
+                ->when($this->isMentorUser(), fn ($query) => $query->whereKey($this->requireMentorJobId()))
+                ->orderBy('name')->get(['id', 'name']),
+            'timezone' => config('app.timezone'),
+        ]);
+    }
+
+    public function editRedesign(Request $request, string $questUuid)
+    {
+        return $this->renderRedesignForm($request, null, $questUuid);
+    }
+
+    public function editScopedRedesign(Request $request, string $groupUuid, string $questUuid)
+    {
+        return $this->renderRedesignForm($request, $groupUuid, $questUuid);
+    }
+
+    private function renderRedesignForm(Request $request, ?string $groupUuid, ?string $questUuid = null)
+    {
+        $scopedGroup = $this->resolveScopedStudyGroup($request, $groupUuid);
+        $this->abortNonSuperAdminGlobalIndex($request, $scopedGroup);
+
+        $quest = null;
+        if ($questUuid !== null) {
+            $quest = Quest::query()->where('uuid', $questUuid)->firstOrFail();
+            $this->assertMentorCanManageQuest($quest);
+            abort_if($scopedGroup && (int) $quest->study_group_id !== (int) $scopedGroup->id, 404);
+            $quest->loadMissing(['studyGroup:id,uuid,name,job_id', 'taskBank:id,uuid,name,job_role_id']);
+        }
+
+        $studyGroups = StudyGroup::query()->with('job:id,name')->select('id', 'uuid', 'name', 'job_id');
+        if ($scopedGroup) {
+            $studyGroups->whereKey($scopedGroup->id);
+        } elseif ($this->isMentorUser()) {
+            $studyGroups->where('job_id', $this->requireMentorJobId());
+        }
+
+        $taskBanks = TaskBank::query()->with('jobRole:id,name')
+            ->where(fn ($query) => $query->where('is_active', true)->when($quest?->task_bank_id, fn ($query) => $query->orWhere('id', $quest->task_bank_id)))
+            ->orderBy('name');
+        if ($this->isMentorUser()) {
+            $taskBanks->where('job_role_id', $this->requireMentorJobId());
+        }
+
+        $rubrics = Rubric::query()->orderBy('title');
+        if ($this->isMentorUser()) {
+            $rubrics->where('mentor_id', (int) $request->user()?->id);
+        }
+
+        return Inertia::render('Redesign/AdminDashboard/QuestForm', [
+            'quest' => $quest,
+            'timezone' => config('app.timezone'),
+            'selectedStudyGroup' => $scopedGroup ? [
+                'id' => (int) $scopedGroup->id,
+                'uuid' => (string) $scopedGroup->uuid,
+                'name' => (string) $scopedGroup->name,
+                'job_id' => (int) $scopedGroup->job_id,
+            ] : null,
+            'studyGroups' => $studyGroups->orderBy('name')->get(),
+            'taskBanks' => $taskBanks->get(['id', 'uuid', 'name', 'assessment_type', 'job_role_id', 'is_active']),
+            'jobRoles' => JobRole::query()->active()->orderBy('name')->get(['id', 'name']),
+            'rubrics' => $rubrics->get(['id', 'title']),
         ]);
     }
 
@@ -384,7 +479,11 @@ class QuestController extends Controller
             'schedule_type' => 'nullable|in:manual,once',
             'available_from' => 'nullable|date|required_if:schedule_type,once',
             'available_until' => 'nullable|date|after:available_from',
+            'redesign_scope' => 'nullable|uuid|exists:study_groups,uuid',
         ]);
+
+        $redesignScope = $validated['redesign_scope'] ?? null;
+        unset($validated['redesign_scope']);
 
         $validated = $this->normalizeQuestSchedulePayload($validated);
 
@@ -418,6 +517,13 @@ class QuestController extends Controller
         Quest::create($validated);
         $this->bumpQuestCaches();
 
+        if ($request->boolean('redesign_form')) {
+            if ($redesignScope) {
+                $this->resolveScopedStudyGroup($request, $redesignScope);
+            }
+            return redirect()->route($redesignScope ? 'redesign.study-groups.quests' : 'redesign.quests', $redesignScope ? ['groupUuid' => $redesignScope] : [])->with('message', 'Quest berhasil dibuat.');
+        }
+
         return redirect()->back()->with('message', 'NEW_QUEST_DEPLOYED_SUCCESSFULLY');
     }
 
@@ -444,7 +550,11 @@ class QuestController extends Controller
             'schedule_type' => 'nullable|in:manual,once',
             'available_from' => 'nullable|date|required_if:schedule_type,once',
             'available_until' => 'nullable|date|after:available_from',
+            'redesign_scope' => 'nullable|uuid|exists:study_groups,uuid',
         ]);
+
+        $redesignScope = $validated['redesign_scope'] ?? null;
+        unset($validated['redesign_scope']);
 
         $validated = $this->normalizeQuestSchedulePayload($validated);
 
@@ -477,6 +587,13 @@ class QuestController extends Controller
 
         $quest->update($validated);
         $this->bumpQuestCaches();
+
+        if ($request->boolean('redesign_form')) {
+            if ($redesignScope) {
+                $this->resolveScopedStudyGroup($request, $redesignScope);
+            }
+            return redirect()->route($redesignScope ? 'redesign.study-groups.quests' : 'redesign.quests', $redesignScope ? ['groupUuid' => $redesignScope] : [])->with('message', 'Quest berhasil diperbarui.');
+        }
 
         return redirect()->back()->with('message', 'QUEST_CONTRACT_SYNCHRONIZED');
     }

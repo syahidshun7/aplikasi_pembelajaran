@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Guide;
+use App\Models\Creation;
+use App\Models\StudyGroupJoinRequest;
 use App\Models\Event;
 use App\Models\ErrorLog;
 use App\Models\JobRole;
@@ -14,6 +16,7 @@ use App\Services\LevelingService;
 use App\Services\StudyGroupStaffAccessService;
 use App\Support\Cache\CacheVersion;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -21,7 +24,7 @@ use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
-    public function index(StudyGroupStaffAccessService $studyGroupAccess)
+    public function index(StudyGroupStaffAccessService $studyGroupAccess, Request $request)
     {
         $authUser = auth()->user();
         $isMentor = (bool) $authUser?->isMentor();
@@ -425,12 +428,28 @@ class DashboardController extends Controller
                 ->values()
             : collect();
 
-        return Inertia::render('Dashboard', [
+        $useRedesign = $request->boolean('redesign') || $request->routeIs('dashboard.redesign');
+        $standaloneRedesign = $request->routeIs('redesign.admin-dashboard', 'redesign.class-dashboard');
+        $classRedesign = $request->routeIs('redesign.class-dashboard');
+
+        $redesignAttention = $standaloneRedesign ? [
+            'pending_join_requests' => StudyGroupJoinRequest::query()
+                ->where('status', 'pending')
+                ->whereHas('studyGroup', fn ($query) => $studyGroupAccess->scopeAccessibleGroups($query, $authUser))
+                ->count(),
+            'pending_creations' => Creation::query()
+                ->where('is_open_for_review', true)
+                ->where('review_status', 'pending')
+                ->count(),
+        ] : null;
+
+        return Inertia::render($classRedesign ? 'Redesign/AdminDashboard/ClassDashboard' : ($standaloneRedesign ? 'Redesign/AdminDashboard/Dashboard' : ($useRedesign ? 'DashboardRedesign' : 'Dashboard')), [
             'stats' => $stats,
             'students' => $students,
             'helpUsers' => $helpUsers,
             'accessibleGroups' => $accessibleGroups,
             'jobCommandItems' => $jobCommandItems,
+            'redesignAttention' => $redesignAttention,
             'scope' => [
                 'role' => (string) ($authUser?->role ?? ''),
                 'job_id' => $isMentor ? $mentorJobId : null,
