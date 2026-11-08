@@ -26,6 +26,11 @@ it('reports real submission and participant counts on the admin redesign dashboa
         'user_id' => $participant->id, 'shop_item_id' => $item->id,
         'type' => 'consume_unlock', 'quantity' => 1, 'gold_change' => 0,
     ]);
+    ShopTransaction::query()->create([
+        'user_id' => $participant->id, 'shop_item_id' => $item->id,
+        'type' => 'purchase', 'quantity' => 1, 'gold_change' => -100,
+        'meta' => ['admin_cancelled_at' => now()->toDateTimeString(), 'refund_gold' => 100],
+    ]);
     $quest = Quest::query()->create([
         'title' => 'Dashboard insight test',
         'difficulty' => 'C-Rank',
@@ -56,8 +61,8 @@ it('reports real submission and participant counts on the admin redesign dashboa
             ->where('dashboardInsights.statuses.approved', 1)
             ->where('stats.avg_grade_30d', 84)
             ->where('shopOverview.gold_in_circulation', 750)
-            ->where('shopOverview.total_transactions', 2)
-            ->where('shopOverview.recent_transactions.0.type', 'consume_unlock')
-            ->where('shopOverview.recent_transactions.1.item_name', 'Tiket ulang')
+            ->where('shopOverview.shop_gold_earned', 250)
+            ->where('shopOverview.recent_transactions.0.cancelled', true)
+            ->where('shopOverview.recent_transactions.1.type', 'consume_unlock')
             ->etc());
 });

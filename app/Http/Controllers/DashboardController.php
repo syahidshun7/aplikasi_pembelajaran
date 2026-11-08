@@ -502,13 +502,16 @@ class DashboardController extends Controller
 
         $shopOverview = $standaloneRedesign && ! $classRedesign
             ? Cache::remember(
-                'dashboard.shop-overview.v1.shop-'.CacheVersion::get('shop'),
+                'dashboard.shop-overview.v2.shop-'.CacheVersion::get('shop'),
                 now()->addMinute(),
                 fn () => [
                     'gold_in_circulation' => (int) User::query()
                         ->whereNotIn('role', User::staffRoles())
                         ->sum('gold'),
-                    'total_transactions' => (int) ShopTransaction::query()->count(),
+                    'shop_gold_earned' => (int) ShopTransaction::query()
+                        ->where('type', 'purchase')
+                        ->whereNull('meta->admin_cancelled_at')
+                        ->sum(DB::raw('ABS(gold_change)')),
                     'recent_transactions' => ShopTransaction::query()
                         ->with(['user:id,name,username', 'item:id,name,code'])
                         ->latest('id')
