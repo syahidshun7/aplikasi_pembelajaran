@@ -97,3 +97,38 @@ test('optional quest theme preview returns friendly rate limit response when gem
     $response->assertJsonPath('status', 'error');
     $response->assertJsonPath('code', 'AI_PROVIDER_RATE_LIMITED');
 });
+
+test('theme generator uses main quest context when main is selected', function () {
+    config()->set('services.ai.primary', 'gemini');
+    config()->set('services.ai.fallback', 'ollama');
+    config()->set('services.ai.gemini.api_key', 'test-key');
+    config()->set('services.ai.gemini.base_url', 'https://gemini.test/v1');
+
+    Http::fake([
+        'https://gemini.test/*' => Http::response([
+            'choices' => [[
+                'message' => [
+                    'content' => json_encode([
+                        'quest' => ['title' => 'Routing Challenge', 'description' => 'Bangun route CRUD.', 'difficulty' => 'C-Rank'],
+                        'task_bank' => ['name' => 'Routing', 'assessment_type' => 'essay'],
+                        'questions' => [['question_text' => 'Jelaskan routing.', 'question_type' => 'essay', 'weight' => 1]],
+                    ]),
+                ],
+            ]],
+        ]),
+    ]);
+
+    $admin = User::factory()->create(['role' => User::ROLE_ADMIN, 'email_verified_at' => now()]);
+
+    $this->actingAs($admin)->postJson(route('admin.quests.optional.theme-preview'), [
+        'theme' => 'Laravel routing',
+        'question_type' => 'essay',
+        'question_count' => 3,
+        'difficulty' => 'C-Rank',
+        'quest_type' => 'main',
+    ])->assertOk()->assertJsonPath('bundle.quest.title', 'Routing Challenge');
+
+    Http::assertSent(fn ($request) => str_contains($request->body(), 'quest_type')
+        && str_contains($request->body(), 'main')
+        && str_contains($request->body(), 'quest pembelajaran'));
+});

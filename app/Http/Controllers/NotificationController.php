@@ -13,14 +13,21 @@ class NotificationController extends Controller
 {
     public function index(Request $request): Response
     {
-        $notifications = $request->user()
-            ->notifications()
+        $query = $request->user()->notifications();
+        if ($request->routeIs('redesign.notifications')) {
+            $filter = $request->validate(['filter' => ['nullable', 'in:all,unread,quest,class,system']])['filter'] ?? 'all';
+            if ($filter === 'unread') $query->whereNull('read_at');
+            if (in_array($filter, ['quest', 'class', 'system'], true)) $query->where('data->category', $filter);
+        }
+        $notifications = $query
             ->latest()
             ->paginate(20)
             ->withQueryString();
 
-        return Inertia::render('Notifications/Index', [
+        return Inertia::render($request->routeIs('redesign.notifications') ? 'Redesign/AdminDashboard/Notifications' : 'Notifications/Index', [
             'notifications' => NotificationPresenter::paginate($notifications),
+            'unreadCount' => $request->user()->unreadNotifications()->count(),
+            'filter' => $filter ?? 'all',
         ]);
     }
 

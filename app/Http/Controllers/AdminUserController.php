@@ -183,7 +183,7 @@ class AdminUserController extends Controller
             $users->setCollection($pageUsers);
         }
 
-        return Inertia::render('Users/Admin/Index', [
+        return Inertia::render($request->routeIs('redesign.users') ? 'Redesign/AdminDashboard/Users' : 'Users/Admin/Index', [
             'users' => $users,
             'availableRoles' => User::assignableRoles(),
             'jobRoles' => JobRole::query()
@@ -197,6 +197,15 @@ class AdminUserController extends Controller
                 'grade_order' => $gradeOrder,
                 'view' => $view,
             ],
+        ]);
+    }
+
+    public function editRedesign(User $user): Response
+    {
+        return Inertia::render('Redesign/AdminDashboard/UserForm', [
+            'user' => $user->load(['detailUser', 'job']),
+            'availableRoles' => User::assignableRoles(),
+            'jobRoles' => JobRole::query()->active()->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -311,7 +320,7 @@ class AdminUserController extends Controller
             ]
         );
 
-        return Inertia::render('Users/Admin/Ledger', [
+        return Inertia::render($request->routeIs('redesign.users.ledger') ? 'Redesign/AdminDashboard/UserLedger' : 'Users/Admin/Ledger', [
             'user' => [
                 'id' => (int) $user->id,
                 'name' => (string) ($user->name ?? ''),

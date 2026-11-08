@@ -3,6 +3,7 @@ export const resolveNotificationActionUrl = (
     {
         isStaff = false,
         isAdmin = false,
+        preferRedesign = false,
         routeFn = route,
         currentUrl = '',
     } = {},
@@ -13,6 +14,28 @@ export const resolveNotificationActionUrl = (
     const resource = notification?.resource || {};
     const meta = notification?.meta || {};
     const notificationIndexUrl = routeFn('notifications.index');
+
+    if (preferRedesign && isStaff) {
+        const redesignIndex = routeFn('redesign.notifications');
+        if (category === 'assignment' && event === 'submitted' && resource?.uuid) {
+            return routeFn('redesign.submissions.inspect', { submission: resource.uuid });
+        }
+        if (category === 'study_group' && resource?.study_group_uuid) {
+            return isAdmin
+                ? routeFn('redesign.study-groups.membership', { uuid: resource.study_group_uuid })
+                : routeFn('redesign.study-groups');
+        }
+        if (category === 'event' && resource?.uuid) {
+            return routeFn('redesign.events.show', { event: resource.uuid });
+        }
+        if (category === 'creation' && event === 'review_assigned' && resource?.id) {
+            return routeFn('redesign.creations.review', { creation: resource.id });
+        }
+        if (category === 'announcement') {
+            return routeFn(isAdmin ? 'redesign.admin-dashboard' : 'redesign.class-dashboard');
+        }
+        return redesignIndex;
+    }
 
     if (category === 'grade' && resource?.uuid) {
         return routeFn('submissions.show', { submission: resource.uuid });

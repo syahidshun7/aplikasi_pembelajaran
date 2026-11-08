@@ -1,0 +1,14 @@
+<script setup>
+import { Link,useForm } from '@inertiajs/vue3';
+import { ref, onUnmounted } from 'vue';
+import AssessmentLayout from './AssessmentLayout.vue';
+const props=defineProps({item:Object});
+const form=useForm({code:props.item?.code||'',name:props.item?.name||'',description:props.item?.description||'',price_gold:props.item?.price_gold||0,is_active:props.item?.is_active??true,icon:null});
+const imagePreview=ref(props.item?.icon_path ? '/storage/'+props.item.icon_path : null);
+let objectUrl=null;
+const chooseImage=event=>{ const file=event.target.files?.[0]||null; form.icon=file; if(objectUrl) URL.revokeObjectURL(objectUrl); objectUrl=file ? URL.createObjectURL(file) : null; imagePreview.value=objectUrl||(props.item?.icon_path ? '/storage/'+props.item.icon_path : null); };
+onUnmounted(()=>{ if(objectUrl) URL.revokeObjectURL(objectUrl); });
+const save=()=>form.transform(data=>props.item?{...data,_method:'put'}:data).post(props.item?route('admin.shop-items.update',props.item.id):route('admin.shop-items.store'),{forceFormData:true});
+</script>
+<template><AssessmentLayout :title="item?'Edit shop item':'Tambah shop item'" subtitle="Atur identitas, harga, dan ketersediaan item." breadcrumb="Komunitas & pengguna"><div class="layout"><form class="panel" @submit.prevent="save"><div class="fields"><label>Kode item<input v-model="form.code" required maxlength="64" /><span class="error">{{ form.errors.code }}</span></label><label>Nama item<input v-model="form.name" required /><span class="error">{{ form.errors.name }}</span></label><label class="wide">Deskripsi<textarea v-model="form.description" rows="5" /></label><label>Harga gold<input v-model.number="form.price_gold" type="number" min="0" required /></label><label>Status<select v-model="form.is_active"><option :value="true">Aktif</option><option :value="false">Nonaktif</option></select></label><label class="wide">Gambar item<input type="file" accept="image/png,image/jpeg,image/webp" @change="chooseImage" /><span class="error">{{ form.errors.icon }}</span></label></div><div class="actions"><button class="primary" :disabled="form.processing">Simpan item</button><Link class="secondary" :href="route('redesign.shop-items')">Kembali</Link></div></form><aside><div class="panel"><h2>Pratinjau item</h2><img v-if="imagePreview" :src="imagePreview" :alt="`Pratinjau ${form.name || 'item'}`" style="width:110px;height:110px;object-fit:cover;border-radius:8px" /><div v-else class="image-placeholder">Belum ada gambar</div><p><strong>{{ form.name || 'Nama item' }}</strong><br><span class="muted">{{ form.price_gold }} gold</span></p></div></aside></div></AssessmentLayout></template>
+<style scoped>.image-placeholder{width:110px;height:110px;display:grid;place-items:center;border:1px dashed #b8cbce;border-radius:8px;background:#f3f7f7;color:#70858c;font-size:11px;text-align:center}</style>

@@ -88,6 +88,7 @@ class AdminCreationReviewController extends Controller
             ->withQueryString()
             ->through(fn (Creation $creation) => [
                 'id' => (int) $creation->id,
+                'slug' => (string) $creation->slug,
                 'title' => (string) $creation->title,
                 'category' => (string) ($creation->category ?? ''),
                 'status' => (string) ($creation->status ?? 'crafting'),
@@ -124,7 +125,7 @@ class AdminCreationReviewController extends Controller
                 ] : null,
             ]);
 
-        return Inertia::render('Creations/Admin/Index', [
+        return Inertia::render($request->routeIs('redesign.creations.queue') ? 'Redesign/AdminDashboard/CreationReviewQueue' : 'Creations/Admin/Index', [
             'creations' => $creations,
             'filters' => [
                 'search' => $search,
@@ -166,7 +167,7 @@ class AdminCreationReviewController extends Controller
 
         $isAdmin = $this->isAdminUser($user);
 
-        return Inertia::render('Creations/Admin/Preview', [
+        return Inertia::render($request->routeIs('redesign.creations.review') ? 'Redesign/AdminDashboard/CreationReview' : 'Creations/Admin/Preview', [
             'creation' => $this->serializeCreation($creation),
             'finalReview' => $officialReview ? $this->serializeReview($officialReview) : null,
             'peerReviews' => $creation->peerReviews
@@ -526,6 +527,7 @@ class AdminCreationReviewController extends Controller
     {
         return [
             'id' => (int) $creation->id,
+            'slug' => (string) $creation->slug,
             'title' => (string) $creation->title,
             'description' => (string) $creation->description,
             'content' => (string) ($creation->content ?? ''),

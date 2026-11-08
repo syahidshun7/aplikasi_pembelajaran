@@ -32,6 +32,7 @@ class RubricController extends Controller
 
         $query = Rubric::query()
             ->with('mentor:id,name')
+            ->withCount(['criteria', 'levels'])
             ->when($user?->isMentor(), fn ($q) => $q->where('mentor_id', $user->id))
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($qq) use ($search) {
@@ -41,7 +42,7 @@ class RubricController extends Controller
             })
             ->orderByDesc('created_at');
 
-        return Inertia::render('Rubric/Index', [
+        return Inertia::render($request->routeIs('redesign.rubrics') ? 'Redesign/AdminDashboard/RubricManagement' : 'Rubric/Index', [
             'rubrics' => $query->paginate(10)->withQueryString(),
             'filters' => [
                 'search' => $search,
@@ -65,7 +66,7 @@ class RubricController extends Controller
     {
         $this->authorize('create', Rubric::class);
 
-        return Inertia::render('Rubric/Create');
+        return Inertia::render(request()->routeIs('redesign.rubrics.create') ? 'Redesign/AdminDashboard/RubricCreate' : 'Rubric/Create');
     }
 
     public function store(StoreRubricRequest $request): RedirectResponse
@@ -101,21 +102,21 @@ class RubricController extends Controller
             return $rubric;
         });
 
-        return redirect()->route('admin.rubrics.edit', $rubric)->with('message', 'RUBRIC_CREATED');
+        return redirect()->route($request->boolean('redesign_form') ? 'redesign.rubrics.edit' : 'admin.rubrics.edit', $rubric)->with('message', 'RUBRIC_CREATED');
     }
 
     public function show(Rubric $rubric): Response
     {
         $this->authorize('view', $rubric);
 
-        return Inertia::render('Rubric/Show', $this->buildRubricPayload($rubric));
+        return Inertia::render(request()->routeIs('redesign.rubrics.show') ? 'Redesign/AdminDashboard/RubricPreview' : 'Rubric/Show', $this->buildRubricPayload($rubric));
     }
 
     public function edit(Rubric $rubric): Response
     {
         $this->authorize('update', $rubric);
 
-        return Inertia::render('Rubric/Edit', $this->buildRubricPayload($rubric));
+        return Inertia::render(request()->routeIs('redesign.rubrics.edit') ? 'Redesign/AdminDashboard/RubricEditor' : 'Rubric/Edit', $this->buildRubricPayload($rubric));
     }
 
     public function update(UpdateRubricRequest $request, Rubric $rubric): RedirectResponse

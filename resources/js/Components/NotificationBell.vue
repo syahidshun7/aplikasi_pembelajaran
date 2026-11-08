@@ -53,6 +53,7 @@ const badgeLabel = computed(() => {
 });
 
 const buttonClass = computed(() => {
+    if (props.variant === 'redesign') return 'redesign-bell-button';
     if (props.variant === 'admin') {
         return 'nav-item relative inline-flex items-center gap-2 border border-slate-600 px-3 py-1 hover:border-cyan-400 hover:text-cyan-300';
     }
@@ -61,6 +62,7 @@ const buttonClass = computed(() => {
 });
 
 const badgeClass = computed(() => {
+    if (props.variant === 'redesign') return 'redesign-bell-badge';
     if (props.variant === 'admin') {
         return 'absolute -top-2 -right-2 min-w-[18px] rounded-full border border-cyan-200 bg-cyan-400 px-1 py-[1px] text-center text-[8px] font-bold text-black';
     }
@@ -69,6 +71,7 @@ const badgeClass = computed(() => {
 });
 
 const dropdownClass = computed(() => {
+    if (props.variant === 'redesign') return 'redesign-bell-dropdown';
     return props.variant === 'admin'
         ? 'absolute right-0 mt-2 w-[min(92vw,360px)] border-2 border-slate-700 bg-[#0f101a] shadow-xl z-[160] p-2'
         : 'absolute right-0 mt-2 w-[min(92vw,360px)] border-2 border-[#3d415f] bg-[#10131c]/95 shadow-2xl z-[160] p-2';
@@ -85,6 +88,7 @@ const accentClass = (accent) => {
 
 const toggleDropdown = () => {
     dropdownOpen.value = !dropdownOpen.value;
+    if (dropdownOpen.value) refreshSummary().catch(() => {});
 };
 
 const closeDropdown = () => {
@@ -112,6 +116,7 @@ const resolvedActionUrl = (notification) => {
     return resolveNotificationActionUrl(notification, {
         isStaff: ['super_admin', 'admin', 'mentor'].includes(currentRole),
         isAdmin: ['super_admin', 'admin'].includes(currentRole),
+        preferRedesign: props.variant === 'redesign',
         routeFn: route,
         currentUrl: page.url,
     });
@@ -206,15 +211,20 @@ onBeforeUnmount(() => {
 <template>
     <div
         ref="bellRoot"
-        :class="variant === 'admin' ? 'relative' : 'relative z-20'"
+        :class="variant === 'redesign' ? 'redesign-bell' : variant === 'admin' ? 'relative' : 'relative z-20'"
     >
         <button type="button" :class="buttonClass" @click="toggleDropdown">
             <i class="fi fi-rr-bell text-[10px] leading-none"></i>
-            <span v-if="variant === 'admin'">NOTIFS</span>
+            <span v-if="variant === 'admin'">NOTIFS</span><span v-if="variant === 'redesign'">Notifikasi</span>
             <span v-if="badgeLabel" :class="badgeClass">{{ badgeLabel }}</span>
         </button>
 
-        <div v-if="dropdownOpen" :class="dropdownClass">
+        <div v-if="dropdownOpen && variant === 'redesign'" :class="dropdownClass">
+            <div class="redesign-bell-head"><strong>Notifikasi</strong><button v-if="unreadCount" type="button" @click="markAllAsRead">Tandai semua dibaca</button></div>
+            <div class="redesign-bell-list"><button v-for="notification in items" :key="notification.id" type="button" class="redesign-bell-item" :class="{ unread: !notification.read_at }" @click="openNotification(notification)"><strong>{{ notification.title }}</strong><span>{{ notification.message }}</span><small>{{ formatTime(notification.created_at) }}</small></button><p v-if="!items.length" class="redesign-bell-empty">Belum ada notifikasi.</p></div>
+            <Link class="redesign-bell-history" :href="route('redesign.notifications')" @click="closeDropdown">Lihat semua notifikasi →</Link>
+        </div>
+        <div v-else-if="dropdownOpen" :class="dropdownClass">
             <div class="mb-2 flex items-center justify-between gap-3 px-1">
                 <div class="text-[9px] uppercase tracking-wide text-cyan-200">
                     Notifications
@@ -277,3 +287,4 @@ onBeforeUnmount(() => {
         </div>
     </div>
 </template>
+<style scoped>.redesign-bell{position:relative;z-index:120}.redesign-bell-button{position:relative;display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid #dce6e8;border-radius:8px;color:#19333d;padding:9px 12px;font-family:Inter,ui-sans-serif,system-ui,sans-serif;font-size:12px;font-weight:700;cursor:pointer}.redesign-bell-badge{position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;border-radius:99px;background:#00857c;color:white;display:grid;place-items:center;padding:0 4px;font-size:10px}.redesign-bell-dropdown{position:absolute;right:0;top:calc(100% + 9px);width:min(360px,calc(100vw - 28px));border:1px solid #dce6e8;border-radius:12px;background:#fff;box-shadow:0 16px 45px #10292e24;color:#19333d;font-family:Inter,ui-sans-serif,system-ui,sans-serif;overflow:hidden}.redesign-bell-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px;border-bottom:1px solid #e5edef;font-size:14px}.redesign-bell-head button{border:0;background:none;color:#00857c;font-size:11px;cursor:pointer}.redesign-bell-list{max-height:350px;overflow-y:auto}.redesign-bell-item{display:grid;gap:5px;width:100%;padding:13px 16px;text-align:left;border:0;border-bottom:1px solid #edf2f3;background:#fff;color:#19333d;cursor:pointer}.redesign-bell-item.unread{background:#f1faf8}.redesign-bell-item:hover{background:#e5f5f1}.redesign-bell-item strong{font-size:12px}.redesign-bell-item span,.redesign-bell-item small{font-size:11px;color:#70858c;line-height:1.4}.redesign-bell-empty{padding:24px;text-align:center;color:#70858c;font-size:12px}.redesign-bell-history{display:block;padding:13px 16px;color:#00857c;font-size:12px;font-weight:700;text-decoration:none;border-top:1px solid #e5edef}</style>

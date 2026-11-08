@@ -247,6 +247,11 @@ public function isStaff(): bool
     return $this->hasRole(self::staffRoles());
 }
 
+public function staffRedesignRoute(): string
+{
+    return $this->isMentor() ? 'redesign.class-dashboard' : 'redesign.admin-dashboard';
+}
+
 public function isStaffPlayMode(): bool
 {
     return $this->isStaff();

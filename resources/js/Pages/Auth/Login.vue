@@ -101,7 +101,7 @@ onMounted(async () => {
 
 <template>
     <GuestLayout>
-        <Head title="Log In | P-QUEST" />
+        <Head title="Masuk" />
  
         <form @submit.prevent="submit" class="auth-login-form space-y-6">
             <h2 class="text-yellow-500 text-[10px] text-center mb-6 border-b border-[var(--panel-border)] pb-4 tracking-widest uppercase">

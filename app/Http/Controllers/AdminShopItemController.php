@@ -37,12 +37,22 @@ class AdminShopItemController extends Controller
             ->paginate(12)
             ->withQueryString();
 
-        return Inertia::render('Shop/Admin/Index', [
+        return Inertia::render($request->routeIs('redesign.shop-items') ? 'Redesign/AdminDashboard/ShopItems' : 'Shop/Admin/Index', [
             'items' => $items,
             'filters' => [
                 'search' => $search,
             ],
         ]);
+    }
+
+    public function createRedesign(): Response
+    {
+        return Inertia::render('Redesign/AdminDashboard/ShopItemForm', ['item' => null]);
+    }
+
+    public function editRedesign(ShopItem $item): Response
+    {
+        return Inertia::render('Redesign/AdminDashboard/ShopItemForm', ['item' => $item]);
     }
 
     public function detail(Request $request, ShopItem $item): Response
@@ -123,7 +133,7 @@ class AdminShopItemController extends Controller
             ->where('shop_item_id', $item->id)
             ->sum('quantity');
 
-        return Inertia::render('Shop/Admin/Detail', [
+        return Inertia::render($request->routeIs('redesign.shop-items.detail') ? 'Redesign/AdminDashboard/ShopItemDetail' : 'Shop/Admin/Detail', [
             'item' => $item,
             'transactions' => $transactions,
             'filters' => [

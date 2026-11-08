@@ -37,7 +37,7 @@ class AdminQuestController extends Controller
             ->whereNotNull('file_path')
             ->count();
 
-        return Inertia::render('Quests/Admin/Submissions', [
+        return Inertia::render($request->routeIs('redesign.quests.submissions') ? 'Redesign/AdminDashboard/QuestSubmissions' : 'Quests/Admin/Submissions', [
             'quest' => $quest,
             'submissions' => $submissions,
             'downloadableFilesCount' => $downloadableFilesCount,

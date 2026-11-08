@@ -27,14 +27,25 @@ class AdminGuideController extends Controller
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'view' => ['nullable', 'in:active,trash'],
+            'content' => ['nullable', 'in:with,without'],
         ]);
 
         $search = trim((string) ($validated['search'] ?? ''));
         $view = (string) ($validated['view'] ?? 'active');
+        $content = $request->routeIs('redesign.materi*') || $request->routeIs('redesign.study-groups.guides')
+            ? (string) ($validated['content'] ?? '') : '';
 
         $guideQuery = Guide::query()
             ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
             ->when($scopedGroup, fn ($query) => $query->where('study_group_id', (int) $scopedGroup->id))
+            ->when($content !== '', function ($query) use ($content) {
+                $query->where(function ($q) use ($content) {
+                    foreach (['file_path', 'google_docs_embed_url', 'video_embed_url'] as $column) {
+                        if ($content === 'with') $q->orWhereNotNull($column);
+                        else $q->whereNull($column);
+                    }
+                });
+            })
             ->with('studyGroup:id,uuid,name,job_id');
 
         if ($this->isMentorUser() && ! $scopedGroup) {
@@ -53,7 +64,7 @@ class AdminGuideController extends Controller
             $studyGroupQuery->where('job_id', $this->requireMentorJobId());
         }
 
-        return Inertia::render('Guide/Index', [
+        return Inertia::render($request->routeIs('redesign.materi*') || $request->routeIs('redesign.study-groups.guides') ? 'Redesign/AdminDashboard/GuideLibrary' : 'Guide/Index', [
             'materi' => $guideQuery
                 ->when($search !== '', function ($query) use ($search) {
                     $query->where(function ($q) use ($search) {
@@ -71,6 +82,7 @@ class AdminGuideController extends Controller
             'filters' => [
                 'search' => $search,
                 'view' => $view,
+                'content' => $content,
             ],
             'selectedStudyGroup' => $scopedGroup ? [
                 'uuid' => (string) $scopedGroup->uuid,
@@ -79,6 +91,34 @@ class AdminGuideController extends Controller
                 'back_url' => route('groups.detail', $scopedGroup->uuid),
                 'guides_url' => route('groups.guides.index', $scopedGroup->uuid),
             ] : null,
+        ]);
+    }
+
+    public function createRedesign(Request $request, ?string $groupUuid = null)
+    {
+        $group = $this->resolveScopedStudyGroup($request, $groupUuid);
+        $this->abortNonSuperAdminGlobalIndex($request, $group);
+        $groups = StudyGroup::query()->select('id', 'uuid', 'name')->orderBy('name');
+        if ($group) $groups->whereKey($group->id);
+
+        return Inertia::render('Redesign/AdminDashboard/GuideForm', [
+            'guide' => null,
+            'studyGroups' => $groups->get(),
+            'selectedStudyGroup' => $group ? ['id' => $group->id, 'uuid' => $group->uuid, 'name' => $group->name] : null,
+        ]);
+    }
+
+    public function editRedesign(Request $request, string $uuid)
+    {
+        $guide = Guide::query()->with('studyGroup:id,uuid,name')->where('uuid', $uuid)->firstOrFail();
+        $this->assertMentorCanAccessGuide($guide);
+        $groups = StudyGroup::query()->select('id', 'uuid', 'name')->orderBy('name');
+        if ($this->isMentorUser()) $groups->whereKey((int) $guide->study_group_id);
+
+        return Inertia::render('Redesign/AdminDashboard/GuideForm', [
+            'guide' => $guide,
+            'studyGroups' => $groups->get(),
+            'selectedStudyGroup' => null,
         ]);
     }
 
@@ -137,7 +177,9 @@ class AdminGuideController extends Controller
         'video_embed_url' => $useVideoSource ? $videoEmbedUrl : null,
     ]);
 
-    return back()->with('message', 'New Scroll has been inscribed in the library!');
+    return $request->boolean('redesign')
+        ? redirect()->route($request->input('study_group_id') ? 'redesign.study-groups.guides' : 'redesign.materi', $request->input('study_group_id') ? ['groupUuid' => StudyGroup::findOrFail($request->input('study_group_id'))->uuid] : [])->with('message', 'Materi berhasil ditambahkan.')
+        : back()->with('message', 'New Scroll has been inscribed in the library!');
 }
 
     /**
@@ -218,7 +260,10 @@ class AdminGuideController extends Controller
 
         $guide->update($data);
 
-        return back()->with('message', 'The knowledge scroll has been updated.');
+        $guide->refresh()->load('studyGroup');
+        return $request->boolean('redesign')
+            ? redirect()->route($guide->studyGroup ? 'redesign.study-groups.guides' : 'redesign.materi', $guide->studyGroup ? ['groupUuid' => $guide->studyGroup->uuid] : [])->with('message', 'Materi berhasil diperbarui.')
+            : back()->with('message', 'The knowledge scroll has been updated.');
     }
 
     /**

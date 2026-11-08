@@ -1318,4 +1318,66 @@ nice -n 15 cpulimit -l 50 -- npm run build
 - Tambah test `tests/Feature/Event/EventContentProgressTest.php` untuk batas tanggal, progres 50% lalu 100%, event kosong, dan payload home.
 - Verifikasi berhasil: `php artisan test tests\Feature\Event\EventContentProgressTest.php` (3 tests, 88 assertions).
 - Tampilan browser belum diverifikasi karena sesi ini tidak punya browser tools.
-  
+
+## 2026-11-07 — Redesign dashboard admin
+
+- Menggunakan referensi lokal `designs/figcraft/admin-dashboard-export/admin-dashboard.fig` dan ekspor PNG. Implementasi redesign ditempatkan terpisah di `resources/js/Redesign/AdminDashboard`; halaman lama tetap tersedia.
+- Membuat overview admin, dashboard kelas saya, profil & keamanan, daftar/detail/form job, serta daftar/detail/form study group. Sidebar redesign dan route `/redesign/...` menghubungkan alur tersebut dengan data asli dari controller.
+- Profil redesign kini mendukung unggah foto JPG/PNG maksimal 2 MB dengan preview sebelum disimpan, memakai endpoint profil yang sudah ada.
+- Form job terpisah mendukung unggah emblem JPG/PNG/WebP maksimal 2 MB dengan preview. Alert sukses dasar ditampilkan setelah tambah/edit job dan study group.
+- Alur kelas dirapikan: dashboard kelas menampilkan ringkasan, detail job menampilkan kelas dalam satu program, daftar study group memuat pengelolaan, dan form kelas berada di halaman tersendiri.
+- Detail kelas redesign menampilkan statistik, performa peserta, akses staf, dan tautan operasional. Filter status serta sort dua arah pada tabel performa mengikuti fitur halaman lama; pagination mengikuti hasil filter.
+- Validasi yang telah berhasil selama pengerjaan: `npm.cmd run build`, lint PHP controller terkait, pemeriksaan route, dan `git diff --check`.
+- Pemeriksaan visual responsif belum tuntas: browser pengujian mendapat 401 Unauthorized dan kontrol Chrome dihentikan karena URL aktif tidak dapat dipastikan. Breakpoint desktop/tablet/ponsel masih perlu diuji dalam sesi browser yang sudah login.
+
+## 2026-11-08 — Lanjutan redesign admin
+
+- Melanjutkan layar keanggotaan kelas, roadmap, rekap kehadiran, performa peserta, perpustakaan materi dan formnya, event kelas dan formnya, detail event, serta absensi event. Absensi event sekarang menampilkan QR code; tautan User View juga ditambahkan pada alur event.
+- Membuat layar 20 Quest management terpisah di redesign dengan daftar quest asli, filter jenis/status, pencarian, arsip, pagination, dan akses dari sidebar maupun detail kelas.
+- Membuat layar 21 Buat / edit quest terpisah sesuai ekspor desain. Form memakai field backend yang tersedia: difficulty dan reward otomatis, tipe, status, deadline, aturan percobaan, jadwal, job scope, study group, task bank, rubrik, serta editor deskripsi. Tombol Buat dan Edit dari daftar quest kini membuka form redesign. Halaman quest lama tetap tersedia.
+- Route dan sintaks PHP diperiksa. Build Vite berhasil; pemeriksaan visual browser untuk layar terbaru belum dilakukan.
+- Audit input tanggal pada form redesign menemukan form event dan quest memakai zona waktu browser saat mengisi nilai edit. Keduanya kini memformat waktu sesuai zona aplikasi dari backend, menampilkan zona waktu di form, dan memeriksa urutan waktu mulai–selesai. Daftar dan detail terkait menampilkan tanggal dengan zona yang sama. Validasi event di server juga mewajibkan waktu mulai jika waktu selesai diisi.
+- Judul dan deskripsi pada form Quest redesign kini masing-masing memakai satu baris penuh agar ruang pengetikan lebih luas.
+- Layar 22 diwujudkan sebagai "Generate quest with AI" (bukan hanya Optional). Form redesign terpisah dapat membuat preview quest dan task bank dari topik, menampilkan soal untuk ditinjau, lalu menyimpan sebagai Main atau Optional dengan mode draft, langsung terbit, atau terjadwal. Prompt generator kini mengikuti tipe quest yang dipilih, dan tautannya tersedia dari daftar maupun form Quest.
+- Tes generator terkait lolos: `php artisan test tests/Feature/Quest/AdminOptionalQuestGeneratePreviewTest.php --compact` (3 tes, 11 assertion), termasuk pilihan Main pada prompt AI.
+- Tombol Generate preview di bagian atas layar AI dihapus; tombol aksi tetap berada setelah form. Sidebar redesign kini dipisah menjadi Ringkasan, Program & kelas, Konten pembelajaran, Bank & latihan, Penilaian, Komunitas, dan Operasional. Quest memiliki sub-menu daftar, buat, dan generate AI; penanda aktif pada halaman scoped tidak lagi menyorot Study groups bersamaan dengan Event/Quest.
+- Pola sub-menu sidebar diperluas ke Job / program, Study groups, Materi, dan Event. Study groups juga menampilkan tautan kontekstual untuk detail, keanggotaan, roadmap, dan rekap kehadiran kelas. Menu yang hanya memiliki satu halaman tetap menjadi tautan langsung.
+- Layar 23 Task banks dibuat sebagai tabel responsif sesuai permintaan, memakai data asli dengan pencarian, filter aktif/draft/arsip, pagination, serta aksi arsip dan pulihkan. Tautan sidebar mengarah ke daftar redesign.
+- Layar 24 Pengaturan task bank menjadi form tambah/edit terpisah. Form memakai validasi dan penyimpanan backend yang sudah ada, pengaturan tipe asesmen, status, cakupan program, serta durasi dalam detik untuk game atau menit untuk ujian biasa. Tombol simpan berada di bagian bawah form.
+- Tes task bank redesign lolos (2 tes, 76 assertion); build Vite berhasil.
+- Layar 25 Editor soal dibuat dalam redesign dengan daftar soal bank asli, tambah/edit/hapus, tipe esai, pilihan ganda, game stage, platforming, word match, bobot, urutan, status, dan gambar soal dengan preview. Tautan Kelola soal dari tabel bank kini menuju editor baru.
+- Layar 26 Import soal JSON dibuat terpisah dengan unggah file atau tempel JSON, pilihan lewati baris tidak valid, template, dan ringkasan hasil import dari endpoint yang sudah ada.
+- Layar 27 Daily quests memakai tabel data asli dengan pencarian, filter status, pagination, dan tautan edit. Layar 28 menjadi form tambah/edit definisi daily quest tersendiri yang memakai validasi dan penyimpanan backend lama. Sidebar redesign mengarah ke keduanya.
+- Tes route/data redesign task bank dan daily quest lolos (4 tes, 140 assertion), termasuk penyimpanan edit definisi; build frontend berhasil.
+- Opsi pilihan ganda pada Editor soal redesign kini dapat diurutkan dengan drag and drop pada pegangan opsi, dengan alternatif keyboard Alt + panah atas/bawah. Jawaban benar ditandai jelas dan tetap melekat pada opsi saat urutan berubah; menghapus opsi benar mengosongkan pilihan. Opsi dengan teks duplikat ditolak agar kunci jawaban tidak ambigu.
+- Setiap opsi juga mendukung unggah gambar dengan pratinjau, serta hapus/pulihkan gambar tersimpan. Gambar ikut opsi saat urutan digeser. Tes penyimpanan ulang opsi bergambar beserta kunci jawaban setelah urutan diubah lulus.
+- Bagian 05 Penilaian (layar 29–36) sudah dibuat terpisah dalam redesign: daftar submission dengan filter/arsip/pulihkan, edit submission, daftar per quest, konsol inspeksi dan verdict, daftar rubrik, form buat, editor matriks kriteria/level, serta pratinjau skor. Semua memakai data dan endpoint backend yang sudah ada; halaman lama tetap tersedia.
+- Layar 37–38 antrian review karya dan detail review juga disiapkan, termasuk penugasan reviewer/rubrik, penilaian mentor, dan publikasi hasil sesuai izin peran. Tautan karya menggunakan slug supaya route model binding bekerja.
+- Tes feature Penilaian redesign mencakup route dan data nyata untuk seluruh halaman. Lint PHP dan build Vite berhasil.
+- Halaman inspeksi submission redesign diaudit ulang terhadap halaman lama dan backend verdict. Tampilan kini membedakan pilihan ganda, platforming, word match, esai/campuran, rubrik, serta nilai manual; jawaban, kunci, hasil permainan, berkas gambar/PDF, dan nilai tersimpan ditampilkan sesuai jenisnya. Panel keputusan tetap menghitung perkiraan nilai sebelum disimpan.
+- Pipeline AI dipindah menjadi bantuan pemeriksaan opsional dengan tahapan teknis yang tersembunyi secara default. Bank soal otomatis tidak menampilkan ajakan menjalankan AI; keputusan akhir tetap tindakan penilai. Tes inspeksi mencakup lima tipe task bank dan semua tes Penilaian lulus.
+- Alur AI pada inspeksi diselaraskan kembali dengan halaman lama: tombol utama selalu memanggil delapan endpoint secara berurutan dan berhenti bila satu tahap gagal. Setelah status hasil akhir sukses, tombol menjadi "Periksa ulang" dan memakai endpoint rerun yang sudah ada. Tidak ada perubahan pada proses backend.
+- Output tahap ditampilkan sesuai isinya (teks ekstraksi/pembersihan, status, peringatan, butir soal, jawaban, skor, dan feedback), dengan JSON lengkap tetap tersedia dalam detail. Hasil pipeline untuk esai serta respons AI Advisor dari endpoint lama dipetakan ke draft nilai/rubrik/feedback di form; penilai tetap harus memeriksa dan menyimpan verdict sendiri.
+- Output "Baca struktur" pada inspeksi diperbaiki: line break mentah pada jawaban dirapikan untuk tampilan ringkas, daftar butir hasil dibatasi tingginya dan digulir di dalam panel, sementara data mentah tetap dapat dibuka per butir.
+- Seeder lokal `InspectDemoSeeder` menambahkan tiga quest contoh (mixed, platforming, word match), bank soal, peserta demo, dan submission untuk memeriksa variasi halaman inspeksi. Seeder idempoten, hanya berjalan pada `APP_ENV=local`, serta tidak memberi reward. Ketiga tautan inspect diverifikasi dari database lokal.
+- Input nilai esai pada inspect dipindahkan tepat di bawah jawaban tiap soal. Panel keputusan kini hanya memberi petunjuk lokasi input, menampilkan perkiraan nilai total, dan menyimpan verdict; input esai tetap terasosiasi dengan form yang sama.
+
+# 2026-11-08 — Redesign 06 Komunitas & pengguna
+
+## 08 · Operasional
+
+- Menyamakan font dialog konfirmasi redesign dengan Inter; gaya pixel lama di `app.css` memakai `!important`, sehingga dialog perlu override khusus. Pola tabel redesign diseragamkan untuk header, jarak baris, garis pemisah, dan warna tautan. Event kini dapat diarsipkan, dipulihkan, atau dihapus permanen dari daftar; tes event dan quest lulus (43 assertion).
+- Sampah terpusat kini juga mencakup program, task bank, rubrik, DoopNews, shop item, dan profile skin. Semua entitas menu utama yang memakai soft delete memiliki aksi pulihkan dan hapus permanen dari halaman ini; tes pemulihan/hapus permanen shop item lulus.
+- Memperbaiki error edit quest dengan mengganti `orWhereKey()` yang tidak tersedia pada builder menjadi `orWhere('id', ...)`; tes route edit quest lulus.
+- Menambahkan halaman redesign server error logs dengan filter status, pencarian, rentang tanggal, dan trace yang dapat dibuka tanpa meninggalkan tabel.
+- Menambahkan riwayat notifikasi berbasis data asli, filter kategori/belum dibaca, aksi tandai dibaca, dan pagination.
+- Menambahkan halaman sampah & pemulihan untuk quest, materi, event, kelas, pengguna, dan submission; tindakan hapus permanen memakai dialog konfirmasi.
+- Memperbarui notifikasi keberhasilan pada layout, gaya select/date/scroll, dan mengganti konfirmasi browser pada aksi redesign dengan dialog bertema.
+- Tes operasional dan komunitas lulus (157 assertion); build Vite lulus.
+
+- Filter daftar pengguna disamakan dengan halaman lama: pencarian, role, active/trash, urutan terbaru/gold/EXP, urutan nilai tertinggi naik/turun, dan reset. Kolom nilai serta tanggal juga ditampilkan. Tes filter lulus.
+- Menyelesaikan layar 39–48 di folder `resources/js/Redesign/AdminDashboard`: manajemen dan edit pengguna, ledger gold, daftar dan editor DoopNews, daftar/editor/detail shop item, serta armory/editor profile skin. Layar 37–38 review karya telah tersedia dari tahap sebelumnya.
+- Menambahkan route GET `/redesign/users`, `/redesign/doopnews`, `/redesign/shop-items`, dan `/redesign/profile-skins` beserta route detail/form. Controller memilih komponen redesign berdasarkan nama route; halaman lama tetap menggunakan komponen semula.
+- Menghubungkan filter, pagination, formulir, gambar, penyesuaian gold, publikasi berita, transaksi item, dan impor bundle skin ke endpoint backend yang sudah ada. Navigasi komunitas di sidebar mengarah ke halaman redesign dan menampilkan submenu.
+- Verifikasi: `php artisan test tests/Feature/Community/AdminCommunityRedesignTest.php` lulus (105 assertion), `npm.cmd run build` lulus, `git diff --check` lulus.
+
