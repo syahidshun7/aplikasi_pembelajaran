@@ -19,6 +19,8 @@ const items = ref([]);
 const unreadCount = ref(0);
 let channel = null;
 let echoInstance = null;
+let pollTimer = null;
+let refreshInFlight = null;
 
 const applySummary = (summary) => {
     items.value = Array.isArray(summary?.items) ? summary.items : [];
@@ -95,9 +97,16 @@ const closeDropdown = () => {
     dropdownOpen.value = false;
 };
 
-const refreshSummary = async () => {
-    const response = await window.axios.get(route('notifications.feed'));
-    applySummary(response.data?.summary);
+const refreshSummary = () => {
+    if (refreshInFlight) return refreshInFlight;
+    refreshInFlight = window.axios.get(route('notifications.feed'))
+        .then((response) => applySummary(response.data?.summary))
+        .finally(() => { refreshInFlight = null; });
+    return refreshInFlight;
+};
+
+const refreshWhenVisible = () => {
+    if (authUser.value?.id && !document.hidden) refreshSummary().catch(() => {});
 };
 
 const markAsRead = async (notificationId) => {
@@ -181,12 +190,16 @@ const handleRealtimeNotification = (payload = {}) => {
     }
 };
 
-onMounted(async () => {
+onMounted(() => {
     document.addEventListener('click', handleDocumentClick);
 
     if (!authUser.value?.id) {
         return;
     }
+
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    pollTimer = window.setInterval(refreshWhenVisible, 20_000);
+    refreshWhenVisible();
 
     echoInstance = initEcho();
     if (!echoInstance) {
@@ -201,6 +214,8 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
     document.removeEventListener('click', handleDocumentClick);
+    document.removeEventListener('visibilitychange', refreshWhenVisible);
+    if (pollTimer) window.clearInterval(pollTimer);
 
     if (echoInstance && authUser.value?.id) {
         echoInstance.leave(`App.Models.User.${authUser.value.id}`);
