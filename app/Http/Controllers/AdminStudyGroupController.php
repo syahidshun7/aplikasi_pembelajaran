@@ -49,7 +49,7 @@ class AdminStudyGroupController extends Controller
 {
     $validated = $request->validate([
         'search' => ['nullable', 'string', 'max:255'],
-        'view' => ['nullable', 'in:active,trash'],
+        'view' => ['nullable', 'in:active,pending,trash'],
         'job_id' => ['nullable', 'integer', 'exists:job_roles,id'],
     ]);
     $search = trim((string) ($validated['search'] ?? ''));
@@ -60,6 +60,9 @@ class AdminStudyGroupController extends Controller
         'groups' => StudyGroup::query()
             ->tap(fn ($query) => $access->scopeAccessibleGroups($query, auth()->user()))
             ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
+            ->when($view === 'pending', fn ($query) => $query->whereHas('joinRequests', fn ($requests) => $requests
+                ->where('status', 'pending')
+                ->whereHas('user', fn ($users) => $users->whereNotIn('role', User::staffRoles()))))
             ->when($jobId, fn ($query) => $query->where('job_id', $jobId))
             ->with('job:id,name')
             ->withCount('staff as staff_count')
@@ -67,7 +70,8 @@ class AdminStudyGroupController extends Controller
             ->withCount([
                 'users as users_count' => fn ($userQuery) => $userQuery->whereNotIn('users.role', User::staffRoles()),
                 'joinRequests as pending_requests_count' => function ($q) {
-                    $q->where('status', 'pending');
+                    $q->where('status', 'pending')
+                        ->whereHas('user', fn ($users) => $users->whereNotIn('role', User::staffRoles()));
                 },
             ])
             ->when($search !== '', function ($query) use ($search) {

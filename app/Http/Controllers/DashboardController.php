@@ -35,6 +35,10 @@ class DashboardController extends Controller
             abort(403, 'MENTOR_JOB_REQUIRED');
         }
 
+        if ($isMentor && $request->routeIs('redesign.admin-dashboard')) {
+            return redirect()->route('redesign.class-dashboard');
+        }
+
         $levelColumn = Schema::hasColumn('users', 'lvl') ? 'lvl' : 'level';
 
         $guideQuery = Guide::query();
@@ -86,30 +90,30 @@ class DashboardController extends Controller
         $scopeKey = $isMentor ? ('mentor_job.' . $mentorJobId) : 'global';
 
         $stats = Cache::remember(
-            "dashboard.stats.content-v3.v{$dashboardCacheVersion}.{$scopeKey}",
+            "dashboard.stats.content-v4.v{$dashboardCacheVersion}.{$scopeKey}",
             now()->addMinutes(3),
-            function () use ($guideQuery, $studyGroupQuery, $studentQuery, $pendingSubmissionQuery, $gradedSubmissionQuery, $isMentor, $isSuperAdmin) {
-                $avgGrade30d = $isSuperAdmin
-                    ? 0.0
-                    : (float) (clone $gradedSubmissionQuery)
-                        ->where('created_at', '>=', now()->subDays(30))
-                        ->avg('grade');
-                $graded7dCount = $isSuperAdmin
+            function () use ($guideQuery, $studyGroupQuery, $studentQuery, $pendingSubmissionQuery, $gradedSubmissionQuery, $isMentor) {
+                $avgGrade30d = (float) (clone $gradedSubmissionQuery)
+                    ->where('created_at', '>=', now()->subDays(30))
+                    ->avg('grade');
+                $graded30dCount = (int) (clone $gradedSubmissionQuery)
+                    ->where('created_at', '>=', now()->subDays(30))
+                    ->count();
+                $graded7dCount = (int) (clone $gradedSubmissionQuery)
+                    ->where('created_at', '>=', now()->subDays(7))
+                    ->count();
+                $errors24h = $isMentor
                     ? 0
-                    : (int) (clone $gradedSubmissionQuery)
-                        ->where('created_at', '>=', now()->subDays(7))
-                        ->count();
-                $errors24h = $isSuperAdmin
-                    ? (int) ErrorLog::query()->where('created_at', '>=', now()->subDay())->count()
-                    : 0;
+                    : (int) ErrorLog::query()->where('created_at', '>=', now()->subDay())->count();
 
                 return [
-                    'total_materi' => $isSuperAdmin ? 0 : (int) $guideQuery->count(),
+                    'total_materi' => (int) $guideQuery->count(),
                     'total_study_groups' => (int) $studyGroupQuery->count(),
                     'total_jobs' => $isMentor ? 1 : (int) JobRole::query()->count(),
                     'total_students' => (int) $studentQuery->count(),
                     'pending_verdicts' => (int) $pendingSubmissionQuery->count(),
                     'avg_grade_30d' => round($avgGrade30d, 1),
+                    'graded_30d' => $graded30dCount,
                     'graded_7d' => $graded7dCount,
                     'system_errors_24h' => $errors24h,
                     'system_health' => $errors24h === 0
@@ -435,6 +439,7 @@ class DashboardController extends Controller
         $redesignAttention = $standaloneRedesign ? [
             'pending_join_requests' => StudyGroupJoinRequest::query()
                 ->where('status', 'pending')
+                ->whereHas('user', fn ($query) => $query->whereNotIn('role', User::staffRoles()))
                 ->whereHas('studyGroup', fn ($query) => $studyGroupAccess->scopeAccessibleGroups($query, $authUser))
                 ->count(),
             'pending_creations' => Creation::query()
@@ -443,6 +448,80 @@ class DashboardController extends Controller
                 ->count(),
         ] : null;
 
+        $dashboardInsights = $standaloneRedesign && ! $classRedesign
+            ? Cache::remember(
+                "dashboard.insights.v{$dashboardCacheVersion}.global",
+                now()->addMinutes(3),
+                function () {
+                    $start = now()->startOfDay()->subDays(13);
+                    $submissionsByDay = Submission::query()
+                        ->where('created_at', '>=', $start)
+                        ->selectRaw("DATE(created_at) as day, COUNT(*) as submitted, SUM(CASE WHEN status IN ('Approved', 'Rejected') THEN 1 ELSE 0 END) as reviewed")
+                        ->groupByRaw('DATE(created_at)')
+                        ->get()
+                        ->keyBy('day');
+                    $participantsByDay = User::query()
+                        ->whereNotIn('role', User::staffRoles())
+                        ->where('created_at', '>=', $start)
+                        ->selectRaw('DATE(created_at) as day, COUNT(*) as total')
+                        ->groupByRaw('DATE(created_at)')
+                        ->get()
+                        ->keyBy('day');
+                    $statusCounts = Submission::query()
+                        ->selectRaw('status, COUNT(*) as total')
+                        ->groupBy('status')
+                        ->pluck('total', 'status');
+
+                    $days = collect(range(0, 13))->map(function ($offset) use ($start, $submissionsByDay, $participantsByDay) {
+                        $date = $start->copy()->addDays($offset);
+                        $key = $date->toDateString();
+
+                        return [
+                            'date' => $key,
+                            'label' => $date->translatedFormat('d M'),
+                            'submitted' => (int) ($submissionsByDay->get($key)?->submitted ?? 0),
+                            'reviewed' => (int) ($submissionsByDay->get($key)?->reviewed ?? 0),
+                            'new_participants' => (int) ($participantsByDay->get($key)?->total ?? 0),
+                        ];
+                    });
+
+                    return [
+                        'days' => $days->all(),
+                        'submitted_14d' => $days->sum('submitted'),
+                        'reviewed_14d' => $days->sum('reviewed'),
+                        'new_participants_14d' => $days->sum('new_participants'),
+                        'statuses' => [
+                            'pending' => (int) ($statusCounts['Pending'] ?? 0),
+                            'approved' => (int) ($statusCounts['Approved'] ?? 0),
+                            'rejected' => (int) ($statusCounts['Rejected'] ?? 0),
+                        ],
+                    ];
+                }
+            ) : null;
+
+        $overviewStudents = $standaloneRedesign && ! $classRedesign
+            ? Cache::remember(
+                "dashboard.overview-students.v{$dashboardCacheVersion}.global",
+                now()->addMinutes(3),
+                fn () => User::query()
+                    ->whereNotIn('role', User::staffRoles())
+                    ->whereHas('submissions', fn ($query) => $query->whereIn('status', ['Approved', 'Rejected']))
+                    ->withCount(['submissions as graded_count' => fn ($query) => $query->whereIn('status', ['Approved', 'Rejected'])])
+                    ->withAvg(['submissions as avg_grade' => fn ($query) => $query->whereIn('status', ['Approved', 'Rejected'])], 'grade')
+                    ->orderByDesc('avg_grade')
+                    ->limit(8)
+                    ->get(['id', 'name', 'username', 'exp'])
+                    ->map(fn (User $student) => [
+                        'id' => (int) $student->id,
+                        'name' => (string) $student->name,
+                        'username' => (string) $student->username,
+                        'lvl' => LevelingService::levelFromExp((int) $student->exp),
+                        'graded_count' => (int) $student->graded_count,
+                        'avg_grade' => round((float) $student->avg_grade, 1),
+                    ])
+                    ->all()
+            ) : null;
+
         return Inertia::render($classRedesign ? 'Redesign/AdminDashboard/ClassDashboard' : ($standaloneRedesign ? 'Redesign/AdminDashboard/Dashboard' : ($useRedesign ? 'DashboardRedesign' : 'Dashboard')), [
             'stats' => $stats,
             'students' => $students,
@@ -450,6 +529,8 @@ class DashboardController extends Controller
             'accessibleGroups' => $accessibleGroups,
             'jobCommandItems' => $jobCommandItems,
             'redesignAttention' => $redesignAttention,
+            'dashboardInsights' => $dashboardInsights,
+            'overviewStudents' => $overviewStudents,
             'scope' => [
                 'role' => (string) ($authUser?->role ?? ''),
                 'job_id' => $isMentor ? $mentorJobId : null,
