@@ -1412,7 +1412,7 @@ const useRetakeTicket = () => {
                             <div v-else class="space-y-4">
                                 <div>
                                     <label class="block text-[12px] text-slate-500 mb-2 uppercase">Content:</label>
-                                    <QuestDescriptionEditor v-model="form.content" placeholder="Tulis jawaban atau laporan tugas di sini..." />
+                                    <QuestDescriptionEditor v-model="form.content" light placeholder="Tulis jawaban atau laporan tugas di sini..." />
                                     <p v-if="form.errors.content" class="mt-2 text-[11px] text-red-400">{{ form.errors.content }}</p>
                                 </div>
                                 <div>

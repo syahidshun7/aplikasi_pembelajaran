@@ -14,6 +14,10 @@ const props = defineProps({
         type: String,
         default: 'Tulis tujuan, instruksi, dan langkah pengerjaan quest...',
     },
+    light: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -61,7 +65,7 @@ onBeforeUnmount(() => editor.value?.destroy());
 </script>
 
 <template>
-    <div class="quest-description-editor">
+    <div class="quest-description-editor" :class="{ 'quest-description-editor--light': light }">
         <div v-if="editor" class="quest-description-editor__toolbar" aria-label="Format description">
             <button type="button" title="Bold" :class="{ 'is-active': editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()"><strong>B</strong></button>
             <button type="button" title="Italic" :class="{ 'is-active': editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()"><em>I</em></button>
@@ -139,4 +143,14 @@ onBeforeUnmount(() => editor.value?.destroy());
 :deep(.quest-description-editor__content ul) { list-style: disc; }
 :deep(.quest-description-editor__content ol) { list-style: decimal; }
 :deep(.quest-description-editor__content a) { color: #67e8f9; text-decoration: underline; }
+
+.quest-description-editor--light{border:1px solid #dce6e8;border-radius:8px;background:#fff;overflow:hidden}
+.quest-description-editor--light:focus-within{border-color:#008b83}
+.quest-description-editor--light .quest-description-editor__toolbar{background:#f6f8f9;border-bottom-color:#dce6e8}
+.quest-description-editor--light .quest-description-editor__toolbar button{background:#fff;border-color:#dce6e8;border-radius:5px;color:#19333d;font-family:inherit}
+.quest-description-editor--light .quest-description-editor__toolbar button:hover,.quest-description-editor--light .quest-description-editor__toolbar button.is-active{background:#e5f5f1;border-color:#9ccbc6;color:#007f78}
+.quest-description-editor--light .quest-description-editor__divider{background:#dce6e8}
+.quest-description-editor--light :deep(.quest-description-editor__content){min-height:160px;color:#19333d;font-family:inherit;font-weight:400}
+.quest-description-editor--light :deep(.quest-description-editor__content h2),.quest-description-editor--light :deep(.quest-description-editor__content h3){color:#19333d}
+.quest-description-editor--light :deep(.quest-description-editor__content a){color:#007f78}
 </style>
