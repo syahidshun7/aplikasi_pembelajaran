@@ -327,7 +327,7 @@ class QuestController extends Controller
             $rubricsQuery->where('mentor_id', (int) $request->user()?->id);
         }
 
-        return Inertia::render($request->routeIs('redesign.quests*') || $request->routeIs('redesign.study-groups.quests') ? 'Redesign/AdminDashboard/Quests' : 'Quests/Index', [
+        return Inertia::render('Redesign/AdminDashboard/Quests', [
             'timezone' => config('app.timezone'),
             'quests' => $adminQuestQuery
                 ->when($search !== '', function ($query) use ($search) {
@@ -363,8 +363,8 @@ class QuestController extends Controller
                 'uuid' => (string) $scopedGroup->uuid,
                 'id' => (int) $scopedGroup->id,
                 'name' => (string) $scopedGroup->name,
-                'back_url' => route('groups.detail', $scopedGroup->uuid),
-                'quests_url' => route('groups.quests.index', $scopedGroup->uuid),
+                'back_url' => route('redesign.study-groups.show', $scopedGroup->uuid),
+                'quests_url' => route('redesign.study-groups.quests', $scopedGroup->uuid),
             ] : null,
         ]);
     }
@@ -859,8 +859,8 @@ class QuestController extends Controller
             ],
             'previewMode' => $previewMode,
             'previewSubmitUrl' => $previewMode ? route('quests.user-preview.submissions', $quest->uuid) : null,
-            'backUrl' => $previewMode && $quest->studyGroup
-                ? route('groups.quests.index', $quest->studyGroup->uuid)
+            'backUrl' => $previewMode
+                ? ($quest->studyGroup ? route('redesign.study-groups.quests', $quest->studyGroup->uuid) : route('redesign.quests'))
                 : null,
         ]);
     }

@@ -55,7 +55,7 @@ class JoinGroupRequestNotification extends Notification implements ShouldQueue
                 $groupName,
                 $joinRequest->created_at?->timezone(config('app.timezone'))->format('d M Y H:i') ?? now()->timezone(config('app.timezone'))->format('d M Y H:i')
             ),
-            'action_url' => route('groups.detail', ['uuid' => (string) ($joinRequest->studyGroup?->uuid ?? '')]),
+            'action_url' => route('redesign.study-groups.show', ['uuid' => (string) ($joinRequest->studyGroup?->uuid ?? '')]),
             'action_label' => 'Tinjau permintaan',
             'icon' => 'fi-rr-users-alt',
             'accent' => 'cyan',

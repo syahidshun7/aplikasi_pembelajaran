@@ -39,7 +39,7 @@ class AdminDoopNewsController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        return Inertia::render($request->routeIs('redesign.doopnews') ? 'Redesign/AdminDashboard/DoopNews' : 'DoopNews/Admin/Index', [
+        return Inertia::render('Redesign/AdminDashboard/DoopNews', [
             'posts' => $posts,
             'filters' => [
                 'status' => $status,

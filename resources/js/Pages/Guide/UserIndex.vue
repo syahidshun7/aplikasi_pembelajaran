@@ -117,7 +117,7 @@ const toneStyleForGuide = (item) => {
                     </Link>
                 </div>
 
-                <div class="rpg-panel border-slate-700 flex flex-col min-h-[540px]">
+                <div class="rpg-panel border-slate-700 flex flex-col md:min-h-[540px]">
                     <form @submit.prevent="applySearch" class="mb-4 flex flex-col md:flex-row gap-2">
                         <input
                             v-model="form.search"
@@ -154,17 +154,16 @@ const toneStyleForGuide = (item) => {
                             :style="toneStyleForGuide(item)"
                         >
                             <div class="flex items-start justify-between gap-2">
-                                <p class="text-white text-[11px]">{{ item.title }}</p>
+                                <p class="min-w-0 break-words text-white text-[11px]">{{ item.title }}</p>
                                 <span v-if="item.is_new_for_user" class="guide-new-badge">NEW</span>
                             </div>
-                            <p class="guide-item-type mt-1 text-[8px] uppercase">
-                                {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
-                            </p>
-                            <p class="mt-2 text-slate-400 font-sans text-[11px]" :title="item.description || ''">
-                                {{ shortText(item.description, 120) }}
-                            </p>
-                            <p class="mt-2 text-slate-500 text-[8px]">{{ new Date(item.created_at).toLocaleString('id-ID') }}</p>
-                            <div class="mt-3 flex items-center gap-2">
+                            <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <p class="guide-item-type min-w-0 break-words text-[8px] uppercase">
+                                    {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
+                                </p>
+                                <p class="text-slate-500 text-[8px]">{{ new Date(item.created_at).toLocaleString('id-ID') }}</p>
+                            </div>
+                            <div class="mt-2 flex flex-wrap items-center gap-2">
                                 <Link
                                     :href="route('guides.user.show', item.uuid)"
                                     class="inline-block px-3 py-1 border border-cyan-700 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px]"

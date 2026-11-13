@@ -99,7 +99,7 @@ const toneStyleForGuide = (item) => {
             <article
                 v-for="item in items"
                 :key="item.uuid"
-                class="library-item-card flex h-full flex-col border p-4 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
+                class="library-item-card flex min-w-0 flex-col gap-2 border p-3 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
                 :style="toneStyleForGuide(item)"
             >
                 <div class="flex flex-wrap items-center justify-between gap-2">
@@ -109,12 +109,9 @@ const toneStyleForGuide = (item) => {
                     </div>
                     <span class="text-[7px] uppercase text-slate-600">Ref.{{ item.uuid.substring(0, 5) }}</span>
                 </div>
-                <h3 class="mt-3 break-words text-[10px] uppercase text-white">{{ item.title }}</h3>
-                <p class="mt-3 line-clamp-3 flex-grow text-[8px] uppercase leading-relaxed text-slate-500">
-                    {{ item.description || 'Accessing knowledge database...' }}
-                </p>
-                <div class="mt-4 flex min-h-[38px] items-center justify-between gap-2 border-t border-slate-800 pt-3">
-                    <span class="library-item-group text-[7px] uppercase">
+                <h3 class="break-words text-[10px] uppercase text-white">{{ item.title }}</h3>
+                <div class="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-2">
+                    <span class="library-item-group min-w-0 break-words text-[7px] uppercase">
                         {{ item.study_group_id ? `Party: ${item.study_group?.name || 'Unknown'}` : 'Global' }}
                     </span>
                     <Link

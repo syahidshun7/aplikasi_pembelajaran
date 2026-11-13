@@ -74,7 +74,7 @@ class AdminSubmissionManagementController extends Controller
 
         $submissions = $query->paginate(20)->withQueryString();
 
-        return Inertia::render($request->routeIs('redesign.submissions') ? 'Redesign/AdminDashboard/SubmissionManagement' : 'Submissions/Admin/Index', [
+        return Inertia::render('Redesign/AdminDashboard/SubmissionManagement', [
             'submissions' => $submissions,
             'filters' => [
                 'search' => $search,

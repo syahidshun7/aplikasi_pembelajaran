@@ -125,7 +125,7 @@ class AdminCreationReviewController extends Controller
                 ] : null,
             ]);
 
-        return Inertia::render($request->routeIs('redesign.creations.queue') ? 'Redesign/AdminDashboard/CreationReviewQueue' : 'Creations/Admin/Index', [
+        return Inertia::render('Redesign/AdminDashboard/CreationReviewQueue', [
             'creations' => $creations,
             'filters' => [
                 'search' => $search,
@@ -167,7 +167,7 @@ class AdminCreationReviewController extends Controller
 
         $isAdmin = $this->isAdminUser($user);
 
-        return Inertia::render($request->routeIs('redesign.creations.review') ? 'Redesign/AdminDashboard/CreationReview' : 'Creations/Admin/Preview', [
+        return Inertia::render('Redesign/AdminDashboard/CreationReview', [
             'creation' => $this->serializeCreation($creation),
             'finalReview' => $officialReview ? $this->serializeReview($officialReview) : null,
             'peerReviews' => $creation->peerReviews

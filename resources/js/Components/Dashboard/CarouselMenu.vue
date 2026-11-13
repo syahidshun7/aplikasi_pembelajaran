@@ -1,5 +1,11 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import doopNewsIcon from './node-icons/doopnews.png';
+import leaderboardIcon from './node-icons/leaderboard.png';
+import libraryIcon from './node-icons/library.png';
+import partyIcon from './node-icons/party.png';
+import questIcon from './node-icons/quest.png';
+import townhallIcon from './node-icons/townhall.png';
 
 const props = defineProps({
     modelValue: {
@@ -16,13 +22,9 @@ const emit = defineEmits(['update:modelValue']);
 
 const containerRef = ref(null);
 const cardRefs = new Map();
-let scrollFrame = null;
 let scrollEndTimer = null;
-let initialSyncTimer = null;
-let syncTimer = null;
-let isReadyForScrollSync = false;
-let isSyncing = false;
 let isUpdatingFromScroll = false;
+let trackWidth = 0;
 
 const setCardRef = (key) => (element) => {
     if (element) {
@@ -33,27 +35,18 @@ const setCardRef = (key) => (element) => {
     cardRefs.delete(key);
 };
 
-const syncFlag = (duration = 360) => {
-    isSyncing = true;
-    window.clearTimeout(syncTimer);
-    syncTimer = window.setTimeout(() => {
-        isSyncing = false;
-    }, duration);
-};
-
 const centerCard = (key, behavior = 'smooth') => {
+    const container = containerRef.value;
     const card = cardRefs.get(key);
 
-    if (!card) {
+    if (!container || !card) {
         return;
     }
 
-    syncFlag(behavior === 'smooth' ? 360 : 120);
-    card.scrollIntoView({
-        behavior,
-        block: 'nearest',
-        inline: 'center',
-    });
+    const trackRect = container.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const offset = cardRect.left + cardRect.width / 2 - trackRect.left - trackRect.width / 2;
+    container.scrollBy({ left: offset, behavior });
 };
 
 const getNearestKeyFromScroll = () => {
@@ -88,65 +81,31 @@ const getNearestKeyFromScroll = () => {
     return nearestKey;
 };
 
-const updateActiveFromScroll = () => {
-    if (!containerRef.value || !isReadyForScrollSync || isSyncing) {
-        return;
-    }
-
+const syncCenteredCard = () => {
+    window.clearTimeout(scrollEndTimer);
     const nearestKey = getNearestKeyFromScroll();
 
     if (nearestKey && nearestKey !== props.modelValue) {
         isUpdatingFromScroll = true;
         emit('update:modelValue', nearestKey);
+        nextTick(() => {
+            isUpdatingFromScroll = false;
+        });
     }
 };
 
 const handleScroll = () => {
-    if (scrollFrame) {
-        window.cancelAnimationFrame(scrollFrame);
-    }
-
-    scrollFrame = window.requestAnimationFrame(updateActiveFromScroll);
-
-    if (!isReadyForScrollSync) {
-        return;
-    }
-
     window.clearTimeout(scrollEndTimer);
-    scrollEndTimer = window.setTimeout(() => {
-        centerCard(props.modelValue, 'smooth');
-    }, 120);
+    scrollEndTimer = window.setTimeout(syncCenteredCard, 180);
 };
 
-const selectItem = (key) => {
-    emit('update:modelValue', key);
-    nextTick(() => centerCard(key));
-};
-
-const getNodeClass = (key) => {
-    const classes = {
-        quest: 'mission',
-        library: 'archive',
-        townhall: 'event',
-        doopnews: 'broadcast',
-        party: 'guild',
-        leaderboard: 'rank',
-    };
-
-    return classes[key] ?? 'core';
-};
-
-const getNodeType = (key) => {
-    const labels = {
-        quest: 'Mission Board',
-        library: 'Archive Node',
-        townhall: 'Live Events',
-        doopnews: 'Broadcast Board',
-        party: 'Guild Party',
-        leaderboard: 'Rank Board',
-    };
-
-    return labels[key] ?? 'System Node';
+const nodeIcons = {
+    doopnews: doopNewsIcon,
+    quest: questIcon,
+    library: libraryIcon,
+    townhall: townhallIcon,
+    party: partyIcon,
+    leaderboard: leaderboardIcon,
 };
 
 const badgeCountLabel = (value) => {
@@ -160,54 +119,32 @@ const badgeCountLabel = (value) => {
 };
 
 const handleResize = () => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-        return;
-    }
+    const width = containerRef.value?.clientWidth;
 
-    centerCard(props.modelValue, 'auto');
+    if (width && width !== trackWidth) {
+        trackWidth = width;
+        centerCard(props.modelValue, 'instant');
+    }
 };
 
 watch(
     () => props.modelValue,
-    async (nextValue, previousValue) => {
-        await nextTick();
-
-        if (isUpdatingFromScroll) {
-            isUpdatingFromScroll = false;
-            return;
+    (key) => {
+        if (!isUpdatingFromScroll) {
+            centerCard(key);
         }
-
-        centerCard(nextValue, previousValue ? 'smooth' : 'auto');
     },
+    { flush: 'post' },
 );
 
-onMounted(async () => {
-    await nextTick();
-    containerRef.value?.addEventListener('scroll', handleScroll, { passive: true });
+onMounted(() => {
+    handleResize();
     window.addEventListener('resize', handleResize);
-
-    window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-            centerCard(props.modelValue, 'auto');
-            window.clearTimeout(initialSyncTimer);
-            initialSyncTimer = window.setTimeout(() => {
-                centerCard(props.modelValue, 'auto');
-                isReadyForScrollSync = true;
-            }, 260);
-        });
-    });
 });
 
 onBeforeUnmount(() => {
-    containerRef.value?.removeEventListener('scroll', handleScroll);
     window.removeEventListener('resize', handleResize);
     window.clearTimeout(scrollEndTimer);
-    window.clearTimeout(initialSyncTimer);
-    window.clearTimeout(syncTimer);
-
-    if (scrollFrame) {
-        window.cancelAnimationFrame(scrollFrame);
-    }
 });
 </script>
 
@@ -218,20 +155,22 @@ onBeforeUnmount(() => {
             class="carousel-track"
             aria-label="Dashboard navigation carousel"
             role="tablist"
+            @scroll.passive="handleScroll"
+            @scrollend="syncCenteredCard"
         >
             <div class="carousel-track__spacer" aria-hidden="true"></div>
 
             <button
-                v-for="(item, index) in items"
+                v-for="item in items"
                 :key="item.key"
                 :ref="setCardRef(item.key)"
                 type="button"
                 role="tab"
                 :aria-selected="modelValue === item.key ? 'true' : 'false'"
-                :class="['carousel-card', modelValue === item.key ? 'carousel-card--active' : 'carousel-card--inactive']"
-                @click="selectItem(item.key)"
+                class="carousel-card"
+                @click="centerCard(item.key)"
             >
-                <div class="carousel-card__frame" :class="[item.accent, `carousel-card__frame--${getNodeClass(item.key)}`]">
+                <div class="carousel-card__frame">
                     <span
                         v-if="Number(item.badge_count || 0) > 0"
                         class="carousel-card__new-dot"
@@ -239,37 +178,32 @@ onBeforeUnmount(() => {
                     >
                         {{ badgeCountLabel(item.badge_count) }}
                     </span>
-                    <div class="carousel-card__header">
-                        <div class="carousel-card__icon">
-                            <i :class="item.icon"></i>
-                        </div>
-                        <div class="carousel-card__badge">
-                            {{ getNodeType(item.key) }}
-                        </div>
+                    <div class="carousel-card__icon" aria-hidden="true">
+                        <img v-if="nodeIcons[item.key]" :src="nodeIcons[item.key]" width="48" height="40" alt="">
+                        <i v-else :class="item.icon"></i>
                     </div>
-
-                    <div class="carousel-card__body">
-                        <p class="carousel-card__eyebrow">{{ modelValue === item.key ? 'Active Node' : 'Explore Node' }}</p>
-                        <h3 class="carousel-card__title">{{ item.title }}</h3>
-                    </div>
-
-                    <div class="carousel-card__stats">
-                        <span class="carousel-card__chip">Node {{ String(index + 1).padStart(2, '0') }}</span>
-                        <span class="carousel-card__chip carousel-card__chip--state">
-                            {{ modelValue === item.key ? 'Selected' : 'Ready' }}
-                        </span>
-                    </div>
+                    <h3 class="carousel-card__title">{{ item.title }}</h3>
                 </div>
             </button>
 
             <div class="carousel-track__spacer" aria-hidden="true"></div>
         </div>
+        <p class="carousel-swipe-hint">Swipe left or right</p>
     </div>
 </template>
 
 <style scoped>
 .carousel-shell {
     @apply relative mx-auto max-w-[76rem] px-1 pb-4 pt-6 sm:px-2 sm:pb-5 sm:pt-7;
+    --card-idle-edge: var(--panel-border);
+    --card-shadow: color-mix(in srgb, var(--bg) 60%, transparent);
+    --card-glow: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+:global([data-app-surface='user'][data-theme='light']) .carousel-shell {
+    --card-idle-edge: color-mix(in srgb, var(--panel-border) 82%, var(--text));
+    --card-shadow: color-mix(in srgb, var(--text) 15%, transparent);
+    --card-glow: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .carousel-track {
@@ -278,226 +212,123 @@ onBeforeUnmount(() => {
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
-    touch-action: pan-x;
+    touch-action: pan-x pan-y pinch-zoom;
 }
 
 .carousel-track::-webkit-scrollbar {
     display: none;
 }
 
+.carousel-swipe-hint {
+    display: none;
+}
+
 .carousel-track__spacer {
-    flex: 0 0 max(1rem, calc(50% - min(36vw, 146px)));
+    flex: 0 0 max(1rem, calc(50% - min(34vw, 126px)));
 }
 
 .carousel-card {
-    @apply snap-center border-none bg-transparent p-0 text-left outline-none transition-all duration-500 ease-in-out;
+    --card-edge: var(--card-idle-edge);
+    --card-surface: var(--panel);
+    --pixel-corners: polygon(
+        12px 0, calc(100% - 12px) 0, calc(100% - 12px) 4px,
+        calc(100% - 8px) 4px, calc(100% - 8px) 8px,
+        calc(100% - 4px) 8px, calc(100% - 4px) 12px, 100% 12px,
+        100% calc(100% - 12px), calc(100% - 4px) calc(100% - 12px),
+        calc(100% - 4px) calc(100% - 8px), calc(100% - 8px) calc(100% - 8px),
+        calc(100% - 8px) calc(100% - 4px), calc(100% - 12px) calc(100% - 4px),
+        calc(100% - 12px) 100%, 12px 100%, 12px calc(100% - 4px),
+        8px calc(100% - 4px), 8px calc(100% - 8px), 4px calc(100% - 8px),
+        4px calc(100% - 12px), 0 calc(100% - 12px), 0 12px, 4px 12px,
+        4px 8px, 8px 8px, 8px 4px, 12px 4px
+    );
+    @apply snap-center border-none bg-transparent p-0 text-center duration-500 ease-in-out;
     flex: 0 0 min(68vw, 252px);
     scroll-snap-align: center;
     user-select: none;
+    color: var(--text);
+    transform: translateY(4px) scale(0.88);
+    transition-property: transform, filter;
+    filter: drop-shadow(0 4px 4px var(--card-shadow));
+}
+
+.carousel-card:hover {
+    --card-edge: color-mix(in srgb, var(--panel-border) 45%, var(--accent));
+}
+
+.carousel-card[aria-selected='true'] {
+    --card-edge: var(--accent);
+    --card-surface: color-mix(in srgb, var(--panel) 88%, var(--accent));
+    z-index: 20;
+    transform: translateY(-4px);
+    filter: drop-shadow(0 4px 4px var(--card-shadow)) drop-shadow(0 2px 8px var(--card-glow));
+}
+
+.carousel-card:focus-visible {
+    outline: none;
 }
 
 .carousel-card__frame {
-    @apply relative flex min-h-[164px] flex-col justify-between overflow-hidden border-2 border-[#31445f] bg-[#111827]/95 p-3 shadow-[0_12px_24px_rgba(3,8,18,0.36)];
+    @apply relative isolate flex min-h-[164px] flex-col items-center justify-center gap-3 p-3;
 }
 
-.carousel-card__new-dot {
-    @apply absolute right-3 top-3 z-20 flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full border border-red-200 bg-red-500 px-1.5 text-[7px] font-bold leading-none text-white shadow-[0_0_14px_rgba(239,68,68,0.78)];
+.carousel-card__frame::before,
+.carousel-card__frame::after {
+    content: '';
+    position: absolute;
+    clip-path: var(--pixel-corners);
+    pointer-events: none;
 }
 
 .carousel-card__frame::before {
-    content: "";
-    @apply absolute inset-[10px] border border-white/10;
+    z-index: -2;
+    inset: 0;
+    background: var(--card-edge);
 }
 
 .carousel-card__frame::after {
-    content: "";
-    @apply absolute inset-x-8 top-0 h-16 bg-cyan-300/10 blur-xl;
+    z-index: -1;
+    inset: 2px;
+    background:
+        linear-gradient(155deg, var(--card-surface), color-mix(in srgb, var(--card-surface) 76%, var(--bg)));
+    box-shadow: inset 0 0 0 2px var(--card-surface), inset 0 0 0 3px var(--card-edge);
 }
 
-.carousel-card__header {
-    @apply relative z-10 flex items-start justify-between gap-3;
+.carousel-card__new-dot {
+    @apply absolute right-2 top-2 z-10 flex min-h-[24px] min-w-[24px] items-center justify-center bg-red-700 px-1.5 text-[8px] leading-none text-white;
+    clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px),
+        calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
 }
 
 .carousel-card__icon {
-    @apply relative z-10 flex h-11 w-11 items-center justify-center border border-cyan-300/30 bg-[#0b1220] text-[18px] text-cyan-200 shadow-[0_0_12px_rgba(78,212,212,0.12)];
+    @apply grid h-24 w-28 place-items-center;
+    color: var(--accent);
 }
 
-.carousel-card__badge {
-    @apply border border-white/10 bg-black/20 px-2.5 py-1 text-[7px] uppercase tracking-[0.18em] text-slate-300;
-}
-
-.carousel-card__body {
-    @apply relative z-10 mt-3 space-y-2;
-}
-
-.carousel-card__eyebrow {
-    @apply text-[8px] uppercase tracking-[0.22em] text-cyan-300/70;
+.carousel-card__icon img {
+    width: min(100%, 108px);
+    height: auto;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 3px 0 var(--card-shadow));
 }
 
 .carousel-card__title {
-    @apply text-[12px] uppercase tracking-[0.12em] text-white;
-}
-
-.carousel-card__stats {
-    @apply relative z-10 flex items-center justify-between gap-3 border-t border-white/10 pt-3;
-}
-
-.carousel-card__chip {
-    @apply border border-white/10 bg-black/20 px-2.5 py-1 text-[7px] uppercase tracking-[0.14em] text-slate-300;
-}
-
-.carousel-card__chip--state {
-    @apply text-cyan-200;
-}
-
-.carousel-card--active {
-    @apply z-20 scale-100 opacity-100 blur-0;
-    transform: translateY(-4px);
-}
-
-.carousel-card--active .carousel-card__frame {
-    @apply border-cyan-300/70 shadow-[0_16px_28px_rgba(8,24,44,0.46)];
-}
-
-.carousel-card--active .carousel-card__badge,
-.carousel-card--active .carousel-card__chip {
-    @apply border-cyan-300/30 bg-cyan-300/10;
-}
-
-.carousel-card--inactive {
-    @apply z-10 opacity-55;
-    transform: translateY(4px) scale(0.88);
-}
-
-.from-amber-node {
-    background:
-        linear-gradient(180deg, rgba(245, 158, 11, 0.14), rgba(255,255,255,0) 22%),
-        linear-gradient(160deg, rgba(30, 41, 59, 0.98), rgba(17, 24, 39, 0.98));
-}
-
-.from-indigo-node {
-    background:
-        linear-gradient(180deg, rgba(99, 102, 241, 0.16), rgba(255,255,255,0) 24%),
-        linear-gradient(160deg, rgba(20, 25, 48, 0.98), rgba(17, 24, 39, 0.98));
-}
-
-.from-blue-node {
-    background:
-        linear-gradient(180deg, rgba(56, 189, 248, 0.18), rgba(255,255,255,0) 22%),
-        linear-gradient(160deg, rgba(15, 29, 46, 0.98), rgba(17, 24, 39, 0.98));
-}
-
-.from-rose-node {
-    background:
-        linear-gradient(180deg, rgba(244, 63, 94, 0.16), rgba(255,255,255,0) 22%),
-        linear-gradient(160deg, rgba(48, 18, 32, 0.98), rgba(17, 24, 39, 0.98));
-}
-
-.from-emerald-node {
-    background:
-        linear-gradient(180deg, rgba(16, 185, 129, 0.16), rgba(255,255,255,0) 22%),
-        linear-gradient(160deg, rgba(16, 31, 34, 0.98), rgba(17, 24, 39, 0.98));
-}
-
-.from-cyan-node {
-    background:
-        linear-gradient(180deg, rgba(34, 211, 238, 0.16), rgba(255,255,255,0) 22%),
-        linear-gradient(160deg, rgba(15, 32, 41, 0.98), rgba(17, 24, 39, 0.98));
-}
-
-.carousel-card__frame--mission {
-    box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.1);
-}
-
-.carousel-card__frame--archive {
-    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.12);
-}
-
-.carousel-card__frame--event {
-    box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.14);
-}
-
-.carousel-card__frame--broadcast {
-    box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.12);
-}
-
-.carousel-card__frame--guild {
-    box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.12);
-}
-
-.carousel-card__frame--rank {
-    box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.12);
-}
-
-[data-theme='light'] .carousel-card__frame {
-    border-color: #087f7f;
-    background:
-        linear-gradient(180deg, rgba(247, 247, 247, 0.28), rgba(247, 247, 247, 0.10) 42%, rgba(0, 153, 153, 0.12)),
-        #009999;
-    box-shadow:
-        0 18px 34px rgba(0, 153, 153, 0.20),
-        0 0 0 1px rgba(32, 32, 32, 0.10);
-}
-
-[data-theme='light'] .carousel-card__frame::before {
-    border-color: rgba(247, 247, 247, 0.28);
-}
-
-[data-theme='light'] .carousel-card__icon {
-    background: #202020;
-    color: #f7f7f7;
-    border-color: rgba(247, 247, 247, 0.58);
-    box-shadow: 0 8px 18px rgba(32, 32, 32, 0.18);
-}
-
-[data-theme='light'] .carousel-card__badge,
-[data-theme='light'] .carousel-card__chip {
-    border-color: rgba(247, 247, 247, 0.38);
-    background: rgba(247, 247, 247, 0.18);
-    color: #f7f7f7;
-}
-
-[data-theme='light'] .carousel-card__title {
-    color: #ffffff;
-    text-shadow: 0 1px 0 rgba(32, 32, 32, 0.18);
-}
-
-[data-theme='light'] .carousel-card__eyebrow,
-[data-theme='light'] .carousel-card__chip--state {
-    color: #ffffff;
-}
-
-[data-theme='light'] .carousel-card__stats {
-    border-top-color: rgba(247, 247, 247, 0.26);
-}
-
-[data-theme='light'] .from-amber-node,
-[data-theme='light'] .from-indigo-node,
-[data-theme='light'] .from-blue-node,
-[data-theme='light'] .from-rose-node,
-[data-theme='light'] .from-emerald-node,
-[data-theme='light'] .from-cyan-node {
-    background:
-        linear-gradient(180deg, rgba(247, 247, 247, 0.30), rgba(247,247,247,0.08) 32%),
-        linear-gradient(160deg, #38b2b2, #009999 54%, #087f7f);
-}
-
-[data-theme='light'] .carousel-card--inactive .carousel-card__frame {
-    background:
-        linear-gradient(180deg, rgba(247, 247, 247, 0.22), rgba(247,247,247,0.06) 34%),
-        linear-gradient(160deg, #38b2b2, #009999 58%, #087f7f);
-}
-
-[data-theme='light'] .carousel-card--active .carousel-card__frame {
-    border-color: #005f5f;
-    box-shadow:
-        0 24px 42px rgba(0, 153, 153, 0.28),
-        0 0 0 2px rgba(0, 95, 95, 0.28);
+    @apply text-[11px] uppercase leading-relaxed tracking-[0.04em];
+    font-family: "Press Start 2P", monospace;
 }
 
 @media (max-width: 767px) {
     .carousel-shell {
-        @apply px-0 pb-5 pt-6;
+        @apply px-0 pb-2 pt-4;
+    }
+
+    .carousel-swipe-hint {
+        display: block;
+        margin: 0.25rem 0 0;
+        color: var(--text);
+        font-size: 7px;
+        line-height: 1.5;
+        text-align: center;
     }
 
     .carousel-track {
@@ -506,7 +337,7 @@ onBeforeUnmount(() => {
     }
 
     .carousel-track__spacer {
-        flex-basis: max(0.75rem, calc(50% - min(40vw, 126px)));
+        flex-basis: max(0.75rem, calc(50% - min(41vw, 126px)));
     }
 
     .carousel-card {
@@ -515,18 +346,6 @@ onBeforeUnmount(() => {
 
     .carousel-card__frame {
         @apply min-h-[170px] p-4;
-    }
-
-    .carousel-card__badge {
-        @apply hidden;
-    }
-
-    .carousel-card__body {
-        @apply mt-4;
-    }
-
-    .carousel-card__stats {
-        @apply pt-3;
     }
 }
 </style>

@@ -37,7 +37,7 @@ class AdminShopItemController extends Controller
             ->paginate(12)
             ->withQueryString();
 
-        return Inertia::render($request->routeIs('redesign.shop-items') ? 'Redesign/AdminDashboard/ShopItems' : 'Shop/Admin/Index', [
+        return Inertia::render('Redesign/AdminDashboard/ShopItems', [
             'items' => $items,
             'filters' => [
                 'search' => $search,
@@ -133,7 +133,7 @@ class AdminShopItemController extends Controller
             ->where('shop_item_id', $item->id)
             ->sum('quantity');
 
-        return Inertia::render($request->routeIs('redesign.shop-items.detail') ? 'Redesign/AdminDashboard/ShopItemDetail' : 'Shop/Admin/Detail', [
+        return Inertia::render('Redesign/AdminDashboard/ShopItemDetail', [
             'item' => $item,
             'transactions' => $transactions,
             'filters' => [

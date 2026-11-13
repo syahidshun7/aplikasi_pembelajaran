@@ -87,7 +87,7 @@ class AdminEventController extends Controller
             $studyGroupQuery->where('job_id', $this->requireMentorJobId());
         }
 
-        return Inertia::render($request->routeIs('redesign.events*') || $request->routeIs('redesign.study-groups.events') ? 'Redesign/AdminDashboard/Events' : 'Events/Admin/Index', [
+        return Inertia::render('Redesign/AdminDashboard/Events', [
             'timezone' => config('app.timezone'),
             'events' => $events,
             'studyGroups' => $studyGroupQuery->get(['id', 'name', 'job_id']),
@@ -101,8 +101,8 @@ class AdminEventController extends Controller
                 'uuid' => (string) $scopedGroup->uuid,
                 'id' => (int) $scopedGroup->id,
                 'name' => (string) $scopedGroup->name,
-                'back_url' => route('groups.detail', $scopedGroup->uuid),
-                'events_url' => route('groups.events.index', $scopedGroup->uuid),
+                'back_url' => route('redesign.study-groups.show', $scopedGroup->uuid),
+                'events_url' => route('redesign.study-groups.events', $scopedGroup->uuid),
             ] : null,
         ]);
     }
@@ -305,7 +305,7 @@ class AdminEventController extends Controller
             ->latest('id')
             ->get(['id', 'uuid', 'title', 'status', 'deadline', 'study_group_id']);
 
-        return Inertia::render(request()->routeIs('redesign.events.show') ? 'Redesign/AdminDashboard/EventDetail' : 'Events/Admin/Detail', [
+        return Inertia::render('Redesign/AdminDashboard/EventDetail', [
             'timezone' => config('app.timezone'),
             'event' => $event,
             'availableGuides' => $availableGuides,
@@ -353,7 +353,7 @@ class AdminEventController extends Controller
                 return $user;
             });
 
-        return Inertia::render(request()->routeIs('redesign.events.attendance') ? 'Redesign/AdminDashboard/EventAttendance' : 'Events/Admin/Attendance', [
+        return Inertia::render('Redesign/AdminDashboard/EventAttendance', [
             'event' => $event,
             'attendanceUsers' => $attendanceUsers,
             'activeCheckInCode' => $activeCheckInCode ? [

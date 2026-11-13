@@ -52,7 +52,7 @@ class AssignmentSubmittedNotification extends Notification implements ShouldQueu
                 $submission->user?->username ?: $submission->user?->name ?: 'Siswa',
                 $submission->quest?->title ?: 'Quest'
             ),
-            'action_url' => route('admin.submissions.inspect', $submission),
+            'action_url' => route('redesign.submissions.inspect', $submission),
             'action_label' => 'Review sekarang',
             'icon' => 'fi-rr-file-check',
             'accent' => 'amber',

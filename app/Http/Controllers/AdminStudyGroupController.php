@@ -56,7 +56,7 @@ class AdminStudyGroupController extends Controller
     $view = (string) ($validated['view'] ?? 'active');
     $jobId = $validated['job_id'] ?? null;
 
-    return Inertia::render($request->routeIs('redesign.study-groups') ? 'Redesign/AdminDashboard/StudyGroups' : 'StudyGroups/Admin/Index', [
+    return Inertia::render('Redesign/AdminDashboard/StudyGroups', [
         'groups' => StudyGroup::query()
             ->tap(fn ($query) => $access->scopeAccessibleGroups($query, auth()->user()))
             ->when($view === 'trash', fn ($query) => $query->onlyTrashed())
@@ -210,7 +210,7 @@ class AdminStudyGroupController extends Controller
             $group->loadCount(['quests', 'events', 'roadmaps']);
         }
 
-        return Inertia::render(request()->routeIs('redesign.study-groups.show') ? 'Redesign/AdminDashboard/StudyGroupDetail' : 'StudyGroups/Admin/Detail', [
+        return Inertia::render('Redesign/AdminDashboard/StudyGroupDetail', [
             'group' => $group,
             'operations' => request()->routeIs('redesign.study-groups.show') ? [
                 'quests' => (int) $group->quests_count,
@@ -357,7 +357,7 @@ class AdminStudyGroupController extends Controller
             : 0.0;
         $performanceAverage = round(($attendancePercentage * 0.3) + ($mainQuestAverage * 0.7), 1);
 
-        return Inertia::render(request()->routeIs('redesign.study-groups.students.detail') ? 'Redesign/AdminDashboard/StudentPerformance' : 'StudyGroups/Admin/StudentDetail', [
+        return Inertia::render('Redesign/AdminDashboard/StudentPerformance', [
             'group' => [
                 'uuid' => (string) $group->uuid,
                 'name' => (string) $group->name,
@@ -406,7 +406,7 @@ class AdminStudyGroupController extends Controller
             $group->load('roadmaps.nodes');
         }
 
-        return Inertia::render($isRedesign ? 'Redesign/AdminDashboard/Roadmaps' : 'StudyGroups/Admin/Roadmaps', [
+        return Inertia::render('Redesign/AdminDashboard/Roadmaps', [
             'group' => $group,
             'attachedRoadmaps' => $group->roadmaps
                 ->map(fn (DoopLabRoadmap $roadmap) => [
@@ -443,7 +443,7 @@ class AdminStudyGroupController extends Controller
             abort(403, 'STUDY_GROUP_STAFF_ACCESS_DENIED');
         }
 
-        return Inertia::render(request()->routeIs('redesign.study-groups.attendance') ? 'Redesign/AdminDashboard/Attendance' : 'StudyGroups/Admin/AttendanceDashboard', [
+        return Inertia::render('Redesign/AdminDashboard/Attendance', [
             'group' => $group,
             'attendanceDashboard' => $this->buildAttendanceDashboard($group),
         ]);
@@ -470,7 +470,7 @@ class AdminStudyGroupController extends Controller
             })
             ->values();
 
-        return Inertia::render(request()->routeIs('redesign.study-groups.membership') ? 'Redesign/AdminDashboard/Membership' : 'StudyGroups/Admin/JoinRequests', [
+        return Inertia::render('Redesign/AdminDashboard/Membership', [
             'group' => $group,
             'requests' => $requests,
             'members' => $group->users()

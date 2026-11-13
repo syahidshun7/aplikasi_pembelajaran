@@ -10,11 +10,34 @@ const currentParams = computed(() => route().params || {});
 const scopedGroupUuid = computed(() => currentName.value.startsWith('redesign.study-groups.')
     ? currentParams.value.groupUuid || currentParams.value.uuid || null : null);
 const isMentor = computed(() => user.value.role === 'mentor');
+const isSuperAdmin = computed(() => user.value.role === 'super_admin');
+const sidebarClasses = computed(() => page.props.sidebarClasses || []);
+const mentorSections = [
+    { label: 'Materi', routeName: 'redesign.study-groups.guides' },
+    { label: 'Quest', routeName: 'redesign.study-groups.quests' },
+    { label: 'Event', routeName: 'redesign.study-groups.events' },
+];
+const activeMentorClass = computed(() => scopedGroupUuid.value
+    || page.props.selectedStudyGroup?.uuid
+    || page.props.event?.study_group?.uuid
+    || page.props.guide?.study_group?.uuid
+    || page.props.quest?.study_group?.uuid
+    || null);
+const isMentorSectionActive = (classUuid, routeName) => {
+    if (activeMentorClass.value !== classUuid) return false;
+
+    const globalPrefix = {
+        'redesign.study-groups.guides': 'redesign.materi.',
+        'redesign.study-groups.quests': 'redesign.quests.',
+        'redesign.study-groups.events': 'redesign.events.',
+    }[routeName];
+    return currentName.value === routeName || currentName.value.startsWith(routeName + '.') || currentName.value.startsWith(globalPrefix);
+};
 
 const adminGroups = [
     { title: 'Ringkasan', items: [
         { label: 'Dashboard', key: 'dashboard', name: 'redesign.admin-dashboard' },
-        { label: 'Dashboard kelas saya', key: 'class-dashboard', name: 'redesign.class-dashboard' },
+        { label: 'Dashboard kelas saya', key: 'class-dashboard', name: 'redesign.class-dashboard', hideForSuperAdmin: true },
     ] },
     { title: 'Program & kelas', items: [
         { label: 'Job / program', key: 'jobs', name: 'redesign.jobs' },
@@ -48,9 +71,13 @@ const adminGroups = [
     ] },
 ];
 const mentorKeys = new Set(['class-dashboard', 'task-banks', 'rubrics', 'creation-review', 'notifications', 'profile']);
-const groups = computed(() => isMentor.value
-    ? adminGroups.map(group => ({ ...group, items: group.items.filter(item => mentorKeys.has(item.key)) })).filter(group => group.items.length)
-    : adminGroups);
+const groups = computed(() => adminGroups.map(group => ({
+    ...group,
+    items: group.items.filter(item => (
+        (!isMentor.value || mentorKeys.has(item.key))
+        && (!isSuperAdmin.value || !item.hideForSuperAdmin)
+    )),
+})).filter(group => group.items.length));
 
 const isActive = key => {
     const name = currentName.value;
@@ -119,7 +146,29 @@ const subnavItems = key => {
             <section v-for="group in groups" :key="group.title" class="nav-group" :aria-label="group.title">
                 <h2 class="nav-group-title">{{ group.title }}</h2>
                 <div v-for="item in group.items" :key="item.key">
-                    <Link :href="itemUrl(item)" class="nav-link" :class="{ active: isActive(item.key) }" :aria-current="isActive(item.key) && !subnavItems(item.key).some(child => child.selected) ? 'page' : undefined" @click="menuOpen = false"><span class="nav-dot" aria-hidden="true"></span>{{ item.label }}</Link>
+                    <template v-if="item.key === 'class-dashboard'">
+                        <Link :href="itemUrl(item)" class="nav-link" :class="{ active: isActive(item.key) || activeMentorClass }" :aria-current="isActive(item.key) ? 'page' : undefined" @click="menuOpen = false">
+                            <span class="nav-dot" aria-hidden="true"></span>{{ item.label }}
+                        </Link>
+                        <div class="subnav">
+                            <p v-if="!sidebarClasses.length" class="nav-empty">Belum ada kelas yang dapat diakses.</p>
+                            <div v-for="classroom in sidebarClasses" :key="classroom.uuid">
+                                <Link
+                                    :href="route('redesign.study-groups.show', classroom.uuid)"
+                                    class="class-link"
+                                    :class="{ selected: activeMentorClass === classroom.uuid }"
+                                    :aria-current="currentName === 'redesign.study-groups.show' && activeMentorClass === classroom.uuid ? 'page' : undefined"
+                                    @click="menuOpen = false"
+                                >
+                                    {{ classroom.name }}
+                                </Link>
+                                <div v-if="activeMentorClass === classroom.uuid" class="subnav class-subnav">
+                                    <Link v-for="section in mentorSections" :key="section.routeName" :href="route(section.routeName, classroom.uuid)" :class="{ selected: isMentorSectionActive(classroom.uuid, section.routeName) }" :aria-current="currentName === section.routeName && activeMentorClass === classroom.uuid ? 'page' : undefined" @click="menuOpen = false">{{ section.label }}</Link>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    <Link v-else :href="itemUrl(item)" class="nav-link" :class="{ active: isActive(item.key) }" :aria-current="isActive(item.key) && !subnavItems(item.key).some(child => child.selected) ? 'page' : undefined" @click="menuOpen = false"><span class="nav-dot" aria-hidden="true"></span>{{ item.label }}</Link>
                     <div v-if="isActive(item.key) && subnavItems(item.key).length" class="subnav" :aria-label="`Halaman ${item.label}`">
                         <Link v-for="child in subnavItems(item.key)" :key="child.label" :href="child.href" :class="{ selected: child.selected }" :aria-current="child.selected ? 'page' : undefined" @click="menuOpen = false">{{ child.label }}</Link>
                     </div>
@@ -132,4 +181,7 @@ const subnavItems = key => {
 
 <style scoped>
 .redesign-sidebar{width:248px;min-height:100vh;flex:none;background:#12383d;color:#a8c1c3;border-right:3px solid #20b7e8;padding:22px 14px 16px;display:flex;flex-direction:column}.brand{display:flex;align-items:center;gap:10px;color:#fff;margin:0 8px 26px}.brand-mark{width:30px;height:30px;object-fit:contain;flex:none}.brand strong{display:block;font-size:14px;font-weight:800;letter-spacing:-.02em}.brand small,.profile-chip small{display:block;font-size:9px;color:#86a9ac;margin-top:3px}.brand small{letter-spacing:.04em}.redesign-sidebar nav{flex:1}.nav-group{padding:0 0 14px;margin-bottom:13px;border-bottom:1px solid rgba(173,213,214,.14)}.nav-group:last-child{border-bottom:0}.nav-group-title{margin:0 8px 8px;font-size:10px;font-weight:750;text-transform:uppercase;color:#91b7b8;letter-spacing:.07em}.nav-link{display:flex;align-items:center;gap:12px;border-radius:7px;padding:9px 10px;font-size:12px;color:#b6ced0;text-decoration:none;line-height:1.35}.nav-link:hover{background:#1c4b50;color:#fff}.nav-link.active{background:#235e62;color:#fff;font-weight:750}.nav-dot{width:6px;height:6px;flex:none;border-radius:50%;background:#76a7aa}.nav-link.active .nav-dot{background:#53d4c7}.subnav{display:grid;gap:2px;margin:3px 0 7px 12px;padding-left:16px;border-left:1px solid #4a8586}.subnav a{display:block;border-radius:5px;padding:7px 9px;color:#a8c6c7;font-size:11px;text-decoration:none}.subnav a:hover,.subnav a.selected{color:#fff;background:#1c4b50}.subnav a.selected{font-weight:750}.profile-chip{display:flex;align-items:center;gap:10px;background:#204f54;border-radius:7px;padding:10px 8px;margin-top:12px;color:#fff}.avatar{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#8ac5c3;color:#12383d;font-size:10px;font-weight:700}.profile-chip strong{font-size:10px;display:block}.profile-chip small{text-transform:none;font-size:9px}.mobile-toggle{display:none}.redesign-sidebar :is(a,button):focus-visible{outline:2px solid #8de6df;outline-offset:2px}@media(max-width:800px){.redesign-sidebar{width:100%;min-height:auto;border-right:0;border-bottom:2px solid #20b7e8;padding:14px}.brand{margin:0}.mobile-toggle{display:block;margin-left:auto;border:1px solid #5c888a;border-radius:5px;background:transparent;color:#fff;padding:8px 12px;font-size:12px}.redesign-sidebar nav{display:none}.redesign-sidebar nav.open{display:block;margin-top:18px;max-height:60vh;overflow-y:auto}.profile-chip{display:none}}
+.class-link { overflow-wrap: anywhere; }
+.class-subnav { margin-left: 9px; padding-left: 8px; }
+.nav-empty { margin: 0; padding: 7px 9px; font-size: 11px; }
 </style>

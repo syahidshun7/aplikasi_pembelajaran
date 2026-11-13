@@ -48,7 +48,7 @@ class AdminErrorLogController extends Controller
                 ->all(),
         ];
 
-        return Inertia::render($request->routeIs('redesign.error-logs') ? 'Redesign/AdminDashboard/ErrorLogs' : 'ErrorLogs/Index', [
+        return Inertia::render('Redesign/AdminDashboard/ErrorLogs', [
             'logs' => $logs,
             'filters' => [
                 'status' => $request->input('status'),

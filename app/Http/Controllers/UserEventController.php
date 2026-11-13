@@ -211,8 +211,8 @@ class UserEventController extends Controller
             'backUrl' => $request->query('from') === 'redesign'
                 ? route('redesign.events.show', $event->uuid)
                 : ($event->studyGroup
-                    ? route('groups.events.index', $event->studyGroup->uuid)
-                    : route('admin.events.index')),
+                    ? route('redesign.study-groups.events', $event->studyGroup->uuid)
+                    : route('redesign.events')),
             'userAttendance' => [
                 'status' => 'preview',
                 'checked_at' => null,

@@ -43,7 +43,7 @@ class AdminJobRoleController extends Controller
             ->paginate(12)
             ->withQueryString();
 
-        return Inertia::render($request->routeIs('redesign.jobs') ? 'Redesign/AdminDashboard/Jobs' : 'Jobs/Admin/Index', [
+        return Inertia::render('Redesign/AdminDashboard/Jobs', [
             'jobs' => $jobs,
             'jobItems' => $jobs->getCollection()->values(),
             'filters' => [
@@ -101,15 +101,15 @@ class AdminJobRoleController extends Controller
                 'staff_count' => (int) ($group->staff_count ?? 0),
                 'quests_count' => (int) ($group->quests_count ?? 0),
                 'events_count' => (int) ($group->events_count ?? 0),
-                'detail_url' => route('groups.detail', $group->uuid),
+                'detail_url' => route('redesign.study-groups.show', $group->uuid),
                 'user_preview_url' => route('groups.user-preview', $group->uuid),
-                'quests_url' => route('groups.quests.index', $group->uuid),
-                'guides_url' => route('groups.guides.index', $group->uuid),
-                'events_url' => route('groups.events.index', $group->uuid),
+                'quests_url' => route('redesign.study-groups.quests', $group->uuid),
+                'guides_url' => route('redesign.study-groups.guides', $group->uuid),
+                'events_url' => route('redesign.study-groups.events', $group->uuid),
             ])
             ->values();
 
-        return Inertia::render(request()->routeIs('redesign.jobs.show') ? 'Redesign/AdminDashboard/JobDetail' : 'Jobs/Admin/Show', [
+        return Inertia::render('Redesign/AdminDashboard/JobDetail', [
             'job' => [
                 'id' => (int) $jobRole->id,
                 'name' => (string) $jobRole->name,
@@ -122,10 +122,8 @@ class AdminJobRoleController extends Controller
                 'task_banks_count' => (int) ($jobRole->task_banks_count ?? 0),
             ],
             'groups' => $groups,
-            'studyGroupsUrl' => request()->routeIs('redesign.jobs.show')
-                ? route('redesign.study-groups', ['job_id' => $jobRole->id])
-                : route('groups.manage', ['search' => $jobRole->name]),
-            'jobsUrl' => request()->routeIs('redesign.jobs.show') ? route('redesign.jobs') : route('admin.jobs.index'),
+            'studyGroupsUrl' => route('redesign.study-groups', ['job_id' => $jobRole->id]),
+            'jobsUrl' => route('redesign.jobs'),
         ]);
     }
 

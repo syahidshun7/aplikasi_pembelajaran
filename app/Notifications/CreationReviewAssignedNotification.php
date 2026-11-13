@@ -55,7 +55,7 @@ class CreationReviewAssignedNotification extends Notification implements ShouldQ
                 $assignerName,
                 (string) ($creation->title ?? 'creation')
             ),
-            'action_url' => route('admin.creations.preview', ['creation' => (int) $creation->id]),
+            'action_url' => route('redesign.creations.review', ['creation' => (int) $creation->id]),
             'action_label' => 'Open review workspace',
             'icon' => 'fi-rr-checklist-task-budget',
             'accent' => 'cyan',

@@ -232,11 +232,11 @@ const partyLabelForQuest = (quest) => {
             </div>
         </article>
 
-        <div v-if="items.length > 0" class="grid gap-3 lg:grid-cols-2">
+        <div v-if="items.length > 0" class="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <article
                 v-for="quest in items"
                 :key="quest.uuid"
-                class="quest-item-card group flex min-h-[188px] flex-col border-2 p-3 transition-colors"
+                class="quest-item-card group flex min-h-[188px] min-w-0 flex-col border-2 p-3 transition-colors"
                 :style="toneStyleForQuest(quest)"
                 :class="[
                     (quest.user_submission_status === 'Approved') ? 'border-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.35)] bg-emerald-950/20' :
@@ -289,7 +289,7 @@ const partyLabelForQuest = (quest) => {
                         >
                             {{ String(quest.quest_type || 'main') === 'optional' ? 'Optional Bonus Quest' : 'Main Quest' }}
                         </span>
-                        <span class="quest-group-badge px-2 py-1 border text-[6px] uppercase tracking-[0.14em]">
+                        <span class="quest-group-badge min-w-0 max-w-full break-words px-2 py-1 border text-[6px] uppercase tracking-[0.14em]">
                             {{ partyLabelForQuest(quest) }}
                         </span>
                     </div>
@@ -341,7 +341,7 @@ const partyLabelForQuest = (quest) => {
                     </p>
                 </div>
 
-                <div class="mt-3 flex items-center justify-between gap-3 border-t border-slate-800 pt-3">
+                <div class="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-3">
                     <div class="flex items-baseline gap-1.5">
                         <span class="text-[6px] uppercase text-slate-500">Reward</span>
                         <span class="text-[8px] font-bold tracking-tighter text-yellow-500">{{ quest.reward_gold }}G</span>

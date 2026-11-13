@@ -49,9 +49,15 @@ use App\Http\Controllers\ShopController;
 use App\Http\Controllers\StudyGroupController;
 use App\Http\Controllers\SubmissionController;
 use App\Http\Controllers\UserEventController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+
+// Keep existing bookmarks and route names while serving staff pages only from Redesign.
+$redirectToRedesign = static fn (string $name) => static function (Request $request) use ($name) {
+    return redirect()->route($name, $request->route()->parameters() + $request->query());
+};
 
 Route::prefix('api')->name('api.')->group(function () {
     Route::get('/hall-of-creations', [HallOfCreationApiController::class, 'index'])->name('hall.index');
@@ -179,9 +185,10 @@ Route::get('/hall-of-creations/{creation}', [CreationPageController::class, 'sho
 Route::get('/hall-of-creations/{creation}/review', [CreationPageController::class, 'showReview'])->name('hall.creations.review');
 Route::get('/profiles/{user:username}', [ProfileController::class, 'show'])->name('profiles.show');
 
-Route::middleware('auth')->group(function () {
-    Route::middleware('role:admin,mentor')->group(function () {
-        Route::get('/admin/profile', [ProfileController::class, 'adminEdit'])->name('admin.profile.edit');
+Route::middleware('auth')->group(function () use ($redirectToRedesign) {
+    Route::middleware('role:admin,mentor')->group(function () use ($redirectToRedesign) {
+        Route::get('/redesign/profile', [ProfileController::class, 'adminEdit'])->name('redesign.profile');
+        Route::get('/admin/profile', $redirectToRedesign('redesign.profile'))->name('admin.profile.edit');
         Route::patch('/admin/profile', [ProfileController::class, 'update'])->name('admin.profile.update');
     });
 
@@ -303,12 +310,16 @@ Route::middleware('auth')->group(function () {
     });
 });
 
-Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () {
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/dashboard-redesign', [DashboardController::class, 'index'])->name('dashboard.redesign');
+Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () use ($redirectToRedesign) {
+    $staffDashboard = static fn (Request $request) => redirect()->route(
+        $request->user()->staffRedesignRoute(),
+        $request->query(),
+    );
+
+    Route::get('/dashboard', $staffDashboard)->name('dashboard');
+    Route::get('/dashboard-redesign', $staffDashboard)->name('dashboard.redesign');
     Route::get('/redesign/admin-dashboard', [DashboardController::class, 'index'])->name('redesign.admin-dashboard');
     Route::get('/redesign/dashboard-kelas-saya', [DashboardController::class, 'index'])->name('redesign.class-dashboard');
-    Route::get('/redesign/profile', [ProfileController::class, 'adminEdit'])->name('redesign.profile');
     Route::get('/redesign/notifications', [NotificationController::class, 'index'])->name('redesign.notifications');
     Route::get('/redesign/jobs', [AdminJobRoleController::class, 'index'])->name('redesign.jobs');
     Route::get('/redesign/jobs/create', [AdminJobRoleController::class, 'createRedesign'])->name('redesign.jobs.create');
@@ -355,22 +366,20 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
     Route::get('/redesign/study-groups/{groupUuid}/quests/create', [QuestController::class, 'createRedesign'])->name('redesign.study-groups.quests.create');
     Route::get('/redesign/study-groups/{groupUuid}/quests/generate-ai', [QuestController::class, 'generateAiRedesign'])->name('redesign.study-groups.quests.generate-ai');
     Route::get('/redesign/study-groups/{groupUuid}/quests/{questUuid}/edit', [QuestController::class, 'editScopedRedesign'])->name('redesign.study-groups.quests.edit');
-    Route::get('/admin/dashboard', function () {
-        return redirect()->route(auth()->user()->staffRedesignRoute());
-    })->name('admin.dashboard');
+    Route::get('/admin/dashboard', $staffDashboard)->name('admin.dashboard');
 
-    Route::get('/quests', [QuestController::class, 'index'])->name('quests.index');
+    Route::get('/quests', $redirectToRedesign('redesign.quests'))->name('quests.index');
     Route::post('/quests', [QuestController::class, 'store'])->name('quests.store');
     Route::patch('/quests/{quest}', [QuestController::class, 'update'])->name('quests.update');
     Route::patch('/quests/{uuid}/restore', [QuestController::class, 'restore'])->name('quests.restore');
     Route::delete('/quests/{uuid}/force', [QuestController::class, 'forceDestroy'])->name('quests.force-destroy');
     Route::delete('/quests/{quest}', [QuestController::class, 'destroy'])->name('quests.destroy');
 
-    Route::get('/quests/{quest}/submissions', [AdminQuestController::class, 'submissions'])
+    Route::get('/quests/{quest}/submissions', $redirectToRedesign('redesign.quests.submissions'))
         ->name('admin.quests.submissions');
     Route::get('/quests/{quest}/submissions/download-files', [AdminQuestController::class, 'downloadSubmissionFiles'])
         ->name('admin.quests.submissions.download-files');
-    Route::get('/submissions/{submission}/inspect', [AdminSubmissionController::class, 'inspect'])
+    Route::get('/submissions/{submission}/inspect', $redirectToRedesign('redesign.submissions.inspect'))
         ->name('admin.submissions.inspect');
     Route::get('/submissions/{submission}/file/{attachment?}', [AdminSubmissionController::class, 'previewFile'])
         ->name('admin.submissions.file');
@@ -407,14 +416,14 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
     Route::post('/admin/quests/optional/commit-theme', [AdminOptionalQuestAiController::class, 'commitThemeBundle'])
         ->name('admin.quests.optional.commit-theme');
 
-    Route::prefix('admin/task-banks')->name('admin.task-banks.')->group(function () {
-        Route::get('/', [AdminTaskBankController::class, 'index'])->name('index');
+    Route::prefix('admin/task-banks')->name('admin.task-banks.')->group(function () use ($redirectToRedesign) {
+        Route::get('/', $redirectToRedesign('redesign.task-banks'))->name('index');
         Route::patch('/{uuid}/restore', [AdminTaskBankController::class, 'restore'])->name('restore');
         Route::post('/', [AdminTaskBankController::class, 'store'])->name('store');
         Route::put('/{taskBank:uuid}', [AdminTaskBankController::class, 'update'])->name('update');
         Route::delete('/{taskBank:uuid}', [AdminTaskBankController::class, 'destroy'])->name('destroy');
 
-        Route::get('/{taskBank:uuid}/tasks', [AdminTaskBankController::class, 'show'])->name('show');
+        Route::get('/{taskBank:uuid}/tasks', $redirectToRedesign('redesign.task-banks.questions'))->name('show');
         Route::post('/{taskBank:uuid}/tasks', [AdminTaskBankController::class, 'storeQuestion'])->name('tasks.store');
         Route::post('/{taskBank:uuid}/tasks/import-json', [AdminTaskBankController::class, 'importQuestionsJson'])->name('tasks.import-json');
         Route::put('/{taskBank:uuid}/tasks/reorder', [AdminTaskBankController::class, 'reorderQuestions'])->name('tasks.reorder');
@@ -423,16 +432,16 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
         Route::delete('/{taskBank:uuid}/tasks/{question:uuid}', [AdminTaskBankController::class, 'destroyQuestion'])->name('tasks.destroy');
     });
 
-    Route::prefix('admin/events')->name('admin.events.')->group(function () {
-        Route::get('/', [AdminEventController::class, 'index'])->name('index');
+    Route::prefix('admin/events')->name('admin.events.')->group(function () use ($redirectToRedesign) {
+        Route::get('/', $redirectToRedesign('redesign.events'))->name('index');
         Route::post('/', [AdminEventController::class, 'store'])->name('store');
         Route::put('/{event:uuid}', [AdminEventController::class, 'update'])->name('update');
         Route::patch('/{uuid}/restore', [AdminEventController::class, 'restore'])->name('restore');
         Route::delete('/{uuid}/force', [AdminEventController::class, 'forceDestroy'])->name('force-destroy');
         Route::delete('/{event:uuid}', [AdminEventController::class, 'destroy'])->name('destroy');
 
-        Route::get('/{event:uuid}', [AdminEventController::class, 'detail'])->name('detail');
-        Route::get('/{event:uuid}/attendance', [AdminEventController::class, 'attendance'])->name('attendance');
+        Route::get('/{event:uuid}', $redirectToRedesign('redesign.events.show'))->name('detail');
+        Route::get('/{event:uuid}/attendance', $redirectToRedesign('redesign.events.attendance'))->name('attendance');
         Route::post('/{event:uuid}/attendance/check-in-code', [AdminEventController::class, 'generateCheckInCode'])->name('attendance.check-in-code.generate');
         Route::post('/{event:uuid}/guides/attach', [AdminEventController::class, 'attachGuides'])->name('guides.attach');
         Route::post('/{event:uuid}/quests/attach', [AdminEventController::class, 'attachQuests'])->name('quests.attach');
@@ -443,13 +452,13 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
         Route::patch('/{event:uuid}/attendance', [AdminEventController::class, 'updateAttendance'])->name('attendance.update');
     });
 
-    Route::prefix('admin/rubrics')->name('admin.rubrics.')->group(function () {
-        Route::get('/', [RubricController::class, 'index'])->name('index');
-        Route::get('/create', [RubricController::class, 'create'])->name('create');
+    Route::prefix('admin/rubrics')->name('admin.rubrics.')->group(function () use ($redirectToRedesign) {
+        Route::get('/', $redirectToRedesign('redesign.rubrics'))->name('index');
+        Route::get('/create', $redirectToRedesign('redesign.rubrics.create'))->name('create');
         Route::post('/', [RubricController::class, 'store'])->name('store');
         Route::post('/import-json', [RubricController::class, 'importJson'])->name('import-json');
-        Route::get('/{rubric}', [RubricController::class, 'show'])->name('show');
-        Route::get('/{rubric}/edit', [RubricController::class, 'edit'])->name('edit');
+        Route::get('/{rubric}', $redirectToRedesign('redesign.rubrics.show'))->name('show');
+        Route::get('/{rubric}/edit', $redirectToRedesign('redesign.rubrics.edit'))->name('edit');
         Route::put('/{rubric}', [RubricController::class, 'update'])->name('update');
         Route::delete('/{rubric}', [RubricController::class, 'destroy'])->name('destroy');
         Route::get('/{rubric}/export', [RubricController::class, 'export'])->name('export');
@@ -466,8 +475,10 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
     Route::post('/admin/notifications/announcement', [NotificationDispatchController::class, 'announcement'])
         ->name('admin.notifications.announcement');
 
-    Route::prefix('admin/doopnews')->name('admin.doopnews.')->group(function () {
-        Route::get('/', [AdminDoopNewsController::class, 'index'])->name('index');
+    Route::get('/redesign/doopnews', [AdminDoopNewsController::class, 'index'])->name('redesign.doopnews');
+
+    Route::prefix('admin/doopnews')->name('admin.doopnews.')->group(function () use ($redirectToRedesign) {
+        Route::get('/', $redirectToRedesign('redesign.doopnews'))->name('index');
         Route::post('/', [AdminDoopNewsController::class, 'store'])->name('store');
         Route::put('/{post}', [AdminDoopNewsController::class, 'update'])->name('update');
         Route::patch('/{post}/publish', [AdminDoopNewsController::class, 'publish'])->name('publish');
@@ -475,9 +486,9 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
         Route::delete('/{post}', [AdminDoopNewsController::class, 'destroy'])->name('destroy');
     });
 
-    Route::prefix('admin/creations')->name('admin.creations.')->group(function () {
-        Route::get('/review-queue', [AdminCreationReviewController::class, 'index'])->name('queue');
-        Route::get('/{creation}/preview', [AdminCreationReviewController::class, 'preview'])->name('preview');
+    Route::prefix('admin/creations')->name('admin.creations.')->group(function () use ($redirectToRedesign) {
+        Route::get('/review-queue', $redirectToRedesign('redesign.creations.queue'))->name('queue');
+        Route::get('/{creation}/preview', $redirectToRedesign('redesign.creations.review'))->name('preview');
         Route::post('/{creation}/review', [AdminCreationReviewController::class, 'submitFinalReview'])->name('review.submit');
         Route::post('/{creation}/reviews/publish-aggregate', [AdminCreationReviewController::class, 'publishOfficialAggregate'])
             ->name('review.publish-aggregate');
@@ -487,11 +498,10 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () 
 
 });
 
-Route::middleware(['auth', 'verified', 'admin'])->group(function () {
+Route::middleware(['auth', 'verified', 'admin'])->group(function () use ($redirectToRedesign) {
     Route::get('/redesign/users', [AdminUserController::class, 'index'])->name('redesign.users');
     Route::get('/redesign/users/{user}/edit', [AdminUserController::class, 'editRedesign'])->name('redesign.users.edit');
     Route::get('/redesign/users/{user}/ledger', [AdminUserController::class, 'ledger'])->name('redesign.users.ledger');
-    Route::get('/redesign/doopnews', [AdminDoopNewsController::class, 'index'])->name('redesign.doopnews');
     Route::get('/redesign/doopnews/create', [AdminDoopNewsController::class, 'createRedesign'])->name('redesign.doopnews.create');
     Route::get('/redesign/doopnews/{post}/edit', [AdminDoopNewsController::class, 'editRedesign'])->name('redesign.doopnews.edit');
     Route::get('/redesign/shop-items', [AdminShopItemController::class, 'index'])->name('redesign.shop-items');
@@ -507,9 +517,9 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::delete('/redesign/trash/{type}/{id}/force', [AdminTrashRedesignController::class, 'forceDestroy'])->name('redesign.trash.force-destroy');
     Route::get('/redesign/submissions', [AdminSubmissionManagementController::class, 'index'])->name('redesign.submissions');
     Route::get('/redesign/submissions/{submission}/edit', [AdminSubmissionManagementController::class, 'editRedesign'])->name('redesign.submissions.edit');
-    Route::prefix('admin/users')->name('admin.users.')->group(function () {
-        Route::get('/', [AdminUserController::class, 'index'])->name('index');
-        Route::get('/{user}/ledger', [AdminUserController::class, 'ledger'])->name('ledger');
+    Route::prefix('admin/users')->name('admin.users.')->group(function () use ($redirectToRedesign) {
+        Route::get('/', $redirectToRedesign('redesign.users'))->name('index');
+        Route::get('/{user}/ledger', $redirectToRedesign('redesign.users.ledger'))->name('ledger');
         Route::post('/{user}/gold-adjustment', [AdminUserController::class, 'adjustGold'])->name('gold-adjustment');
         Route::patch('/{userId}/restore', [AdminUserController::class, 'restore'])->name('restore');
         Route::delete('/{userId}/force', [AdminUserController::class, 'forceDestroy'])->name('force-destroy');
@@ -519,25 +529,25 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         Route::patch('/{user}/reset-password', [AdminUserController::class, 'resetPassword'])->name('password.reset');
     });
 
-    Route::prefix('admin/jobs')->name('admin.jobs.')->group(function () {
-        Route::get('/', [AdminJobRoleController::class, 'index'])->name('index');
+    Route::prefix('admin/jobs')->name('admin.jobs.')->group(function () use ($redirectToRedesign) {
+        Route::get('/', $redirectToRedesign('redesign.jobs'))->name('index');
         Route::post('/', [AdminJobRoleController::class, 'store'])->name('store');
-        Route::get('/{jobRole}', [AdminJobRoleController::class, 'show'])->name('show');
+        Route::get('/{jobRole}', $redirectToRedesign('redesign.jobs.show'))->name('show');
         Route::put('/{jobRole}', [AdminJobRoleController::class, 'update'])->name('update');
         Route::delete('/{jobRole}', [AdminJobRoleController::class, 'destroy'])->name('destroy');
     });
 
-    Route::prefix('admin/shop-items')->name('admin.shop-items.')->group(function () {
-        Route::get('/', [AdminShopItemController::class, 'index'])->name('index');
-        Route::get('/{item}/detail', [AdminShopItemController::class, 'detail'])->name('detail');
+    Route::prefix('admin/shop-items')->name('admin.shop-items.')->group(function () use ($redirectToRedesign) {
+        Route::get('/', $redirectToRedesign('redesign.shop-items'))->name('index');
+        Route::get('/{item}/detail', $redirectToRedesign('redesign.shop-items.detail'))->name('detail');
         Route::post('/{item}/transactions/{transaction}/cancel', [AdminShopItemController::class, 'cancelTransaction'])->name('transactions.cancel');
         Route::post('/', [AdminShopItemController::class, 'store'])->name('store');
         Route::put('/{item}', [AdminShopItemController::class, 'update'])->name('update');
         Route::delete('/{item}', [AdminShopItemController::class, 'destroy'])->name('destroy');
     });
 
-    Route::prefix('admin/profile-skins')->name('admin.profile-skins.')->group(function () {
-        Route::get('/', [AdminProfileSkinController::class, 'index'])->name('index');
+    Route::prefix('admin/profile-skins')->name('admin.profile-skins.')->group(function () use ($redirectToRedesign) {
+        Route::get('/', $redirectToRedesign('redesign.profile-skins'))->name('index');
         Route::post('/', [AdminProfileSkinController::class, 'store'])->name('store');
         Route::post('/import-bundle', [AdminProfileSkinController::class, 'importBundle'])->name('import-bundle');
         Route::post('/{skin}/import-bundle', [AdminProfileSkinController::class, 'updateBundle'])->name('update-bundle');
@@ -546,8 +556,8 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         Route::delete('/{skin}', [AdminProfileSkinController::class, 'destroy'])->name('destroy');
     });
 
-    Route::prefix('admin/daily-quest-definitions')->name('admin.daily-quest-definitions.')->group(function () {
-        Route::get('/', [AdminDailyQuestDefinitionController::class, 'index'])->name('index');
+    Route::prefix('admin/daily-quest-definitions')->name('admin.daily-quest-definitions.')->group(function () use ($redirectToRedesign) {
+        Route::get('/', $redirectToRedesign('redesign.daily-quests'))->name('index');
         Route::post('/', [AdminDailyQuestDefinitionController::class, 'store'])->name('store');
         Route::put('/{definition}', [AdminDailyQuestDefinitionController::class, 'update'])->name('update');
         Route::delete('/{definition}', [AdminDailyQuestDefinitionController::class, 'destroy'])->name('destroy');
@@ -556,24 +566,24 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
     Route::get('/redesign/daily-quests/create', [AdminDailyQuestDefinitionController::class, 'createRedesign'])->name('redesign.daily-quests.create');
     Route::get('/redesign/daily-quests/{definition}/edit', [AdminDailyQuestDefinitionController::class, 'editRedesign'])->name('redesign.daily-quests.edit');
 
-    Route::prefix('admin/submissions')->name('admin.submissions.manage.')->group(function () {
-        Route::get('/', [AdminSubmissionManagementController::class, 'index'])->name('index');
+    Route::prefix('admin/submissions')->name('admin.submissions.manage.')->group(function () use ($redirectToRedesign) {
+        Route::get('/', $redirectToRedesign('redesign.submissions'))->name('index');
         Route::patch('/{submission}', [AdminSubmissionManagementController::class, 'update'])->name('update');
         Route::patch('/{uuid}/restore', [AdminSubmissionManagementController::class, 'restore'])->name('restore');
         Route::delete('/{uuid}/force', [AdminSubmissionManagementController::class, 'forceDestroy'])->name('force-destroy');
         Route::delete('/{submission}', [AdminSubmissionManagementController::class, 'destroy'])->name('destroy');
     });
 
-    Route::get('/admin/error-logs', [AdminErrorLogController::class, 'index'])->name('admin.error-logs.index');
+    Route::get('/admin/error-logs', $redirectToRedesign('redesign.error-logs'))->name('admin.error-logs.index');
 
     Route::patch('/admin/creations/{creation}/assignment', [AdminCreationReviewController::class, 'updateAssignment'])
         ->name('admin.creations.assignment.update');
 });
 
-Route::middleware(['auth', 'verified', 'role:admin,mentor'])->prefix('admin')->group(function () {
+Route::middleware(['auth', 'verified', 'role:admin,mentor'])->prefix('admin')->group(function () use ($redirectToRedesign) {
 
     // Halaman Utama CRUD (List & Form Jadi Satu)
-    Route::get('/materi', [AdminGuideController::class, 'index'])->name('materi.index');
+    Route::get('/materi', $redirectToRedesign('redesign.materi'))->name('materi.index');
 
     // Proses Simpan Data Baru
     Route::post('/materi', [AdminGuideController::class, 'store'])->name('materi.store');
@@ -587,19 +597,19 @@ Route::middleware(['auth', 'verified', 'role:admin,mentor'])->prefix('admin')->g
     Route::delete('/materi/{uuid}', [AdminGuideController::class, 'destroy'])->name('materi.destroy');
 });
 
-Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () {
+Route::middleware(['auth', 'verified', 'role:admin,mentor'])->group(function () use ($redirectToRedesign) {
 
     // --- ADMIN AREA ---
-    Route::get('/admin/study-groups/index', [AdminStudyGroupController::class, 'manage'])->name('groups.manage');
+    Route::get('/admin/study-groups/index', $redirectToRedesign('redesign.study-groups'))->name('groups.manage');
     Route::get('/admin/study-groups/{uuid}/user-preview', [StudyGroupController::class, 'staffPreview'])->name('groups.user-preview');
-    Route::get('/admin/study-groups/{uuid}/attendance', [AdminStudyGroupController::class, 'attendanceDashboard'])->name('groups.attendance');
-    Route::get('/admin/study-groups/{uuid}/join-requests', [AdminStudyGroupController::class, 'joinRequests'])->name('groups.join-requests');
-    Route::get('/admin/study-groups/{uuid}/roadmaps', [AdminStudyGroupController::class, 'roadmaps'])->name('groups.roadmaps');
-    Route::get('/admin/study-groups/{uuid}/students/{userId}', [AdminStudyGroupController::class, 'studentDetail'])->name('groups.students.detail');
-    Route::get('/admin/study-groups/{uuid}', [AdminStudyGroupController::class, 'detail'])->name('groups.detail');
-    Route::get('/admin/study-groups/{groupUuid}/quests', [QuestController::class, 'index'])->name('groups.quests.index');
-    Route::get('/admin/study-groups/{groupUuid}/guides', [AdminGuideController::class, 'index'])->name('groups.guides.index');
-    Route::get('/admin/study-groups/{groupUuid}/events', [AdminEventController::class, 'index'])->name('groups.events.index');
+    Route::get('/admin/study-groups/{uuid}/attendance', $redirectToRedesign('redesign.study-groups.attendance'))->name('groups.attendance');
+    Route::get('/admin/study-groups/{uuid}/join-requests', $redirectToRedesign('redesign.study-groups.membership'))->name('groups.join-requests');
+    Route::get('/admin/study-groups/{uuid}/roadmaps', $redirectToRedesign('redesign.study-groups.roadmaps'))->name('groups.roadmaps');
+    Route::get('/admin/study-groups/{uuid}/students/{userId}', $redirectToRedesign('redesign.study-groups.students.detail'))->name('groups.students.detail');
+    Route::get('/admin/study-groups/{uuid}', $redirectToRedesign('redesign.study-groups.show'))->name('groups.detail');
+    Route::get('/admin/study-groups/{groupUuid}/quests', $redirectToRedesign('redesign.study-groups.quests'))->name('groups.quests.index');
+    Route::get('/admin/study-groups/{groupUuid}/guides', $redirectToRedesign('redesign.study-groups.guides'))->name('groups.guides.index');
+    Route::get('/admin/study-groups/{groupUuid}/events', $redirectToRedesign('redesign.study-groups.events'))->name('groups.events.index');
     Route::get('/admin/study-groups/{groupUuid}/events/recap', [AdminEventController::class, 'recap'])->name('groups.events.recap');
     Route::get('/admin/quests/{quest}/user-preview', [QuestController::class, 'userPreview'])->name('quests.user-preview');
     Route::post('/admin/quests/{quest}/user-preview/submissions', [QuestController::class, 'previewSubmission'])->name('quests.user-preview.submissions');
