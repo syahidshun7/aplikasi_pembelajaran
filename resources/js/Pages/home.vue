@@ -334,7 +334,7 @@ const eventItems = computed(() => {
         });
 });
 
-const upcomingEventPreview = computed(() => eventItems.value.slice(0, 6));
+const upcomingEventPreview = computed(() => eventItems.value.slice(0, 10));
 const contentTypeByPayloadKey = {
     quest: 'quest',
     guide: 'guide',
@@ -452,9 +452,9 @@ const questItems = computed(() => {
     });
 });
 
-const questPreview = computed(() => questItems.value.slice(0, 6));
-const guidePreview = computed(() => applyLocalSeenState((guides.value || []), 'guide').slice(0, 10));
-const groupPreview = computed(() => applyLocalSeenState((studyGroups.value || []), 'study_group').slice(0, 4));
+const questPreview = computed(() => questItems.value.slice(0, 8));
+const guidePreview = computed(() => applyLocalSeenState((guides.value || []), 'guide').slice(0, 20));
+const groupPreview = computed(() => applyLocalSeenState((studyGroups.value || []), 'study_group').slice(0, 8));
 const doopNewsPreview = computed(() => applyLocalSeenState((props.doopNewsPosts || []), 'doop_news').slice(0, 5));
 
 const persistLocalSeenContent = () => {
@@ -979,6 +979,12 @@ onBeforeUnmount(() => {
     height: clamp(1120px, 112dvh, 1320px);
     min-height: 0;
     overflow: hidden;
+}
+
+@media (max-width: 1279px) {
+    .dashboard-focus-shell :deep(.lobby-preview-extra) {
+        display: none !important;
+    }
 }
 
 [data-theme='light'] .lobby-color-system :deep(.dashboard-section-shell) {

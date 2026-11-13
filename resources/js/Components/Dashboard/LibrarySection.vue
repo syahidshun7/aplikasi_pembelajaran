@@ -97,9 +97,10 @@ const toneStyleForGuide = (item) => {
 
         <div v-if="items.length > 0" class="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             <article
-                v-for="item in items"
+                v-for="(item, index) in items"
                 :key="item.uuid"
                 class="library-item-card flex min-w-0 flex-col gap-2 border p-3 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
+                :class="{ 'lobby-preview-extra': index >= 10 }"
                 :style="toneStyleForGuide(item)"
             >
                 <div class="flex flex-wrap items-center justify-between gap-2">

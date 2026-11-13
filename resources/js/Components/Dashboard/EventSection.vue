@@ -103,11 +103,12 @@ const hiddenNewItemCount = computed(() => {
             </Link>
         </div>
 
-        <div v-if="items.length > 0" class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div v-if="items.length > 0" class="grid grid-cols-1 gap-4">
             <article
-                v-for="event in eventItemsWithTone"
+                v-for="(event, index) in eventItemsWithTone"
                 :key="event.uuid"
                 class="event-card flex h-full min-w-0 flex-col border p-4 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
+                :class="{ 'lobby-preview-extra': index >= 6 }"
                 :style="event.__tone_style"
             >
                 <div class="flex flex-wrap items-center justify-between gap-2">

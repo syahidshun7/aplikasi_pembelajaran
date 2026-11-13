@@ -234,7 +234,7 @@ const partyLabelForQuest = (quest) => {
 
         <div v-if="items.length > 0" class="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <article
-                v-for="quest in items"
+                v-for="(quest, index) in items"
                 :key="quest.uuid"
                 class="quest-item-card group flex min-h-[188px] min-w-0 flex-col border-2 p-3 transition-colors"
                 :style="toneStyleForQuest(quest)"
@@ -245,7 +245,8 @@ const partyLabelForQuest = (quest) => {
                     (quest.user_has_unlock && !quest.user_has_submitted) ? 'border-cyan-500 shadow-[0_0_12px_rgba(34,211,238,0.3)] bg-cyan-950/20' :
                     (isLateUnsubmitted(quest)) ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.2)]' :
                     (quest.status === 'In-Progress') ? 'border-slate-500 bg-slate-900/50' :
-                    quest.user_has_submitted ? 'border-yellow-600 shadow-[0_0_10px_rgba(202,138,4,0.2)]' : 'border-slate-700 hover:border-[#009999]'
+                    quest.user_has_submitted ? 'border-yellow-600 shadow-[0_0_10px_rgba(202,138,4,0.2)]' : 'border-slate-700 hover:border-[#009999]',
+                    { 'lobby-preview-extra': index >= 6 }
                 ]"
             >
                 <div class="mb-2 flex items-start justify-between gap-2">

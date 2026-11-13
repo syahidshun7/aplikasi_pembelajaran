@@ -209,7 +209,7 @@ class HomeController extends Controller
     // 2. Ambil Data Materi / Guide (Global + sesuai study group user)
     if ($shouldLoadGuides) {
         $materi = Cache::remember(
-        "home.guides.v{$homeCacheVersion}.job.{$jobKey}.groups.{$groupKey}",
+        "home.guides.top20.v{$homeCacheVersion}.job.{$jobKey}.groups.{$groupKey}",
         now()->addMinutes(5),
         fn () => Guide::where(function ($query) use ($userGroupIds) {
             $query->whereNull('study_group_id')
@@ -217,7 +217,7 @@ class HomeController extends Controller
         })
             ->with('studyGroup:id,name')
             ->latest()
-            ->take(10)
+            ->take(20)
             ->get()
             ->map(fn ($guide) => $guide->toArray())
         );
