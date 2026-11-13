@@ -172,6 +172,7 @@ watch(
 
 onMounted(async () => {
     await nextTick();
+    containerRef.value?.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleResize);
 
     window.requestAnimationFrame(() => {
@@ -187,6 +188,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+    containerRef.value?.removeEventListener('scroll', handleScroll);
     window.removeEventListener('resize', handleResize);
     window.clearTimeout(scrollEndTimer);
     window.clearTimeout(initialSyncTimer);
@@ -205,12 +207,11 @@ onBeforeUnmount(() => {
             class="carousel-track"
             aria-label="Dashboard navigation carousel"
             role="tablist"
-            @scroll.passive="handleScroll"
         >
             <div class="carousel-track__spacer" aria-hidden="true"></div>
 
             <button
-                v-for="item in items"
+                v-for="(item, index) in items"
                 :key="item.key"
                 :ref="setCardRef(item.key)"
                 type="button"
@@ -220,6 +221,24 @@ onBeforeUnmount(() => {
                 @click="selectItem(item.key)"
             >
                 <div class="carousel-card__frame">
+                    <span
+                        v-if="modelValue === item.key && index > 0"
+                        class="carousel-card__swipe-hint carousel-card__swipe-hint--left"
+                        aria-hidden="true"
+                    >
+                        <svg viewBox="0 0 16 16" fill="none">
+                            <path d="m10 3-5 5 5 5" />
+                        </svg>
+                    </span>
+                    <span
+                        v-if="modelValue === item.key && index < items.length - 1"
+                        class="carousel-card__swipe-hint carousel-card__swipe-hint--right"
+                        aria-hidden="true"
+                    >
+                        <svg viewBox="0 0 16 16" fill="none">
+                            <path d="m6 3 5 5-5 5" />
+                        </svg>
+                    </span>
                     <span
                         v-if="Number(item.badge_count || 0) > 0"
                         class="carousel-card__new-dot"
@@ -260,7 +279,7 @@ onBeforeUnmount(() => {
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
-    touch-action: pan-x pan-y pinch-zoom;
+    touch-action: pan-x;
 }
 
 .carousel-track::-webkit-scrollbar {
@@ -344,6 +363,10 @@ onBeforeUnmount(() => {
         calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
 }
 
+.carousel-card__swipe-hint {
+    display: none;
+}
+
 .carousel-card__icon {
     @apply grid h-24 w-28 place-items-center;
     color: var(--accent);
@@ -381,6 +404,41 @@ onBeforeUnmount(() => {
 
     .carousel-card__frame {
         @apply min-h-[170px] p-4;
+    }
+
+    .carousel-card__swipe-hint {
+        position: absolute;
+        top: 50%;
+        z-index: 4;
+        display: grid;
+        width: 16px;
+        height: 24px;
+        place-items: center;
+        color: var(--accent);
+        filter: drop-shadow(0 1px 1px var(--card-shadow));
+        opacity: 0.85;
+        pointer-events: none;
+        transform: translateY(-50%);
+    }
+
+    .carousel-card__swipe-hint--left {
+        left: -14px;
+    }
+
+    .carousel-card__swipe-hint--right {
+        right: -14px;
+    }
+
+    .carousel-card__swipe-hint svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .carousel-card__swipe-hint path {
+        stroke: currentColor;
+        stroke-width: 2.5;
+        stroke-linecap: square;
+        stroke-linejoin: miter;
     }
 }
 </style>

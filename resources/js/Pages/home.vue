@@ -1441,6 +1441,10 @@ onBeforeUnmount(() => {
         padding-top: 0.25rem;
     }
 
+    .academy-scene__footer {
+        display: none;
+    }
+
     .dashboard-focus-shell--joined {
         @apply px-1 pb-1 pt-4;
     }
