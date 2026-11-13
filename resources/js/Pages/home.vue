@@ -1433,16 +1433,12 @@ onBeforeUnmount(() => {
     }
 
     .academy-scene {
-        min-height: 252px;
+        min-height: 214px;
     }
 
     .academy-scene__content {
-        min-height: 252px;
+        min-height: 214px;
         padding-top: 0.25rem;
-    }
-
-    .academy-scene__footer {
-        display: none;
     }
 
     .dashboard-focus-shell--joined {

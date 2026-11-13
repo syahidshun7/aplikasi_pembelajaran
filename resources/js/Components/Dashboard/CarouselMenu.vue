@@ -48,24 +48,17 @@ const syncFlag = (duration = 360) => {
 };
 
 const centerCard = (key, behavior = 'smooth') => {
-    const container = containerRef.value;
     const card = cardRefs.get(key);
 
-    if (!container || !card) {
+    if (!card) {
         return;
     }
 
     syncFlag(behavior === 'smooth' ? 360 : 120);
-    const targetLeft = Math.max(
-        0,
-        Math.min(
-            card.offsetLeft - ((container.clientWidth - card.offsetWidth) / 2),
-            container.scrollWidth - container.clientWidth,
-        ),
-    );
-    container.scrollTo({
-        left: targetLeft,
+    card.scrollIntoView({
         behavior,
+        block: 'nearest',
+        inline: 'center',
     });
 };
 
@@ -133,6 +126,7 @@ const handleScroll = () => {
 
 const selectItem = (key) => {
     emit('update:modelValue', key);
+    nextTick(() => centerCard(key));
 };
 
 const nodeIcons = {
@@ -164,7 +158,7 @@ const handleResize = () => {
 
 watch(
     () => props.modelValue,
-    async (key) => {
+    async (key, previousKey) => {
         await nextTick();
 
         if (isUpdatingFromScroll) {
@@ -172,7 +166,7 @@ watch(
             return;
         }
 
-        centerCard(key);
+        centerCard(key, previousKey ? 'smooth' : 'auto');
     },
 );
 
@@ -374,7 +368,7 @@ onBeforeUnmount(() => {
 
     .carousel-track {
         @apply gap-3;
-        scroll-snap-type: x mandatory;
+        scroll-snap-type: x proximity;
     }
 
     .carousel-card {
