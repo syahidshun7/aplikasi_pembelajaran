@@ -56,7 +56,13 @@ const centerCard = (key, behavior = 'smooth') => {
     }
 
     syncFlag(behavior === 'smooth' ? 360 : 120);
-    const targetLeft = card.offsetLeft - ((container.clientWidth - card.offsetWidth) / 2);
+    const targetLeft = Math.max(
+        0,
+        Math.min(
+            card.offsetLeft - ((container.clientWidth - card.offsetWidth) / 2),
+            container.scrollWidth - container.clientWidth,
+        ),
+    );
     container.scrollTo({
         left: targetLeft,
         behavior,
@@ -127,7 +133,6 @@ const handleScroll = () => {
 
 const selectItem = (key) => {
     emit('update:modelValue', key);
-    nextTick(() => centerCard(key));
 };
 
 const nodeIcons = {
@@ -150,6 +155,10 @@ const badgeCountLabel = (value) => {
 };
 
 const handleResize = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        return;
+    }
+
     centerCard(props.modelValue, 'auto');
 };
 
@@ -234,7 +243,6 @@ onBeforeUnmount(() => {
 
             <div class="carousel-track__spacer" aria-hidden="true"></div>
         </div>
-        <p class="carousel-swipe-hint">Swipe left or right</p>
     </div>
 </template>
 
@@ -262,10 +270,6 @@ onBeforeUnmount(() => {
 }
 
 .carousel-track::-webkit-scrollbar {
-    display: none;
-}
-
-.carousel-swipe-hint {
     display: none;
 }
 
@@ -366,15 +370,6 @@ onBeforeUnmount(() => {
 @media (max-width: 767px) {
     .carousel-shell {
         @apply px-0 pb-2 pt-4;
-    }
-
-    .carousel-swipe-hint {
-        display: block;
-        margin: 0.25rem 0 0;
-        color: var(--text);
-        font-size: 7px;
-        line-height: 1.5;
-        text-align: center;
     }
 
     .carousel-track {
