@@ -1433,11 +1433,11 @@ onBeforeUnmount(() => {
     }
 
     .academy-scene {
-        min-height: 214px;
+        min-height: 252px;
     }
 
     .academy-scene__content {
-        min-height: 214px;
+        min-height: 252px;
         padding-top: 0.25rem;
     }
 
