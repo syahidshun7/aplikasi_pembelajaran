@@ -2,8 +2,11 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\StudyGroup;
+use App\Models\User;
 use App\Services\DailyQuestService;
 use App\Services\LevelingService;
+use App\Services\StudyGroupStaffAccessService;
 use App\Support\Notifications\NotificationPresenter;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -62,6 +65,12 @@ class HandleInertiaRequests extends Middleware
             'notificationCenter' => $authUser
                 ? fn () => NotificationPresenter::summary($authUser)
                 : null,
+            'sidebarClasses' => $authUser?->isStaff() && $authUser->role !== User::ROLE_SUPER_ADMIN && $request->routeIs('redesign.*')
+                ? fn () => app(StudyGroupStaffAccessService::class)
+                    ->scopeAccessibleGroups(StudyGroup::query(), $authUser)
+                    ->orderBy('name')
+                    ->get(['uuid', 'name'])
+                : [],
             'dailyQuestCenter' => $authUser
                 ? fn () => app(DailyQuestService::class)->quickStatusForUser($authUser)
                 : null,

@@ -64,7 +64,7 @@ class AdminGuideController extends Controller
             $studyGroupQuery->where('job_id', $this->requireMentorJobId());
         }
 
-        return Inertia::render($request->routeIs('redesign.materi*') || $request->routeIs('redesign.study-groups.guides') ? 'Redesign/AdminDashboard/GuideLibrary' : 'Guide/Index', [
+        return Inertia::render('Redesign/AdminDashboard/GuideLibrary', [
             'materi' => $guideQuery
                 ->when($search !== '', function ($query) use ($search) {
                     $query->where(function ($q) use ($search) {
@@ -88,7 +88,7 @@ class AdminGuideController extends Controller
                 'uuid' => (string) $scopedGroup->uuid,
                 'id' => (int) $scopedGroup->id,
                 'name' => (string) $scopedGroup->name,
-                'back_url' => route('groups.detail', $scopedGroup->uuid),
+                'back_url' => route('redesign.study-groups.show', $scopedGroup->uuid),
                 'guides_url' => route('groups.guides.index', $scopedGroup->uuid),
             ] : null,
         ]);

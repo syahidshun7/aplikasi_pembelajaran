@@ -492,7 +492,6 @@ const carouselItems = computed(() => ([
         key: 'doopnews',
         title: 'DoopNews',
         subtitle: `${doopNewsPreview.value.length} broadcasts`,
-        accent: 'from-rose-node',
         icon: 'fi fi-rr-megaphone',
         badge_count: getLocalNewCount('doop_news'),
     },
@@ -500,7 +499,6 @@ const carouselItems = computed(() => ([
         key: 'quest',
         title: 'Quest Board',
         subtitle: `${questPreview.value.length} mission node ready`,
-        accent: 'from-amber-node',
         icon: 'fi fi-rr-target',
         badge_count: getLocalNewCount('quest'),
     },
@@ -508,7 +506,6 @@ const carouselItems = computed(() => ([
         key: 'library',
         title: 'Library',
         subtitle: `${guidePreview.value.length} material archive`,
-        accent: 'from-indigo-node',
         icon: 'fi fi-rr-book-alt',
         badge_count: getLocalNewCount('guide'),
     },
@@ -516,7 +513,6 @@ const carouselItems = computed(() => ([
         key: 'townhall',
         title: 'Events',
         subtitle: `${upcomingEventPreview.value.length} event timeline`,
-        accent: 'from-blue-node',
         icon: 'fi fi-rr-calendar-clock',
         badge_count: getLocalNewCount('event'),
     },
@@ -524,7 +520,6 @@ const carouselItems = computed(() => ([
         key: 'party',
         title: 'Party Guild',
         subtitle: `${groupPreview.value.length} ally slots open`,
-        accent: 'from-emerald-node',
         icon: 'fi fi-rr-users',
         badge_count: getLocalNewCount('study_group'),
     },
@@ -534,41 +529,9 @@ const carouselItems = computed(() => ([
         subtitle: isLeaderboardEmpty.value
             ? `No ${leaderboardModeLabel.value} rank data yet`
             : `${leaderboardPreview.value.length} top ${leaderboardModeLabel.value.toLowerCase()} rankers`,
-        accent: 'from-cyan-node',
         icon: 'fi fi-rr-trophy',
     },
 ]));
-
-const activeCarouselItem = computed(() => {
-    return carouselItems.value.find((item) => item.key === activeMenu.value) ?? carouselItems.value[0];
-});
-
-const latestModuleMeta = computed(() => {
-    const moduleMap = {
-        quest: {
-            helper: `Showing prioritized ${questPreview.value.length} quests.`,
-        },
-        library: {
-            helper: `Showing latest ${guidePreview.value.length} materials.`,
-        },
-        townhall: {
-            helper: `Showing latest ${upcomingEventPreview.value.length} scheduled events.`,
-        },
-        doopnews: {
-            helper: `Showing latest ${doopNewsPreview.value.length} broadcasts.`,
-        },
-        party: {
-            helper: `Showing latest ${groupPreview.value.length} guild records.`,
-        },
-        leaderboard: {
-            helper: isLeaderboardEmpty.value
-                ? `Leaderboard ${leaderboardModeLabel.value} masih kosong. Rank akan tampil setelah progres player tercatat.`
-                : `Showing current top ${leaderboardPreview.value.length} ${leaderboardModeLabel.value.toLowerCase()} ranks.`,
-        },
-    };
-
-    return moduleMap[activeMenu.value] ?? { helper: 'Showing preview data only.' };
-});
 
 const syncSelectedClassGroupId = () => {
     const optionIds = classLeaderboardOptions.value.map((group) => group.id);
@@ -807,19 +770,13 @@ onBeforeUnmount(() => {
 
                                 <div class="academy-scene__footer">
                                     <p class="academy-scene__copy">
-                                        Swipe, drag, or click a node to focus the dashboard without reloading the page.
+                                        Swipe, drag, or click to select a node.
                                     </p>
                                 </div>
                             </div>
                         </div>
 
                         <section class="dashboard-focus-shell dashboard-focus-shell--joined">
-                            <div v-if="activeMenu !== 'quest'" class="dashboard-focus-shell__meta">
-                                <p class="dashboard-focus-shell__eyebrow">Latest Snapshot</p>
-                                <h2 class="dashboard-focus-shell__title">{{ activeCarouselItem?.title }}</h2>
-                                <p class="dashboard-focus-shell__helper">{{ latestModuleMeta.helper }}</p>
-                            </div>
-
                             <Transition name="dashboard-section" mode="out-in">
                                 <QuestSection
                                     v-if="activeMenu === 'quest'"
@@ -1012,30 +969,6 @@ onBeforeUnmount(() => {
 .dashboard-focus-shell--joined {
     @apply border-t px-2 pb-2 pt-4;
     border-top-color: var(--panel-border);
-}
-
-.dashboard-focus-shell__meta {
-    @apply flex flex-col gap-2 px-1;
-}
-
-.dashboard-focus-shell__eyebrow {
-    @apply text-[7px] uppercase tracking-[0.26em] text-cyan-300/70;
-}
-
-.dashboard-focus-shell__title {
-    @apply text-[11px] uppercase tracking-[0.14em] text-white;
-}
-
-[data-theme='light'] .dashboard-focus-shell__title {
-    color: var(--lobby-primary);
-}
-
-.dashboard-focus-shell__helper {
-    @apply max-w-[560px] text-[7px] uppercase leading-relaxed tracking-[0.12em] text-slate-400;
-}
-
-[data-theme='light'] .dashboard-focus-shell__helper {
-    color: color-mix(in srgb, var(--lobby-primary) 58%, var(--lobby-secondary) 42%);
 }
 
 [data-theme='light'] .lobby-color-system :deep(.dashboard-section-shell) {
@@ -1508,16 +1441,12 @@ onBeforeUnmount(() => {
         padding-top: 0.25rem;
     }
 
-    .academy-scene__copy {
-        @apply max-w-[320px] px-3 pb-3 text-[8px];
+    .academy-scene__footer {
+        display: none;
     }
 
     .dashboard-focus-shell--joined {
         @apply px-1 pb-1 pt-4;
-    }
-
-    .dashboard-focus-shell__helper {
-        @apply max-w-[300px] text-[6px];
     }
 }
 </style>

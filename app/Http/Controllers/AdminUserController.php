@@ -183,7 +183,7 @@ class AdminUserController extends Controller
             $users->setCollection($pageUsers);
         }
 
-        return Inertia::render($request->routeIs('redesign.users') ? 'Redesign/AdminDashboard/Users' : 'Users/Admin/Index', [
+        return Inertia::render('Redesign/AdminDashboard/Users', [
             'users' => $users,
             'availableRoles' => User::assignableRoles(),
             'jobRoles' => JobRole::query()
@@ -320,7 +320,7 @@ class AdminUserController extends Controller
             ]
         );
 
-        return Inertia::render($request->routeIs('redesign.users.ledger') ? 'Redesign/AdminDashboard/UserLedger' : 'Users/Admin/Ledger', [
+        return Inertia::render('Redesign/AdminDashboard/UserLedger', [
             'user' => [
                 'id' => (int) $user->id,
                 'name' => (string) ($user->name ?? ''),

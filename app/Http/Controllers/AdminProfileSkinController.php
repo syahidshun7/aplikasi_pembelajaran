@@ -24,7 +24,7 @@ class AdminProfileSkinController extends Controller
             ->latest()
             ->paginate(15);
 
-        return Inertia::render($request->routeIs('redesign.profile-skins') ? 'Redesign/AdminDashboard/ProfileSkins' : 'Admin/ProfileSkins/Index', [
+        return Inertia::render('Redesign/AdminDashboard/ProfileSkins', [
             'skins' => $skins,
         ]);
     }

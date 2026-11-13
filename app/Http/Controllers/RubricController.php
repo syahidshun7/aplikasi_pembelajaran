@@ -42,7 +42,7 @@ class RubricController extends Controller
             })
             ->orderByDesc('created_at');
 
-        return Inertia::render($request->routeIs('redesign.rubrics') ? 'Redesign/AdminDashboard/RubricManagement' : 'Rubric/Index', [
+        return Inertia::render('Redesign/AdminDashboard/RubricManagement', [
             'rubrics' => $query->paginate(10)->withQueryString(),
             'filters' => [
                 'search' => $search,
@@ -66,7 +66,7 @@ class RubricController extends Controller
     {
         $this->authorize('create', Rubric::class);
 
-        return Inertia::render(request()->routeIs('redesign.rubrics.create') ? 'Redesign/AdminDashboard/RubricCreate' : 'Rubric/Create');
+        return Inertia::render('Redesign/AdminDashboard/RubricCreate');
     }
 
     public function store(StoreRubricRequest $request): RedirectResponse
@@ -109,14 +109,14 @@ class RubricController extends Controller
     {
         $this->authorize('view', $rubric);
 
-        return Inertia::render(request()->routeIs('redesign.rubrics.show') ? 'Redesign/AdminDashboard/RubricPreview' : 'Rubric/Show', $this->buildRubricPayload($rubric));
+        return Inertia::render('Redesign/AdminDashboard/RubricPreview', $this->buildRubricPayload($rubric));
     }
 
     public function edit(Rubric $rubric): Response
     {
         $this->authorize('update', $rubric);
 
-        return Inertia::render(request()->routeIs('redesign.rubrics.edit') ? 'Redesign/AdminDashboard/RubricEditor' : 'Rubric/Edit', $this->buildRubricPayload($rubric));
+        return Inertia::render('Redesign/AdminDashboard/RubricEditor', $this->buildRubricPayload($rubric));
     }
 
     public function update(UpdateRubricRequest $request, Rubric $rubric): RedirectResponse
@@ -173,7 +173,7 @@ class RubricController extends Controller
 
         $rubric->delete();
 
-        return redirect()->route('admin.rubrics.index')->with('message', 'RUBRIC_DELETED');
+        return redirect()->route('redesign.rubrics')->with('message', 'RUBRIC_DELETED');
     }
 
     public function export(Rubric $rubric): JsonResponse
@@ -273,7 +273,7 @@ class RubricController extends Controller
         });
 
         return redirect()
-            ->route('admin.rubrics.index')
+            ->route('redesign.rubrics')
             ->with('message', 'RUBRIC_IMPORT_SUCCESS')
             ->with('rubric_import_result', [
                 'success' => true,

@@ -86,34 +86,27 @@ const hiddenNewItemCount = computed(() => {
             <article
                 v-for="group in items"
                 :key="group.uuid"
-                class="border border-slate-800 bg-[#0d1117] p-4 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
+                class="flex min-w-0 flex-col gap-2 border border-slate-800 bg-[#0d1117] p-3 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
             >
-                <div class="flex items-start justify-between gap-3">
-                    <div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <h3 class="break-words text-[9px] uppercase text-white">{{ group.name }}</h3>
-                            <span v-if="group.is_new_for_user" class="party-new-badge">NEW</span>
-                        </div>
-                        <p class="mt-2 line-clamp-2 text-[7px] uppercase leading-relaxed text-slate-500">
-                            {{ group.description || 'In pursuit of higher knowledge...' }}
-                        </p>
-                    </div>
-                    <div class="shrink-0 flex flex-col items-end gap-1">
-                        <span class="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[8px] text-yellow-300">
-                            {{ group.users_count || 0 }} Members
-                        </span>
-                        <span
-                            class="rounded-full border px-2 py-1 text-[8px] uppercase"
-                            :class="canJoinByLevel(group)
-                                ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
-                                : 'border-rose-500/30 bg-rose-500/10 text-rose-200'"
-                        >
-                            Min LVL {{ groupMinLevel(group) }}
-                        </span>
-                    </div>
+                <div class="flex min-w-0 flex-wrap items-center gap-2">
+                    <h3 class="min-w-0 break-words text-[9px] uppercase text-white">{{ group.name }}</h3>
+                    <span v-if="group.is_new_for_user" class="party-new-badge">NEW</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-1">
+                    <span class="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[8px] text-yellow-300">
+                        {{ group.users_count || 0 }} Members
+                    </span>
+                    <span
+                        class="rounded-full border px-2 py-1 text-[8px] uppercase"
+                        :class="canJoinByLevel(group)
+                            ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
+                            : 'border-rose-500/30 bg-rose-500/10 text-rose-200'"
+                    >
+                        Min LVL {{ groupMinLevel(group) }}
+                    </span>
                 </div>
 
-                <div class="mt-4 flex flex-col gap-2 border-t border-slate-800 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-2">
                     <span class="text-[7px] uppercase text-slate-600">Party_ID: {{ group.uuid?.substring(0, 8) }}</span>
 
                     <div v-if="group.is_member" class="flex flex-wrap items-center gap-2 sm:justify-end">

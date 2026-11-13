@@ -3,7 +3,7 @@ import { EditorContent, useEditor } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
-import { onBeforeUnmount, watch } from 'vue';
+import { onBeforeUnmount, ref, watch } from 'vue';
 
 const props = defineProps({
     modelValue: {
@@ -18,9 +18,39 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    compact: Boolean,
+    ariaLabel: String,
 });
 
 const emit = defineEmits(['update:modelValue']);
+const resizeArea = ref(null);
+const writingHeight = ref(null);
+let resizeGesture = null;
+
+const resizeWritingArea = (height) => {
+    writingHeight.value = Math.max(64, Math.round(height));
+};
+
+const startResize = (event) => {
+    if (!event.isPrimary || event.button !== 0) return;
+
+    resizeGesture = {
+        pointerId: event.pointerId,
+        startY: event.clientY,
+        startHeight: resizeArea.value.offsetHeight,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+};
+
+const moveResize = (event) => {
+    if (resizeGesture?.pointerId !== event.pointerId) return;
+
+    resizeWritingArea(resizeGesture.startHeight + event.clientY - resizeGesture.startY);
+};
+
+const stopResize = (event) => {
+    if (resizeGesture?.pointerId === event.pointerId) resizeGesture = null;
+};
 
 const editor = useEditor({
     immediatelyRender: false,
@@ -33,6 +63,7 @@ const editor = useEditor({
     editorProps: {
         attributes: {
             class: 'quest-description-editor__content',
+            ...(props.ariaLabel ? { 'aria-label': props.ariaLabel } : {}),
         },
     },
     onUpdate: ({ editor: activeEditor }) => emit('update:modelValue', activeEditor.getHTML()),
@@ -65,7 +96,7 @@ onBeforeUnmount(() => editor.value?.destroy());
 </script>
 
 <template>
-    <div class="quest-description-editor" :class="{ 'quest-description-editor--light': light }">
+    <div class="quest-description-editor" :class="{ 'quest-description-editor--light': light, 'quest-description-editor--compact': compact }">
         <div v-if="editor" class="quest-description-editor__toolbar" aria-label="Format description">
             <button type="button" title="Bold" :class="{ 'is-active': editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()"><strong>B</strong></button>
             <button type="button" title="Italic" :class="{ 'is-active': editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()"><em>I</em></button>
@@ -77,7 +108,31 @@ onBeforeUnmount(() => editor.value?.destroy());
             <button type="button" title="Tambah atau ubah tautan" :class="{ 'is-active': editor.isActive('link') }" @click="toggleLink">↗</button>
             <button type="button" title="Hapus format" @click="editor.chain().focus().clearNodes().unsetAllMarks().run()">⌫</button>
         </div>
-        <EditorContent v-if="editor" :editor="editor" />
+        <div v-if="compact && editor" class="quest-description-editor__work-area">
+            <div
+                ref="resizeArea"
+                class="quest-description-editor__resize-area"
+                :style="writingHeight === null ? undefined : { height: writingHeight + 'px' }"
+            >
+                <EditorContent :editor="editor" />
+            </div>
+            <button
+                type="button"
+                class="quest-description-editor__resize-handle"
+                aria-label="Ubah tinggi area tulis"
+                @pointerdown="startResize"
+                @pointermove="moveResize"
+                @lostpointercapture="stopResize"
+                @keydown.down.prevent="resizeWritingArea(resizeArea.offsetHeight + 24)"
+                @keydown.up.prevent="resizeWritingArea(resizeArea.offsetHeight - 24)"
+            >
+                <span aria-hidden="true"></span>
+            </button>
+        </div>
+        <EditorContent
+            v-else-if="editor"
+            :editor="editor"
+        />
     </div>
 </template>
 
@@ -153,4 +208,82 @@ onBeforeUnmount(() => editor.value?.destroy());
 .quest-description-editor--light :deep(.quest-description-editor__content){min-height:160px;color:#19333d;font-family:inherit;font-weight:400}
 .quest-description-editor--light :deep(.quest-description-editor__content h2),.quest-description-editor--light :deep(.quest-description-editor__content h3){color:#19333d}
 .quest-description-editor--light :deep(.quest-description-editor__content a){color:#007f78}
+
+.quest-description-editor--compact {
+    border: 1px solid var(--panel-border);
+    background: var(--panel);
+}
+.quest-description-editor--compact:focus-within { border-color: var(--accent); }
+.quest-description-editor--compact .quest-description-editor__toolbar {
+    padding: 0.25rem;
+    border-color: var(--panel-border);
+    background: var(--bg);
+}
+.quest-description-editor--compact .quest-description-editor__toolbar button {
+    border-color: var(--panel-border);
+    background: var(--panel);
+    color: var(--text);
+    font-family: ui-monospace, monospace;
+}
+.quest-description-editor--compact .quest-description-editor__toolbar button:hover,
+.quest-description-editor--compact .quest-description-editor__toolbar button.is-active {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+}
+.quest-description-editor--compact .quest-description-editor__divider { background: var(--panel-border); }
+.quest-description-editor__resize-area {
+    min-height: 4rem;
+    overflow: auto;
+    resize: vertical;
+}
+.quest-description-editor__work-area { position: relative; }
+.quest-description-editor__resize-handle { display: none; }
+
+@media (any-pointer: coarse) {
+    .quest-description-editor__resize-area {
+        min-height: 6.75rem;
+        resize: none;
+        padding-bottom: 2.75rem;
+        box-sizing: border-box;
+    }
+    .quest-description-editor__resize-handle {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        display: grid;
+        width: 44px;
+        height: 44px;
+        place-items: center;
+        color: var(--text);
+        background: var(--panel);
+        border-top: 1px solid var(--panel-border);
+        border-left: 1px solid var(--panel-border);
+        touch-action: none;
+        user-select: none;
+        cursor: ns-resize;
+    }
+    .quest-description-editor__resize-handle span {
+        width: 12px;
+        height: 12px;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+    }
+}
+.quest-description-editor--compact:not(.quest-description-editor--light) {
+    border-color: color-mix(in srgb, var(--panel-border) 78%, var(--text));
+}
+.quest-description-editor--compact:not(.quest-description-editor--light):focus-within {
+    border-color: var(--accent);
+}
+.quest-description-editor--compact:not(.quest-description-editor--light) .quest-description-editor__resize-area {
+    background: var(--bg);
+}
+.quest-description-editor--compact :deep(.quest-description-editor__content) {
+    min-height: 4rem;
+    padding: 0.4rem 0.6rem;
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.quest-description-editor--compact :deep(.quest-description-editor__content :is(h2, h3)) { color: var(--text); }
+.quest-description-editor--compact :deep(.quest-description-editor__content a) { color: var(--accent); }
 </style>

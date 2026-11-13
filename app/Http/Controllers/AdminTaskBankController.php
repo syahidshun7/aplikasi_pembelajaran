@@ -61,7 +61,7 @@ class AdminTaskBankController extends Controller
             $jobsQuery->whereKey($this->requireMentorJobId());
         }
 
-        return Inertia::render($request->routeIs('redesign.task-banks') ? 'Redesign/AdminDashboard/TaskBanks' : 'Tasks/Admin/Index', [
+        return Inertia::render('Redesign/AdminDashboard/TaskBanks', [
             'taskBanks' => $taskBanks,
             'jobs' => $jobsQuery->get(['id', 'name']),
             'filters' => [
@@ -207,7 +207,7 @@ class AdminTaskBankController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        return Inertia::render($request->routeIs('redesign.task-banks.questions') ? 'Redesign/AdminDashboard/QuestionEditor' : 'Tasks/Admin/Show', [
+        return Inertia::render('Redesign/AdminDashboard/QuestionEditor', [
             'taskBank' => $taskBank->load('jobRole:id,name'),
             'questions' => $questions,
             'importResult' => $request->session()->get('task_bank_import_result'),

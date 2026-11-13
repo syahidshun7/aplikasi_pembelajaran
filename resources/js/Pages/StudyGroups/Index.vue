@@ -183,7 +183,7 @@ const leaveGroup = (group) => {
                     </Link>
                 </div>
 
-                <div class="rpg-panel border-slate-700 flex flex-col min-h-[540px]">
+                <div class="rpg-panel border-slate-700 flex flex-col md:min-h-[540px]">
                     <div
                         v-if="isStaffPlayMode || isStaff"
                         class="mb-4 border border-cyan-500/50 bg-cyan-500/10 p-3 text-[9px] uppercase leading-relaxed text-cyan-100"
@@ -240,13 +240,10 @@ const leaveGroup = (group) => {
                                     Pending: {{ group.pending_requests_count || 0 }}
                                 </span>
                             </div>
-                            <p class="mt-2 text-slate-400 font-sans text-[11px]" :title="group.description || ''">
-                                {{ shortText(group.description, 130) }}
-                            </p>
-                            <p class="mt-2 text-slate-500 text-[8px] uppercase">
+                            <p class="mt-2 break-all text-slate-500 text-[8px] uppercase">
                                 UUID: {{ group.uuid }}
                             </p>
-                            <div v-if="canManageMembership" class="mt-3">
+                            <div v-if="canManageMembership" class="mt-2 flex flex-wrap items-center gap-2">
                                 <button
                                     v-if="group.is_member"
                                     type="button"
@@ -259,7 +256,7 @@ const leaveGroup = (group) => {
                                 <Link
                                     v-if="group.is_member"
                                     :href="route('groups.show', group.uuid)"
-                                    class="ml-2 inline-block px-3 py-1 border border-cyan-700 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px]"
+                                    class="inline-block px-3 py-1 border border-cyan-700 text-cyan-300 hover:bg-cyan-500 hover:text-black uppercase text-[8px]"
                                 >
                                     Detail
                                 </Link>

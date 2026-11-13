@@ -108,8 +108,8 @@ class GuideController extends Controller
             'guide' => $guide,
             'previewMode' => true,
             'backUrl' => $guide->studyGroup
-                ? route('groups.guides.index', $guide->studyGroup->uuid)
-                : route('materi.index'),
+                ? route('redesign.study-groups.guides', $guide->studyGroup->uuid)
+                : route('redesign.materi'),
         ]);
     }
 

@@ -3,7 +3,6 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { computed, ref } from 'vue';
 import { toast } from '@/Utils/Alert';
-import { richTextToPlainText } from '@/Utils/richText';
 
 const props = defineProps({
     event: Object,
@@ -23,22 +22,10 @@ const props = defineProps({
 });
 
 const formatDateTime = (value) => {
-    if (!value) return 'Schedule_Not_Set';
+    if (!value) return 'Jadwal belum ditentukan';
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'Schedule_Not_Set';
+    if (Number.isNaN(date.getTime())) return 'Jadwal belum ditentukan';
     return date.toLocaleString('id-ID');
-};
-
-const durationText = (start, end) => {
-    if (!start || !end) return 'Durasi belum ditentukan';
-    const s = new Date(start);
-    const e = new Date(end);
-    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return 'Durasi belum ditentukan';
-    const totalMinutes = Math.max(0, Math.round((e - s) / 60000));
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    if (hours === 0) return `${minutes} menit`;
-    return `${hours} jam ${minutes} menit`;
 };
 
 const normalizedDescription = computed(() => {
@@ -63,16 +50,6 @@ const selectImage = (url) => {
 const closeGalleryModal = () => {
     galleryModalOpen.value = false;
 };
-
-const attendanceBadgeClass = computed(() => {
-    const status = String(props.userAttendance?.status || 'pending');
-
-    if (status === 'present') return 'border-emerald-500/70 text-emerald-300';
-    if (status === 'absent') return 'border-rose-500/70 text-rose-300';
-    if (status === 'excused') return 'border-amber-500/70 text-amber-300';
-    if (status === 'sick') return 'border-orange-500/70 text-orange-300';
-    return 'border-slate-600 text-slate-300';
-});
 
 const attendanceStatusLabel = computed(() => {
     const status = String(props.userAttendance?.status || 'pending');
@@ -122,15 +99,10 @@ const submitCodeAttendance = () => {
 const progress = computed(() => props.contentProgress || { enabled: false });
 const progressEnabled = computed(() => Boolean(progress.value.enabled) && !props.previewMode);
 const progressPercent = computed(() => Math.max(0, Math.min(100, Number(progress.value.percent || 0))));
-const progressLabel = computed(() => {
-    const attendance = progress.value.attendance_done ? 'hadir' : 'belum hadir';
-
-    return `${progress.value.opened}/${progress.value.total} selesai · Guide ${progress.value.guides_opened}/${progress.value.guides_total} · Quest ${progress.value.quests_opened}/${progress.value.quests_total} · Absensi ${attendance}`;
-});
 const isPublicEvent = computed(() => !props.event?.study_group_id && !props.event?.study_group);
 const publicShareUrl = computed(() => isPublicEvent.value ? route('public.events.show', { uuid: props.event.uuid }) : '');
 const backHref = computed(() => props.backUrl || route('events.user.index'));
-const backLabel = computed(() => props.previewMode ? '[Back_to_Admin_Events]' : '[Back_Event_List]');
+const backLabel = computed(() => props.previewMode ? 'Kembali ke Event Admin' : 'Daftar Event');
 const guideHref = (guide) => props.previewMode
     ? route('guides.user-preview', guide.uuid)
     : route('guides.user.show', guide.uuid);
@@ -167,23 +139,11 @@ const copyPublicLink = async () => {
                     <div class="min-w-0 pr-24 md:pr-28">
                         <h1 class="text-white text-sm md:text-lg">{{ event.title }}</h1>
                         <p class="text-[8px] text-slate-400 uppercase mt-2">
-                            Meeting_{{ event.sequence_order }}
-                            | Target: {{ event.study_group?.name || (event.job?.name ? `Public / ${event.job.name}` : 'Public') }}
+                            Pertemuan {{ event.sequence_order }} · {{ event.study_group?.name || (event.job?.name ? `Public / ${event.job.name}` : 'Public') }}
                         </p>
                         <p class="text-[8px] text-slate-400 uppercase mt-2">
-                            Start: {{ formatDateTime(event.starts_at) }} | End: {{ formatDateTime(event.ends_at) }}
+                            {{ formatDateTime(event.starts_at) }} – {{ formatDateTime(event.ends_at) }}
                         </p>
-                        <p class="text-[8px] text-yellow-400 uppercase mt-2">
-                            Durasi: {{ durationText(event.starts_at, event.ends_at) }}
-                        </p>
-                        <div class="mt-3 flex flex-wrap items-center gap-2 text-[8px] uppercase">
-                            <span class="rounded border px-2 py-1" :class="attendanceBadgeClass">
-                                Attendance: {{ userAttendance?.status || 'pending' }}
-                            </span>
-                            <span class="rounded border border-slate-700 px-2 py-1 text-slate-300">
-                                Self Check-In: {{ event.self_attendance_enabled ? 'enabled' : 'disabled' }}
-                            </span>
-                        </div>
                     </div>
                 </div>
                 <div class="mt-3">
@@ -205,7 +165,7 @@ const copyPublicLink = async () => {
                 </div>
                 <div class="mt-4 border px-4 py-3" :class="String(userAttendance?.status || 'pending') === 'present' ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-700 bg-black/20'">
                     <p class="text-[8px] uppercase" :class="String(userAttendance?.status || 'pending') === 'present' ? 'text-emerald-300' : 'text-slate-300'">
-                        Status_Absensi: {{ attendanceStatusLabel }}
+                        Absensi · {{ attendanceStatusLabel }}
                     </p>
                     <p v-if="attendanceCheckedAtLabel" class="mt-2 text-[8px] uppercase text-slate-400">
                         Tercatat: {{ attendanceCheckedAtLabel }}
@@ -218,26 +178,28 @@ const copyPublicLink = async () => {
                         :disabled="attendanceForm.processing"
                         @click="submitSelfAttendance"
                     >
-                        {{ attendanceForm.processing ? 'Saving_Attendance...' : '[Check_In_Myself]' }}
+                        {{ attendanceForm.processing ? 'Menyimpan…' : 'Absen Mandiri' }}
                     </button>
                 </div>
                 <div v-if="userAttendance?.can_code_attend && !previewMode" class="mt-4 border border-emerald-700 bg-emerald-950/20 p-4">
                     <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                         <div class="min-w-0">
-                            <p class="text-[8px] uppercase text-emerald-300">Validated_Check_In</p>
-                            <p class="mt-2 font-sans text-[12px] leading-relaxed text-slate-300">
-                                Masukkan kode angka dari mentor. Kalau scan QR dari mentor, attendance akan tercatat otomatis.
+                            <p class="text-[8px] uppercase text-emerald-300">Check-in</p>
+                            <p v-if="userAttendance.check_in_code_available || codeAttendanceForm.token" class="mt-2 font-sans text-[12px] leading-relaxed text-slate-300">
+                                {{ codeAttendanceForm.token ? 'Konfirmasi kehadiran dari QR mentor.' : 'Masukkan PIN dari mentor.' }}
                             </p>
                             <p v-if="userAttendance?.check_in_code_available" class="mt-2 text-[8px] uppercase text-slate-400">
                                 Kode aktif sampai: {{ new Date(userAttendance.check_in_code_expires_at).toLocaleString('id-ID') }}
                             </p>
-                            <p v-else class="mt-2 text-[8px] uppercase text-slate-500">
+                            <p v-else-if="!codeAttendanceForm.token" class="mt-2 text-[8px] uppercase text-slate-400">
                                 Belum ada kode check-in aktif dari mentor.
                             </p>
                         </div>
-                        <form class="flex flex-col gap-2 sm:flex-row md:shrink-0" @submit.prevent="submitCodeAttendance">
+                        <form v-if="userAttendance.check_in_code_available || codeAttendanceForm.token" class="flex flex-col gap-2 sm:flex-row md:shrink-0" @submit.prevent="submitCodeAttendance">
                             <input
+                                v-if="!codeAttendanceForm.token"
                                 v-model="codeAttendanceForm.code"
+                                aria-label="PIN check-in"
                                 type="text"
                                 inputmode="numeric"
                                 maxlength="6"
@@ -250,7 +212,7 @@ const copyPublicLink = async () => {
                                 :disabled="codeAttendanceForm.processing || (!codeAttendanceForm.code && !codeAttendanceForm.token)"
                                 class="border border-emerald-500 px-3 py-2 text-[8px] uppercase text-emerald-300 hover:bg-emerald-500 hover:text-black disabled:opacity-40"
                             >
-                                {{ codeAttendanceForm.token ? 'Confirm_QR_Check_In' : 'Check_In_With_PIN' }}
+                                {{ codeAttendanceForm.token ? 'Konfirmasi QR' : 'Check-in' }}
                             </button>
                             <p v-if="codeAttendanceForm.errors.code" class="font-sans text-[11px] leading-relaxed text-rose-300 sm:basis-full">
                                 {{ codeAttendanceForm.errors.code }}
@@ -272,10 +234,9 @@ const copyPublicLink = async () => {
                             {{ progressPercent }}%
                         </span>
                     </div>
-                    <p class="event-progress__meta">{{ progressLabel }}</p>
                 </div>
                 <div v-if="event.description" class="mt-4 p-4 border border-slate-700 bg-black/30">
-                    <p class="text-[8px] text-slate-300 uppercase mb-3 tracking-widest">Event_Description</p>
+                    <p class="text-[8px] text-slate-300 uppercase mb-3 tracking-widest">Topik Event</p>
                     <p class="text-[13px] md:text-[14px] font-sans text-slate-200 leading-7 whitespace-pre-line break-words">
                         {{ normalizedDescription }}
                     </p>
@@ -319,10 +280,10 @@ const copyPublicLink = async () => {
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="rpg-panel border-indigo-500/50">
-                    <h2 class="text-indigo-300 text-[10px] uppercase mb-4">Event_Guides</h2>
+                    <h2 class="text-indigo-300 text-[10px] uppercase mb-4">Materi</h2>
                     <div class="space-y-3 max-h-[520px] overflow-y-auto pr-2 custom-scroll">
                         <div v-for="guide in event.guides" :key="guide.uuid" class="p-3 bg-[#0d1117] border border-slate-700">
-                            <div class="mb-1 flex items-start justify-between gap-2">
+                            <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
                                 <p class="text-[9px] text-white">{{ guide.title }}</p>
                                 <span
                                     v-if="progressEnabled && guide.counts_toward_progress"
@@ -332,13 +293,12 @@ const copyPublicLink = async () => {
                                     {{ guide.opened_for_user ? 'Opened' : 'Not_Opened' }}
                                 </span>
                             </div>
-                            <p class="text-[7px] text-cyan-400 uppercase mb-2">{{ guide.study_group?.name || 'Public' }}</p>
-                            <p class="text-[8px] text-slate-500 line-clamp-2 font-sans mb-3">{{ guide.description || 'No description.' }}</p>
+                            <p v-if="guide.study_group?.name !== event.study_group?.name" class="text-[7px] text-cyan-400 uppercase mb-2">{{ guide.study_group?.name || 'Public' }}</p>
                             <Link
                                 :href="guideHref(guide)"
                                 class="text-[8px] px-3 py-1 bg-indigo-900/40 border border-indigo-700 text-indigo-300 hover:bg-indigo-500 hover:text-white uppercase"
                             >
-                                Open_Guide
+                                Buka Materi
                             </Link>
                         </div>
                         <p v-if="!event.guides.length" class="text-[8px] text-slate-500 uppercase italic">No guides in this event.</p>
@@ -346,10 +306,10 @@ const copyPublicLink = async () => {
                 </div>
 
                 <div class="rpg-panel border-yellow-500/50">
-                    <h2 class="text-yellow-400 text-[10px] uppercase mb-4">Event_Quests</h2>
+                    <h2 class="text-yellow-400 text-[10px] uppercase mb-4">Quest</h2>
                     <div class="space-y-3 max-h-[520px] overflow-y-auto pr-2 custom-scroll">
                         <div v-for="quest in event.quests" :key="quest.uuid" class="p-3 bg-[#0d1117] border border-slate-700">
-                            <div class="mb-1 flex items-start justify-between gap-2">
+                            <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
                                 <p class="text-[9px] text-white">{{ quest.title }}</p>
                                 <span
                                     v-if="progressEnabled && quest.counts_toward_progress"
@@ -359,23 +319,22 @@ const copyPublicLink = async () => {
                                     {{ quest.completed_for_user ? 'Approved' : 'Not_Approved' }}
                                 </span>
                             </div>
-                            <div class="flex items-center justify-between mb-2">
-                                <p class="text-[7px] text-cyan-400 uppercase">{{ quest.study_group?.name || 'Public' }}</p>
+                            <div class="mb-2 flex flex-wrap items-center gap-2">
+                                <p v-if="quest.study_group?.name !== event.study_group?.name" class="text-[7px] text-cyan-400 uppercase">{{ quest.study_group?.name || 'Public' }}</p>
                                 <p class="text-[7px] text-orange-400 uppercase">{{ quest.difficulty }}</p>
                             </div>
-                            <p class="text-[8px] text-slate-500 line-clamp-2 font-sans mb-2">{{ richTextToPlainText(quest.description, 'No description.') }}</p>
-                            <p class="text-[7px] text-slate-400 uppercase mb-3">
-                                Deadline: {{ quest.deadline ? new Date(quest.deadline).toLocaleString('id-ID') : 'No_Limit' }}
+                            <p v-if="quest.deadline" class="text-[7px] text-slate-400 uppercase mb-3">
+                                Tenggat · {{ formatDateTime(quest.deadline) }}
                             </p>
                             <Link
                                 v-if="String(quest.status || '') === 'Available'"
                                 :href="questHref(quest)"
                                 class="text-[8px] px-3 py-1 bg-yellow-900/40 border border-yellow-700 text-yellow-300 hover:bg-yellow-500 hover:text-black uppercase"
                             >
-                                Open_Quest
+                                Buka Quest
                             </Link>
                             <p v-else class="text-[7px] text-slate-500 uppercase italic">
-                                Quest_Inactive
+                                Tidak aktif
                             </p>
                         </div>
                         <p v-if="!event.quests.length" class="text-[8px] text-slate-500 uppercase italic">No quests in this event.</p>
@@ -449,11 +408,4 @@ const copyPublicLink = async () => {
     background: #34d399;
 }
 
-.event-progress__meta {
-    margin-top: 0.4rem;
-    font-family: ui-sans-serif, system-ui, sans-serif;
-    font-size: 11px;
-    line-height: 1.4;
-    color: #94a3b8;
-}
 </style>

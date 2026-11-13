@@ -73,7 +73,7 @@ class AdminDailyQuestDefinitionController extends Controller
             'inactive' => DailyQuestDefinition::query()->where('is_active', false)->count(),
         ];
 
-        return Inertia::render($request->routeIs('redesign.daily-quests') ? 'Redesign/AdminDashboard/DailyQuests' : 'DailyQuests/Admin/Index', [
+        return Inertia::render('Redesign/AdminDashboard/DailyQuests', [
             'definitions' => $definitions,
             'stats' => $stats,
             'activityTypes' => $this->activityTypes(),

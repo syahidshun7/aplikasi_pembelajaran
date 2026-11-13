@@ -410,7 +410,7 @@ class DashboardController extends Controller
                 'events_count' => (int) ($group->events_count ?? 0),
                 'max_members' => (int) ($group->max_members ?? 0),
                 'min_level' => (int) ($group->min_level ?? 1),
-                'detail_url' => route('groups.detail', $group->uuid),
+                'detail_url' => route('redesign.study-groups.show', $group->uuid),
                 'preview_url' => route('groups.user-preview', $group->uuid),
             ])
             ->values();
@@ -428,12 +428,11 @@ class DashboardController extends Controller
                     'users_count' => (int) ($job->users_count ?? 0),
                     'study_groups_count' => (int) ($job->study_groups_count ?? 0),
                     'task_banks_count' => (int) ($job->task_banks_count ?? 0),
-                    'detail_url' => route('admin.jobs.show', $job->id),
+                    'detail_url' => route('redesign.jobs.show', $job->id),
                 ])
                 ->values()
             : collect();
 
-        $useRedesign = $request->boolean('redesign') || $request->routeIs('dashboard.redesign');
         $standaloneRedesign = $request->routeIs('redesign.admin-dashboard', 'redesign.class-dashboard');
         $classRedesign = $request->routeIs('redesign.class-dashboard');
 
@@ -533,7 +532,7 @@ class DashboardController extends Controller
                 ]
             ) : null;
 
-        return Inertia::render($classRedesign ? 'Redesign/AdminDashboard/ClassDashboard' : ($standaloneRedesign ? 'Redesign/AdminDashboard/Dashboard' : ($useRedesign ? 'DashboardRedesign' : 'Dashboard')), [
+        return Inertia::render($classRedesign ? 'Redesign/AdminDashboard/ClassDashboard' : 'Redesign/AdminDashboard/Dashboard', [
             'stats' => $stats,
             'students' => $students,
             'helpUsers' => $helpUsers,

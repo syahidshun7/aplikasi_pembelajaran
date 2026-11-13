@@ -1292,11 +1292,12 @@ const useRetakeTicket = () => {
                         </button>
                     </div>
 
-                    <div v-if="canSubmit" class="quest-submit-panel mt-8 p-4 border-2 border-dashed border-cyan-900 bg-black/20">
-                        <h3 class="text-[12px] mb-6 uppercase tracking-widest text-white">
+                    <div v-if="canSubmit" class="quest-submit-panel" :class="quest.task_bank ? 'mt-8 p-4 border-2 border-dashed border-cyan-900 bg-black/20' : 'quest-submit-panel--compact mt-5 border p-3'">
+                        <h3 v-if="quest.task_bank" class="text-[12px] mb-6 uppercase tracking-widest text-white">
                             >> {{ attemptContext.is_new_attempt ? `SUBMIT_ATTEMPT_${attemptContext.next_attempt_number}` : (props.hasSubmitted ? 'EDIT_REPORT' : 'SUBMIT_REPORT') }}
                         </h3>
-                        <form @submit.prevent="submitReport" class="space-y-6">
+                        <h3 v-else class="mb-3 text-[9px] uppercase">{{ props.hasSubmitted ? 'Edit Laporan' : 'Kirim Laporan' }}</h3>
+                        <form @submit.prevent="submitReport" :class="quest.task_bank ? 'space-y-6' : 'space-y-3'">
                             <div v-if="isStructuredTaskBankQuest" class="space-y-4">
                                 <div class="flex flex-col gap-3 border border-cyan-900/50 bg-slate-900/40 p-3 sm:flex-row sm:items-center sm:justify-between">
                                     <p class="text-[10px] text-cyan-300 uppercase">BANK: {{ quest.task_bank?.name }}</p>
@@ -1409,14 +1410,16 @@ const useRetakeTicket = () => {
                                     <textarea v-else v-model="form.task_answers[entry.question.uuid]" class="w-full bg-[#0d1117] border-2 border-slate-800 p-3 text-white font-sans text-[13px] outline-none" rows="3" placeholder="Jawaban..."></textarea>
                                 </div>
                             </div>
-                            <div v-else class="space-y-4">
+                            <div v-else :class="quest.task_bank ? 'space-y-4' : 'space-y-3'">
                                 <div>
-                                    <label class="block text-[12px] text-slate-500 mb-2 uppercase">Content:</label>
-                                    <QuestDescriptionEditor v-model="form.content" light placeholder="Tulis jawaban atau laporan tugas di sini..." />
+                                    <p v-if="!quest.task_bank" class="mb-2 text-[8px] uppercase">Isi laporan (opsional)</p>
+                                    <label v-else class="block text-[12px] text-slate-500 mb-2 uppercase">Content:</label>
+                                    <QuestDescriptionEditor v-model="form.content" :light="!quest.task_bank ? themeMode === 'light' : true" :compact="!quest.task_bank" :placeholder="quest.task_bank ? 'Tulis jawaban atau laporan tugas di sini...' : ''" aria-label="Isi laporan" />
                                     <p v-if="form.errors.content" class="mt-2 text-[11px] text-red-400">{{ form.errors.content }}</p>
                                 </div>
                                 <div>
-                                    <label class="block text-[12px] text-slate-500 mb-2 uppercase">Raw File:</label>
+                                    <p v-if="!quest.task_bank" class="mb-2 text-[8px] uppercase">Lampiran</p>
+                                    <label v-else class="block text-[12px] text-slate-500 mb-2 uppercase">Raw File:</label>
                                     <div
                                         class="submission-file-manager overflow-hidden border-2 border-slate-700 bg-[#0d1117] font-sans"
                                         :class="isFileDropActive ? 'border-cyan-500' : ''"
@@ -1430,12 +1433,12 @@ const useRetakeTicket = () => {
                                                 <button type="button" class="submission-file-add-button border-2 border-cyan-400 bg-cyan-900/50 px-3 py-2 text-[9px] uppercase text-cyan-100 shadow-[3px_3px_0_#164e63] transition-transform hover:-translate-y-px hover:bg-cyan-700/70 active:translate-x-px active:translate-y-px active:shadow-none font-['Press_Start_2P']" @click="submissionFileInput?.click()">+ FILE</button>
                                                 <span class="text-[11px] text-slate-400">{{ submissionFileEntries.length }}/20 file</span>
                                             </div>
-                                            <div class="flex items-center gap-1">
+                                            <div v-if="quest.task_bank || submissionFileEntries.length" class="flex items-center gap-1">
                                                 <button type="button" class="border px-2 py-1 text-[12px]" :class="submissionFileView === 'grid' ? 'border-cyan-500 bg-cyan-900/50 text-cyan-200' : 'border-slate-700 text-slate-500 hover:border-cyan-700 hover:text-cyan-200'" title="Tampilan grid" @click="submissionFileView = 'grid'">▦</button>
                                                 <button type="button" class="border px-2 py-1 text-[12px]" :class="submissionFileView === 'list' ? 'border-cyan-500 bg-cyan-900/50 text-cyan-200' : 'border-slate-700 text-slate-500 hover:border-cyan-700 hover:text-cyan-200'" title="Tampilan daftar" @click="submissionFileView = 'list'">☷</button>
                                             </div>
                                         </div>
-                                        <div class="submission-file-breadcrumb flex items-center gap-2 border-b border-slate-800 px-3 py-2 text-[12px] text-slate-300">
+                                        <div v-if="quest.task_bank" class="submission-file-breadcrumb flex items-center gap-2 border-b border-slate-800 px-3 py-2 text-[12px] text-slate-300">
                                             <span class="text-cyan-400">▰</span>
                                             <span>Files</span>
                                             <span class="ml-auto text-[10px] text-slate-500">Semua jenis file · Maks. 5 MB per file</span>
@@ -1456,7 +1459,7 @@ const useRetakeTicket = () => {
                                                 </div>
                                             </div>
                                         </div>
-                                        <button v-else type="button" class="submission-file-empty flex min-h-40 w-full flex-col items-center justify-center gap-2 p-6 text-center text-slate-400 hover:bg-slate-900/40" @click="submissionFileInput?.click()">
+                                        <button v-else-if="quest.task_bank" type="button" class="submission-file-empty flex min-h-40 w-full flex-col items-center justify-center gap-2 p-6 text-center text-slate-400 hover:bg-slate-900/40" @click="submissionFileInput?.click()">
                                             <span class="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-cyan-700 text-xl text-cyan-400">+</span>
                                             <span class="text-[12px]">Belum ada file. Klik atau tarik file ke sini untuk menambahkan.</span>
                                             <span class="text-[10px] text-slate-600">PDF, DOCX, TXT, JPG, PNG, WEBP</span>
@@ -1468,12 +1471,13 @@ const useRetakeTicket = () => {
                                 id="quest-submit-action"
                                 type="submit"
                                 :disabled="form.processing || examExpired"
-                                class="w-full py-4 border-2 font-bold uppercase text-[12px] transition-colors"
-                                :class="examExpired
+                                class="font-bold uppercase transition-colors"
+                                :class="[quest.task_bank ? 'w-full py-4 border-2 text-[12px]' : 'quest-report-action border px-3 py-2 text-[9px]',
+                                    examExpired
                                     ? 'bg-red-950/60 border-red-500 text-red-300 cursor-not-allowed'
                                     : (isEditSubmissionMode
                                         ? 'bg-yellow-900/40 border-yellow-400 text-yellow-400 hover:bg-yellow-500/20'
-                                        : 'bg-cyan-900/40 border-cyan-400 text-cyan-400 hover:bg-cyan-500/20')"
+                                        : 'bg-cyan-900/40 border-cyan-400 text-cyan-400 hover:bg-cyan-500/20')]"
                             >
                                 {{ examExpired ? 'TIME_EXPIRED' : (form.processing ? (isEditSubmissionMode ? 'UPDATING...' : 'TRANSMITTING...') : (isEditSubmissionMode ? 'UPDATE' : 'SUBMIT')) }}
                             </button>
@@ -1486,6 +1490,26 @@ const useRetakeTicket = () => {
 </template>
 
 <style scoped>
+.quest-page--light .quest-submit-panel.quest-submit-panel--compact,
+.quest-page--dark .quest-submit-panel.quest-submit-panel--compact {
+    border-color: var(--panel-border) !important;
+    background: var(--panel-soft) !important;
+    color: var(--text) !important;
+}
+
+.quest-submit-panel--compact .quest-report-action {
+    border-color: var(--panel-border);
+    background: var(--panel);
+    color: var(--text);
+}
+
+.quest-submit-panel--compact .quest-report-action:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+}
+
+.quest-submit-panel--compact .quest-report-action:disabled { opacity: 0.65; }
+
 .quest-page--dark {
     color: #4ed4d4;
 }

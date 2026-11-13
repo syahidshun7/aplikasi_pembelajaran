@@ -241,7 +241,7 @@ class StudyGroupController extends Controller
             'classmates' => $classmates,
             'classRoadmaps' => $classRoadmaps,
             'staffPreview' => $staffPreview,
-            'backUrl' => $staffPreview ? route('groups.detail', $group->uuid) : route('groups.index'),
+            'backUrl' => $staffPreview ? route('redesign.study-groups.show', $group->uuid) : route('groups.index'),
         ];
     }
 
