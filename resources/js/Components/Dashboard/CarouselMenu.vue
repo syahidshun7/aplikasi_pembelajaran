@@ -22,9 +22,13 @@ const emit = defineEmits(['update:modelValue']);
 
 const containerRef = ref(null);
 const cardRefs = new Map();
+let scrollFrame = null;
 let scrollEndTimer = null;
+let initialSyncTimer = null;
+let syncTimer = null;
+let isReadyForScrollSync = false;
+let isSyncing = false;
 let isUpdatingFromScroll = false;
-let trackWidth = 0;
 
 const setCardRef = (key) => (element) => {
     if (element) {
@@ -35,18 +39,27 @@ const setCardRef = (key) => (element) => {
     cardRefs.delete(key);
 };
 
+const syncFlag = (duration = 360) => {
+    isSyncing = true;
+    window.clearTimeout(syncTimer);
+    syncTimer = window.setTimeout(() => {
+        isSyncing = false;
+    }, duration);
+};
+
 const centerCard = (key, behavior = 'smooth') => {
-    const container = containerRef.value;
     const card = cardRefs.get(key);
 
-    if (!container || !card) {
+    if (!card) {
         return;
     }
 
-    const trackRect = container.getBoundingClientRect();
-    const cardRect = card.getBoundingClientRect();
-    const offset = cardRect.left + cardRect.width / 2 - trackRect.left - trackRect.width / 2;
-    container.scrollBy({ left: offset, behavior });
+    syncFlag(behavior === 'smooth' ? 360 : 120);
+    card.scrollIntoView({
+        behavior,
+        block: 'nearest',
+        inline: 'center',
+    });
 };
 
 const getNearestKeyFromScroll = () => {
@@ -81,22 +94,39 @@ const getNearestKeyFromScroll = () => {
     return nearestKey;
 };
 
-const syncCenteredCard = () => {
-    window.clearTimeout(scrollEndTimer);
+const updateActiveFromScroll = () => {
+    if (!containerRef.value || !isReadyForScrollSync || isSyncing) {
+        return;
+    }
+
     const nearestKey = getNearestKeyFromScroll();
 
     if (nearestKey && nearestKey !== props.modelValue) {
         isUpdatingFromScroll = true;
         emit('update:modelValue', nearestKey);
-        nextTick(() => {
-            isUpdatingFromScroll = false;
-        });
     }
 };
 
 const handleScroll = () => {
+    if (scrollFrame) {
+        window.cancelAnimationFrame(scrollFrame);
+    }
+
+    scrollFrame = window.requestAnimationFrame(updateActiveFromScroll);
+
+    if (!isReadyForScrollSync) {
+        return;
+    }
+
     window.clearTimeout(scrollEndTimer);
-    scrollEndTimer = window.setTimeout(syncCenteredCard, 180);
+    scrollEndTimer = window.setTimeout(() => {
+        centerCard(props.modelValue, 'smooth');
+    }, 120);
+};
+
+const selectItem = (key) => {
+    emit('update:modelValue', key);
+    nextTick(() => centerCard(key));
 };
 
 const nodeIcons = {
@@ -119,32 +149,48 @@ const badgeCountLabel = (value) => {
 };
 
 const handleResize = () => {
-    const width = containerRef.value?.clientWidth;
-
-    if (width && width !== trackWidth) {
-        trackWidth = width;
-        centerCard(props.modelValue, 'instant');
-    }
+    centerCard(props.modelValue, 'auto');
 };
 
 watch(
     () => props.modelValue,
-    (key) => {
-        if (!isUpdatingFromScroll) {
-            centerCard(key);
+    async (key) => {
+        await nextTick();
+
+        if (isUpdatingFromScroll) {
+            isUpdatingFromScroll = false;
+            return;
         }
+
+        centerCard(key);
     },
-    { flush: 'post' },
 );
 
-onMounted(() => {
-    handleResize();
+onMounted(async () => {
+    await nextTick();
     window.addEventListener('resize', handleResize);
+
+    window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+            centerCard(props.modelValue, 'auto');
+            window.clearTimeout(initialSyncTimer);
+            initialSyncTimer = window.setTimeout(() => {
+                centerCard(props.modelValue, 'auto');
+                isReadyForScrollSync = true;
+            }, 260);
+        });
+    });
 });
 
 onBeforeUnmount(() => {
     window.removeEventListener('resize', handleResize);
     window.clearTimeout(scrollEndTimer);
+    window.clearTimeout(initialSyncTimer);
+    window.clearTimeout(syncTimer);
+
+    if (scrollFrame) {
+        window.cancelAnimationFrame(scrollFrame);
+    }
 });
 </script>
 
@@ -156,7 +202,6 @@ onBeforeUnmount(() => {
             aria-label="Dashboard navigation carousel"
             role="tablist"
             @scroll.passive="handleScroll"
-            @scrollend="syncCenteredCard"
         >
             <div class="carousel-track__spacer" aria-hidden="true"></div>
 
@@ -168,7 +213,7 @@ onBeforeUnmount(() => {
                 role="tab"
                 :aria-selected="modelValue === item.key ? 'true' : 'false'"
                 class="carousel-card"
-                @click="centerCard(item.key)"
+                @click="selectItem(item.key)"
             >
                 <div class="carousel-card__frame">
                     <span
@@ -333,15 +378,15 @@ onBeforeUnmount(() => {
 
     .carousel-track {
         @apply gap-3;
-        scroll-snap-type: x proximity;
-    }
-
-    .carousel-track__spacer {
-        flex-basis: max(0.75rem, calc(50% - min(41vw, 126px)));
+        scroll-snap-type: x mandatory;
     }
 
     .carousel-card {
         flex-basis: min(82vw, 252px);
+    }
+
+    .carousel-track__spacer {
+        flex-basis: max(0.75rem, calc(50% - min(40vw, 126px)));
     }
 
     .carousel-card__frame {
