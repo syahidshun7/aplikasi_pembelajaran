@@ -334,7 +334,7 @@ const eventItems = computed(() => {
         });
 });
 
-const upcomingEventPreview = computed(() => eventItems.value.slice(0, 10));
+const upcomingEventPreview = computed(() => eventItems.value.slice(0, 5));
 const contentTypeByPayloadKey = {
     quest: 'quest',
     guide: 'guide',
