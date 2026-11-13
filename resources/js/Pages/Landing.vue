@@ -2,6 +2,9 @@
 import { Head, Link } from '@inertiajs/vue3';
 import { computed, nextTick, onBeforeUnmount, onBeforeUpdate, onMounted, ref, watch } from 'vue';
 import AppBackgroundLayer from '@/Components/AppBackgroundLayer.vue';
+import LandingAcademyScene from '@/Components/LandingAcademyScene.vue';
+
+const academyBackground = '/images/landing/academy-hero.webp';
 
 const props = defineProps({
     canLogin: Boolean,
@@ -185,7 +188,7 @@ const getHallRankTitle = (index) => {
 const seoTitle = 'DOOPTECH | Platform Pembelajaran Quest-Based';
 const seoDescription = 'DOOPTECH adalah aplikasi pembelajaran berbasis game yang menghubungkan pemula dan profesional dalam satu ekosistem belajar.';
 const seoCanonicalUrl = computed(() => route('lobby'));
-const seoImageUrl = computed(() => new URL('/images/bg-loby2.webp', seoCanonicalUrl.value).toString());
+const seoImageUrl = computed(() => new URL(academyBackground, seoCanonicalUrl.value).toString());
 const seoSchemaJson = computed(() => JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'WebSite',
@@ -471,7 +474,7 @@ onBeforeUnmount(() => {
         <meta head-key="twitter:description" name="twitter:description" :content="seoDescription" />
         <meta head-key="twitter:image" name="twitter:image" :content="seoImageUrl" />
         <link head-key="canonical" rel="canonical" :href="seoCanonicalUrl" />
-        <link rel="preload" as="image" href="/images/bg-loby2.webp" />
+        <link rel="preload" as="image" :href="academyBackground" />
         <component :is="'script'" head-key="ld-json-website" type="application/ld+json" v-html="seoSchemaJson" />
     </Head>
 
@@ -479,7 +482,8 @@ onBeforeUnmount(() => {
         class="relative isolate min-h-screen overflow-x-hidden font-['Press_Start_2P'] text-slate-900"
     >
         <AppBackgroundLayer
-            image="/images/bg-loby2.webp"
+            :image="academyBackground"
+            image-position="right center"
             overlay-class="bg-[linear-gradient(rgba(248,250,252,0.58),rgba(238,246,255,0.62))]"
             glow-class="bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.28),transparent_32%),radial-gradient(circle_at_82%_12%,rgba(103,232,249,0.18),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.12))]"
         />
@@ -529,60 +533,179 @@ onBeforeUnmount(() => {
                 </div>
             </nav>
 
-            <section class="px-4 md:px-10 pt-12 md:pt-16 pb-10">
-                <div class="max-w-5xl mx-auto text-center">
-                    <p class="text-[9px] md:text-[10px] uppercase tracking-widest text-cyan-700 mb-5">
-                        <span class="text-cyan-700">Learning Hub</span>
-                        <span class="text-sky-600"> for</span>
-                        <span class="text-indigo-600"> Quest-Based</span>
-                        <span class="text-emerald-600"> Study</span>
-                    </p>
-                    <h1 class="mx-auto mb-5 flex max-w-6xl flex-col items-center gap-2 text-center text-lg uppercase leading-none tracking-[0.08em] text-slate-900 md:text-4xl md:tracking-[0.12em]">
-                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
-                            <span>Like Playing</span>
-                            <span class="text-indigo-600">A Game,</span>
-                            <span>Learning</span>
-                        </span>
-                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
-                            <span>Should Be</span>
-                            <span class="text-emerald-600">Enjoyable.</span>
-                        </span>
-                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[0.9em] md:text-[0.95em]">
-                            <span class="text-cyan-700">No Matter</span>
-                            <span>If We</span>
-                            <span class="text-indigo-600">Lose Or Win,</span>
-                        </span>
-                        <span class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[0.9em] md:text-[0.95em]">
-                            <span>We'll Always</span>
-                            <span class="text-cyan-700">Return</span>
-                        </span>
-                    </h1>
-                    <p class="text-[10px] md:text-xs text-slate-700 leading-relaxed max-w-3xl mx-auto font-sans">
-                        Ini adalah aplikasi pembelajaran berbasis game yang menghubungkan pemula dan profesional dalam satu ekosistem belajar.
-                    </p>
-
-                    <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-                        <Link
-                            v-if="canRegister"
-                            :href="route('register')"
-                            class="text-[9px] md:text-[10px] px-5 py-3 bg-emerald-500 text-black border border-emerald-200 border-b-4 border-r-4 border-r-emerald-800 border-b-emerald-800 uppercase hover:bg-emerald-300 transition-colors"
-                        >
-                            Mulai Belajar
-                        </Link>
-                        <Link
-                            v-if="canLogin"
-                            :href="route('login')"
-                            class="text-[9px] md:text-[10px] px-5 py-3 bg-slate-800 text-white border border-slate-300 border-b-4 border-r-4 border-r-slate-900 border-b-slate-900 uppercase hover:bg-slate-700 transition-colors"
-                        >
-                            Masuk Dashboard
-                        </Link>
+            <section class="landing-hero" aria-labelledby="landing-hero-title">
+                <div class="landing-hero__layout">
+                    <div class="landing-hero__intro">
+                        <h1 id="landing-hero-title">
+                            <span>Like Playing A Game, Learning Should Be Enjoyable.</span>
+                            <span>No Matter If We Lose Or Win, We'll Always Return</span>
+                        </h1>
+                        <div class="landing-hero__actions">
+                            <Link v-if="canRegister" :href="route('register')" class="landing-hero__start">Mulai Belajar</Link>
+                            <Link v-if="canLogin" :href="route('login')" class="landing-hero__login">Masuk</Link>
+                        </div>
                     </div>
 
-                    <div class="mt-6 flex items-center justify-center gap-2 md:gap-3">
-                        <span class="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></span>
-                        <span class="w-2 h-2 rounded-full bg-sky-500 animate-pulse [animation-delay:150ms]"></span>
-                        <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse [animation-delay:300ms]"></span>
-                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse [animation-delay:450ms]"></span>
+                    <LandingAcademyScene class="landing-hero__illustration" />
+                </div>
+            </section>
+
+            <section class="px-4 md:px-10 pb-12">
+                <div class="mx-auto max-w-6xl hall-preview-shell">
+                    <div class="hall-preview-panel">
+                        <div class="hall-preview-panel__glow hall-preview-panel__glow--one"></div>
+                        <div class="hall-preview-panel__glow hall-preview-panel__glow--two"></div>
+
+                        <div class="relative z-10">
+                            <div class="flex flex-wrap items-start justify-between gap-4">
+                                <div class="max-w-2xl">
+                                    <p class="text-[8px] md:text-[9px] uppercase tracking-[0.26em] text-cyan-200/90">Hall of Creations</p>
+                                    <h2 class="mt-2 text-[11px] md:text-[13px] uppercase text-white">Showcase karya terbaik komunitas</h2>
+                                    <p class="mt-3 text-[11px] md:text-[13px] font-sans leading-relaxed text-cyan-50/90">
+                                        Lihat project yang lagi naik, pantau progres real, dan temukan inspirasi dari learner serta mentor aktif di DOOPTECH.
+                                    </p>
+
+                                    <div class="mt-4 flex flex-wrap gap-2">
+                                        <span class="hall-stat-chip">
+                                            <i class="fi fi-rr-heart text-[10px]"></i>
+                                            {{ hallStats.appreciations }} Appreciation
+                                        </span>
+                                        <span class="hall-stat-chip">
+                                            <i class="fi fi-rr-comment-alt text-[10px]"></i>
+                                            {{ hallStats.insights }} Insight
+                                        </span>
+                                        <span class="hall-stat-chip">
+                                            <i class="fi fi-rr-target text-[10px]"></i>
+                                            {{ hallStats.activeProjects }} Active Project
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-wrap gap-2">
+                                    <Link
+                                        :href="hallEntryHref"
+                                        class="hall-cta hall-cta--primary"
+                                    >
+                                        {{ hallEntryLabel }}
+                                    </Link>
+                                    <Link
+                                        v-if="showHallSecondaryCta"
+                                        :href="hallSecondaryHref"
+                                        class="hall-cta hall-cta--secondary"
+                                    >
+                                        {{ hallSecondaryLabel }}
+                                    </Link>
+                                </div>
+                            </div>
+
+                            <div v-if="featuredCreations.length > 0" class="mt-6 hall-preview-grid">
+                                <article
+                                    v-for="(creation, index) in featuredCreations"
+                                    :key="creation.id"
+                                    class="group hall-showcase-card relative overflow-hidden border border-white/70 border-r-4 border-b-4 border-r-slate-900 border-b-slate-900 bg-gradient-to-br text-left"
+                                    :class="getCreationTheme(index).card"
+                                    :style="{ animationDelay: `${index * 90}ms` }"
+                                >
+                                    <div class="hall-showcase-card__shine"></div>
+                                    <div
+                                        class="absolute -right-10 -top-10 h-24 w-24 rounded-full blur-2xl opacity-35"
+                                        :class="getCreationTheme(index).glow"
+                                    ></div>
+                                    <div
+                                        class="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r"
+                                        :class="getCreationTheme(index).line"
+                                    ></div>
+
+                                    <div class="relative z-10 px-3 pt-3">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="border border-white/40 bg-black/15 px-2 py-1 text-[6px] uppercase text-white/90">
+                                                {{ getHallRankTitle(index) }}
+                                            </span>
+                                            <span class="border border-white/40 bg-black/15 px-2 py-1 text-[6px] uppercase text-white/90">
+                                                Rank 0{{ index + 1 }}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div class="relative mt-3 aspect-[4/3] overflow-hidden border-y border-white/25 bg-black/15">
+                                        <img
+                                            v-if="creation.thumbnail_url"
+                                            :src="creation.thumbnail_url"
+                                            :alt="creation.title"
+                                            class="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.05]"
+                                            loading="lazy"
+                                            decoding="async"
+                                        />
+                                        <div v-else class="flex h-full items-center justify-center">
+                                            <i class="fi fi-rr-lightbulb-on text-[28px] text-cyan-200/80"></i>
+                                        </div>
+
+                                        <span
+                                            class="absolute left-2 top-2 rounded border px-2 py-1 text-[6px] uppercase backdrop-blur-[1px]"
+                                            :class="getCreationStatusClass(creation.status)"
+                                        >
+                                            {{ creation.status }}
+                                        </span>
+
+                                        <div class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/55 to-transparent"></div>
+                                    </div>
+
+                                    <div class="relative z-10 space-y-2 p-3 text-white">
+                                        <div class="min-w-0">
+                                            <h3 class="line-clamp-1 text-[9px] uppercase text-white [text-shadow:1px_1px_0_rgba(2,6,23,0.45)]">
+                                                {{ creation.title }}
+                                            </h3>
+                                            <p class="mt-1 line-clamp-1 text-[7px] uppercase" :class="getCreationTheme(index).meta">
+                                                {{ creation.creator?.username || creation.creator?.name || 'Adventurer' }}
+                                            </p>
+                                        </div>
+
+                                        <div v-if="creation.status !== 'finished'" class="space-y-1">
+                                            <div class="h-1.5 overflow-hidden border border-white/25 bg-slate-950/80">
+                                                <div
+                                                    class="h-full bg-gradient-to-r"
+                                                    :class="getCreationTheme(index).line"
+                                                    :style="{ width: `${creation.progress || 0}%` }"
+                                                ></div>
+                                            </div>
+                                            <p class="text-[6px] uppercase tracking-[0.18em] text-white/75">{{ creation.progress || 0 }}%</p>
+                                        </div>
+
+                                        <div class="flex items-center justify-between border-t border-white/15 pt-2 text-[7px] uppercase">
+                                            <div class="flex items-center gap-2">
+                                                <span class="inline-flex items-center gap-1 border px-2 py-1" :class="getCreationTheme(index).stat">
+                                                    <i class="fi fi-rr-heart text-[9px]"></i>
+                                                    {{ creation.appreciations_count || 0 }}
+                                                </span>
+                                                <span class="inline-flex items-center gap-1 border px-2 py-1" :class="getCreationTheme(index).stat">
+                                                    <i class="fi fi-rr-comment-alt text-[9px]"></i>
+                                                    {{ creation.insights_count || 0 }}
+                                                </span>
+                                            </div>
+
+                                            <Link
+                                                :href="route('hall.creations.show', { creation: creation.slug || creation.id })"
+                                                class="border border-white/45 bg-black/20 px-2 py-1 text-[6px] uppercase text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+                                            >
+                                                View
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </article>
+                            </div>
+
+                            <div v-else class="mt-6 hall-empty-state">
+                                <div class="hall-empty-state__icon-wrap">
+                                    <i class="fi fi-rr-lightbulb-on text-[24px] text-cyan-200"></i>
+                                </div>
+                                <div class="space-y-2">
+                                    <p class="text-[10px] uppercase text-white">Belum ada creation publik di Hall</p>
+                                    <p class="text-[11px] md:text-[13px] font-sans text-cyan-100/85">
+                                        Jadi yang pertama publish karya dan buka diskusi dari komunitas.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -893,166 +1016,6 @@ onBeforeUnmount(() => {
                 </div>
             </section>
 
-            <section class="px-4 md:px-10 pb-12">
-                <div class="mx-auto max-w-6xl hall-preview-shell">
-                    <div class="hall-preview-panel">
-                        <div class="hall-preview-panel__glow hall-preview-panel__glow--one"></div>
-                        <div class="hall-preview-panel__glow hall-preview-panel__glow--two"></div>
-
-                        <div class="relative z-10">
-                            <div class="flex flex-wrap items-start justify-between gap-4">
-                                <div class="max-w-2xl">
-                                    <p class="text-[8px] md:text-[9px] uppercase tracking-[0.26em] text-cyan-200/90">Hall of Creations</p>
-                                    <h2 class="mt-2 text-[11px] md:text-[13px] uppercase text-white">Showcase karya terbaik komunitas</h2>
-                                    <p class="mt-3 text-[11px] md:text-[13px] font-sans leading-relaxed text-cyan-50/90">
-                                        Lihat project yang lagi naik, pantau progres real, dan temukan inspirasi dari learner serta mentor aktif di DOOPTECH.
-                                    </p>
-
-                                    <div class="mt-4 flex flex-wrap gap-2">
-                                        <span class="hall-stat-chip">
-                                            <i class="fi fi-rr-heart text-[10px]"></i>
-                                            {{ hallStats.appreciations }} Appreciation
-                                        </span>
-                                        <span class="hall-stat-chip">
-                                            <i class="fi fi-rr-comment-alt text-[10px]"></i>
-                                            {{ hallStats.insights }} Insight
-                                        </span>
-                                        <span class="hall-stat-chip">
-                                            <i class="fi fi-rr-target text-[10px]"></i>
-                                            {{ hallStats.activeProjects }} Active Project
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div class="flex flex-wrap gap-2">
-                                    <Link
-                                        :href="hallEntryHref"
-                                        class="hall-cta hall-cta--primary"
-                                    >
-                                        {{ hallEntryLabel }}
-                                    </Link>
-                                    <Link
-                                        v-if="showHallSecondaryCta"
-                                        :href="hallSecondaryHref"
-                                        class="hall-cta hall-cta--secondary"
-                                    >
-                                        {{ hallSecondaryLabel }}
-                                    </Link>
-                                </div>
-                            </div>
-
-                            <div v-if="featuredCreations.length > 0" class="mt-6 hall-preview-grid">
-                                <article
-                                    v-for="(creation, index) in featuredCreations"
-                                    :key="creation.id"
-                                    class="group hall-showcase-card relative overflow-hidden border border-white/70 border-r-4 border-b-4 border-r-slate-900 border-b-slate-900 bg-gradient-to-br text-left"
-                                    :class="getCreationTheme(index).card"
-                                    :style="{ animationDelay: `${index * 90}ms` }"
-                                >
-                                    <div class="hall-showcase-card__shine"></div>
-                                    <div
-                                        class="absolute -right-10 -top-10 h-24 w-24 rounded-full blur-2xl opacity-35"
-                                        :class="getCreationTheme(index).glow"
-                                    ></div>
-                                    <div
-                                        class="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r"
-                                        :class="getCreationTheme(index).line"
-                                    ></div>
-
-                                    <div class="relative z-10 px-3 pt-3">
-                                        <div class="flex items-center justify-between gap-2">
-                                            <span class="border border-white/40 bg-black/15 px-2 py-1 text-[6px] uppercase text-white/90">
-                                                {{ getHallRankTitle(index) }}
-                                            </span>
-                                            <span class="border border-white/40 bg-black/15 px-2 py-1 text-[6px] uppercase text-white/90">
-                                                Rank 0{{ index + 1 }}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div class="relative mt-3 aspect-[4/3] overflow-hidden border-y border-white/25 bg-black/15">
-                                        <img
-                                            v-if="creation.thumbnail_url"
-                                            :src="creation.thumbnail_url"
-                                            :alt="creation.title"
-                                            class="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.05]"
-                                            loading="lazy"
-                                            decoding="async"
-                                        />
-                                        <div v-else class="flex h-full items-center justify-center">
-                                            <i class="fi fi-rr-lightbulb-on text-[28px] text-cyan-200/80"></i>
-                                        </div>
-
-                                        <span
-                                            class="absolute left-2 top-2 rounded border px-2 py-1 text-[6px] uppercase backdrop-blur-[1px]"
-                                            :class="getCreationStatusClass(creation.status)"
-                                        >
-                                            {{ creation.status }}
-                                        </span>
-
-                                        <div class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/55 to-transparent"></div>
-                                    </div>
-
-                                    <div class="relative z-10 space-y-2 p-3 text-white">
-                                        <div class="min-w-0">
-                                            <h3 class="line-clamp-1 text-[9px] uppercase text-white [text-shadow:1px_1px_0_rgba(2,6,23,0.45)]">
-                                                {{ creation.title }}
-                                            </h3>
-                                            <p class="mt-1 line-clamp-1 text-[7px] uppercase" :class="getCreationTheme(index).meta">
-                                                {{ creation.creator?.username || creation.creator?.name || 'Adventurer' }}
-                                            </p>
-                                        </div>
-
-                                        <div v-if="creation.status !== 'finished'" class="space-y-1">
-                                            <div class="h-1.5 overflow-hidden border border-white/25 bg-slate-950/80">
-                                                <div
-                                                    class="h-full bg-gradient-to-r"
-                                                    :class="getCreationTheme(index).line"
-                                                    :style="{ width: `${creation.progress || 0}%` }"
-                                                ></div>
-                                            </div>
-                                            <p class="text-[6px] uppercase tracking-[0.18em] text-white/75">{{ creation.progress || 0 }}%</p>
-                                        </div>
-
-                                        <div class="flex items-center justify-between border-t border-white/15 pt-2 text-[7px] uppercase">
-                                            <div class="flex items-center gap-2">
-                                                <span class="inline-flex items-center gap-1 border px-2 py-1" :class="getCreationTheme(index).stat">
-                                                    <i class="fi fi-rr-heart text-[9px]"></i>
-                                                    {{ creation.appreciations_count || 0 }}
-                                                </span>
-                                                <span class="inline-flex items-center gap-1 border px-2 py-1" :class="getCreationTheme(index).stat">
-                                                    <i class="fi fi-rr-comment-alt text-[9px]"></i>
-                                                    {{ creation.insights_count || 0 }}
-                                                </span>
-                                            </div>
-
-                                            <Link
-                                                :href="route('hall.creations.show', { creation: creation.slug || creation.id })"
-                                                class="border border-white/45 bg-black/20 px-2 py-1 text-[6px] uppercase text-white/80 transition-colors hover:bg-white/15 hover:text-white"
-                                            >
-                                                View
-                                            </Link>
-                                        </div>
-                                    </div>
-                                </article>
-                            </div>
-
-                            <div v-else class="mt-6 hall-empty-state">
-                                <div class="hall-empty-state__icon-wrap">
-                                    <i class="fi fi-rr-lightbulb-on text-[24px] text-cyan-200"></i>
-                                </div>
-                                <div class="space-y-2">
-                                    <p class="text-[10px] uppercase text-white">Belum ada creation publik di Hall</p>
-                                    <p class="text-[11px] md:text-[13px] font-sans text-cyan-100/85">
-                                        Jadi yang pertama publish karya dan buka diskusi dari komunitas.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
             <section class="px-4 md:px-10 pb-16">
                 <div class="max-w-6xl mx-auto bg-slate-900/90 border-2 border-cyan-300/40 shadow-[0_10px_24px_rgba(14,116,144,0.2)] p-5 md:p-8">
                     <div class="relative">
@@ -1099,6 +1062,70 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+
+.landing-hero {
+    --hero-ink: #122335;
+    --hero-accent: #087f7f;
+    --hero-gradient-direction: 105deg;
+    color: var(--hero-ink);
+    padding: clamp(2rem, 4vw, 4.5rem) clamp(1rem, 5vw, 5rem);
+    background:
+        radial-gradient(ellipse at 78% 55%, #fff0cc80, transparent 48%),
+        linear-gradient(var(--hero-gradient-direction), #fff4df 12%, #f4ebd8 46%, #badbd2 100%);
+}
+
+.landing-hero__layout {
+    max-width: 76rem;
+    margin-inline: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+    align-items: center;
+    gap: clamp(0.75rem, 2.25vw, 2rem);
+}
+
+.landing-hero h1 {
+    font-size: clamp(1.125rem, 2.4vw, 2.2rem);
+    line-height: 1.55;
+    text-wrap: balance;
+}
+
+.landing-hero h1 span { display: block; }
+.landing-hero h1 span + span {
+    margin-top: 0.6rem;
+    color: var(--hero-accent);
+    font-size: 0.72em;
+}
+
+.landing-hero__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem; margin-top: 1.5rem; }
+.landing-hero__actions a { display: inline-flex; min-height: 44px; align-items: center; font-size: clamp(0.62rem, 1.2vw, 0.85rem); }
+.landing-hero__start {
+    padding: 0.65rem 1rem;
+    color: white;
+    background: linear-gradient(#358b25, #236719);
+    border: 2px solid #24561b;
+    border-radius: 6px;
+    box-shadow: inset 0 2px #8acb62, 0 4px #183d17;
+}
+.landing-hero__start:hover { background: #115531; }
+.landing-hero__login { color: var(--hero-accent); text-decoration: underline; text-underline-offset: 0.25em; }
+.landing-hero__actions a:focus-visible { outline: 2px solid var(--hero-ink); outline-offset: 4px; }
+
+.landing-hero__illustration {
+    display: block;
+    width: 100%;
+    max-width: 43rem;
+    height: auto;
+    justify-self: center;
+    filter: drop-shadow(0 8px 5px rgb(12 52 72 / 30%));
+}
+
+@media (max-width: 767px) {
+    .landing-hero {
+        --hero-gradient-direction: 180deg;
+    }
+    .landing-hero__layout { grid-template-columns: minmax(0, 1fr); }
+}
+
 .jobs-stage {
     position: relative;
 }
