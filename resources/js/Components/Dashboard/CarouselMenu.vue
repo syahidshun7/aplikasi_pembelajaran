@@ -48,17 +48,18 @@ const syncFlag = (duration = 360) => {
 };
 
 const centerCard = (key, behavior = 'smooth') => {
+    const container = containerRef.value;
     const card = cardRefs.get(key);
 
-    if (!card) {
+    if (!container || !card) {
         return;
     }
 
     syncFlag(behavior === 'smooth' ? 360 : 120);
-    card.scrollIntoView({
+    const targetLeft = card.offsetLeft - ((container.clientWidth - card.offsetWidth) / 2);
+    container.scrollTo({
+        left: targetLeft,
         behavior,
-        block: 'nearest',
-        inline: 'center',
     });
 };
 
