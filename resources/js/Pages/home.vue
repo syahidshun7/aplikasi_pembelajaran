@@ -334,7 +334,7 @@ const eventItems = computed(() => {
         });
 });
 
-const upcomingEventPreview = computed(() => eventItems.value.slice(0, 10));
+const upcomingEventPreview = computed(() => eventItems.value.slice(0, 6));
 const contentTypeByPayloadKey = {
     quest: 'quest',
     guide: 'guide',
@@ -454,7 +454,7 @@ const questItems = computed(() => {
 
 const questPreview = computed(() => questItems.value.slice(0, 6));
 const guidePreview = computed(() => applyLocalSeenState((guides.value || []), 'guide').slice(0, 10));
-const groupPreview = computed(() => applyLocalSeenState((studyGroups.value || []), 'study_group').slice(0, 10));
+const groupPreview = computed(() => applyLocalSeenState((studyGroups.value || []), 'study_group').slice(0, 4));
 const doopNewsPreview = computed(() => applyLocalSeenState((props.doopNewsPosts || []), 'doop_news').slice(0, 5));
 
 const persistLocalSeenContent = () => {
@@ -971,6 +971,16 @@ onBeforeUnmount(() => {
     border-top-color: var(--panel-border);
 }
 
+.dashboard-focus-shell :deep(.dashboard-section-shell),
+.dashboard-focus-shell :deep(.doopnews-blog-section) {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    height: clamp(1120px, 112dvh, 1320px);
+    min-height: 0;
+    overflow: hidden;
+}
+
 [data-theme='light'] .lobby-color-system :deep(.dashboard-section-shell) {
     background:
         linear-gradient(180deg, rgba(0, 153, 153, 0.08), transparent 26%),
@@ -1447,6 +1457,11 @@ onBeforeUnmount(() => {
 
     .dashboard-focus-shell--joined {
         @apply px-1 pb-1 pt-4;
+    }
+
+    .dashboard-focus-shell :deep(.dashboard-section-shell),
+    .dashboard-focus-shell :deep(.doopnews-blog-section) {
+        height: clamp(1400px, 130dvh, 1520px);
     }
 }
 </style>

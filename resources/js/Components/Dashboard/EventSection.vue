@@ -103,11 +103,11 @@ const hiddenNewItemCount = computed(() => {
             </Link>
         </div>
 
-        <div v-if="items.length > 0" class="space-y-4">
+        <div v-if="items.length > 0" class="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <article
                 v-for="event in eventItemsWithTone"
                 :key="event.uuid"
-                class="event-card flex h-full flex-col border p-4 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
+                class="event-card flex h-full min-w-0 flex-col border p-4 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
                 :style="event.__tone_style"
             >
                 <div class="flex flex-wrap items-center justify-between gap-2">
@@ -115,7 +115,7 @@ const hiddenNewItemCount = computed(() => {
                         <span class="event-card__meeting text-[7px] uppercase">Meeting_{{ event.sequence_order }}</span>
                         <span v-if="event.is_new_for_user" class="event-new-badge">NEW</span>
                     </div>
-                    <span class="event-card__group rounded-full border px-2 py-1 text-[7px] uppercase">
+                    <span class="event-card__group max-w-full break-words rounded-full border px-2 py-1 text-right text-[7px] uppercase">
                         {{ event.study_group?.name || 'Public' }}
                     </span>
                 </div>

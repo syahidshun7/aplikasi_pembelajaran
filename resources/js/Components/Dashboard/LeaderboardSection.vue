@@ -101,10 +101,10 @@ const activeItems = computed(() => {
         : null;
 
     if (Array.isArray(source)) {
-        return source;
+        return source.slice(0, 10);
     }
 
-    return Array.isArray(props.items) ? props.items : [];
+    return Array.isArray(props.items) ? props.items.slice(0, 10) : [];
 });
 
 const hasProfileRoute = (player) => Boolean(player?.username);

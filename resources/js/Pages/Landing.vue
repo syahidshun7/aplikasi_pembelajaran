@@ -1066,12 +1066,8 @@ onBeforeUnmount(() => {
 .landing-hero {
     --hero-ink: #122335;
     --hero-accent: #087f7f;
-    --hero-gradient-direction: 105deg;
     color: var(--hero-ink);
     padding: clamp(2rem, 4vw, 4.5rem) clamp(1rem, 5vw, 5rem);
-    background:
-        radial-gradient(ellipse at 78% 55%, #fff0cc80, transparent 48%),
-        linear-gradient(var(--hero-gradient-direction), #fff4df 12%, #f4ebd8 46%, #badbd2 100%);
 }
 
 .landing-hero__layout {
@@ -1120,9 +1116,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 767px) {
-    .landing-hero {
-        --hero-gradient-direction: 180deg;
-    }
     .landing-hero__layout { grid-template-columns: minmax(0, 1fr); }
 }
 
