@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 80" shape-rendering="crispEdges">
+  <!-- Wooden quest notice board -->
+  <path fill="#13233a" d="M22 12h52v4h5v5h4v34h-4v5h-5v4H22v-4h-5v-5h-4V21h4v-5h5z"/>
+  <path fill="#9a542d" d="M23 17h49v3h5v3h3v26h-3v4h-5v4H23v-4h-5v-4h-2V23h4v-3h3z"/>
+  <path fill="#c9793e" d="M25 20h44v3h5v3h3v20h-3v4h-5v4H25v-4h-5v-4h-2V26h4v-3h3z"/>
+  <path fill="#e4a256" d="M28 23h39v3h5v3h2v14h-2v4h-5v3H28v-3h-5v-4h-2V29h4v-3h3z"/>
+  <path fill="#fff0bd" d="M32 28h31v3h4v3h2v10h-3v3H32v-3h-4V33h4z"/>
+  <path fill="#f7df9c" d="M35 31h25v3h4v8H35z"/>
+  <path fill="#c9793e" d="M27 61h8v5h-3v5h-5v-5h-3v-3h3zm35 0h8v3h-3v5h-5v-5h-3v-3z"/>
+  <path fill="#9a542d" d="M22 69h14v4H22zm34 0h14v4H56z"/><path fill="#e4a256" d="M25 69h8v2h-8zm34 0h8v2h-8z"/>
+  <!-- Pinned quest sheet, seal and short task lines -->
+  <path fill="#de536d" d="M45 25h5v3h4v4h3v5h-3v4h-4v3h-5v-3h-4v-4h-3v-5h3v-4h4z"/><path fill="#ff9aa7" d="M46 29h4v3h3v4h-3v3h-4v-3h-3v-4h3z"/>
+  <path fill="#d49542" d="M35 48h7v2h-7zm11 0h12v2H46zm-11 4h19v2H35z"/>
+  <path fill="#13233a" d="M19 20h3v3h-3zm53 0h3v3h-3z"/><path fill="#f4d16b" d="M20 20h2v2h-2zm53 0h2v2h-2z"/>
+</svg>

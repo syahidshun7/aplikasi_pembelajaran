@@ -1,10 +1,10 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import doopNewsIcon from './node-icons/doopnews.png';
+import doopNewsIcon from './node-icons/doopnews.svg';
 import leaderboardIcon from './node-icons/leaderboard.png';
 import libraryIcon from './node-icons/library.png';
 import partyIcon from './node-icons/party.png';
-import questIcon from './node-icons/quest.png';
+import questIcon from './node-icons/quest.svg';
 import townhallIcon from './node-icons/townhall.png';
 
 const props = defineProps({
