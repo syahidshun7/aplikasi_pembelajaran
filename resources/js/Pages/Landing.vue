@@ -35,69 +35,6 @@ const fallbackJobs = Object.freeze([
     },
 ]);
 
-const fallbackMentors = Object.freeze([
-    {
-        id: 'mentor-fallback-1',
-        name: 'Mentor Pixel',
-        username: 'pixelmentor',
-        job_name: 'Fullstack',
-        profile_photo: null,
-        bio: 'Mentor fullstack dengan fokus UI modern dan arsitektur sistem.',
-        experience: '5+ tahun',
-        location: 'Remote',
-        skills: ['Vue.js', 'Laravel', 'System Design'],
-    },
-    {
-        id: 'mentor-fallback-2',
-        name: 'Mentor Sprite',
-        username: 'spritesage',
-        job_name: 'Data Analyst',
-        profile_photo: null,
-        bio: 'Spesialis analisis data dan storytelling insight untuk bisnis.',
-        experience: '4+ tahun',
-        location: 'Jakarta',
-        skills: ['SQL', 'Python', 'Data Viz'],
-    },
-    {
-        id: 'mentor-fallback-3',
-        name: 'Mentor Neon',
-        username: 'neoncoach',
-        job_name: 'DevOps',
-        profile_photo: null,
-        bio: 'DevOps dengan fokus CI/CD, observability, dan reliability.',
-        experience: '6+ tahun',
-        location: 'Bandung',
-        skills: ['Docker', 'Kubernetes', 'AWS'],
-    },
-]);
-
-const features = [
-    {
-        title: 'Quest System',
-        description: 'Kerjakan quest personal atau party, submit hasil, dan pantau progres.',
-        icon: 'fi fi-rr-target',
-        color: 'text-amber-600',
-    },
-    {
-        title: 'Guide Library',
-        description: 'Akses materi umum dan materi khusus group dalam satu tempat.',
-        icon: 'fi fi-rr-book-alt',
-        color: 'text-indigo-600',
-    },
-    {
-        title: 'Study Party',
-        description: 'Belajar bareng dalam party dengan akses terkurasi dan kolaborasi terarah.',
-        icon: 'fi fi-rr-users',
-        color: 'text-emerald-600',
-    },
-    {
-        title: 'Pro Mentoring Path',
-        description: 'User terverifikasi Pro dapat mentoring, membimbing, dan membuka jalur belajar lanjutan.',
-        icon: 'fi fi-rr-chart-histogram',
-        color: 'text-cyan-600',
-    },
-];
-
 const normalizedPropJobs = computed(() => {
     if (!Array.isArray(props?.availableJobs)) return [];
 
@@ -122,7 +59,7 @@ const normalizedPropMentors = computed(() => {
             id: mentor.id ?? `mentor-${index}`,
             name: String(mentor.name ?? 'Mentor'),
             username: mentor.username ? String(mentor.username) : null,
-            job_name: mentor.job_name ? String(mentor.job_name) : 'Generalist',
+            job_name: mentor.job_name ? String(mentor.job_name) : null,
             profile_photo: mentor.profile_photo ?? null,
             bio: mentor.bio ? String(mentor.bio) : null,
             experience: mentor.experience ? String(mentor.experience) : null,
@@ -134,12 +71,11 @@ const normalizedPropMentors = computed(() => {
 });
 
 const displayJobs = computed(() => (normalizedPropJobs.value.length > 0 ? normalizedPropJobs.value : fallbackJobs));
-const totalAvailableJobs = computed(() => normalizedPropJobs.value.length);
 
-const loadedMentors = computed(() => (normalizedPropMentors.value.length > 0 ? normalizedPropMentors.value : fallbackMentors));
+const loadedMentors = computed(() => normalizedPropMentors.value);
 const featuredCreations = computed(() => (
     Array.isArray(props?.featuredCreations)
-        ? props.featuredCreations.filter((creation) => creation && typeof creation === 'object').slice(0, 5)
+        ? props.featuredCreations.filter((creation) => creation && typeof creation === 'object').slice(0, 3)
         : []
 ));
 const expandedMentorId = ref(null);
@@ -148,42 +84,7 @@ let pageLoadHandler = null;
 
 const hallEntryHref = computed(() => route('hall.creations.index'));
 
-const hallEntryLabel = computed(() => (
-    'Open Public Hall'
-));
-
-const hallSecondaryHref = computed(() => route('register'));
-
-const hallSecondaryLabel = computed(() => (
-    'Create Account'
-));
-
-const showHallSecondaryCta = computed(() => Boolean(props.canRegister));
-
-const hallStats = computed(() => {
-    return featuredCreations.value.reduce((accumulator, creation) => {
-        accumulator.appreciations += Number(creation?.appreciations_count || 0);
-        accumulator.insights += Number(creation?.insights_count || 0);
-
-        if (String(creation?.status || '') !== 'finished') {
-            accumulator.activeProjects += 1;
-        }
-
-        return accumulator;
-    }, {
-        appreciations: 0,
-        insights: 0,
-        activeProjects: 0,
-    });
-});
-
-const getHallRankTitle = (index) => {
-    if (index === 0) return 'Legendary Pick';
-    if (index === 1) return 'Hot Pick';
-    if (index === 2) return 'Rising Pick';
-    if (index === 3) return 'Community Pick';
-    return 'Fresh Pick';
-};
+const hallEntryLabel = 'Jelajahi Semua Karya';
 
 const seoTitle = 'DOOPTECH | Platform Pembelajaran Quest-Based';
 const seoDescription = 'DOOPTECH adalah aplikasi pembelajaran berbasis game yang menghubungkan pemula dan profesional dalam satu ekosistem belajar.';
@@ -197,74 +98,8 @@ const seoSchemaJson = computed(() => JSON.stringify({
     description: seoDescription,
 }, null, 2));
 
-const getCreationStatusClass = (status) => {
-    if (status === 'finished') return 'border-emerald-400/70 bg-emerald-500/10 text-emerald-100';
-    if (status === 'refining') return 'border-amber-300/70 bg-amber-500/10 text-amber-100';
-    return 'border-cyan-300/70 bg-cyan-500/10 text-cyan-100';
-};
-
-const getCreationTheme = (index) => {
-    const mod = Number(index || 0) % 5;
-
-    if (mod === 0) {
-        return {
-            card: 'from-sky-800 to-cyan-700 border-cyan-300/70 shadow-[0_8px_18px_rgba(14,116,144,0.28)]',
-            glow: 'bg-sky-300',
-            line: 'from-cyan-500 to-sky-400',
-            meta: 'text-cyan-50/90',
-            stat: 'border-cyan-200/40 bg-black/20 text-cyan-100',
-        };
-    }
-
-    if (mod === 1) {
-        return {
-            card: 'from-indigo-800 to-violet-700 border-indigo-300/70 shadow-[0_8px_18px_rgba(67,56,202,0.28)]',
-            glow: 'bg-indigo-300',
-            line: 'from-indigo-500 to-violet-400',
-            meta: 'text-indigo-50/90',
-            stat: 'border-indigo-200/40 bg-black/20 text-indigo-100',
-        };
-    }
-
-    if (mod === 2) {
-        return {
-            card: 'from-emerald-800 to-teal-700 border-emerald-300/70 shadow-[0_8px_18px_rgba(6,95,70,0.28)]',
-            glow: 'bg-emerald-300',
-            line: 'from-emerald-500 to-teal-400',
-            meta: 'text-emerald-50/90',
-            stat: 'border-emerald-200/40 bg-black/20 text-emerald-100',
-        };
-    }
-
-    if (mod === 3) {
-        return {
-            card: 'from-cyan-800 to-blue-700 border-sky-300/70 shadow-[0_8px_18px_rgba(30,64,175,0.28)]',
-            glow: 'bg-cyan-300',
-            line: 'from-cyan-400 to-blue-400',
-            meta: 'text-sky-50/90',
-            stat: 'border-sky-200/40 bg-black/20 text-sky-100',
-        };
-    }
-
-    return {
-        card: 'from-amber-700 to-orange-700 border-amber-200/70 shadow-[0_8px_18px_rgba(180,83,9,0.28)]',
-        glow: 'bg-amber-200',
-        line: 'from-amber-400 to-orange-400',
-        meta: 'text-amber-50/90',
-        stat: 'border-amber-200/40 bg-black/20 text-amber-100',
-    };
-};
-
 const toggleMentorCard = (id) => {
     expandedMentorId.value = expandedMentorId.value === id ? null : id;
-};
-
-const getMentorThemeClass = (index) => {
-    const mod = Number(index || 0) % 4;
-    if (mod === 0) return 'mentor-card--sky';
-    if (mod === 1) return 'mentor-card--indigo';
-    if (mod === 2) return 'mentor-card--emerald';
-    return 'mentor-card--cyan';
 };
 
 const jobsCarousel = ref(null);
@@ -550,273 +385,102 @@ onBeforeUnmount(() => {
                 </div>
             </section>
 
-            <section class="px-4 md:px-10 pb-12">
+            <section class="hall-section px-4 pb-14 pt-8 md:px-10 md:pb-16 md:pt-12" aria-labelledby="hall-heading">
                 <div class="mx-auto max-w-6xl hall-preview-shell">
-                    <div class="hall-preview-panel">
-                        <div class="hall-preview-panel__glow hall-preview-panel__glow--one"></div>
-                        <div class="hall-preview-panel__glow hall-preview-panel__glow--two"></div>
-
-                        <div class="relative z-10">
-                            <div class="flex flex-wrap items-start justify-between gap-4">
-                                <div class="max-w-2xl">
-                                    <p class="text-[8px] md:text-[9px] uppercase tracking-[0.26em] text-cyan-200/90">Hall of Creations</p>
-                                    <h2 class="mt-2 text-[11px] md:text-[13px] uppercase text-white">Showcase karya terbaik komunitas</h2>
-                                    <p class="mt-3 text-[11px] md:text-[13px] font-sans leading-relaxed text-cyan-50/90">
-                                        Lihat project yang lagi naik, pantau progres real, dan temukan inspirasi dari learner serta mentor aktif di DOOPTECH.
-                                    </p>
-
-                                    <div class="mt-4 flex flex-wrap gap-2">
-                                        <span class="hall-stat-chip">
-                                            <i class="fi fi-rr-heart text-[10px]"></i>
-                                            {{ hallStats.appreciations }} Appreciation
-                                        </span>
-                                        <span class="hall-stat-chip">
-                                            <i class="fi fi-rr-comment-alt text-[10px]"></i>
-                                            {{ hallStats.insights }} Insight
-                                        </span>
-                                        <span class="hall-stat-chip">
-                                            <i class="fi fi-rr-target text-[10px]"></i>
-                                            {{ hallStats.activeProjects }} Active Project
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div class="flex flex-wrap gap-2">
-                                    <Link
-                                        :href="hallEntryHref"
-                                        class="hall-cta hall-cta--primary"
-                                    >
-                                        {{ hallEntryLabel }}
-                                    </Link>
-                                    <Link
-                                        v-if="showHallSecondaryCta"
-                                        :href="hallSecondaryHref"
-                                        class="hall-cta hall-cta--secondary"
-                                    >
-                                        {{ hallSecondaryLabel }}
-                                    </Link>
-                                </div>
-                            </div>
-
-                            <div v-if="featuredCreations.length > 0" class="mt-6 hall-preview-grid">
-                                <article
-                                    v-for="(creation, index) in featuredCreations"
-                                    :key="creation.id"
-                                    class="group hall-showcase-card relative overflow-hidden border border-white/70 border-r-4 border-b-4 border-r-slate-900 border-b-slate-900 bg-gradient-to-br text-left"
-                                    :class="getCreationTheme(index).card"
-                                    :style="{ animationDelay: `${index * 90}ms` }"
-                                >
-                                    <div class="hall-showcase-card__shine"></div>
-                                    <div
-                                        class="absolute -right-10 -top-10 h-24 w-24 rounded-full blur-2xl opacity-35"
-                                        :class="getCreationTheme(index).glow"
-                                    ></div>
-                                    <div
-                                        class="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r"
-                                        :class="getCreationTheme(index).line"
-                                    ></div>
-
-                                    <div class="relative z-10 px-3 pt-3">
-                                        <div class="flex items-center justify-between gap-2">
-                                            <span class="border border-white/40 bg-black/15 px-2 py-1 text-[6px] uppercase text-white/90">
-                                                {{ getHallRankTitle(index) }}
-                                            </span>
-                                            <span class="border border-white/40 bg-black/15 px-2 py-1 text-[6px] uppercase text-white/90">
-                                                Rank 0{{ index + 1 }}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div class="relative mt-3 aspect-[4/3] overflow-hidden border-y border-white/25 bg-black/15">
-                                        <img
-                                            v-if="creation.thumbnail_url"
-                                            :src="creation.thumbnail_url"
-                                            :alt="creation.title"
-                                            class="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.05]"
-                                            loading="lazy"
-                                            decoding="async"
-                                        />
-                                        <div v-else class="flex h-full items-center justify-center">
-                                            <i class="fi fi-rr-lightbulb-on text-[28px] text-cyan-200/80"></i>
-                                        </div>
-
-                                        <span
-                                            class="absolute left-2 top-2 rounded border px-2 py-1 text-[6px] uppercase backdrop-blur-[1px]"
-                                            :class="getCreationStatusClass(creation.status)"
-                                        >
-                                            {{ creation.status }}
-                                        </span>
-
-                                        <div class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/55 to-transparent"></div>
-                                    </div>
-
-                                    <div class="relative z-10 space-y-2 p-3 text-white">
-                                        <div class="min-w-0">
-                                            <h3 class="line-clamp-1 text-[9px] uppercase text-white [text-shadow:1px_1px_0_rgba(2,6,23,0.45)]">
-                                                {{ creation.title }}
-                                            </h3>
-                                            <p class="mt-1 line-clamp-1 text-[7px] uppercase" :class="getCreationTheme(index).meta">
-                                                {{ creation.creator?.username || creation.creator?.name || 'Adventurer' }}
-                                            </p>
-                                        </div>
-
-                                        <div v-if="creation.status !== 'finished'" class="space-y-1">
-                                            <div class="h-1.5 overflow-hidden border border-white/25 bg-slate-950/80">
-                                                <div
-                                                    class="h-full bg-gradient-to-r"
-                                                    :class="getCreationTheme(index).line"
-                                                    :style="{ width: `${creation.progress || 0}%` }"
-                                                ></div>
-                                            </div>
-                                            <p class="text-[6px] uppercase tracking-[0.18em] text-white/75">{{ creation.progress || 0 }}%</p>
-                                        </div>
-
-                                        <div class="flex items-center justify-between border-t border-white/15 pt-2 text-[7px] uppercase">
-                                            <div class="flex items-center gap-2">
-                                                <span class="inline-flex items-center gap-1 border px-2 py-1" :class="getCreationTheme(index).stat">
-                                                    <i class="fi fi-rr-heart text-[9px]"></i>
-                                                    {{ creation.appreciations_count || 0 }}
-                                                </span>
-                                                <span class="inline-flex items-center gap-1 border px-2 py-1" :class="getCreationTheme(index).stat">
-                                                    <i class="fi fi-rr-comment-alt text-[9px]"></i>
-                                                    {{ creation.insights_count || 0 }}
-                                                </span>
-                                            </div>
-
-                                            <Link
-                                                :href="route('hall.creations.show', { creation: creation.slug || creation.id })"
-                                                class="border border-white/45 bg-black/20 px-2 py-1 text-[6px] uppercase text-white/80 transition-colors hover:bg-white/15 hover:text-white"
-                                            >
-                                                View
-                                            </Link>
-                                        </div>
-                                    </div>
-                                </article>
-                            </div>
-
-                            <div v-else class="mt-6 hall-empty-state">
-                                <div class="hall-empty-state__icon-wrap">
-                                    <i class="fi fi-rr-lightbulb-on text-[24px] text-cyan-200"></i>
-                                </div>
-                                <div class="space-y-2">
-                                    <p class="text-[10px] uppercase text-white">Belum ada creation publik di Hall</p>
-                                    <p class="text-[11px] md:text-[13px] font-sans text-cyan-100/85">
-                                        Jadi yang pertama publish karya dan buka diskusi dari komunitas.
-                                    </p>
-                                </div>
-                            </div>
+                    <header class="hall-section__header mx-auto text-center">
+                        <p class="hall-section__eyebrow">Hall of Creations</p>
+                        <h2 id="hall-heading" class="hall-section__title">Showcase Karya Terbaik Komunitas</h2>
+                        <div class="hall-stone-divider" aria-hidden="true">
+                            <img src="/images/landing/hall-stone-divider.png" alt="" />
                         </div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="px-4 md:px-10 pb-10 md:pb-14">
-                <div class="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-                    <article
-                        v-for="(feature, index) in features"
-                        :key="feature.title"
-                        class="group relative overflow-hidden border p-5 md:p-6 transition-all duration-200 cursor-default
-                               border-white/70 border-r-4 border-b-4 border-r-slate-900 border-b-slate-900
-                               hover:-translate-y-1
-                               active:translate-y-0.5 active:border-r-2 active:border-b-2"
-                        :class="{
-                            'bg-gradient-to-br from-sky-800 to-cyan-700 shadow-[0_8px_18px_rgba(14,116,144,0.35)]': index === 0,
-                            'bg-gradient-to-br from-indigo-800 to-violet-700 shadow-[0_8px_18px_rgba(67,56,202,0.35)]': index === 1,
-                            'bg-gradient-to-br from-emerald-800 to-teal-700 shadow-[0_8px_18px_rgba(6,95,70,0.35)]': index === 2,
-                            'bg-gradient-to-br from-cyan-800 to-blue-700 shadow-[0_8px_18px_rgba(30,64,175,0.35)]': index === 3,
-                        }"
-                    >
-                        <div
-                            class="absolute -top-12 -right-12 w-32 h-32 rounded-full blur-2xl opacity-35"
-                            :class="{
-                                'bg-sky-300': index === 0,
-                                'bg-indigo-300': index === 1,
-                                'bg-emerald-300': index === 2,
-                                'bg-cyan-300': index === 3,
-                            }"
-                        ></div>
-                        <div
-                            class="absolute inset-x-0 top-0 h-[2px]"
-                            :class="{
-                                'bg-sky-400/80': index === 0,
-                                'bg-indigo-400/80': index === 1,
-                                'bg-emerald-400/80': index === 2,
-                                'bg-cyan-400/80': index === 3,
-                            }"
-                        ></div>
-                        <span class="absolute top-2 right-2 text-[8px] px-1.5 py-0.5 border border-white/50 bg-black/20 text-white/90">
-                            0{{ index + 1 }}
-                        </span>
-
-                        <div class="relative z-10 flex items-center gap-3 mb-4">
-                            <div
-                                class="w-10 h-10 border border-white/70 flex items-center justify-center bg-black/20
-                                       group-hover:scale-110 group-hover:rotate-3 transition-transform"
-                            >
-                                <i :class="[feature.icon, 'text-lg text-white']"></i>
-                            </div>
-                            <span
-                                class="text-[8px] px-2 py-1 uppercase border border-white/50 bg-black/15 text-white/90"
-                                :class="{
-                                    'shadow-[0_0_0_1px_rgba(56,189,248,0.45)]': index === 0,
-                                    'shadow-[0_0_0_1px_rgba(99,102,241,0.45)]': index === 1,
-                                    'shadow-[0_0_0_1px_rgba(16,185,129,0.45)]': index === 2,
-                                    'shadow-[0_0_0_1px_rgba(6,182,212,0.45)]': index === 3,
-                                }"
-                            >
-                                FEATURE
-                            </span>
-                            <h2
-                                class="text-[10px] md:text-xs uppercase tracking-wider font-black [text-shadow:1px_1px_0_rgba(2,6,23,0.65)]"
-                            >
-                                <template v-if="index === 0">
-                                    <span class="text-cyan-100">Quest</span>
-                                    <span class="text-sky-100"> System</span>
-                                </template>
-                                <template v-else-if="index === 1">
-                                    <span class="text-indigo-100">Guide</span>
-                                    <span class="text-violet-100"> Library</span>
-                                </template>
-                                <template v-else-if="index === 2">
-                                    <span class="text-emerald-100">Study</span>
-                                    <span class="text-teal-100"> Party</span>
-                                </template>
-                                <template v-else>
-                                    <span class="text-cyan-100">Pro</span>
-                                    <span class="text-blue-100"> Mentoring</span>
-                                    <span class="text-sky-100"> Path</span>
-                                </template>
-                            </h2>
-                        </div>
-                        <p
-                            class="relative z-10 text-[8px] md:text-[9px] leading-[1.9] uppercase tracking-wide"
-                            :class="{
-                                'text-cyan-50/95': index === 0,
-                                'text-indigo-50/95': index === 1,
-                                'text-emerald-50/95': index === 2,
-                                'text-sky-50/95': index === 3,
-                            }"
-                        >
-                            {{ feature.description }}
+                        <p class="hall-section__description font-sans">
+                            Jelajahi karya para learner, temukan ide baru, dan dapatkan inspirasi.
                         </p>
-                        <div class="relative z-10 mt-4 flex items-center justify-between">
-                            <span class="text-[8px] uppercase tracking-wider text-white/85">Ready_Path</span>
-                            <span class="text-[8px] uppercase tracking-wider px-2 py-1 bg-black/25 border border-white/45 text-white">Explore</span>
-                        </div>
-                    </article>
+                    </header>
+
+                    <div v-if="featuredCreations.length > 0" class="mt-8 hall-preview-grid">
+                        <article
+                            v-for="(creation, index) in featuredCreations"
+                            :key="creation.id"
+                            class="hall-showcase-card group"
+                        >
+                            <span v-if="index === 0" class="hall-showcase-card__featured">
+                                <i class="fi fi-rr-crown" aria-hidden="true"></i>
+                                Karya Pilihan
+                            </span>
+                            <div class="hall-showcase-card__thumbnail">
+                                <img
+                                    v-if="creation.thumbnail_url"
+                                    :src="creation.thumbnail_url"
+                                    :alt="creation.title"
+                                    class="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.04]"
+                                    loading="lazy"
+                                    decoding="async"
+                                />
+                                <div v-else class="flex h-full items-center justify-center">
+                                    <i class="fi fi-rr-lightbulb-on text-[28px] text-[#087f7f]"></i>
+                                </div>
+                            </div>
+
+                            <div class="hall-showcase-card__body">
+                                <div class="min-w-0">
+                                    <h3 class="hall-showcase-card__title">{{ creation.title }}</h3>
+                                    <p v-if="creation.creator?.username || creation.creator?.name" class="hall-showcase-card__creator font-sans">
+                                        {{ creation.creator?.username || creation.creator?.name }}
+                                    </p>
+                                </div>
+
+                                <div class="hall-showcase-card__footer">
+                                    <div class="hall-showcase-card__stats font-sans" aria-label="Apresiasi dan komentar">
+                                        <span :aria-label="`${creation.appreciations_count || 0} apresiasi`">
+                                            <i class="fi fi-rr-heart" aria-hidden="true"></i>
+                                            <span>{{ creation.appreciations_count || 0 }}</span>
+                                        </span>
+                                        <span :aria-label="`${creation.insights_count || 0} komentar`">
+                                            <i class="fi fi-rr-comment-alt" aria-hidden="true"></i>
+                                            <span>{{ creation.insights_count || 0 }}</span>
+                                        </span>
+                                    </div>
+
+                                    <Link
+                                        :href="route('hall.creations.show', { creation: creation.slug || creation.id })"
+                                        class="hall-showcase-card__link"
+                                    >
+                                        Lihat Karya
+                                        <i class="fi fi-rr-arrow-right" aria-hidden="true"></i>
+                                    </Link>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+
+                    <div v-else class="hall-empty-state">
+                        <p class="font-sans">Belum ada creation publik di Hall.</p>
+                    </div>
+
+                    <div class="mt-8 flex justify-center">
+                        <Link :href="hallEntryHref" class="landing-hero__start hall-main-cta">
+                            {{ hallEntryLabel }}
+                        </Link>
+                    </div>
                 </div>
             </section>
 
-            <section class="px-4 md:px-10 pb-10 md:pb-14">
-                <div class="max-w-6xl mx-auto">
-                    <div class="flex items-center justify-between gap-3 mb-5">
-                        <h2 class="text-[10px] md:text-xs uppercase text-slate-900">Available Jobs</h2>
-                        <span class="text-[8px] md:text-[9px] font-sans text-slate-700">{{ totalAvailableJobs }} jalur tersedia</span>
-                    </div>
+            <section class="jobs-section px-4 md:px-7 pb-10 md:pb-14" aria-labelledby="jobs-title">
+                <div class="jobs-content mx-auto">
+                    <header class="jobs-heading">
+                        <div class="jobs-heading__copy">
+                            <p class="jobs-heading__eyebrow"><span></span>Available Jobs</p>
+                            <h2 id="jobs-title">Pilih Kesempatan Belajar</h2>
+                            <p class="jobs-heading__description">Temukan kelas yang sesuai dengan minatmu dan kembangkan keterampilan baru.</p>
+                        </div>
+                        <a class="jobs-heading__link" href="#jobs-carousel">Lihat Semua <span aria-hidden="true">→</span></a>
+                    </header>
 
                     <div class="jobs-stage">
                         <div
                             ref="jobsCarousel"
+                            id="jobs-carousel"
                             class="jobs-carousel"
                             @scroll.passive="handleCarouselScroll"
                             @pointerdown="onCarouselPointerDown"
@@ -831,7 +495,7 @@ onBeforeUnmount(() => {
                                 v-for="(job, index) in displayJobs"
                                 :key="job.id || `job-card-${index}`"
                                 ref="jobCardRefs"
-                                class="job-card relative overflow-hidden snap-center shrink-0 w-[220px] md:w-[260px] h-[340px] md:h-[360px] border p-4"
+                                class="job-card relative overflow-hidden snap-center shrink-0"
                                 :class="[
                                     getCardStateClass(index),
                                     {
@@ -843,39 +507,23 @@ onBeforeUnmount(() => {
                                     },
                                 ]"
                             >
-                                <div
-                                    class="absolute top-0 left-0 w-full h-[3px]"
-                                    :class="{
-                                        'bg-gradient-to-r from-cyan-500 to-sky-400': index % 4 === 0,
-                                        'bg-gradient-to-r from-indigo-500 to-violet-400': index % 4 === 1,
-                                        'bg-gradient-to-r from-emerald-500 to-teal-400': index % 4 === 2,
-                                        'bg-gradient-to-r from-cyan-400 to-blue-400': index % 4 === 3,
-                                    }"
-                                ></div>
-
                                 <div v-if="isComingSoonJob(job)" class="pointer-events-none absolute inset-0 z-30">
                                     <div class="coming-soon-chain coming-soon-chain--left"></div>
                                     <div class="coming-soon-chain coming-soon-chain--right"></div>
-                                    <div class="absolute left-1/2 top-1/2 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center border-4 border-slate-300 bg-black/70 text-slate-200 shadow-[0_0_22px_rgba(148,163,184,0.65)]">
+                                    <div class="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center border-2 border-slate-300 bg-slate-950/85 text-slate-100 shadow-lg">
                                         <i class="fi fi-rr-lock text-3xl leading-none"></i>
-                                    </div>
-                                    <div class="absolute left-1/2 top-5 -translate-x-1/2 border-2 border-slate-300 bg-black/80 px-3 py-2 text-[8px] uppercase tracking-[0.22em] text-slate-200 shadow-[4px_4px_0_rgba(0,0,0,0.45)]">
-                                        Coming Soon
                                     </div>
                                 </div>
 
-                                <div class="h-full flex flex-col relative z-10">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <p class="text-[8px] uppercase text-white/85">Class Card</p>
-                                        <span
-                                            class="rounded-full border px-2 py-1 text-[6px] uppercase tracking-[0.16em]"
-                                            :class="isComingSoonJob(job) ? 'border-slate-200 bg-slate-300/15 text-slate-100' : 'border-white/40 bg-white/10 text-white/85'"
-                                        >
+                                <div class="job-card__content">
+                                    <div class="job-card__topline">
+                                        <span>Class Card</span>
+                                        <span class="job-card__status" :class="{ 'job-card__status--locked': isComingSoonJob(job) }">
                                             {{ isComingSoonJob(job) ? 'Coming Soon' : 'Active' }}
                                         </span>
                                     </div>
 
-                                    <div class="h-[170px] border border-white/60 bg-black/15 overflow-hidden flex items-center justify-center">
+                                    <div class="job-card__art">
                                         <img
                                             v-if="job.emblem_path"
                                             :src="`/storage/${job.emblem_path}`"
@@ -894,18 +542,14 @@ onBeforeUnmount(() => {
                                         />
                                     </div>
 
-                                    <div class="mt-3 flex h-[104px] flex-col border border-white/60 bg-black/20 px-2 py-2">
-                                        <p class="text-[10px] uppercase text-white leading-snug">
+                                    <div class="job-card__details">
+                                        <p class="job-card__title">
                                             {{ job.name || 'UNKNOWN JOB' }}
                                         </p>
-                                        <p class="line-clamp-3 text-[10px] font-sans text-white/85 mt-1 leading-[1.35] normal-case">
+                                        <p class="job-card__description line-clamp-3">
                                             {{ job.description || getJobDescription(job) }}
                                         </p>
-                                        <div class="mt-auto pt-2">
-                                            <div class="border-t border-white/20 pt-2 text-[8px] font-sans uppercase tracking-[0.18em] text-white/65">
-                                                Active Mentor: {{ job.mentors_count || 0 }}
-                                            </div>
-                                        </div>
+                                        <div class="job-card__count">Mentor tersedia: <strong>{{ job.mentors_count || 0 }}</strong></div>
                                     </div>
                                 </div>
                             </article>
@@ -913,143 +557,142 @@ onBeforeUnmount(() => {
                             <div class="jobs-carousel-spacer" :style="{ width: `${sidePadding}px` }" aria-hidden="true"></div>
                         </div>
                     </div>
-                </div>
-            </section>
 
-            <section class="px-4 md:px-10 pb-14">
-                <div class="max-w-6xl mx-auto">
-                    <div class="flex items-center justify-between gap-3 mb-5">
-                        <h2 class="text-[10px] md:text-xs uppercase text-slate-900">Featured Mentors</h2>
-                        <span class="text-[8px] md:text-[9px] font-sans text-slate-700">{{ loadedMentors.length }} mentor siap bantu</span>
-                    </div>
-
-                  <div class="flex flex-wrap justify-center gap-6">
-    <article
-        v-for="(mentor, idx) in loadedMentors"
-        :key="mentor.id"
-        class="mentor-card group relative overflow-hidden cursor-pointer"
-        :class="[getMentorThemeClass(idx), { 'is-expanded': expandedMentorId === mentor.id }]"
-        @click="toggleMentorCard(mentor.id)"
-    >
-        <div class="mentor-card__inner">
-            <div class="mentor-card__front">
-                <header class="mentor-card__header">
-                    <span class="mentor-card__icon">
-                        <i class="fi fi-sr-flame"></i>
-                    </span>
-                    <span class="mentor-card__title">{{ mentor.job_name || 'Generalist' }}</span>
-                </header>
-
-                <div class="mentor-card__body">
-                    <img
-                        v-if="mentor.profile_photo"
-                        :src="`/storage/${mentor.profile_photo}`"
-                        :alt="mentor.name"
-                        class="mentor-card__photo"
-                        loading="lazy"
-                        decoding="async"
-                    />
-                    <div v-else class="mentor-card__photo mentor-card__photo--empty"></div>
-                </div>
-
-                <footer class="mentor-card__footer">
-                    <span class="mentor-card__role">@{{ mentor.username || 'mentor' }}</span>
-                    <div class="mentor-card__stars">
-                        <span class="mentor-card__badge">Mentor</span>
-                    </div>
-                </footer>
-            </div>
-            <div class="mentor-card__overlay">
-                <div class="mentor-card__overlay-content">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-white text-[12px] font-bold uppercase tracking-widest">{{ mentor.name }}</h3>
-                        <button class="text-white/50 hover:text-white">
-                            <i class="fi fi-rr-cross-small"></i>
+                    <nav v-if="displayJobs.length > 1" class="jobs-controls" aria-label="Navigasi kesempatan belajar">
+                        <button type="button" class="jobs-controls__arrow" aria-label="Kartu sebelumnya" @click="scrollToCard((activeJobIndex - 1 + displayJobs.length) % displayJobs.length)">
+                            <i class="fi fi-rr-angle-small-left" aria-hidden="true"></i>
                         </button>
-                    </div>
-                    
-                    <div class="space-y-3">
-                        <div class="border-l-2 border-cyan-400 pl-3">
-                            <p class="text-[8px] text-cyan-400 uppercase mb-1 font-bold">Bio</p>
-                            <p class="mentor-bio text-[12px] text-white/90 leading-relaxed font-sans">
-                                {{ mentor.bio || 'Mentor berpengalaman yang siap membimbing sesuai jalur belajar.' }}
-                            </p>
+                        <div class="jobs-controls__dots">
+                            <button
+                                v-for="(job, index) in displayJobs"
+                                :key="`job-dot-${job.id || index}`"
+                                type="button"
+                                class="jobs-controls__dot"
+                                :class="{ 'is-active': index === activeJobIndex }"
+                                :aria-label="`Tampilkan ${job.name}`"
+                                :aria-current="index === activeJobIndex ? 'true' : undefined"
+                                @click="scrollToCard(index)"
+                            ></button>
                         </div>
-
-                        <div class="grid grid-cols-2 gap-3 text-[11px] text-white/85 font-sans">
-                            <div>
-                                <p class="text-[9px] uppercase text-white/50">Username</p>
-                                <p>@{{ mentor.username || 'mentor' }}</p>
-                            </div>
-                            <div>
-                                <p class="text-[9px] uppercase text-white/50">Spesialisasi</p>
-                                <p>{{ mentor.job_name || 'Generalist' }}</p>
-                            </div>
-                            <div>
-                                <p class="text-[9px] uppercase text-white/50">Pengalaman</p>
-                                <p>{{ mentor.experience || '3+ tahun' }}</p>
-                            </div>
-                            <div>
-                                <p class="text-[9px] uppercase text-white/50">Lokasi</p>
-                                <p>{{ mentor.location || 'Remote' }}</p>
-                            </div>
-                        </div>
-
-                        <div class="pt-3 border-t border-white/10">
-                            <p class="text-[9px] uppercase text-white/50 mb-2">Skills</p>
-                            <div class="flex flex-wrap gap-2">
-                                <span
-                                    v-for="(skill, sIndex) in (mentor.skills && mentor.skills.length ? mentor.skills : ['Mentoring', 'Code Review', 'Roadmap'])"
-                                    :key="`${mentor.id}-skill-${sIndex}`"
-                                    class="px-1 py-0.5 text-[7px] uppercase tracking-[0.08em] border border-white/20 text-white/80 bg-white/10"
-                                >
-                                    {{ skill }}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </article>
-</div>
+                        <button type="button" class="jobs-controls__arrow" aria-label="Kartu berikutnya" @click="scrollToCard((activeJobIndex + 1) % displayJobs.length)">
+                            <i class="fi fi-rr-angle-small-right" aria-hidden="true"></i>
+                        </button>
+                    </nav>
                 </div>
             </section>
 
-            <section class="px-4 md:px-10 pb-16">
-                <div class="max-w-6xl mx-auto bg-slate-900/90 border-2 border-cyan-300/40 shadow-[0_10px_24px_rgba(14,116,144,0.2)] p-5 md:p-8">
-                    <div class="relative">
-                        <div class="hidden md:block pointer-events-none absolute left-[14%] right-[14%] top-1/2 -translate-y-1/2 z-0">
-                            <div class="relative h-6">
-                                <div class="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[2px] bg-gradient-to-r from-sky-400 via-indigo-400 to-emerald-400 opacity-80"></div>
-                                <span class="path-star path-star-1 absolute top-1/2 -translate-y-1/2 text-indigo-200 text-sm">*</span>
-                                <span class="path-star path-star-2 absolute top-1/2 -translate-y-1/2 text-cyan-200 text-xs">*</span>
-                            </div>
-                        </div>
+            <section class="mentor-section px-4 pb-14 md:px-10" aria-labelledby="mentor-heading">
+                <div class="mentor-section__inner mx-auto">
+                    <header class="mentor-section__header">
+                        <h2 id="mentor-heading" class="mentor-section__title">Featured Mentors</h2>
+                    </header>
 
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6 relative z-10">
-                        <div class="relative overflow-hidden border p-4 bg-gradient-to-br from-sky-800 to-cyan-700 border-cyan-300/70 shadow-[0_6px_14px_rgba(14,165,233,0.28)]">
-                            <div class="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-cyan-500 to-sky-400"></div>
-                            <p class="text-[9px] uppercase text-cyan-100 mb-2">Step 01</p>
-                            <h3 class="text-[10px] md:text-xs text-white uppercase mb-2">Join Platform</h3>
-                            <div class="w-2 h-2 rounded-full bg-cyan-200 mb-2 animate-pulse"></div>
-                            <p class="text-[11px] md:text-[13px] font-sans text-cyan-50/95">Daftar sebagai learner, masuk dashboard, lalu pilih jalur belajar yang sesuai.</p>
-                        </div>
-                        <div class="relative overflow-hidden border p-4 bg-gradient-to-br from-indigo-800 to-violet-700 border-indigo-300/70 shadow-[0_6px_14px_rgba(79,70,229,0.28)]">
-                            <div class="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-indigo-500 to-violet-400"></div>
-                            <p class="text-[9px] uppercase text-indigo-100 mb-2">Step 02</p>
-                            <h3 class="text-[10px] md:text-xs text-white uppercase mb-2">Complete Quest</h3>
-                            <div class="w-2 h-2 rounded-full bg-indigo-200 mb-2 animate-pulse [animation-delay:200ms]"></div>
-                            <p class="text-[11px] md:text-[13px] font-sans text-indigo-50/95">Kerjakan quest publik atau party, kirim submission, lalu naik level dari hasil review.</p>
-                        </div>
-                        <div class="relative overflow-hidden border p-4 bg-gradient-to-br from-emerald-800 to-teal-700 border-emerald-300/70 shadow-[0_6px_14px_rgba(16,185,129,0.28)]">
-                            <div class="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-emerald-500 to-teal-400"></div>
-                            <p class="text-[9px] uppercase text-emerald-100 mb-2">Step 03</p>
-                            <h3 class="text-[10px] md:text-xs text-white uppercase mb-2">Become Pro & Mentor</h3>
-                            <div class="w-2 h-2 rounded-full bg-emerald-200 mb-2 animate-pulse [animation-delay:400ms]"></div>
-                            <p class="text-[11px] md:text-[13px] font-sans text-emerald-50/95">Saat sudah Pro terverifikasi, user bisa mentoring dan menginisiasi project kolaboratif.</p>
-                        </div>
-                        </div>
+                    <div v-if="loadedMentors.length" class="mentor-grid">
+                        <article
+                            v-for="(mentor, idx) in loadedMentors"
+                            :key="mentor.id"
+                            class="mentor-card"
+                            :class="{ 'is-expanded': expandedMentorId === mentor.id }"
+                        >
+                            <div class="mentor-card__inner">
+                                <section
+                                    class="mentor-card__face mentor-card__front"
+                                    :aria-hidden="expandedMentorId === mentor.id"
+                                    :inert="expandedMentorId === mentor.id"
+                                >
+                                    <button
+                                        type="button"
+                                        class="mentor-card__flip-trigger"
+                                        :aria-label="`Lihat detail ${mentor.name}`"
+                                        @click="toggleMentorCard(mentor.id)"
+                                    ></button>
+                                    <div class="mentor-card__photo-frame">
+                                        <img
+                                            v-if="mentor.profile_photo"
+                                            :src="`/storage/${mentor.profile_photo}`"
+                                            :alt="`Foto ${mentor.name}`"
+                                            class="mentor-card__photo"
+                                            loading="lazy"
+                                            decoding="async"
+                                        />
+                                        <div v-else class="mentor-card__photo-fallback" aria-label="Foto mentor tidak tersedia">
+                                            <i class="fi fi-rr-user" aria-hidden="true"></i>
+                                        </div>
+                                    </div>
+                                    <footer class="mentor-card__footer">
+                                        <h3 class="mentor-card__name">{{ mentor.name }}</h3>
+                                        <p v-if="mentor.job_name" class="mentor-card__front-specialty">{{ mentor.job_name }}</p>
+                                        <Link
+                                            v-if="mentor.username"
+                                            :href="route('profiles.show', { user: mentor.username })"
+                                            class="mentor-card__profile-link"
+                                            @click.stop
+                                        >
+                                            Lihat Profil
+                                            <i class="fi fi-rr-arrow-up-right" aria-hidden="true"></i>
+                                        </Link>
+                                    </footer>
+                                </section>
+
+                                <section
+                                    class="mentor-card__face mentor-card__back"
+                                    :aria-hidden="expandedMentorId !== mentor.id"
+                                    :inert="expandedMentorId !== mentor.id"
+                                >
+                                    <header class="mentor-card__back-header">
+                                        <div class="mentor-card__back-title">
+                                            <h3>{{ mentor.name }}</h3>
+                                            <span class="mentor-card__badge">Mentor</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            class="mentor-card__return"
+                                            :aria-label="`Kembali ke kartu ${mentor.name}`"
+                                            @click="toggleMentorCard(mentor.id)"
+                                        >
+                                            <i class="fi fi-rr-cross-small" aria-hidden="true"></i>
+                                        </button>
+                                    </header>
+
+                                    <div class="mentor-card__back-content">
+                                        <section v-if="mentor.bio" class="mentor-card__bio-block">
+                                            <h4>BIO</h4>
+                                            <p class="mentor-bio">{{ mentor.bio }}</p>
+                                        </section>
+
+                                        <dl class="mentor-card__facts">
+                                            <div v-if="mentor.username">
+                                                <dt>Username</dt><dd>@{{ mentor.username }}</dd>
+                                            </div>
+                                            <div v-if="mentor.job_name">
+                                                <dt>Spesialisasi</dt><dd>{{ mentor.job_name }}</dd>
+                                            </div>
+                                            <div v-if="mentor.experience">
+                                                <dt>Pengalaman</dt><dd>{{ mentor.experience }}</dd>
+                                            </div>
+                                            <div v-if="mentor.location">
+                                                <dt>Lokasi</dt><dd>{{ mentor.location }}</dd>
+                                            </div>
+                                        </dl>
+
+                                        <section v-if="mentor.skills.length" class="mentor-card__skills">
+                                            <h4>Skills</h4>
+                                            <div class="mentor-card__skill-list">
+                                                <span v-for="(skill, sIndex) in mentor.skills" :key="`${mentor.id}-skill-${sIndex}`">{{ skill }}</span>
+                                            </div>
+                                        </section>
+
+                                        <p v-if="!mentor.bio && !mentor.username && !mentor.job_name && !mentor.experience && !mentor.location && !mentor.skills.length" class="mentor-card__empty-details">
+                                            Detail profil belum tersedia.
+                                        </p>
+                                    </div>
+                                </section>
+                            </div>
+                        </article>
+                    </div>
+
+                    <div v-else class="mentor-empty-state font-sans">
+                        Mentor belum tersedia.
                     </div>
                 </div>
             </section>
@@ -1097,12 +740,12 @@ onBeforeUnmount(() => {
 .landing-hero__start {
     padding: 0.65rem 1rem;
     color: white;
-    background: linear-gradient(#358b25, #236719);
-    border: 2px solid #24561b;
-    border-radius: 6px;
-    box-shadow: inset 0 2px #8acb62, 0 4px #183d17;
+    background: #087f7f;
+    border: 2px solid #075e63;
+    border-radius: 0;
+    box-shadow: inset 0 2px #4ed4d4, 0 4px #06494d;
 }
-.landing-hero__start:hover { background: #115531; }
+.landing-hero__start:hover { background: #066466; }
 .landing-hero__login { color: var(--hero-accent); text-decoration: underline; text-underline-offset: 0.25em; }
 .landing-hero__actions a:focus-visible { outline: 2px solid var(--hero-ink); outline-offset: 4px; }
 
@@ -1119,35 +762,77 @@ onBeforeUnmount(() => {
     .landing-hero__layout { grid-template-columns: minmax(0, 1fr); }
 }
 
+.jobs-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 1.2rem;
+}
+
+.jobs-heading__copy { min-width: 0; }
+.jobs-heading__eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin: 0 0 0.7rem;
+    color: #087f7f;
+    font-size: 0.52rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.jobs-heading__eyebrow::before,
+.jobs-heading__eyebrow::after {
+    content: '';
+    width: 2.5rem;
+    height: 2px;
+    background: #087f7f;
+}
+.jobs-heading__eyebrow::after { display: block; width: 4rem; }
+.jobs-heading__copy h2 {
+    margin: 0;
+    color: #122335 !important;
+    font-size: clamp(1.05rem, 2.2vw, 1.7rem);
+    line-height: 1.45;
+}
+.jobs-heading__description {
+    margin: 0.5rem 0 0;
+    color: #24445a;
+    font-family: sans-serif;
+    font-size: 0.88rem;
+    line-height: 1.55;
+}
+.jobs-heading__link {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.8rem;
+    color: #087f7f;
+    font-family: sans-serif;
+    font-size: 0.88rem;
+    font-weight: 700;
+    text-underline-offset: 0.25em;
+}
+.jobs-heading__link span { font-size: 1.25rem; line-height: 1; }
+.jobs-heading__link:focus-visible,
+.jobs-controls button:focus-visible { outline: 2px solid #122335; outline-offset: 4px; }
+
 .jobs-stage {
     position: relative;
 }
 
+.jobs-content { width: 100%; max-width: 1320px; }
+
 .jobs-stage::before,
 .jobs-stage::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 56px;
-    pointer-events: none;
-    z-index: 20;
-}
-
-.jobs-stage::before {
-    left: 0;
-    background: linear-gradient(90deg, rgba(248, 250, 252, 0.9), rgba(248, 250, 252, 0));
-}
-
-.jobs-stage::after {
-    right: 0;
-    background: linear-gradient(270deg, rgba(248, 250, 252, 0.9), rgba(248, 250, 252, 0));
+    display: none;
 }
 
 .jobs-carousel {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: clamp(0.65rem, 1.3vw, 1.15rem);
     overflow-x: auto;
     overflow-y: visible;
     scroll-snap-type: x mandatory;
@@ -1175,6 +860,14 @@ onBeforeUnmount(() => {
 }
 
 .job-card {
+    width: clamp(190px, 18vw, 250px);
+    height: clamp(290px, 20vw, 310px);
+    box-sizing: border-box;
+    padding: 0.62rem;
+    border-width: 3px;
+    border-radius: 0;
+    clip-path: polygon(8px 0, calc(100% - 8px) 0, calc(100% - 8px) 3px, calc(100% - 3px) 3px, calc(100% - 3px) 8px, 100% 8px, 100% calc(100% - 8px), calc(100% - 3px) calc(100% - 8px), calc(100% - 3px) calc(100% - 3px), calc(100% - 8px) calc(100% - 3px), calc(100% - 8px) 100%, 8px 100%, 8px calc(100% - 3px), 3px calc(100% - 3px), 3px calc(100% - 8px), 0 calc(100% - 8px), 0 8px, 3px 8px, 3px 3px, 8px 3px);
+    box-shadow: inset 0 0 0 3px rgb(255 255 255 / 34%), 0 5px 0 rgb(8 43 59 / 65%);
     transform-origin: center center;
     transition: transform 320ms ease-in-out, opacity 320ms ease-in-out, box-shadow 320ms ease-in-out, filter 320ms ease-in-out;
     will-change: transform, opacity;
@@ -1183,27 +876,49 @@ onBeforeUnmount(() => {
 }
 
 .job-card--focus {
-    transform: scale(1.1);
+    transform: scale(1.12) translateY(-3px);
     opacity: 1;
     z-index: 30;
-    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.32);
+    border-color: #4ed4d4 !important;
+    background: linear-gradient(145deg, #0f766e, #064e3b) !important;
+    filter: drop-shadow(0 5px 0 #075e63) drop-shadow(0 10px 8px rgb(8 43 59 / 25%));
+    box-shadow: inset 0 0 0 3px rgb(255 255 255 / 65%), 0 5px 0 #075e63, 0 12px 20px rgb(8 43 59 / 28%);
 }
 
 .job-card--side {
-    transform: scale(0.9);
-    opacity: 0.68;
+    transform: scale(0.94);
+    opacity: 1;
     z-index: 12;
-    filter: saturate(0.92);
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.22);
+    filter: drop-shadow(0 5px 0 rgb(8 43 59 / 65%)) drop-shadow(0 8px 7px rgb(15 23 42 / 18%));
+    box-shadow: inset 0 0 0 2px rgb(255 255 255 / 34%), 0 5px 0 rgb(8 43 59 / 65%), 0 8px 14px rgba(15, 23, 42, 0.2);
 }
 
 .job-card--coming-soon {
-    filter: saturate(0.55) brightness(0.82);
+    filter: saturate(0.78) brightness(0.94) drop-shadow(0 5px 0 rgb(8 43 59 / 65%)) drop-shadow(0 8px 7px rgb(15 23 42 / 18%));
 }
 
 .job-card--coming-soon.job-card--focus {
-    filter: saturate(0.65) brightness(0.9);
+    filter: saturate(0.84) brightness(0.98) drop-shadow(0 5px 0 #075e63) drop-shadow(0 10px 8px rgb(8 43 59 / 25%));
 }
+
+.job-card__content { display: flex; position: relative; z-index: 10; height: 100%; flex-direction: column; }
+.job-card__topline { display: flex; min-height: 1.45rem; align-items: center; justify-content: space-between; gap: 0.35rem; color: rgb(255 255 255 / 88%); font-size: 0.42rem; text-transform: uppercase; }
+.job-card__status { flex: 0 0 auto; border: 1px solid rgb(255 255 255 / 70%); border-radius: 999px; padding: 0.18rem 0.4rem; background: rgb(255 255 255 / 10%); font-size: 0.35rem; line-height: 1.2; }
+.job-card__status--locked { background: rgb(15 23 42 / 55%); }
+.job-card__art { display: flex; height: 7.8rem; flex: 0 0 auto; align-items: center; justify-content: center; overflow: hidden; border: 2px solid rgb(255 255 255 / 62%); background: rgb(5 21 36 / 44%); }
+.job-card__art img { image-rendering: pixelated; }
+.job-card__details { display: flex; min-height: 0; flex: 1; flex-direction: column; margin-top: 0.4rem; padding: 0.45rem 0.48rem 0.35rem; color: var(--hero-ink); background: #fff9ed; border: 1px solid rgb(255 255 255 / 65%); }
+.job-card__title { margin: 0; color: #122335; font-size: 0.52rem; line-height: 1.55; text-transform: uppercase; }
+.job-card__description { margin: 0.32rem 0 0; color: #30485c; font-family: sans-serif; font-size: 0.72rem; line-height: 1.34; }
+.job-card__count { margin-top: auto; padding-top: 0.35rem; border-top: 1px solid rgb(18 35 53 / 18%); color: #28485b; font-family: sans-serif; font-size: 0.57rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.job-card__count strong { color: #122335; }
+
+.jobs-controls { display: flex; align-items: center; justify-content: center; gap: 1.25rem; padding-top: 0.25rem; }
+.jobs-controls__arrow { display: grid; width: 2rem; height: 2rem; place-items: center; border: 2px solid #087f7f; color: #087f7f; background: rgb(255 255 255 / 80%); box-shadow: 0 3px 0 rgb(8 43 59 / 25%); font-size: 1.25rem; }
+.jobs-controls__arrow:hover { color: white; background: #087f7f; }
+.jobs-controls__dots { display: flex; align-items: center; gap: 0.55rem; }
+.jobs-controls__dot { width: 0.58rem; height: 0.58rem; padding: 0; border: 2px solid #087f7f; border-radius: 50%; background: transparent; transition: transform 180ms ease, background-color 180ms ease; }
+.jobs-controls__dot.is-active { transform: scale(1.18); background: #087f7f; }
 
 .coming-soon-chain {
     position: absolute;
@@ -1230,541 +945,367 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
-    .jobs-stage::before,
-    .jobs-stage::after {
-        width: 28px;
-    }
+    .jobs-heading { align-items: start; gap: 0.5rem; margin-bottom: 0.65rem; }
+    .jobs-heading__eyebrow { margin-bottom: 0.45rem; font-size: 0.4rem; }
+    .jobs-heading__eyebrow::before { width: 1.25rem; }
+    .jobs-heading__copy h2 { max-width: 19rem; font-size: clamp(0.82rem, 4vw, 1.1rem); line-height: 1.55; }
+    .jobs-heading__description { max-width: 24rem; margin-top: 0.35rem; font-size: 0.76rem; }
+    .jobs-heading__link { gap: 0.25rem; margin-top: 1.35rem; font-size: 0.72rem; }
+    .jobs-heading__link span { font-size: 1rem; }
 
     .jobs-carousel {
         scroll-snap-type: x proximity;
     }
 
+    .job-card {
+        width: clamp(190px, 62vw, 230px);
+        height: 290px;
+    }
+
     .job-card--focus {
-        transform: scale(1.06);
+        transform: scale(1.06) translateY(-2px);
     }
 
     .job-card--side {
         transform: scale(0.92);
-        opacity: 0.74;
+        opacity: 1;
     }
 
     .job-card {
         scroll-snap-stop: normal;
     }
+    .job-card__art { height: 7rem; }
+    .job-card__title { font-size: 0.48rem; }
+    .job-card__description { font-size: 0.68rem; }
+    .jobs-controls { padding-top: 0; }
 }
 
-.path-star {
-    left: 0;
-    opacity: 0;
-    animation: path-star-move 3.6s linear infinite;
+/* Featured mentor cards */
+.mentor-section__inner { width: 100%; max-width: 72rem; }
+.mentor-section__header { margin-bottom: 1.5rem; text-align: center; }
+.mentor-section__title { display: inline-flex; align-items: center; justify-content: center; gap: clamp(0.75rem, 2vw, 1.5rem); margin: 0; color: #087f7f; font-size: clamp(9px, 1.1vw, 12px); letter-spacing: 0.16em; line-height: 1.8; text-transform: uppercase; }
+.mentor-section__title::before,
+.mentor-section__title::after { width: clamp(2.5rem, 8vw, 6rem); height: 2px; background: #087f7f; content: ''; }
+.mentor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 360px)); justify-content: center; gap: 1.5rem; }
+.mentor-card { position: relative; width: 100%; max-width: 360px; height: 520px; margin-inline: auto; perspective: 1200px; }
+.mentor-card__inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 580ms cubic-bezier(0.2, 0.72, 0.25, 1); }
+.mentor-card.is-expanded { z-index: 3; }
+.mentor-card.is-expanded .mentor-card__inner { transform: rotateY(180deg); }
+.mentor-card__face { position: absolute; inset: 0; overflow: hidden; border: 3px solid #071e31; background: #083047; box-shadow: inset 0 0 0 3px #0d8290, inset 0 0 0 6px #061b2c; backface-visibility: hidden; clip-path: polygon(12px 0, calc(100% - 12px) 0, calc(100% - 12px) 4px, calc(100% - 4px) 4px, calc(100% - 4px) 12px, 100% 12px, 100% calc(100% - 12px), calc(100% - 4px) calc(100% - 12px), calc(100% - 4px) calc(100% - 4px), calc(100% - 12px) calc(100% - 4px), calc(100% - 12px) 100%, 12px 100%, 12px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 12px), 0 calc(100% - 12px), 0 12px, 4px 12px, 4px 4px, 12px 4px); }
+.mentor-card__front { display: flex; flex-direction: column; padding: 13px; transform: rotateY(0deg); background: linear-gradient(180deg, #0b3a52, #06263b 70%); }
+.mentor-card__back { display: flex; flex-direction: column; padding: 1.25rem 1.35rem; transform: rotateY(180deg); background: #061b2e; color: #f2f8fb; }
+.mentor-card__flip-trigger { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.mentor-card__flip-trigger:focus-visible { outline: 3px solid #4ed4d4; outline-offset: -8px; }
+.mentor-card__photo-frame { position: relative; z-index: 2; display: flex; min-height: 0; flex: 1; align-items: center; justify-content: center; overflow: hidden; margin: 0.6rem 0.25rem 0; border: 2px solid rgb(78 212 212 / 55%); background: #081d2f; pointer-events: none; }
+.mentor-card__photo { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 35%; }
+.mentor-card__photo-fallback { display: grid; width: 100%; height: 100%; place-items: center; color: #8eced4; background: #0b2b40; font-size: 4rem; }
+.mentor-card__footer { position: relative; z-index: 2; display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; margin-top: -1.15rem; pointer-events: none; }
+.mentor-card__name { max-width: calc(100% - 1rem); margin: 0; padding: 0.55rem 1.2rem; overflow-wrap: anywhere; border: 3px solid #896b3d; color: #122335; background: #fff0c9; clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px); font-size: clamp(10px, 1vw, 13px); line-height: 1.6; text-align: center; text-transform: uppercase; }
+.mentor-card__front-specialty { margin: 0.55rem 0 0.6rem; color: #e3f2f5; font-family: sans-serif; font-size: 0.95rem; line-height: 1.4; text-align: center; }
+.mentor-card__profile-link { position: relative; z-index: 3; display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 0.55rem; padding: 0.55rem 1.15rem; border: 2px solid #4ed4d4; color: #fff; background: #087f7f; clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px); font-family: sans-serif; font-size: 0.95rem; font-weight: 700; pointer-events: auto; text-decoration: none; }
+.mentor-card__profile-link:hover { background: #087f7f; }
+.mentor-card__profile-link:focus-visible,
+.mentor-card__return:focus-visible { outline: 3px solid #4ed4d4; outline-offset: 3px; }
+.mentor-card__back-header { display: flex; flex: 0 0 auto; align-items: flex-start; justify-content: space-between; gap: 1rem; padding-bottom: 0.85rem; border-bottom: 1px solid rgb(78 212 212 / 38%); }
+.mentor-card__back-title { display: grid; gap: 0.55rem; }
+.mentor-card__back-title h3 { margin: 0; color: #f2f8fb; font-size: 0.78rem; line-height: 1.6; text-transform: uppercase; overflow-wrap: anywhere; }
+.mentor-card__badge { width: fit-content; padding: 0.25rem 0.65rem; border: 1px solid #a9dce1; color: #f2f8fb; background: #0d5267; clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px); font-family: sans-serif; font-size: 0.78rem; font-weight: 700; }
+.mentor-card__return { display: grid; width: 2.5rem; height: 2.5rem; flex: 0 0 auto; place-items: center; border: 2px solid #4ed4d4; color: #f2f8fb; background: #087f7f; cursor: pointer; font-size: 1.4rem; }
+.mentor-card__back-content { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 1rem; overflow-y: auto; padding: 0.9rem 0.1rem 0.25rem; font-family: sans-serif; }
+.mentor-card__bio-block { padding: 0.1rem 0 0.75rem 0.85rem; border-left: 2px solid #21b9c0; border-bottom: 1px solid rgb(78 212 212 / 28%); }
+.mentor-card__bio-block h4,
+.mentor-card__skills h4 { margin: 0 0 0.4rem; color: #4ed4d4; font-family: 'Press Start 2P', cursive; font-size: 0.5rem; line-height: 1.7; text-transform: uppercase; }
+.mentor-card__bio-block p { margin: 0; color: #e4edf3; font-size: 0.9rem; line-height: 1.45; white-space: pre-line; }
+.mentor-card__facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
+.mentor-card__facts > div { min-width: 0; padding: 0.5rem 0.65rem 0.55rem 0; }
+.mentor-card__facts > div:nth-child(2n) { padding-left: 0.7rem; border-left: 1px solid rgb(78 212 212 / 38%); }
+.mentor-card__facts > div:nth-child(n + 3) { border-top: 1px solid rgb(78 212 212 / 28%); }
+.mentor-card__facts dt { margin-bottom: 0.25rem; color: #65d7dc; font-size: 0.68rem; line-height: 1.4; text-transform: uppercase; }
+.mentor-card__facts dd { margin: 0; color: #f1f5f9; font-size: 0.84rem; line-height: 1.4; overflow-wrap: anywhere; }
+.mentor-card__skills { padding-top: 0.8rem; border-top: 1px solid rgb(78 212 212 / 28%); }
+.mentor-card__skill-list { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.mentor-card__skill-list span { padding: 0.3rem 0.6rem; border: 1px solid #99cbd4; color: #edf7fa; background: #12364a; clip-path: polygon(5px 0, calc(100% - 5px) 0, 100% 5px, 100% calc(100% - 5px), calc(100% - 5px) 100%, 5px 100%, 0 calc(100% - 5px), 0 5px); font-size: 0.72rem; line-height: 1.4; }
+.mentor-card__empty-details { margin: auto 0; color: #cfdee8; font-size: 0.9rem; line-height: 1.5; text-align: center; }
+.mentor-empty-state { padding: 2rem 1rem; border: 1px solid rgb(8 127 127 / 35%); color: #17364a; background: rgb(255 255 255 / 45%); text-align: center; }
+@media (max-width: 767px) {
+    .mentor-grid { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+    .mentor-card { width: min(100%, 360px); height: 500px; }
+    .mentor-card__front { padding: 10px; }
+    .mentor-card__back { padding: 1rem; }
+    .mentor-card__front-specialty { font-size: 0.88rem; }
+    .mentor-card__facts dd { font-size: 0.8rem; }
 }
-
-.path-star-2 {
-    animation-delay: 1.8s;
+@media (prefers-reduced-motion: reduce) {
+    .mentor-card__inner { transition-duration: 1ms; }
 }
-
-@keyframes path-star-move {
-    0% {
-        left: 0;
-        opacity: 0;
-    }
-    10% {
-        opacity: 1;
-    }
-    90% {
-        opacity: 1;
-    }
-    100% {
-        left: calc(100% - 12px);
-        opacity: 0;
-    }
-}
-/* Mentor Card - Match Reference */
-.mentor-card {
-    width: 220px;
-    height: 340px;
-    max-width: none;
-    flex: 0 0 auto;
-    position: relative;
-    perspective: 900px;
-    --mentor-outer-from: #5a3a8b;
-    --mentor-outer-to: #311e4f;
-    --mentor-header-from: #2a184f;
-    --mentor-header-mid: #4b2a76;
-    --mentor-header-to: #6b3b9c;
-    --mentor-panel-bg: #231538;
-    --mentor-body-bg: #1c1230;
-    --mentor-border: rgba(196, 181, 253, 0.5);
-    --mentor-badge-from: rgba(99, 102, 241, 0.35);
-    --mentor-badge-to: rgba(217, 70, 239, 0.35);
-    --mentor-accent: #c4b5fd;
-    --mentor-accent-glow: rgba(196, 181, 253, 0.8);
-    --mentor-text-glow: rgba(167, 139, 250, 0.6);
-}
-
-@media (min-width: 768px) {
-    .mentor-card {
-        width: 260px;
-        height: 360px;
-    }
-
-    .mentor-card__header {
-        min-height: 44px;
-        font-size: 9px;
-        letter-spacing: 0.85px;
-    }
-
-    .mentor-card__footer {
-        font-size: 9px;
-        letter-spacing: 0.65px;
-    }
-}
-
-.mentor-card__inner {
-    height: 100%;
-    border-radius: 0;
-    background: linear-gradient(180deg, var(--mentor-outer-from) 0%, var(--mentor-outer-to) 100%);
-    box-shadow: 0 12px 24px rgba(7, 6, 18, 0.6);
-    padding: 6px;
-    transform-style: preserve-3d;
-    position: relative;
-    transition: transform 600ms ease;
-}
-
-.mentor-card__header {
-    min-height: 42px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 6px 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.55);
-    background: rgba(0, 0, 0, 0.18);
-    color: #ffffff;
-    text-transform: uppercase;
-    font-weight: 700;
-    font-size: 8px;
-    letter-spacing: 0.7px;
-    line-height: 1.25;
-}
-
-.mentor-card__icon {
-    position: absolute;
-    left: 12px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.72);
-    display: grid;
-    place-items: center;
-    font-size: 10px;
-}
-
-.mentor-card__title {
-    padding: 0 8px 0 34px;
-    text-align: center;
-    display: -webkit-box;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: normal;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-}
-
-.mentor-card__body {
-    flex: 1;
-    margin: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.58);
-    border-radius: 0;
-    background: rgba(0, 0, 0, 0.16);
-    overflow: hidden;
-}
-
-.mentor-card__photo {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-}
-
-.mentor-card__photo--empty {
-    background: rgba(0, 0, 0, 0.16);
-}
-
-.mentor-card__footer {
-    height: 44px;
-    margin: 0 8px 8px;
-    border: 1px solid rgba(255, 255, 255, 0.58);
-    border-radius: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 76px 0 10px;
-    background: rgba(0, 0, 0, 0.2);
-    color: #ffffff;
-    text-transform: uppercase;
-    font-weight: 700;
-    font-size: 8px;
-    letter-spacing: 0.5px;
-    position: relative;
-}
-
-.mentor-card__role {
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.mentor-card__stars {
-    position: absolute;
-    right: 10px;
-    top: -10px;
-    background: rgba(0, 0, 0, 0.38);
-    padding: 4px 8px;
-    border-radius: 0;
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    display: flex;
-    gap: 2px;
-    font-size: 8px;
-    color: #ffffff;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-}
-
-.mentor-card__badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 1px 6px;
-    border-radius: 999px;
-    color: #efe7ff;
-    background: linear-gradient(90deg, var(--mentor-badge-from), var(--mentor-badge-to));
-    border: 1px solid var(--mentor-border);
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.35);
-    text-shadow: 0 0 6px var(--mentor-text-glow);
-}
-
-.mentor-card__badge::before {
-    content: '';
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--mentor-accent);
-    box-shadow: 0 0 6px var(--mentor-accent-glow);
-}
-
-.mentor-card__front {
-    position: absolute;
-    inset: 6px;
-    border-radius: 0;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.12));
-    display: flex;
-    flex-direction: column;
-    backface-visibility: hidden;
-    transform: rotateY(0deg);
-}
-
-/* Bagian Detail yang akan slide ke atas */
-.mentor-card__overlay {
-    position: absolute;
-    inset: 6px;
-    border-radius: 0;
-    background:
-        linear-gradient(180deg, rgba(2, 6, 23, 0.92), rgba(15, 23, 42, 0.88)),
-        linear-gradient(180deg, var(--mentor-outer-from), var(--mentor-outer-to));
-    transform: rotateY(180deg);
-    z-index: 30;
-    display: flex;
-    flex-direction: column;
-    padding: 1.25rem;
-    backface-visibility: hidden;
-}
-
-/* Animasi halus untuk konten di dalam overlay */
-.mentor-card__overlay-content {
-    opacity: 0;
-    transform: translateY(20px);
-    transition: all 0.4s ease 0.2s; /* delay sedikit agar slide selesai dulu */
-}
-
-.mentor-card.is-expanded .mentor-card__overlay-content {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.mentor-card.is-expanded .mentor-card__inner {
-    transform: rotateY(180deg) scale(1.02);
-}
-
-.mentor-card.is-expanded {
-    z-index: 20;
-}
-
-.mentor-bio {
-    white-space: pre-line;
-}
-
-.mentor-card--sky {
-    --mentor-outer-from: #075985;
-    --mentor-outer-to: #0e7490;
-    --mentor-header-from: #0b3f5c;
-    --mentor-header-mid: #0e7490;
-    --mentor-header-to: #22d3ee;
-    --mentor-panel-bg: #0b2533;
-    --mentor-body-bg: #0c2e3f;
-    --mentor-border: rgba(125, 211, 252, 0.55);
-    --mentor-badge-from: rgba(14, 165, 233, 0.4);
-    --mentor-badge-to: rgba(6, 182, 212, 0.4);
-    --mentor-accent: #7dd3fc;
-    --mentor-accent-glow: rgba(125, 211, 252, 0.75);
-    --mentor-text-glow: rgba(125, 211, 252, 0.6);
-}
-
-.mentor-card--indigo {
-    --mentor-outer-from: #3730a3;
-    --mentor-outer-to: #6d28d9;
-    --mentor-header-from: #312e81;
-    --mentor-header-mid: #5b21b6;
-    --mentor-header-to: #a855f7;
-    --mentor-panel-bg: #24154a;
-    --mentor-body-bg: #2d1b5a;
-    --mentor-border: rgba(196, 181, 253, 0.6);
-    --mentor-badge-from: rgba(99, 102, 241, 0.4);
-    --mentor-badge-to: rgba(168, 85, 247, 0.4);
-    --mentor-accent: #c4b5fd;
-    --mentor-accent-glow: rgba(196, 181, 253, 0.8);
-    --mentor-text-glow: rgba(196, 181, 253, 0.6);
-}
-
-.mentor-card--emerald {
-    --mentor-outer-from: #065f46;
-    --mentor-outer-to: #0f766e;
-    --mentor-header-from: #064e3b;
-    --mentor-header-mid: #0f766e;
-    --mentor-header-to: #34d399;
-    --mentor-panel-bg: #0b2f28;
-    --mentor-body-bg: #0d3a32;
-    --mentor-border: rgba(110, 231, 183, 0.6);
-    --mentor-badge-from: rgba(16, 185, 129, 0.4);
-    --mentor-badge-to: rgba(45, 212, 191, 0.4);
-    --mentor-accent: #6ee7b7;
-    --mentor-accent-glow: rgba(110, 231, 183, 0.8);
-    --mentor-text-glow: rgba(110, 231, 183, 0.6);
-}
-
-.mentor-card--cyan {
-    --mentor-outer-from: #155e75;
-    --mentor-outer-to: #1d4ed8;
-    --mentor-header-from: #0f4c5f;
-    --mentor-header-mid: #1d4ed8;
-    --mentor-header-to: #38bdf8;
-    --mentor-panel-bg: #0b2a3a;
-    --mentor-body-bg: #0c3246;
-    --mentor-border: rgba(125, 211, 252, 0.55);
-    --mentor-badge-from: rgba(14, 165, 233, 0.4);
-    --mentor-badge-to: rgba(59, 130, 246, 0.4);
-    --mentor-accent: #7dd3fc;
-    --mentor-accent-glow: rgba(125, 211, 252, 0.75);
-    --mentor-text-glow: rgba(125, 211, 252, 0.6);
-}
-
 .hall-preview-shell {
     position: relative;
 }
 
-.hall-preview-panel {
-    position: relative;
-    overflow: hidden;
-    border: 2px solid rgba(103, 232, 249, 0.32);
-    background:
-        linear-gradient(145deg, rgba(2, 6, 23, 0.92), rgba(15, 23, 42, 0.88)),
-        linear-gradient(125deg, rgba(6, 182, 212, 0.16), rgba(59, 130, 246, 0.12));
-    padding: 1.15rem;
-    box-shadow: 0 14px 30px rgba(2, 6, 23, 0.32);
+.hall-section__header {
+    max-width: 58rem;
 }
 
-.hall-preview-panel__glow {
-    position: absolute;
-    width: 260px;
-    height: 260px;
-    border-radius: 999px;
-    filter: blur(62px);
-    opacity: 0.12;
-    pointer-events: none;
-    animation: hall-aurora 7.5s ease-in-out infinite;
-}
-
-.hall-preview-panel__glow--one {
-    top: -150px;
-    right: -60px;
-    background: #22d3ee;
-}
-
-.hall-preview-panel__glow--two {
-    bottom: -170px;
-    left: -80px;
-    background: #38bdf8;
-    animation-delay: 2.4s;
-}
-
-.hall-stat-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    border: 1px solid rgba(125, 211, 252, 0.46);
-    background: rgba(15, 23, 42, 0.74);
-    padding: 0.38rem 0.6rem;
-    font-size: 8px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: rgba(207, 250, 254, 0.92);
-}
-
-.hall-cta {
-    display: inline-flex;
+.hall-section__eyebrow {
+    display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid;
-    padding: 0.58rem 0.9rem;
-    font-size: 8px;
-    letter-spacing: 0.11em;
+    gap: clamp(0.75rem, 2vw, 1.5rem);
+    color: #087f7f;
+    font-size: clamp(8px, 1vw, 11px);
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    transition: transform 180ms ease, background-color 180ms ease, color 180ms ease, border-color 180ms ease;
 }
 
-.hall-cta:hover {
-    transform: translateY(-1px);
+.hall-section__eyebrow::before,
+.hall-section__eyebrow::after {
+    width: clamp(2.5rem, 11vw, 8rem);
+    height: 2px;
+    background: #087f7f;
+    content: '';
 }
 
-.hall-cta--primary {
-    border-color: rgba(103, 232, 249, 0.72);
-    background: rgba(14, 116, 144, 0.3);
-    color: #ecfeff;
+.hall-section__title {
+    margin-top: 0.5rem;
+    color: #122335;
+    font-size: clamp(0.95rem, 2.25vw, 1.65rem);
+    line-height: 1.65;
+    text-wrap: balance;
 }
 
-.hall-cta--primary:hover {
-    border-color: rgba(165, 243, 252, 0.92);
-    background: rgba(8, 145, 178, 0.5);
+.hall-stone-divider {
+    height: clamp(4rem, 16vw, 6rem);
+    margin: -0.75rem auto -1rem;
+    overflow: hidden;
+    pointer-events: none;
 }
 
-.hall-cta--secondary {
-    border-color: rgba(191, 219, 254, 0.6);
-    background: rgba(15, 23, 42, 0.76);
-    color: rgba(224, 242, 254, 0.94);
+.hall-stone-divider img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 36%;
+    image-rendering: pixelated;
 }
 
-.hall-cta--secondary:hover {
-    border-color: rgba(148, 163, 184, 0.86);
-    background: rgba(15, 23, 42, 0.9);
+.hall-section__description {
+    max-width: 54rem;
+    margin: 0.1rem auto 0;
+    color: #17364a;
+    font-size: clamp(0.9rem, 1.25vw, 1.15rem);
+    line-height: 1.7;
 }
 
 .hall-preview-grid {
     display: grid;
     grid-template-columns: repeat(1, minmax(0, 1fr));
-    gap: 1rem;
+    gap: 1.25rem;
 }
 
 .hall-showcase-card {
-    min-height: 295px;
-    transform: translateY(14px);
-    opacity: 0;
-    animation: hall-card-reveal 520ms ease forwards;
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    isolation: isolate;
+    padding: 4px;
+    background: transparent;
+    filter: drop-shadow(0 4px 5px rgba(18, 51, 69, 0.18));
+    transition: transform 180ms ease, filter 180ms ease;
+}
+
+.hall-showcase-card::before,
+.hall-showcase-card::after {
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    content: '';
+    clip-path: polygon(
+        8px 0, calc(100% - 8px) 0,
+        calc(100% - 8px) 4px, calc(100% - 4px) 4px,
+        calc(100% - 4px) 8px, 100% 8px,
+        100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px),
+        calc(100% - 4px) calc(100% - 4px), calc(100% - 8px) calc(100% - 4px),
+        calc(100% - 8px) 100%, 8px 100%,
+        8px calc(100% - 4px), 4px calc(100% - 4px),
+        4px calc(100% - 8px), 0 calc(100% - 8px),
+        0 8px, 4px 8px, 4px 4px, 8px 4px
+    );
+}
+
+.hall-showcase-card::before {
+    inset: 0;
+    background: #087f7f;
+}
+
+.hall-showcase-card::after {
+    inset: 3px;
+    background: #fffaf0;
 }
 
 .hall-showcase-card:hover {
-    transform: translateY(-4px);
+    transform: translateY(-3px);
+    filter: drop-shadow(0 8px 9px rgba(18, 51, 69, 0.22));
 }
 
-.hall-showcase-card__shine {
+.hall-showcase-card__thumbnail {
+    aspect-ratio: 2 / 1;
+    overflow: hidden;
+    border-bottom: 1px solid rgba(8, 127, 127, 0.25);
+    background: #dceff4;
+}
+
+.hall-showcase-card__featured {
     position: absolute;
-    top: -50%;
-    left: -120%;
-    width: 45%;
-    height: 200%;
-    background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.25), transparent);
-    transform: rotate(16deg);
-    transition: left 420ms ease;
-    pointer-events: none;
+    z-index: 2;
+    top: 0.65rem;
+    left: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid #9a6c00;
+    background: #ffcf3f;
+    padding: 0.4rem 0.65rem;
+    color: #122335;
+    font-size: 8px;
+    text-transform: uppercase;
 }
 
-.hall-showcase-card:hover .hall-showcase-card__shine {
-    left: 140%;
+.hall-showcase-card__featured i {
+    font-size: 0.8rem;
+}
+
+.hall-showcase-card__body {
+    display: flex;
+    min-height: 122px;
+    flex: 1;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 0.85rem 0.7rem;
+    color: #122335;
+}
+
+.hall-showcase-card__title {
+    overflow: hidden;
+    color: #122335;
+    font-size: clamp(10px, 1.2vw, 15px);
+    line-height: 1.7;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hall-showcase-card__creator {
+    overflow: hidden;
+    margin-top: 0.35rem;
+    color: #315b66;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hall-showcase-card__footer,
+.hall-showcase-card__stats,
+.hall-showcase-card__stats > span,
+.hall-showcase-card__link {
+    display: inline-flex;
+    align-items: center;
+}
+
+.hall-showcase-card__footer {
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-top: 1px solid rgba(8, 127, 127, 0.2);
+    padding-top: 0.75rem;
+}
+
+.hall-showcase-card__stats {
+    gap: 0.85rem;
+    color: #17364a;
+    font-size: 0.9rem;
+}
+
+.hall-showcase-card__stats > span {
+    gap: 0.35rem;
+}
+
+.hall-showcase-card__stats i {
+    color: #cf4b63;
+    font-size: 1rem;
+}
+
+.hall-showcase-card__stats > span:nth-child(2) i {
+    color: #287da0;
+}
+
+.hall-showcase-card__link {
+    min-height: 40px;
+    justify-content: center;
+    gap: 0.45rem;
+    border: 2px solid #087f7f;
+    border-radius: 0;
+    padding: 0.5rem 0.65rem;
+    color: #087f7f;
+    background: #f4ffff;
+    clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
+    box-shadow: 0 3px 0 #075e63;
+    font-size: 9px;
+    text-transform: uppercase;
+    transition: color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.hall-showcase-card__link:hover {
+    transform: translateY(-1px);
+    background: #087f7f;
+    color: white;
+}
+
+.hall-showcase-card__link:focus-visible,
+.hall-main-cta:focus-visible {
+    outline: 3px solid #122335;
+    outline-offset: 3px;
+}
+
+.hall-main-cta {
+    min-height: 48px;
+    font-size: clamp(0.68rem, 1.25vw, 0.9rem);
 }
 
 .hall-empty-state {
-    display: flex;
-    align-items: center;
-    gap: 0.85rem;
-    border: 1px dashed rgba(125, 211, 252, 0.44);
-    background: rgba(2, 6, 23, 0.35);
-    padding: 1rem;
-}
-
-.hall-empty-state__icon-wrap {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 3rem;
-    height: 3rem;
-    border: 1px solid rgba(125, 211, 252, 0.45);
-    background: rgba(8, 47, 73, 0.45);
+    padding: 2rem 1rem;
+    color: #17364a;
+    font-size: 0.95rem;
+    text-align: center;
 }
 
 @media (min-width: 768px) {
-    .hall-preview-panel {
-        padding: 1.35rem;
-    }
-
     .hall-preview-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
+    .hall-section__title {
+        white-space: nowrap;
+    }
+
+    .hall-stone-divider {
+        height: clamp(6rem, 11vw, 9rem);
+        margin: -2.5rem auto -2rem;
+    }
 }
 
-@media (min-width: 1280px) {
+@media (min-width: 1024px) {
     .hall-preview-grid {
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-    }
-}
-
-@keyframes hall-aurora {
-    0%, 100% {
-        transform: translate3d(0, 0, 0) scale(1);
-    }
-    50% {
-        transform: translate3d(10px, -8px, 0) scale(1.08);
-    }
-}
-
-@keyframes hall-card-reveal {
-    from {
-        transform: translateY(14px);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .hall-preview-panel__glow,
     .hall-showcase-card {
-        animation: none;
-    }
-
-    .hall-showcase-card,
-    .hall-showcase-card:hover,
-    .hall-cta:hover,
-    .hall-showcase-card__shine {
         transform: none;
         transition: none;
-    }
-
-    .hall-showcase-card__shine,
-    .hall-showcase-card:hover .hall-showcase-card__shine {
-        left: -120%;
     }
 }
 
