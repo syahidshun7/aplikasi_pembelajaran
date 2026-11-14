@@ -246,7 +246,7 @@ const partyLabelForQuest = (quest) => {
                     (isLateUnsubmitted(quest)) ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.2)]' :
                     (quest.status === 'In-Progress') ? 'border-slate-500 bg-slate-900/50' :
                     quest.user_has_submitted ? 'border-yellow-600 shadow-[0_0_10px_rgba(202,138,4,0.2)]' : 'border-slate-700 hover:border-[#009999]',
-                    { 'lobby-preview-extra': index >= 6 }
+                    { 'lobby-preview-extra': index >= 4 }
                 ]"
             >
                 <div class="mb-2 flex items-start justify-between gap-2">
