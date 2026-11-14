@@ -87,7 +87,7 @@ const hiddenNewItemCount = computed(() => {
                 v-for="(group, index) in items"
                 :key="group.uuid"
                 class="flex min-w-0 flex-col gap-2 border border-slate-800 bg-[#0d1117] p-3 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
-                :class="{ 'lobby-preview-extra': index >= 4 }"
+                :class="{ 'lobby-preview-extra': index >= 8 }"
             >
                 <div class="flex min-w-0 flex-wrap items-center gap-2">
                     <h3 class="min-w-0 break-words text-[9px] uppercase text-white">{{ group.name }}</h3>

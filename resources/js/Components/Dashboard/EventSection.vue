@@ -108,7 +108,10 @@ const hiddenNewItemCount = computed(() => {
                 v-for="(event, index) in eventItemsWithTone"
                 :key="event.uuid"
                 class="event-card flex h-full min-w-0 flex-col border p-4 shadow-[0_12px_22px_rgba(3,8,16,0.34)]"
-                :class="{ 'lobby-preview-extra': index >= 5 }"
+                :class="{
+                    'lobby-preview-extra': index >= 6,
+                    'lobby-preview-extra-desktop': index >= 5,
+                }"
                 :style="event.__tone_style"
             >
                 <div class="flex flex-wrap items-center justify-between gap-2">

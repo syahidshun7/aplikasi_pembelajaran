@@ -334,7 +334,7 @@ const eventItems = computed(() => {
         });
 });
 
-const upcomingEventPreview = computed(() => eventItems.value.slice(0, 5));
+const upcomingEventPreview = computed(() => eventItems.value.slice(0, 10));
 const contentTypeByPayloadKey = {
     quest: 'quest',
     guide: 'guide',
@@ -983,6 +983,12 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1279px) {
     .dashboard-focus-shell :deep(.lobby-preview-extra) {
+        display: none !important;
+    }
+}
+
+@media (min-width: 1280px) {
+    .dashboard-focus-shell :deep(.lobby-preview-extra-desktop) {
         display: none !important;
     }
 }
